@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pax · Echo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: #0a0a0b;
+    color: #c9d1d9;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    gap: 16px;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header h1 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f0f0f0;
+    letter-spacing: -0.02em;
+  }
+  .header .badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #1a1a2e;
+    color: #7aa2f7;
+    font-weight: 500;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #3fb950;
+  }
+  .status-dot.off { background: #333; }
+
+  .grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+    gap: 16px;
+    min-height: 0;
+  }
+  .panel {
+    background: #0d0d0f;
+    border: 1px solid #1e1e24;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6e7681;
+    border-bottom: 1px solid #1e1e24;
+    background: #0a0a0c;
+  }
+  .panel-body {
+    flex: 1;
+    padding: 12px;
+    min-height: 0;
+  }
+  textarea {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    border: none;
+    color: #c9d1d9;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.6;
+    resize: none;
+    outline: none;
+  }
+  textarea::placeholder { color: #3a3d45; }
+  .response {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #7ee787;
+  }
+  .response.error { color: #f85149; }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  button {
+    background: #1f6feb;
+    color: #fff;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: -0.01em;
+    transition: background 0.15s;
+  }
+  button:hover { background: #388bfd; }
+  button:active { background: #1a5dcd; }
+  button.secondary {
+    background: #21262d;
+    color: #c9d1d9;
+    border: 1px solid #30363d;
+  }
+  button.secondary:hover { background: #30363d; }
+  .hint {
+    font-size: 11px;
+    color: #484f58;
+    margin-left: auto;
+  }
+  .endpoint {
+    font-size: 11px;
+    color: #484f58;
+    font-family: monospace;
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <span class="status-dot" id="dot"></span>
+  <h1>Pax Echo</h1>
+  <span class="badge">test</span>
+  <span class="endpoint">POST /api/echo</span>
+  <span class="hint" id="hint">Ctrl+Enter to send</span>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <div class="panel-header">Input · Request JSON</div>
+    <div class="panel-body">
+      <textarea id="input" placeholder='{"type":"chat","content":"hello world"}'></textarea>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header">Output · Response</div>
+    <div class="panel-body">
+      <div class="response" id="output"></div>
+    </div>
+  </div>
+</div>
+
+<div class="actions">
+  <button onclick="send()">Send</button>
+  <button class="secondary" onclick="clearAll()">Clear</button>
+</div>
+
+<script>
+const input = document.getElementById('input');
+const output = document.getElementById('output');
+const dot = document.getElementById('dot');
+const hint = document.getElementById('hint');
+
+// Ctrl+Enter to send
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    send();
+  }
+});
+
+// Load saved input from localStorage
+const saved = localStorage.getItem('pax-echo-input');
+if (saved) input.value = saved;
+
+async function send() {
+  const text = input.value.trim();
+  if (!text) return;
+
+  // Validate JSON
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch (e) {
+    output.className = 'response error';
+    output.textContent = `JSON Parse Error: ${e.message}`;
+    dot.className = 'status-dot off';
+    return;
+  }
+
+  // Save
+  localStorage.setItem('pax-echo-input', text);
+
+  // Send
+  dot.className = 'status-dot off';
+  hint.textContent = 'sending…';
+  output.textContent = '…';
+
+  try {
+    const res = await fetch('/api/echo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: text,
+    });
+    const data = await res.json();
+
+    output.className = 'response';
+    output.textContent = JSON.stringify(data, null, 2);
+    dot.className = 'status-dot';
+    hint.textContent = `HTTP ${res.status} · ${new Date().toLocaleTimeString()}`;
+  } catch (e) {
+    output.className = 'response error';
+    output.textContent = `Fetch Error: ${e.message}`;
+    dot.className = 'status-dot off';
+    hint.textContent = 'error';
+  }
+}
+
+function clearAll() {
+  input.value = '';
+  output.textContent = '';
+  localStorage.removeItem('pax-echo-input');
+  dot.className = 'status-dot off';
+  hint.textContent = 'cleared';
+}
+</script>
+</body>
+</html>

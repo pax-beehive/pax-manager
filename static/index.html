@@ -3,117 +3,41 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>pax-manager — Test Dashboard</title>
+<title>pax-manager · Dashboard</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0a0a0a;
-    color: #e0e0e0;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-  header {
-    background: #111;
-    border-bottom: 1px solid #222;
-    padding: 12px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  header h1 { font-size: 16px; font-weight: 600; color: #fff; }
-  .status { font-size: 12px; padding: 4px 10px; border-radius: 12px; }
-  .status.online { background: #0f3; color: #000; }
-  .status.offline { background: #333; color: #888; }
-  main {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-  }
-  .sidebar {
-    width: 240px;
-    background: #0d0d0d;
-    border-right: 1px solid #222;
-    padding: 16px;
-    overflow-y: auto;
-  }
-  .sidebar h3 { font-size: 12px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
-  .agent-item {
-    padding: 8px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    margin-bottom: 4px;
-  }
-  .agent-item:hover { background: #1a1a1a; }
-  .agent-item.active { background: #1a3a5c; color: #6af; }
-  .agent-item .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
-  .agent-item .dot.online { background: #0f3; }
-  .chat-area {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-  .messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .msg {
-    max-width: 70%;
-    padding: 10px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-  .msg.user { align-self: flex-end; background: #1a3a5c; color: #cde; }
-  .msg.assistant { align-self: flex-start; background: #1a1a1a; color: #ddd; }
-  .msg.tool { align-self: flex-start; background: #1a1f0a; color: #8a8; font-size: 11px; font-family: monospace; }
-  .msg.status {
-    align-self: center;
-    background: transparent;
-    color: #555;
-    font-size: 11px;
-    padding: 4px;
-  }
-  .input-area {
-    border-top: 1px solid #222;
-    padding: 12px 20px;
-    display: flex;
-    gap: 8px;
-  }
-  .input-area input {
-    flex: 1;
-    background: #111;
-    border: 1px solid #333;
-    border-radius: 6px;
-    padding: 10px 14px;
-    color: #e0e0e0;
-    font-size: 13px;
-    outline: none;
-  }
-  .input-area input:focus { border-color: #6af; }
-  .input-area button {
-    background: #1a3a5c;
-    border: none;
-    color: #cde;
-    padding: 10px 20px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-  }
-  .input-area button:hover { background: #245080; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e0e0e0;height:100vh;display:flex;flex-direction:column}
+  header{background:#111;border-bottom:1px solid #222;padding:12px 20px;display:flex;align-items:center;justify-content:space-between}
+  header h1{font-size:16px;font-weight:600;color:#fff}
+  .status{font-size:12px;padding:4px 10px;border-radius:12px}
+  .status.online{background:#0f3;color:#000}
+  .status.offline{background:#333;color:#888}
+  main{flex:1;display:flex;overflow:hidden}
+  .sidebar{width:240px;background:#0d0d0d;border-right:1px solid #222;padding:16px;overflow-y:auto}
+  .sidebar h3{font-size:12px;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
+  .agent-item{padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:4px}
+  .agent-item:hover{background:#1a1a1a}
+  .agent-item.active{background:#1a3a5c;color:#6af}
+  .agent-item .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px}
+  .agent-item .dot.online{background:#0f3}
+  .chat-area{flex:1;display:flex;flex-direction:column}
+  .messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:8px}
+  .msg{max-width:70%;padding:10px 14px;border-radius:8px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .msg.user{align-self:flex-end;background:#1a3a5c;color:#cde}
+  .msg.assistant{align-self:flex-start;background:#1a1a1a;color:#ddd}
+  .msg.tool{align-self:flex-start;background:#1a1f0a;color:#8a8;font-size:11px;font-family:monospace}
+  .msg.status{align-self:center;background:transparent;color:#555;font-size:11px;padding:4px}
+  .input-area{border-top:1px solid #222;padding:12px 20px;display:flex;gap:8px}
+  .input-area input{flex:1;background:#111;border:1px solid #333;border-radius:6px;padding:10px 14px;color:#e0e0e0;font-size:13px;outline:none}
+  .input-area input:focus{border-color:#6af}
+  .input-area button{background:#1a3a5c;border:none;color:#cde;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:13px}
+  .input-area button:hover{background:#245080}
 </style>
 </head>
 <body>
 <header>
-  <h1>🧪 pax-manager · Test Dashboard</h1>
+  <h1>🧪 pax-manager · Dashboard</h1>
+  <span id="sessionInfo" style="font-size:11px;color:#555;font-family:monospace;margin-right:12px">no session</span>
   <span class="status offline" id="connStatus">disconnected</span>
 </header>
 <main>
@@ -129,27 +53,22 @@
     </div>
   </div>
 </main>
-
 <script>
 const wsUrl = 'ws://' + location.host + '/ws';
 let ws;
 let selectedAgent = null;
+let pendingDelta = null;
+let pendingTurnId = null;
+let currentSessionId = null;
 
-function connect() {
+function connect(){
   ws = new WebSocket(wsUrl);
-
   ws.onopen = () => {
     document.getElementById('connStatus').textContent = 'connected';
     document.getElementById('connStatus').className = 'status online';
-    // First message: identify as UI (list_projects style)
-    ws.send(JSON.stringify({type: 'list_projects'}));
+    ws.send(JSON.stringify({type:'list_projects'}));
   };
-
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    handleMessage(msg);
-  };
-
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
   ws.onclose = () => {
     document.getElementById('connStatus').textContent = 'disconnected';
     document.getElementById('connStatus').className = 'status offline';
@@ -157,128 +76,132 @@ function connect() {
   };
 }
 
-function handleMessage(msg) {
+function flushDelta(){
+  pendingDelta = null;
+  pendingTurnId = null;
+}
+
+function handleMessage(msg){
   const msgs = document.getElementById('messages');
-  const div = document.createElement('div');
-  div.className = 'msg';
 
-  // Agent registration
-  if (msg.type === 'agent_online') {
-    addAgent(msg.agentId || msg.name, msg.agentType, msg.hostname);
-    div.className = 'msg status';
-    div.textContent = `🟢 ${msg.name || msg.agentId} online (${msg.agentType})`;
-    msgs.appendChild(div);
-    msgs.scrollTop = msgs.scrollHeight;
-    return;
-  }
-  if (msg.type === 'agent_offline') {
-    removeAgent(msg.agentId);
-    div.className = 'msg status';
-    div.textContent = `⚫ ${msg.agentId} offline`;
-    msgs.appendChild(div);
-    msgs.scrollTop = msgs.scrollHeight;
-    return;
+  if(msg.sessionId && !currentSessionId){
+    currentSessionId = msg.sessionId;
+    document.getElementById('sessionInfo').textContent = currentSessionId.slice(0,16) + '\u2026';
+    document.getElementById('sessionInfo').style.color = '#3fb950';
   }
 
-  // Model events from agent
-  if (msg.entity_type === 'agent' && msg.event_type === 'status') {
-    div.className = 'msg status';
-    div.textContent = `${msg.icon || ''} ${msg.label} ${msg.detail || ''}`;
-    msgs.appendChild(div);
+  if(msg.type === 'agent_list'){
+    const agents = msg.agents || [];
+    let html = '';
+    agents.forEach(a => {
+      const active = selectedAgent === a.id ? ' active' : '';
+      const dot = a.status === 'online' ? 'online' : '';
+      html += `<div class="agent-item${active}" onclick="selectAgent('${a.id}')">
+        <span class="dot ${dot}"></span>${a.name}
+        <div style="font-size:10px;color:#555;margin-left:14px">${a.platform || 'unknown'}</div>
+      </div>`;
+    });
+    document.getElementById('agentList').innerHTML = html;
+    if(agents.length === 1) selectedAgent = agents[0].id;
+    return;
+  }
+
+  if(msg.entity_type === 'turn' && msg.event_type === 'started') flushDelta();
+  if(msg.entity_type === 'turn' && msg.event_type === 'done'){
+    flushDelta();
+    const d = document.createElement('div');
+    d.className = 'msg status';
+    d.textContent = msg.status === 'completed' ? '\u2705 done' : '\u26a0 ' + msg.status;
+    msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
     return;
   }
-  if (msg.entity_type === 'message' && msg.event_type === 'delta') {
-    if (msg.role === 'tool') {
-      div.className = 'msg tool';
-    } else {
-      div.className = 'msg assistant';
+
+  if(msg.entity_type === 'agent' && msg.event_type === 'status'){
+    flushDelta();
+    const d = document.createElement('div');
+    d.className = 'msg status';
+    d.textContent = (msg.icon||'') + ' ' + (msg.label||'') + (msg.detail?' ' + msg.detail:'');
+    msgs.appendChild(d);
+    msgs.scrollTop = msgs.scrollHeight;
+    return;
+  }
+
+  if(msg.entity_type === 'message' && msg.event_type === 'delta'){
+    if(msg.role === 'tool'){
+      flushDelta();
+      const d = document.createElement('div');
+      d.className = 'msg tool';
+      d.textContent = msg.content;
+      msgs.appendChild(d);
+      msgs.scrollTop = msgs.scrollHeight;
+      return;
     }
-    div.textContent = msg.content;
-    msgs.appendChild(div);
-    msgs.scrollTop = msgs.scrollHeight;
-    return;
-  }
-  if (msg.entity_type === 'tool' && msg.event_type === 'call') {
-    div.className = 'msg tool';
-    div.textContent = `🔧 ${msg.name}: ${truncate(msg.arguments, 100)}`;
-    msgs.appendChild(div);
-    msgs.scrollTop = msgs.scrollHeight;
-    return;
-  }
-  if (msg.entity_type === 'file' && msg.event_type === 'changed') {
-    div.className = 'msg tool';
-    const paths = (msg.changes || []).map(c => c.path).join(', ');
-    div.textContent = `📁 files changed: ${paths}`;
-    msgs.appendChild(div);
+    if(!pendingDelta || pendingTurnId !== msg.turnId){
+      flushDelta();
+      pendingDelta = document.createElement('div');
+      pendingDelta.className = 'msg assistant';
+      msgs.appendChild(pendingDelta);
+      pendingTurnId = msg.turnId;
+    }
+    pendingDelta.textContent += msg.content;
     msgs.scrollTop = msgs.scrollHeight;
     return;
   }
 
-  // Legacy message types
-  if (msg.type === 'agent_message' || msg.type === 'turn_result') {
-    div.className = 'msg assistant';
-    div.textContent = msg.content || JSON.stringify(msg.events || msg, null, 2);
-    msgs.appendChild(div);
+  if(msg.entity_type === 'tool' && msg.event_type === 'call'){
+    flushDelta();
+    const d = document.createElement('div');
+    d.className = 'msg tool';
+    d.textContent = '\ud83d\udd27 ' + msg.name + ': ' + truncate(msg.arguments, 100);
+    msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
     return;
   }
-  if (msg.type === 'agent_error') {
-    div.className = 'msg tool';
-    div.textContent = '❌ ' + (msg.error || 'unknown error');
-    msgs.appendChild(div);
-    msgs.scrollTop = msgs.scrollHeight;
-    return;
-  }
-  if (msg.type === 'agent_done' || msg.type === 'agent_cancelled') {
-    div.className = 'msg status';
-    div.textContent = msg.type === 'agent_cancelled' ? '⏹️ cancelled' : '✅ done';
-    msgs.appendChild(div);
+
+  if(msg.entity_type === 'file' && msg.event_type === 'changed'){
+    flushDelta();
+    const d = document.createElement('div');
+    d.className = 'msg tool';
+    d.textContent = '\ud83d\udcc1 files: ' + (msg.changes||[]).map(c=>c.path).join(', ');
+    msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
     return;
   }
 }
 
-function addAgent(id, agentType, hostname) {
+function selectAgent(id){
   selectedAgent = id;
-  document.getElementById('agentList').innerHTML = `
-    <div class="agent-item active">
-      <span class="dot online"></span>${id}
-      <div style="font-size:10px;color:#555;margin-left:14px">${agentType || 'hermes'}</div>
-    </div>
-  `;
+  document.querySelectorAll('.agent-item').forEach(el => {
+    el.classList.toggle('active', el.textContent.trim().startsWith(id));
+  });
 }
 
-function removeAgent(id) {
-  if (selectedAgent === id) selectedAgent = null;
-  document.getElementById('agentList').innerHTML = '';
-}
-
-function send() {
+function send(){
   const input = document.getElementById('promptInput');
   const text = input.value.trim();
-  if (!text || !ws) return;
+  if(!text || !ws) return;
   input.value = '';
 
-  const msg = {
+  ws.send(JSON.stringify({
     type: 'agent_prompt',
     agentId: selectedAgent,
     prompt: text,
-  };
-  ws.send(JSON.stringify(msg));
+    sessionId: currentSessionId || ''
+  }));
 
   const msgs = document.getElementById('messages');
-  const div = document.createElement('div');
-  div.className = 'msg user';
-  div.textContent = text;
-  msgs.appendChild(div);
+  const d = document.createElement('div');
+  d.className = 'msg user';
+  d.textContent = text;
+  msgs.appendChild(d);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
-function truncate(s, n) {
-  if (!s) return '';
+function truncate(s, n){
+  if(!s) return '';
   s = String(s);
-  return s.length > n ? s.slice(0, n) + '…' : s;
+  return s.length > n ? s.slice(0, n) + '\u2026' : s;
 }
 
 connect();
