@@ -3,8 +3,6 @@ substitutions:
   _REPOSITORY: pax-manager
   _SERVICE: pax-manager
   _IMAGE: pax-manager
-  _DATABASE_URL_SECRET: pax-manager-database-url
-  _CLOUDSQL_INSTANCE: pax-manager-postgres
   _ADMIN_EMAILS: ""
   _REGISTRATION_TOKEN_OWNER_EMAIL: ""
 
@@ -39,12 +37,8 @@ steps:
       - --allow-unauthenticated
       - --port
       - "9879"
-      - --add-cloudsql-instances
-      - ${PROJECT_ID}:${_REGION}:${_CLOUDSQL_INSTANCE}
-      - --set-env-vars
+      - --update-env-vars
       - ADMIN_EMAILS=${_ADMIN_EMAILS},REGISTRATION_TOKEN_OWNER_EMAIL=${_REGISTRATION_TOKEN_OWNER_EMAIL}
-      - --set-secrets
-      - DATABASE_URL=${_DATABASE_URL_SECRET}:latest
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}

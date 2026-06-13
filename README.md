@@ -82,7 +82,10 @@ make db-reset
 ## Cloud Build
 
 `cloudbuild.yaml` builds the main Dockerfile, pushes the image to Artifact
-Registry, and deploys to Cloud Run.
+Registry, and deploys the new image to an already configured Cloud Run service.
+It does not manage the Cloud SQL mount or the `DATABASE_URL` secret. Configure
+those on the Cloud Run service once, then Cloud Build only rolls forward the
+container image.
 
 Required setup:
 
@@ -98,10 +101,6 @@ gcloud artifacts repositories create pax-manager \
   --repository-format=docker \
   --location=us-west1
 
-gcloud sql instances create pax-manager-postgres \
-  --database-version=POSTGRES_16 \
-  --region=us-west1
-
 gcloud sql databases create paxdb \
   --instance=pax-manager-postgres
 
@@ -110,14 +109,21 @@ gcloud sql users create pax \
   --password='REPLACE_WITH_STRONG_PASSWORD'
 ```
 
-Create the `DATABASE_URL` secret using the Cloud SQL Unix socket path. URL
-encode the password if it contains special characters.
+Create or update the `DATABASE_URL` secret using the Cloud SQL Unix socket path.
+The keyword/value DSN avoids URL-encoding issues in passwords.
 
 ```bash
-printf '%s' 'postgres://pax:REPLACE_WITH_URL_ENCODED_PASSWORD@/paxdb?host=/cloudsql/PROJECT_ID:us-west1:pax-manager-postgres&sslmode=disable' \
+printf '%s' 'user=pax password=REPLACE_WITH_PASSWORD dbname=paxdb host=/cloudsql/PROJECT_ID:us-west1:pax-manager-postgres sslmode=disable' \
   > /tmp/pax-manager-database-url.txt
 
 gcloud secrets create pax-manager-database-url \
+  --data-file=/tmp/pax-manager-database-url.txt
+```
+
+If the secret already exists, add a new version instead:
+
+```bash
+gcloud secrets versions add pax-manager-database-url \
   --data-file=/tmp/pax-manager-database-url.txt
 ```
 
@@ -131,11 +137,21 @@ gcloud projects add-iam-policy-binding PROJECT_ID \
   --role='roles/cloudsql.client'
 ```
 
+Configure the Cloud Run service once with the Cloud SQL mount and database
+secret:
+
+```bash
+gcloud run services update pax-manager \
+  --region=us-west1 \
+  --add-cloudsql-instances=PROJECT_ID:us-west1:pax-manager-postgres \
+  --update-secrets=DATABASE_URL=pax-manager-database-url:latest
+```
+
 Submit a build:
 
 ```bash
 gcloud builds submit \
-  --substitutions=_REGION=us-west1,_REPOSITORY=pax-manager,_SERVICE=pax-manager,_CLOUDSQL_INSTANCE=pax-manager-postgres
+  --substitutions=_REGION=us-west1,_REPOSITORY=pax-manager,_SERVICE=pax-manager
 ```
 
 The deployed service expects Cloudflare Access or another trusted ingress to
