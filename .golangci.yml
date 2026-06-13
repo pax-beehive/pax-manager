@@ -1,0 +1,70 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - gocyclo
+  settings:
+    gocyclo:
+      min-complexity: 21
+  exclusions:
+    generated: strict
+    paths:
+      - internal/manager/openapi_generated.go
+      - internal/manager/.*/mocks/.*
+      - internal/transport/http/handler/mocks/.*
+      - internal/transport/http/handler/create_agent_registration_token.go
+      - internal/transport/http/handler/create_mailbox_message.go
+      - internal/transport/http/handler/create_user_apikey.go
+      - internal/transport/http/handler/get_session.go
+      - internal/transport/http/handler/health.go
+      - internal/transport/http/handler/list_agent_sessions.go
+      - internal/transport/http/handler/list_agents.go
+      - internal/transport/http/handler/list_mailbox.go
+      - internal/transport/http/handler/list_session_messages.go
+      - internal/transport/http/handler/list_user_apikeys.go
+      - internal/transport/http/handler/pull_mailbox.go
+      - internal/transport/http/handler/register_agent.go
+      - internal/transport/http/handler/report_agent_status.go
+      - internal/transport/http/handler/report_message_result.go
+      - internal/transport/http/handler/revoke_user_apikey.go
+      - internal/transport/http/handler/update_mailbox_offset.go
+      - internal/transport/http/model/.*
+      - internal/transport/http/router/.*
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/pax-beehive/pax-manager
+  exclusions:
+    generated: strict
+    paths:
+      - internal/manager/openapi_generated.go
+      - internal/manager/.*/mocks/.*
+      - internal/transport/http/handler/mocks/.*
+      - internal/transport/http/handler/create_agent_registration_token.go
+      - internal/transport/http/handler/create_mailbox_message.go
+      - internal/transport/http/handler/create_user_apikey.go
+      - internal/transport/http/handler/get_session.go
+      - internal/transport/http/handler/health.go
+      - internal/transport/http/handler/list_agent_sessions.go
+      - internal/transport/http/handler/list_agents.go
+      - internal/transport/http/handler/list_mailbox.go
+      - internal/transport/http/handler/list_session_messages.go
+      - internal/transport/http/handler/list_user_apikeys.go
+      - internal/transport/http/handler/pull_mailbox.go
+      - internal/transport/http/handler/register_agent.go
+      - internal/transport/http/handler/report_agent_status.go
+      - internal/transport/http/handler/report_message_result.go
+      - internal/transport/http/handler/revoke_user_apikey.go
+      - internal/transport/http/handler/update_mailbox_offset.go
+      - internal/transport/http/model/.*
+      - internal/transport/http/router/.*

@@ -4,15 +4,12 @@ services:
       context: ./db
       dockerfile: Dockerfile
     image: pax-manager-postgres:local
-    container_name: pax-manager-postgres
     environment:
       POSTGRES_USER: pax
       POSTGRES_PASSWORD: pax
       POSTGRES_DB: paxdb
-    ports:
-      - "5432:5432"
     volumes:
-      - pax-manager-postgres-data:/var/lib/postgresql/data
+      - pax-manager-integration-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pax -d paxdb"]
       interval: 5s
@@ -23,7 +20,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pax-manager
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,7 +31,7 @@ services:
       ALLOW_LOCAL_USER_HEADER: "true"
       ADMIN_EMAILS: local@example.local
     ports:
-      - "9879:9879"
+      - "${INTEGRATION_PORT:-19879}:9879"
 
 volumes:
-  pax-manager-postgres-data:
+  pax-manager-integration-postgres-data:

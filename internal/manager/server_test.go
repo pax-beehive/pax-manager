@@ -1,4 +1,4 @@
-package main
+package manager
 
 import (
 	"bytes"
@@ -6,9 +6,103 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/cloudwego/hertz/pkg/common/adaptor"
 )
+
+func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+
+	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	req.Host = "api.example.com"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("openapi code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var doc struct {
+		OpenAPI string `json:"openapi"`
+		Servers []struct {
+			URL string `json:"url"`
+		} `json:"servers"`
+		Paths map[string]any `json:"paths"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc.OpenAPI != "3.1.0" {
+		t.Fatalf("openapi version = %q", doc.OpenAPI)
+	}
+	if len(doc.Servers) != 1 || doc.Servers[0].URL != "https://api.example.com" {
+		t.Fatalf("servers = %+v", doc.Servers)
+	}
+	if _, ok := doc.Paths["/api/user/api-keys"]; !ok {
+		t.Fatalf("missing /api/user/api-keys path")
+	}
+}
+
+func TestOpenAPIUI(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+
+	req := httptest.NewRequest(http.MethodGet, "/openapi", nil)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("openapi ui code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if contentType := rec.Header().Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+		t.Fatalf("content type = %q", contentType)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"pax-manager API", "fetch(\"/openapi.json\")", "Open JSON"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("openapi ui missing %q", want)
+		}
+	}
+}
+
+func TestRequestBodyLimit(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	srv.maxBodyBytes = 8
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/echo",
+		strings.NewReader(`{"message":"too large"}`),
+	)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("body limit code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAPIRateLimit(t *testing.T) {
+	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+	srv, _ := testServer(t, "todd@example.com")
+	srv.apiLimiter = newRateLimiter(60, 1, func() time.Time { return now })
+
+	req := httptest.NewRequest(http.MethodPost, "/api/echo", strings.NewReader(`{}`))
+	req.RemoteAddr = "198.51.100.10:1234"
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first request code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/echo", strings.NewReader(`{}`))
+	req.RemoteAddr = "198.51.100.10:1234"
+	rec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("rate limited code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
 
 func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 	srv, apiKey := testServer(t, "todd@example.com")
@@ -16,23 +110,24 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 	statusBody := []byte(`{
 		"hostname":"workstation",
 		"sessions":[{
-			"sessionId":"sess-1",
-			"agentType":"hermes",
-			"nativeId":"resp-1",
+			"session_id":"sess-1",
+			"agent_type":"hermes",
+			"native_id":"resp-1",
 			"name":"repo task",
-			"projectId":"repo",
+			"project_id":"repo",
 			"preview":"fix tests",
-			"workspaceRoots":["/workspace/repo"],
+			"workspace_roots":["/workspace/repo"],
 			"status":"running",
-			"currentTask":"go test ./...",
-			"messageCount":7,
-			"tokenUsage":123,
+			"current_task":"go test ./...",
+			"message_count":7,
+			"token_usage":{"total_tokens":123},
 			"model":"gpt-test",
-			"runId":"run-1",
-			"runStatus":"running"
+			"run_id":"run-1",
+			"run_status":"running"
 		}]
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/agent/status", bytes.NewReader(statusBody))
+	setJSON(req)
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
@@ -40,20 +135,21 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 		t.Fatalf("status code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/user/agents/"+testAgentID(t, srv, "todd@example.com")+"/sessions", nil)
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "todd@example.com")
+	req = httptest.NewRequest(
+		http.MethodGet,
+		"/api/user/agents/"+testAgentID(t, srv, "todd@example.com")+"/sessions",
+		nil,
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("sessions code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	var got struct {
+	got := decodeData[struct {
 		Sessions []AgentSession `json:"sessions"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatal(err)
-	}
+	}](t, rec.Body.Bytes())
 	if len(got.Sessions) != 1 {
 		t.Fatalf("sessions len = %d", len(got.Sessions))
 	}
@@ -71,23 +167,21 @@ func TestMailboxLifecycle(t *testing.T) {
 	agentID := testAgentID(t, srv, "todd@example.com")
 
 	body := []byte(`{
-		"agentId":"` + agentID + `",
-		"sessionId":"sess-1",
+		"agent_id":"` + agentID + `",
+		"session_id":"sess-1",
 		"message":"run the tests",
-		"messageType":"chat"
+		"message_type":"chat"
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/user/message", bytes.NewReader(body))
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "todd@example.com")
+	setJSON(req)
+	req.Header.Set("X-User-Email", "todd@example.com")
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create message code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	var created MailboxMessage
-	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
-		t.Fatal(err)
-	}
+	created := decodeData[MailboxMessage](t, rec.Body.Bytes())
 	if created.Payload == nil || !json.Valid(created.Payload) {
 		t.Fatalf("payload is not valid JSON: %s", created.Payload)
 	}
@@ -103,10 +197,7 @@ func TestMailboxLifecycle(t *testing.T) {
 		t.Fatalf("pull code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	var pull MailboxPull
-	if err := json.Unmarshal(rec.Body.Bytes(), &pull); err != nil {
-		t.Fatal(err)
-	}
+	pull := decodeData[MailboxPull](t, rec.Body.Bytes())
 	if len(pull.Messages) != 1 {
 		t.Fatalf("pull messages len = %d", len(pull.Messages))
 	}
@@ -115,7 +206,12 @@ func TestMailboxLifecycle(t *testing.T) {
 	}
 
 	resultBody := []byte(`{"status":"completed","result":"tests passed"}`)
-	req = httptest.NewRequest(http.MethodPost, "/api/agent/messages/"+created.MessageID+"/result", bytes.NewReader(resultBody))
+	req = httptest.NewRequest(
+		http.MethodPost,
+		"/api/agent/messages/"+created.MessageID+"/result",
+		bytes.NewReader(resultBody),
+	)
+	setJSON(req)
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
@@ -123,7 +219,12 @@ func TestMailboxLifecycle(t *testing.T) {
 		t.Fatalf("result code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/agent/messages/offset", bytes.NewReader([]byte(`{"offset":`+int64String(pull.MaxOffset)+`}`)))
+	req = httptest.NewRequest(
+		http.MethodPost,
+		"/api/agent/messages/offset",
+		bytes.NewReader([]byte(`{"offset":`+int64String(pull.MaxOffset)+`}`)),
+	)
+	setJSON(req)
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
@@ -132,19 +233,16 @@ func TestMailboxLifecycle(t *testing.T) {
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/user/mailbox?status=completed", nil)
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "todd@example.com")
+	req.Header.Set("X-User-Email", "todd@example.com")
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("mailbox code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	var mailbox struct {
+	mailbox := decodeData[struct {
 		Messages []MailboxMessage `json:"messages"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &mailbox); err != nil {
-		t.Fatal(err)
-	}
+	}](t, rec.Body.Bytes())
 	if len(mailbox.Messages) != 1 || mailbox.Messages[0].Result != "tests passed" {
 		t.Fatalf("unexpected mailbox: %+v", mailbox.Messages)
 	}
@@ -155,25 +253,23 @@ func TestTenantIsolationAndAdminBypass(t *testing.T) {
 	agentID := testAgentID(t, srv, "todd@example.com")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/user/agents", nil)
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "ellen@example.com")
+	req.Header.Set("X-User-Email", "ellen@example.com")
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("ellen agents code = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	var got struct {
+	got := decodeData[struct {
 		Agents []Agent `json:"agents"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatal(err)
-	}
+	}](t, rec.Body.Bytes())
 	if len(got.Agents) != 0 {
 		t.Fatalf("ellen saw agents: %+v", got.Agents)
 	}
 
-	body := []byte(`{"agentId":"` + agentID + `","message":"cross tenant","messageType":"chat"}`)
+	body := []byte(`{"agent_id":"` + agentID + `","message":"cross tenant","message_type":"chat"}`)
 	req = httptest.NewRequest(http.MethodPost, "/api/user/message", bytes.NewReader(body))
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "ellen@example.com")
+	setJSON(req)
+	req.Header.Set("X-User-Email", "ellen@example.com")
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
@@ -181,21 +277,21 @@ func TestTenantIsolationAndAdminBypass(t *testing.T) {
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/user/agents", nil)
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	req.Header.Set("X-User-Email", "admin@example.com")
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("admin agents code = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatal(err)
-	}
+	got = decodeData[struct {
+		Agents []Agent `json:"agents"`
+	}](t, rec.Body.Bytes())
 	if len(got.Agents) != 1 {
 		t.Fatalf("admin agents len = %d", len(got.Agents))
 	}
 }
 
-func TestUserIdentityRequiresCloudflareHeaderByDefault(t *testing.T) {
+func TestUserIdentityRejectsLocalHeaderUnlessEnabled(t *testing.T) {
 	now := func() time.Time { return time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC) }
 	srv := newServer(Config{
 		LocalUserID: "local@example.com",
@@ -211,12 +307,18 @@ func TestUserIdentityRequiresCloudflareHeaderByDefault(t *testing.T) {
 		t.Fatalf("spoofed local header code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
+	srv = newServer(Config{
+		LocalUserID:          "local@example.com",
+		AllowLocalUserHeader: true,
+		AdminEmails:          map[string]bool{"admin@example.com": true},
+	}, NewMemoryStore(now))
+	srv.clock = now
 	req = httptest.NewRequest(http.MethodGet, "/api/user/agents", nil)
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
+	req.Header.Set("X-User-Email", "admin@example.com")
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("cloudflare header code = %d, body = %s", rec.Code, rec.Body.String())
+		t.Fatalf("local header code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -224,18 +326,19 @@ func TestAdminStatusFollowsCurrentConfig(t *testing.T) {
 	now := func() time.Time { return time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC) }
 	store := NewMemoryStore(now)
 	srv := newServer(Config{
-		AdminEmails: map[string]bool{"admin@example.com": true},
+		AllowLocalUserHeader: true,
+		AdminEmails:          map[string]bool{"admin@example.com": true},
 	}, store)
 	srv.clock = now
 
 	req := httptest.NewRequest(http.MethodGet, "/api/user/agents", nil)
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "admin@example.com")
-	if _, err := srv.userPrincipal(req); err != nil {
+	req.Header.Set("X-User-Email", "admin@example.com")
+	if _, err := userPrincipalFromHTTPRequest(t, srv, req); err != nil {
 		t.Fatal(err)
 	}
 
 	srv.cfg.AdminEmails = map[string]bool{}
-	principal, err := srv.userPrincipal(req)
+	principal, err := userPrincipalFromHTTPRequest(t, srv, req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,13 +368,14 @@ func TestBuiltInAdminsAreAlwaysPresent(t *testing.T) {
 func TestNewServerMergesBuiltInAdmins(t *testing.T) {
 	now := func() time.Time { return time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC) }
 	srv := newServer(Config{
-		AdminEmails: map[string]bool{"extra@example.com": true},
+		AllowLocalUserHeader: true,
+		AdminEmails:          map[string]bool{"extra@example.com": true},
 	}, NewMemoryStore(now))
 	srv.clock = now
 
 	req := httptest.NewRequest(http.MethodGet, "/api/user/agents", nil)
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "toddzheng024@gmail.com")
-	principal, err := srv.userPrincipal(req)
+	req.Header.Set("X-User-Email", "toddzheng024@gmail.com")
+	principal, err := userPrincipalFromHTTPRequest(t, srv, req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,27 +387,25 @@ func TestNewServerMergesBuiltInAdmins(t *testing.T) {
 	}
 }
 
-func TestUserAPIKeyAuthenticatesWebsocketAndCanBeRevoked(t *testing.T) {
+func TestUserAPIKeyCanBeCreatedListedAndRevoked(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 
 	createBody := []byte(`{"name":"workstation paxd"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/user/api-keys", bytes.NewReader(createBody))
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "todd@example.com")
+	setJSON(req)
+	req.Header.Set("X-User-Email", "todd@example.com")
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create api key code = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	var created CreateUserAPIKeyResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
-		t.Fatal(err)
-	}
+	created := decodeData[CreateUserAPIKeyResponse](t, rec.Body.Bytes())
 	if created.Key == "" || created.APIKey.KeyID == "" || created.APIKey.Prefix == "" {
 		t.Fatalf("bad api key response: %+v", created)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/user/api-keys", nil)
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "todd@example.com")
+	req.Header.Set("X-User-Email", "todd@example.com")
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -319,18 +421,81 @@ func TestUserAPIKeyAuthenticatesWebsocketAndCanBeRevoked(t *testing.T) {
 	}
 
 	req = httptest.NewRequest(http.MethodDelete, "/api/user/api-keys/"+created.APIKey.KeyID, nil)
-	req.Header.Set("Cf-Access-Authenticated-User-Email", "todd@example.com")
+	req.Header.Set("X-User-Email", "todd@example.com")
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("revoke api key code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/agent/ws?key="+created.Key, nil)
-	rec = httptest.NewRecorder()
+}
+
+func TestAgentWebsocketAuthenticatesOwnerAndProcessesMailboxFrames(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	body := []byte(`{
+		"agent_id":"` + agentID + `",
+		"session_id":"sess-1",
+		"message":"run the tests",
+		"message_type":"chat"
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/user/message", bytes.NewReader(body))
+	setJSON(req)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("revoked websocket auth code = %d, body = %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create message code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	created := decodeData[MailboxMessage](t, rec.Body.Bytes())
+
+	wsReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/agent/ws?agent_id="+agentID+"&session_id=sess-1",
+		nil,
+	)
+	wsReq.Header.Set("X-Pax-Key", paxKey)
+	owner, agent, initial, err := srv.authenticateAgentWS(wsReq)
+	if err != nil {
+		t.Fatalf("authenticate websocket: %v", err)
+	}
+	if owner.Email != "todd@example.com" || agent.AgentID != agentID {
+		t.Fatalf("unexpected websocket identity owner=%+v agent=%+v", owner, agent)
+	}
+	if initial.SessionID != "sess-1" {
+		t.Fatalf("initial session = %q", initial.SessionID)
+	}
+
+	pullResp := srv.handleAgentWSRequest(wsReq.Context(), agent, agentWSRequest{
+		Type:      "pull_mailbox",
+		RequestID: "pull-1",
+		Data:      json.RawMessage(`{"offset":0,"limit":10}`),
+	})
+
+	if pullResp.Type != "pull_mailbox_result" || pullResp.RequestID != "pull-1" ||
+		pullResp.Code != http.StatusOK {
+		t.Fatalf("pull response = %+v", pullResp)
+	}
+	var pull MailboxPull
+	pullData, _ := json.Marshal(pullResp.Data)
+	if err := json.Unmarshal(pullData, &pull); err != nil {
+		t.Fatal(err)
+	}
+	if len(pull.Messages) != 1 || pull.Messages[0].MessageID != created.MessageID {
+		t.Fatalf("pulled messages = %+v", pull.Messages)
+	}
+
+	resultResp := srv.handleAgentWSRequest(wsReq.Context(), agent, agentWSRequest{
+		Type:      "message_result",
+		RequestID: "result-1",
+		Data: json.RawMessage(
+			`{"message_id":"` + created.MessageID + `","status":"completed","result":"tests passed"}`,
+		),
+	})
+	if resultResp.Type != "message_result_result" || resultResp.RequestID != "result-1" ||
+		resultResp.Code != http.StatusOK {
+		t.Fatalf("result response = %+v", resultResp)
 	}
 }
 
@@ -349,60 +514,71 @@ func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 	now := func() time.Time { return time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC) }
 	store := NewMemoryStore(now)
 	srv := newServer(Config{
-		LocalUserID: "local@example.com",
-		AdminEmails: map[string]bool{"admin@example.com": true},
+		LocalUserID:          "local@example.com",
+		AllowLocalUserHeader: true,
+		AdminEmails:          map[string]bool{"admin@example.com": true},
 	}, store)
 	srv.clock = now
 
-	tokenReq := httptest.NewRequest(http.MethodPost, "/api/user/agent-registration-tokens", bytes.NewReader([]byte(`{}`)))
-	tokenReq.Header.Set("Cf-Access-Authenticated-User-Email", ownerEmail)
+	tokenReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/user/agent-registration-tokens",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	setJSON(tokenReq)
+	tokenReq.Header.Set("X-User-Email", ownerEmail)
 	tokenRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(tokenRec, tokenReq)
 	if tokenRec.Code != http.StatusCreated {
 		t.Fatalf("registration token code = %d, body = %s", tokenRec.Code, tokenRec.Body.String())
 	}
-	var tokenResp CreateRegistrationTokenResponse
-	if err := json.Unmarshal(tokenRec.Body.Bytes(), &tokenResp); err != nil {
-		t.Fatal(err)
-	}
+	tokenResp := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/agent/register", bytes.NewReader([]byte(`{
 		"name":"workstation",
 		"hostname":"workstation",
-		"agentType":"hermes",
+		"agent_type":"hermes",
 		"os":"linux"
 	}`)))
+	setJSON(req)
 	req.Header.Set("X-Registration-Token", tokenResp.Token)
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register code = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	var registered RegisterAgentResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &registered); err != nil {
-		t.Fatal(err)
-	}
+	registered := decodeData[RegisterAgentResponse](t, rec.Body.Bytes())
 	if registered.AgentID == "" || registered.APIKey == "" {
 		t.Fatalf("bad register response: %+v", registered)
 	}
 	return srv, registered.APIKey
 }
 
+func userPrincipalFromHTTPRequest(
+	t *testing.T,
+	srv *Server,
+	req *http.Request,
+) (UserPrincipal, error) {
+	t.Helper()
+	ctx := srv.engine(":0").NewContext()
+	if err := adaptor.CopyToHertzRequest(req, &ctx.Request); err != nil {
+		t.Fatal(err)
+	}
+	return srv.userPrincipal(req.Context(), ctx)
+}
+
 func testAgentID(t *testing.T, srv *Server, userEmail string) string {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/api/user/agents", nil)
-	req.Header.Set("Cf-Access-Authenticated-User-Email", userEmail)
+	req.Header.Set("X-User-Email", userEmail)
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("agents code = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	var got struct {
+	got := decodeData[struct {
 		Agents []Agent `json:"agents"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatal(err)
-	}
+	}](t, rec.Body.Bytes())
 	if len(got.Agents) != 1 {
 		t.Fatalf("agents len = %d", len(got.Agents))
 	}
@@ -418,6 +594,21 @@ func assertPayloadField(t *testing.T, payload json.RawMessage, field string, wan
 	if got[field] != want {
 		t.Fatalf("payload[%s] = %v, want %s", field, got[field], want)
 	}
+}
+
+func decodeData[T any](t *testing.T, data []byte) T {
+	t.Helper()
+	var envelope struct {
+		Data T `json:"data"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	return envelope.Data
+}
+
+func setJSON(req *http.Request) {
+	req.Header.Set("Content-Type", "application/json")
 }
 
 func int64String(v int64) string {

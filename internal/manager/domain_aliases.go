@@ -1,0 +1,43 @@
+package manager
+
+import (
+	"github.com/pax-beehive/pax-manager/internal/manager/auth"
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+)
+
+var (
+	ErrNotFound     = domain.ErrNotFound
+	ErrUnauthorized = domain.ErrUnauthorized
+	ErrConflict     = domain.ErrConflict
+)
+
+type User = domain.User
+type UserPrincipal = domain.UserPrincipal
+type Agent = domain.Agent
+type AgentSession = domain.AgentSession
+type MailboxMessage = domain.MailboxMessage
+type RegisterAgentRequest = domain.RegisterAgentRequest
+type RegisterAgentResponse = domain.RegisterAgentResponse
+type CreateRegistrationTokenRequest = domain.CreateRegistrationTokenRequest
+type CreateRegistrationTokenResponse = domain.CreateRegistrationTokenResponse
+type UserAPIKey = domain.UserAPIKey
+type CreateUserAPIKeyRequest = domain.CreateUserAPIKeyRequest
+type CreateUserAPIKeyResponse = domain.CreateUserAPIKeyResponse
+type AgentStatusReport = domain.AgentStatusReport
+type SessionStatusInput = domain.SessionStatusInput
+type TokenUsage = domain.TokenUsage
+type CreateMailboxRequest = domain.CreateMailboxRequest
+type MessageResultRequest = domain.MessageResultRequest
+type OffsetRequest = domain.OffsetRequest
+type Project = domain.Project
+type MailboxPull = domain.MailboxPull
+type MailboxFilter = domain.MailboxFilter
+type Store = domain.Store
+
+func hashSecret(secret string) string {
+	return auth.HashSecret(secret)
+}
+
+func normalizeEmail(email string) string {
+	return domain.NormalizeEmail(email)
+}

@@ -1,0 +1,29 @@
+with-expecter: true
+disable-version-string: true
+issue-845-fix: true
+resolve-type-alias: false
+dir: "{{.InterfaceDir}}/mocks"
+outpkg: mocks
+filename: "{{.InterfaceName | snakecase}}.go"
+mockname: "Mock{{.InterfaceName}}"
+packages:
+  github.com/pax-beehive/pax-manager/internal/manager/auth:
+    interfaces:
+      AdminPolicy:
+      RegistrationTokenStore:
+      SecretIssuer:
+      UserIdentityVerifier:
+      UserStore:
+  github.com/pax-beehive/pax-manager/internal/manager/paxd:
+    interfaces:
+      RegistrationOwnerResolver:
+      SecretIssuer:
+      Store:
+  github.com/pax-beehive/pax-manager/internal/manager/userapi:
+    interfaces:
+      PrincipalResolver:
+      SecretIssuer:
+      Store:
+  github.com/pax-beehive/pax-manager/internal/transport/http/handler:
+    interfaces:
+      Service:
