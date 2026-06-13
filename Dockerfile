@@ -18,7 +18,6 @@ COPY --from=build /out/pax-manager /app/pax-manager
 COPY db /app/db
 COPY static /app/static
 
-ENV PORT=9879
 EXPOSE 9879
 
 USER nonroot:nonroot
