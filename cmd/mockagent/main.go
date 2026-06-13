@@ -15,8 +15,8 @@ import (
 )
 
 type registerResponse struct {
-	AgentID string `json:"agentId"`
-	APIKey  string `json:"apiKey"`
+	AgentID string `json:"agent_id"`
+	APIKey  string `json:"api_key"`
 }
 
 type mailboxPull struct {
@@ -27,10 +27,10 @@ type mailboxPull struct {
 
 type mailboxMessage struct {
 	ID          int64           `json:"id"`
-	MessageID   string          `json:"messageId"`
-	SessionID   string          `json:"sessionId"`
+	MessageID   string          `json:"message_id"`
+	SessionID   string          `json:"session_id"`
 	Message     string          `json:"message"`
-	MessageType string          `json:"messageType"`
+	MessageType string          `json:"message_type"`
 	Payload     json.RawMessage `json:"payload"`
 }
 
@@ -60,7 +60,12 @@ func main() {
 			postStatus(client, baseURL, registered)
 			pull := getMailbox(client, baseURL, registered, offset)
 			for _, msg := range pull.Messages {
-				log.Printf("received %s message %s for session %s", msg.MessageType, msg.MessageID, msg.SessionID)
+				log.Printf(
+					"received %s message %s for session %s",
+					msg.MessageType,
+					msg.MessageID,
+					msg.SessionID,
+				)
 				result := fmt.Sprintf("mock agent processed: %s", msg.Message)
 				postResult(client, baseURL, registered, msg.MessageID, result)
 			}
@@ -74,7 +79,15 @@ func main() {
 
 func createRegistrationToken(client *http.Client, baseURL, userEmail string) string {
 	var out CreateRegistrationTokenResponse
-	doJSON(client, http.MethodPost, baseURL+"/api/user/agent-registration-tokens", "", map[string]any{}, &out, userEmail)
+	doJSON(
+		client,
+		http.MethodPost,
+		baseURL+"/api/user/agent-registration-tokens",
+		"",
+		map[string]any{},
+		&out,
+		userEmail,
+	)
 	return out.Token
 }
 
@@ -84,15 +97,23 @@ type CreateRegistrationTokenResponse struct {
 
 func register(client *http.Client, baseURL, hostname, registrationToken string) registerResponse {
 	body := map[string]any{
-		"name":      "mock-agent-" + hostname,
-		"hostname":  hostname,
-		"agentType": "hermes",
-		"os":        "unknown",
+		"name":       "mock-agent-" + hostname,
+		"hostname":   hostname,
+		"agent_type": "hermes",
+		"os":         "unknown",
 	}
 	var out registerResponse
-	doJSONWithHeaders(client, http.MethodPost, baseURL+"/api/agent/register", "", body, &out, map[string]string{
-		"X-Registration-Token": registrationToken,
-	})
+	doJSONWithHeaders(
+		client,
+		http.MethodPost,
+		baseURL+"/api/agent/register",
+		"",
+		body,
+		&out,
+		map[string]string{
+			"X-Registration-Token": registrationToken,
+		},
+	)
 	return out
 }
 
@@ -101,26 +122,36 @@ func postStatus(client *http.Client, baseURL string, registered registerResponse
 		"agent_id": registered.AgentID,
 		"sessions": []map[string]any{
 			{
-				"sessionId":    "mock-session",
-				"agentType":    "hermes",
-				"name":         "mock session",
-				"status":       "idle",
-				"messageCount": 0,
-				"tokenUsage":   0,
+				"session_id":    "mock-session",
+				"agent_type":    "hermes",
+				"name":          "mock session",
+				"status":        "idle",
+				"message_count": 0,
+				"token_usage":   map[string]any{"total_tokens": 0},
 			},
 		},
 	}
 	doJSON(client, http.MethodPost, baseURL+"/api/agent/status", registered.APIKey, body, nil, "")
 }
 
-func getMailbox(client *http.Client, baseURL string, registered registerResponse, offset int64) mailboxPull {
+func getMailbox(
+	client *http.Client,
+	baseURL string,
+	registered registerResponse,
+	offset int64,
+) mailboxPull {
 	var out mailboxPull
 	url := fmt.Sprintf("%s/api/agent/mailbox?offset=%d&limit=10", baseURL, offset)
 	doJSON(client, http.MethodGet, url, registered.APIKey, nil, &out, "")
 	return out
 }
 
-func postResult(client *http.Client, baseURL string, registered registerResponse, messageID, result string) {
+func postResult(
+	client *http.Client,
+	baseURL string,
+	registered registerResponse,
+	messageID, result string,
+) {
 	body := map[string]any{"status": "completed", "result": result}
 	url := fmt.Sprintf("%s/api/agent/messages/%s/result", baseURL, messageID)
 	doJSON(client, http.MethodPost, url, registered.APIKey, body, nil, "")
@@ -128,7 +159,15 @@ func postResult(client *http.Client, baseURL string, registered registerResponse
 
 func postOffset(client *http.Client, baseURL string, registered registerResponse, offset int64) {
 	body := map[string]any{"offset": offset}
-	doJSON(client, http.MethodPost, baseURL+"/api/agent/messages/offset", registered.APIKey, body, nil, "")
+	doJSON(
+		client,
+		http.MethodPost,
+		baseURL+"/api/agent/messages/offset",
+		registered.APIKey,
+		body,
+		nil,
+		"",
+	)
 }
 
 func doJSON(client *http.Client, method, url, apiKey string, body any, out any, userEmail string) {
@@ -139,7 +178,13 @@ func doJSON(client *http.Client, method, url, apiKey string, body any, out any, 
 	doJSONWithHeaders(client, method, url, apiKey, body, out, headers)
 }
 
-func doJSONWithHeaders(client *http.Client, method, url, apiKey string, body any, out any, headers map[string]string) {
+func doJSONWithHeaders(
+	client *http.Client,
+	method, url, apiKey string,
+	body any,
+	out any,
+	headers map[string]string,
+) {
 	var reader io.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
@@ -165,14 +210,20 @@ func doJSONWithHeaders(client *http.Client, method, url, apiKey string, body any
 	if err != nil {
 		log.Fatalf("%s %s: %v", method, url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		log.Fatalf("%s %s: HTTP %d: %s", method, url, resp.StatusCode, string(raw))
 	}
 	if out != nil {
-		if err := json.Unmarshal(raw, out); err != nil {
-			log.Fatalf("decode: %v: %s", err, string(raw))
+		var envelope struct {
+			Data json.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			log.Fatalf("decode envelope: %v: %s", err, string(raw))
+		}
+		if err := json.Unmarshal(envelope.Data, out); err != nil {
+			log.Fatalf("decode data: %v: %s", err, string(raw))
 		}
 	}
 }

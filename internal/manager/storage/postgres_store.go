@@ -1,4 +1,4 @@
-package main
+package storage
 
 import (
 	"context"
@@ -27,7 +27,12 @@ func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
 	return err
 }
 
-func (s *PostgresStore) EnsureUser(ctx context.Context, email string, displayName string, role string) (User, error) {
+func (s *PostgresStore) EnsureUser(
+	ctx context.Context,
+	email string,
+	displayName string,
+	role string,
+) (User, error) {
 	email = normalizeEmail(email)
 	if email == "" {
 		return User{}, ErrUnauthorized
@@ -70,7 +75,12 @@ func (s *PostgresStore) GetUser(ctx context.Context, userID string) (User, error
 	return scanUser(row)
 }
 
-func (s *PostgresStore) CreateRegistrationToken(ctx context.Context, ownerUserID string, tokenHash string, expiresAt *time.Time) error {
+func (s *PostgresStore) CreateRegistrationToken(
+	ctx context.Context,
+	ownerUserID string,
+	tokenHash string,
+	expiresAt *time.Time,
+) error {
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO agent_registration_tokens (token_hash, owner_user_id, expires_at, created_at)
 		VALUES ($1, $2, $3, $4)
@@ -88,12 +98,15 @@ func (s *PostgresStore) CreateRegistrationToken(ctx context.Context, ownerUserID
 	return nil
 }
 
-func (s *PostgresStore) ResolveRegistrationToken(ctx context.Context, tokenHash string) (User, error) {
+func (s *PostgresStore) ResolveRegistrationToken(
+	ctx context.Context,
+	tokenHash string,
+) (User, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return User{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var ownerUserID string
 	var expiresAt *time.Time
@@ -130,7 +143,13 @@ func (s *PostgresStore) ResolveRegistrationToken(ctx context.Context, tokenHash 
 	return user, nil
 }
 
-func (s *PostgresStore) CreateUserAPIKey(ctx context.Context, principal UserPrincipal, name string, keyHash string, prefix string) (UserAPIKey, error) {
+func (s *PostgresStore) CreateUserAPIKey(
+	ctx context.Context,
+	principal UserPrincipal,
+	name string,
+	keyHash string,
+	prefix string,
+) (UserAPIKey, error) {
 	keyID, err := newSecret("key")
 	if err != nil {
 		return UserAPIKey{}, err
@@ -143,7 +162,10 @@ func (s *PostgresStore) CreateUserAPIKey(ctx context.Context, principal UserPrin
 	return scanUserAPIKey(row)
 }
 
-func (s *PostgresStore) ListUserAPIKeys(ctx context.Context, principal UserPrincipal) ([]UserAPIKey, error) {
+func (s *PostgresStore) ListUserAPIKeys(
+	ctx context.Context,
+	principal UserPrincipal,
+) ([]UserAPIKey, error) {
 	query := `
 		SELECT key_id, owner_user_id, name, prefix, created_at, last_used_at, revoked_at
 		FROM user_api_keys
@@ -158,11 +180,15 @@ func (s *PostgresStore) ListUserAPIKeys(ctx context.Context, principal UserPrinc
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanUserAPIKeys(rows)
 }
 
-func (s *PostgresStore) RevokeUserAPIKey(ctx context.Context, principal UserPrincipal, keyID string) error {
+func (s *PostgresStore) RevokeUserAPIKey(
+	ctx context.Context,
+	principal UserPrincipal,
+	keyID string,
+) error {
 	query := `UPDATE user_api_keys SET revoked_at = $2 WHERE key_id = $1`
 	args := []any{keyID, s.now().UTC()}
 	if !principal.IsAdmin {
@@ -188,7 +214,7 @@ func (s *PostgresStore) AuthenticateUserAPIKey(ctx context.Context, keyHash stri
 	if err != nil {
 		return User{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var keyID string
 	var ownerUserID string
@@ -223,7 +249,12 @@ func (s *PostgresStore) AuthenticateUserAPIKey(ctx context.Context, keyHash stri
 	return user, nil
 }
 
-func (s *PostgresStore) RegisterAgent(ctx context.Context, owner User, req RegisterAgentRequest, apiKeyHash string) (Agent, error) {
+func (s *PostgresStore) RegisterAgent(
+	ctx context.Context,
+	owner User,
+	req RegisterAgentRequest,
+	apiKeyHash string,
+) (Agent, error) {
 	agentID, err := newSecret("agent")
 	if err != nil {
 		return Agent{}, err
@@ -260,7 +291,7 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	now := s.now().UTC()
 	result, err := tx.ExecContext(ctx, `
@@ -287,7 +318,9 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `
+		_, err = tx.ExecContext(
+			ctx,
+			`
 			INSERT INTO agent_sessions (
 				agent_id, session_id, session_name, agent_type, native_id, project_id, preview,
 				workspace_roots, source, status, current_task, last_message_at, message_count,
@@ -313,10 +346,28 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 				run_id = EXCLUDED.run_id,
 				run_status = EXCLUDED.run_status,
 				updated_at = EXCLUDED.updated_at
-		`, report.AgentID, input.SessionID, input.SessionName, input.AgentType, input.NativeID,
-			input.ProjectID, input.Preview, roots, input.Source, defaultSessionStatus(input.Status),
-			input.CurrentTask, input.LastMessageAt, input.MessageCount, input.TokenUsage.Input,
-			input.TokenUsage.Output, input.TokenUsage.Total, input.Model, input.RunID, input.RunStatus, now)
+		`,
+			report.AgentID,
+			input.SessionID,
+			input.SessionName,
+			input.AgentType,
+			input.NativeID,
+			input.ProjectID,
+			input.Preview,
+			roots,
+			input.Source,
+			defaultSessionStatus(input.Status),
+			input.CurrentTask,
+			input.LastMessageAt,
+			input.MessageCount,
+			input.TokenUsage.Input,
+			input.TokenUsage.Output,
+			input.TokenUsage.Total,
+			input.Model,
+			input.RunID,
+			input.RunStatus,
+			now,
+		)
 		if err != nil {
 			return err
 		}
@@ -341,11 +392,15 @@ func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanAgents(rows)
 }
 
-func (s *PostgresStore) ListAgentSessions(ctx context.Context, principal UserPrincipal, agentID string) ([]AgentSession, error) {
+func (s *PostgresStore) ListAgentSessions(
+	ctx context.Context,
+	principal UserPrincipal,
+	agentID string,
+) ([]AgentSession, error) {
 	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.agent_id = $1`
 	args := []any{agentID}
 	if !principal.IsAdmin {
@@ -357,11 +412,15 @@ func (s *PostgresStore) ListAgentSessions(ctx context.Context, principal UserPri
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanSessions(rows)
 }
 
-func (s *PostgresStore) GetSession(ctx context.Context, principal UserPrincipal, sessionID string) (AgentSession, error) {
+func (s *PostgresStore) GetSession(
+	ctx context.Context,
+	principal UserPrincipal,
+	sessionID string,
+) (AgentSession, error) {
 	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.session_id = $1`
 	args := []any{sessionID}
 	if !principal.IsAdmin {
@@ -373,7 +432,11 @@ func (s *PostgresStore) GetSession(ctx context.Context, principal UserPrincipal,
 	return scanSession(row)
 }
 
-func (s *PostgresStore) ListSessionMessages(ctx context.Context, principal UserPrincipal, sessionID string) ([]MailboxMessage, error) {
+func (s *PostgresStore) ListSessionMessages(
+	ctx context.Context,
+	principal UserPrincipal,
+	sessionID string,
+) ([]MailboxMessage, error) {
 	query := mailboxSelectSQL + ` WHERE session_id = $1`
 	args := []any{sessionID}
 	if !principal.IsAdmin {
@@ -385,11 +448,15 @@ func (s *PostgresStore) ListSessionMessages(ctx context.Context, principal UserP
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanMailboxRows(rows)
 }
 
-func (s *PostgresStore) CreateMailboxMessage(ctx context.Context, principal UserPrincipal, req CreateMailboxRequest) (MailboxMessage, error) {
+func (s *PostgresStore) CreateMailboxMessage(
+	ctx context.Context,
+	principal UserPrincipal,
+	req CreateMailboxRequest,
+) (MailboxMessage, error) {
 	messageType := defaultMessageType(req.MessageType)
 	if messageType == "" {
 		return MailboxMessage{}, ErrConflict
@@ -426,7 +493,10 @@ func (s *PostgresStore) CreateMailboxMessage(ctx context.Context, principal User
 	return scanMailbox(row)
 }
 
-func (s *PostgresStore) ListMailbox(ctx context.Context, filter MailboxFilter) ([]MailboxMessage, error) {
+func (s *PostgresStore) ListMailbox(
+	ctx context.Context,
+	filter MailboxFilter,
+) ([]MailboxMessage, error) {
 	limit := filter.Limit
 	if limit <= 0 || limit > 100 {
 		limit = 50
@@ -458,11 +528,16 @@ func (s *PostgresStore) ListMailbox(ctx context.Context, filter MailboxFilter) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanMailboxRows(rows)
 }
 
-func (s *PostgresStore) PullMailbox(ctx context.Context, agentID string, offset int64, limit int) (MailboxPull, error) {
+func (s *PostgresStore) PullMailbox(
+	ctx context.Context,
+	agentID string,
+	offset int64,
+	limit int,
+) (MailboxPull, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 10
 	}
@@ -471,7 +546,7 @@ func (s *PostgresStore) PullMailbox(ctx context.Context, agentID string, offset 
 	if err != nil {
 		return MailboxPull{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	now := s.now().UTC()
 	if _, err := tx.ExecContext(ctx, `
@@ -492,9 +567,12 @@ func (s *PostgresStore) PullMailbox(ctx context.Context, agentID string, offset 
 		return MailboxPull{}, err
 	}
 	messages, err := scanMailboxRows(rows)
-	rows.Close()
+	closeErr := rows.Close()
 	if err != nil {
 		return MailboxPull{}, err
+	}
+	if closeErr != nil {
+		return MailboxPull{}, closeErr
 	}
 
 	hasMore := len(messages) > limit
@@ -524,7 +602,12 @@ func (s *PostgresStore) PullMailbox(ctx context.Context, agentID string, offset 
 	return MailboxPull{Messages: messages, MaxOffset: maxOffset, HasMore: hasMore}, nil
 }
 
-func (s *PostgresStore) MarkMessageResult(ctx context.Context, agentID string, messageID string, req MessageResultRequest) error {
+func (s *PostgresStore) MarkMessageResult(
+	ctx context.Context,
+	agentID string,
+	messageID string,
+	req MessageResultRequest,
+) error {
 	if req.Status != "completed" && req.Status != "failed" {
 		return ErrConflict
 	}

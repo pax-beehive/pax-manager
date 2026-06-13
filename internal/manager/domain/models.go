@@ -1,9 +1,6 @@
-package main
+package domain
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -17,12 +14,12 @@ var (
 )
 
 type User struct {
-	UserID      string     `json:"userId"`
+	UserID      string     `json:"user_id"`
 	Email       string     `json:"email"`
-	DisplayName string     `json:"displayName"`
+	DisplayName string     `json:"display_name"`
 	Role        string     `json:"role"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	LastSeenAt  *time.Time `json:"lastSeenAt,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
 }
 
 type UserPrincipal struct {
@@ -31,103 +28,103 @@ type UserPrincipal struct {
 }
 
 type Agent struct {
-	AgentID       string          `json:"agentId"`
-	OwnerUserID   string          `json:"ownerUserId"`
+	AgentID       string          `json:"agent_id"`
+	OwnerUserID   string          `json:"owner_user_id"`
 	Name          string          `json:"name,omitempty"`
 	Hostname      string          `json:"hostname"`
-	AgentType     string          `json:"agentType"`
-	MachineType   string          `json:"machineType,omitempty"`
+	AgentType     string          `json:"agent_type"`
+	MachineType   string          `json:"machine_type,omitempty"`
 	OS            string          `json:"os"`
-	HermesVersion string          `json:"hermesVersion,omitempty"`
-	APIEndpoint   string          `json:"apiEndpoint"`
+	HermesVersion string          `json:"hermes_version,omitempty"`
+	APIEndpoint   string          `json:"api_endpoint"`
 	Status        string          `json:"status"`
 	Online        bool            `json:"online"`
-	LastHeartbeat *time.Time      `json:"lastHeartbeat,omitempty"`
-	RegisteredAt  time.Time       `json:"registeredAt"`
+	LastHeartbeat *time.Time      `json:"last_heartbeat,omitempty"`
+	RegisteredAt  time.Time       `json:"registered_at"`
 	Metadata      json.RawMessage `json:"metadata,omitempty"`
 }
 
 type AgentSession struct {
 	ID             int64      `json:"id"`
-	AgentID        string     `json:"agentId"`
-	SessionID      string     `json:"sessionId"`
+	AgentID        string     `json:"agent_id"`
+	SessionID      string     `json:"session_id"`
 	SessionName    string     `json:"name,omitempty"`
-	AgentType      string     `json:"agentType,omitempty"`
-	NativeID       string     `json:"nativeId,omitempty"`
-	ProjectID      string     `json:"projectId,omitempty"`
+	AgentType      string     `json:"agent_type,omitempty"`
+	NativeID       string     `json:"native_id,omitempty"`
+	ProjectID      string     `json:"project_id,omitempty"`
 	Preview        string     `json:"preview,omitempty"`
-	WorkspaceRoots []string   `json:"workspaceRoots,omitempty"`
+	WorkspaceRoots []string   `json:"workspace_roots,omitempty"`
 	Source         string     `json:"source,omitempty"`
 	Status         string     `json:"status"`
-	CurrentTask    string     `json:"currentTask,omitempty"`
-	LastMessageAt  *time.Time `json:"lastMessageAt,omitempty"`
-	MessageCount   int        `json:"messageCount"`
-	TokenInput     int64      `json:"tokenInput"`
-	TokenOutput    int64      `json:"tokenOutput"`
-	TokenTotal     int64      `json:"tokenUsage"`
+	CurrentTask    string     `json:"current_task,omitempty"`
+	LastMessageAt  *time.Time `json:"last_message_at,omitempty"`
+	MessageCount   int        `json:"message_count"`
+	TokenInput     int64      `json:"token_input"`
+	TokenOutput    int64      `json:"token_output"`
+	TokenTotal     int64      `json:"token_usage"`
 	Model          string     `json:"model,omitempty"`
-	RunID          string     `json:"runId,omitempty"`
-	RunStatus      string     `json:"runStatus,omitempty"`
-	CreatedAt      time.Time  `json:"createdAt"`
-	UpdatedAt      time.Time  `json:"updatedAt"`
+	RunID          string     `json:"run_id,omitempty"`
+	RunStatus      string     `json:"run_status,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type MailboxMessage struct {
 	ID          int64           `json:"id"`
-	MessageID   string          `json:"messageId"`
-	UserID      string          `json:"userId"`
-	OwnerUserID string          `json:"ownerUserId"`
-	AgentID     string          `json:"agentId"`
-	SessionID   string          `json:"sessionId,omitempty"`
+	MessageID   string          `json:"message_id"`
+	UserID      string          `json:"user_id"`
+	OwnerUserID string          `json:"owner_user_id"`
+	AgentID     string          `json:"agent_id"`
+	SessionID   string          `json:"session_id,omitempty"`
 	Message     string          `json:"message"`
-	MessageType string          `json:"messageType"`
+	MessageType string          `json:"message_type"`
 	Payload     json.RawMessage `json:"payload,omitempty"`
 	Status      string          `json:"status"`
-	DeliveredAt *time.Time      `json:"deliveredAt,omitempty"`
-	CompletedAt *time.Time      `json:"completedAt,omitempty"`
+	DeliveredAt *time.Time      `json:"delivered_at,omitempty"`
+	CompletedAt *time.Time      `json:"completed_at,omitempty"`
 	Result      string          `json:"result,omitempty"`
 	Error       string          `json:"error,omitempty"`
-	CreatedAt   time.Time       `json:"createdAt"`
-	ExpiresAt   *time.Time      `json:"expiresAt,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	ExpiresAt   *time.Time      `json:"expires_at,omitempty"`
 }
 
 type RegisterAgentRequest struct {
 	Name          string          `json:"name"`
-	AgentType     string          `json:"agentType"`
+	AgentType     string          `json:"agent_type"`
 	Hostname      string          `json:"hostname"`
-	MachineType   string          `json:"machineType"`
+	MachineType   string          `json:"machine_type"`
 	OS            string          `json:"os"`
-	HermesVersion string          `json:"hermesVersion"`
-	APIEndpoint   string          `json:"apiEndpoint"`
+	HermesVersion string          `json:"hermes_version"`
+	APIEndpoint   string          `json:"api_endpoint"`
 	Projects      []Project       `json:"projects,omitempty"`
 	Metadata      json.RawMessage `json:"metadata"`
 }
 
 type RegisterAgentResponse struct {
-	AgentID string `json:"agentId"`
-	APIKey  string `json:"apiKey"`
+	AgentID string `json:"agent_id"`
+	APIKey  string `json:"api_key"`
 }
 
 type CreateRegistrationTokenRequest struct {
-	OwnerUserID      string `json:"ownerUserId"`
-	OwnerEmail       string `json:"ownerEmail"`
-	ExpiresInSeconds int64  `json:"expiresInSeconds"`
+	OwnerUserID      string `json:"owner_user_id"`
+	OwnerEmail       string `json:"owner_email"`
+	ExpiresInSeconds int64  `json:"expires_in_seconds"`
 }
 
 type CreateRegistrationTokenResponse struct {
 	Token       string     `json:"token"`
-	OwnerUserID string     `json:"ownerUserId"`
-	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
+	OwnerUserID string     `json:"owner_user_id"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 }
 
 type UserAPIKey struct {
-	KeyID       string     `json:"keyId"`
-	OwnerUserID string     `json:"ownerUserId"`
+	KeyID       string     `json:"key_id"`
+	OwnerUserID string     `json:"owner_user_id"`
 	Name        string     `json:"name"`
 	Prefix      string     `json:"prefix"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	LastUsedAt  *time.Time `json:"lastUsedAt,omitempty"`
-	RevokedAt   *time.Time `json:"revokedAt,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
 }
 
 type CreateUserAPIKeyRequest struct {
@@ -135,7 +132,7 @@ type CreateUserAPIKeyRequest struct {
 }
 
 type CreateUserAPIKeyResponse struct {
-	APIKey UserAPIKey `json:"apiKey"`
+	APIKey UserAPIKey `json:"api_key"`
 	Key    string     `json:"key"`
 }
 
@@ -148,28 +145,28 @@ type AgentStatusReport struct {
 }
 
 type SessionStatusInput struct {
-	SessionID      string     `json:"sessionId"`
-	AgentType      string     `json:"agentType"`
-	NativeID       string     `json:"nativeId"`
+	SessionID      string     `json:"session_id"`
+	AgentType      string     `json:"agent_type"`
+	NativeID       string     `json:"native_id"`
 	SessionName    string     `json:"name"`
-	ProjectID      string     `json:"projectId"`
+	ProjectID      string     `json:"project_id"`
 	Preview        string     `json:"preview"`
-	WorkspaceRoots []string   `json:"workspaceRoots"`
+	WorkspaceRoots []string   `json:"workspace_roots"`
 	Source         string     `json:"source"`
 	Status         string     `json:"status"`
-	CurrentTask    string     `json:"currentTask"`
-	LastMessageAt  *time.Time `json:"lastMessageAt"`
-	MessageCount   int        `json:"messageCount"`
-	TokenUsage     TokenUsage `json:"tokenUsage"`
+	CurrentTask    string     `json:"current_task"`
+	LastMessageAt  *time.Time `json:"last_message_at"`
+	MessageCount   int        `json:"message_count"`
+	TokenUsage     TokenUsage `json:"token_usage"`
 	Model          string     `json:"model"`
-	RunID          string     `json:"runId"`
-	RunStatus      string     `json:"runStatus"`
+	RunID          string     `json:"run_id"`
+	RunStatus      string     `json:"run_status"`
 }
 
 type TokenUsage struct {
-	Input  int64 `json:"inputTokens"`
-	Output int64 `json:"outputTokens"`
-	Total  int64 `json:"totalTokens"`
+	Input  int64 `json:"input_tokens"`
+	Output int64 `json:"output_tokens"`
+	Total  int64 `json:"total_tokens"`
 }
 
 func (u *TokenUsage) UnmarshalJSON(data []byte) error {
@@ -183,16 +180,16 @@ func (u *TokenUsage) UnmarshalJSON(data []byte) error {
 		Input        int64 `json:"input"`
 		Output       int64 `json:"output"`
 		Total        int64 `json:"total"`
-		InputTokens  int64 `json:"inputTokens"`
-		OutputTokens int64 `json:"outputTokens"`
-		TotalTokens  int64 `json:"totalTokens"`
+		InputTokens  int64 `json:"input_tokens"`
+		OutputTokens int64 `json:"output_tokens"`
+		TotalTokens  int64 `json:"total_tokens"`
 	}
 	if err := json.Unmarshal(data, &object); err != nil {
 		return err
 	}
-	u.Input = firstNonZero(object.InputTokens, object.Input)
-	u.Output = firstNonZero(object.OutputTokens, object.Output)
-	u.Total = firstNonZero(object.TotalTokens, object.Total)
+	u.Input = FirstNonZero(object.InputTokens, object.Input)
+	u.Output = FirstNonZero(object.OutputTokens, object.Output)
+	u.Total = FirstNonZero(object.TotalTokens, object.Total)
 	if u.Total == 0 {
 		u.Total = u.Input + u.Output
 	}
@@ -200,14 +197,15 @@ func (u *TokenUsage) UnmarshalJSON(data []byte) error {
 }
 
 type CreateMailboxRequest struct {
-	AgentID     string          `json:"agentId"`
-	SessionID   string          `json:"sessionId"`
+	AgentID     string          `json:"agent_id"`
+	SessionID   string          `json:"session_id"`
 	Message     string          `json:"message"`
-	MessageType string          `json:"messageType"`
+	MessageType string          `json:"message_type"`
 	Payload     json.RawMessage `json:"payload"`
 }
 
 type MessageResultRequest struct {
+	MessageID   string     `json:"message_id"`
 	Status      string     `json:"status"`
 	Result      string     `json:"result"`
 	Error       string     `json:"error"`
@@ -221,7 +219,7 @@ type OffsetRequest struct {
 type Project struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
-	RootPath string `json:"rootPath"`
+	RootPath string `json:"root_path"`
 }
 
 type MailboxPull struct {
@@ -238,20 +236,7 @@ type MailboxFilter struct {
 	Limit     int
 }
 
-func newSecret(prefix string) (string, error) {
-	var b [24]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", err
-	}
-	return prefix + "_" + hex.EncodeToString(b[:]), nil
-}
-
-func hashSecret(secret string) string {
-	sum := sha256.Sum256([]byte(secret))
-	return hex.EncodeToString(sum[:])
-}
-
-func defaultMessageType(v string) string {
+func DefaultMessageType(v string) string {
 	switch v {
 	case "chat", "steer", "command":
 		return v
@@ -262,7 +247,7 @@ func defaultMessageType(v string) string {
 	}
 }
 
-func expiresAt(now time.Time, messageType string) *time.Time {
+func ExpiresAt(now time.Time, messageType string) *time.Time {
 	var t time.Time
 	switch messageType {
 	case "steer":
@@ -277,7 +262,7 @@ func expiresAt(now time.Time, messageType string) *time.Time {
 	return &t
 }
 
-func mailboxPayload(req CreateMailboxRequest) (json.RawMessage, error) {
+func MailboxPayload(req CreateMailboxRequest) (json.RawMessage, error) {
 	if len(req.Payload) > 0 {
 		if !json.Valid(req.Payload) {
 			return nil, errors.New("payload must be valid JSON")
@@ -286,27 +271,27 @@ func mailboxPayload(req CreateMailboxRequest) (json.RawMessage, error) {
 	}
 
 	var payload any
-	switch defaultMessageType(req.MessageType) {
+	switch DefaultMessageType(req.MessageType) {
 	case "chat":
 		payload = map[string]any{
 			"entity_type": "turn",
 			"event_type":  "start",
-			"sessionId":   req.SessionID,
+			"session_id":  req.SessionID,
 			"prompt":      req.Message,
 		}
 	case "steer":
 		payload = map[string]any{
 			"entity_type": "turn",
 			"event_type":  "cancel",
-			"sessionId":   req.SessionID,
+			"session_id":  req.SessionID,
 			"mode":        "steer",
-			"steerText":   req.Message,
+			"steer_text":  req.Message,
 		}
 	case "command":
 		payload = map[string]any{
 			"entity_type": "command",
 			"event_type":  "execute",
-			"sessionId":   req.SessionID,
+			"session_id":  req.SessionID,
 			"command":     req.Message,
 		}
 	default:
@@ -315,7 +300,7 @@ func mailboxPayload(req CreateMailboxRequest) (json.RawMessage, error) {
 	return json.Marshal(payload)
 }
 
-func firstNonZero(values ...int64) int64 {
+func FirstNonZero(values ...int64) int64 {
 	for _, value := range values {
 		if value != 0 {
 			return value
@@ -324,10 +309,10 @@ func firstNonZero(values ...int64) int64 {
 	return 0
 }
 
-func normalizeEmail(email string) string {
+func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-func canAccessOwner(principal UserPrincipal, ownerUserID string) bool {
+func CanAccessOwner(principal UserPrincipal, ownerUserID string) bool {
 	return principal.IsAdmin || principal.User.UserID == ownerUserID
 }

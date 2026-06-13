@@ -1,4 +1,4 @@
-package main
+package storage
 
 import (
 	"context"
@@ -46,7 +46,12 @@ type registrationToken struct {
 	UsedAt      *time.Time
 }
 
-func (s *MemoryStore) EnsureUser(ctx context.Context, email string, displayName string, role string) (User, error) {
+func (s *MemoryStore) EnsureUser(
+	ctx context.Context,
+	email string,
+	displayName string,
+	role string,
+) (User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.ensureUserLocked(email, displayName, role)
@@ -72,7 +77,12 @@ func (s *MemoryStore) GetUser(ctx context.Context, userID string) (User, error) 
 	return user, nil
 }
 
-func (s *MemoryStore) CreateRegistrationToken(ctx context.Context, ownerUserID string, tokenHash string, expiresAt *time.Time) error {
+func (s *MemoryStore) CreateRegistrationToken(
+	ctx context.Context,
+	ownerUserID string,
+	tokenHash string,
+	expiresAt *time.Time,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.users[ownerUserID]; !ok {
@@ -82,7 +92,10 @@ func (s *MemoryStore) CreateRegistrationToken(ctx context.Context, ownerUserID s
 	return nil
 }
 
-func (s *MemoryStore) ResolveRegistrationToken(ctx context.Context, tokenHash string) (User, error) {
+func (s *MemoryStore) ResolveRegistrationToken(
+	ctx context.Context,
+	tokenHash string,
+) (User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	token, ok := s.regTokens[tokenHash]
@@ -105,7 +118,13 @@ func (s *MemoryStore) ResolveRegistrationToken(ctx context.Context, tokenHash st
 	return user, nil
 }
 
-func (s *MemoryStore) CreateUserAPIKey(ctx context.Context, principal UserPrincipal, name string, keyHash string, prefix string) (UserAPIKey, error) {
+func (s *MemoryStore) CreateUserAPIKey(
+	ctx context.Context,
+	principal UserPrincipal,
+	name string,
+	keyHash string,
+	prefix string,
+) (UserAPIKey, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	keyID, err := newSecret("key")
@@ -124,7 +143,10 @@ func (s *MemoryStore) CreateUserAPIKey(ctx context.Context, principal UserPrinci
 	return key, nil
 }
 
-func (s *MemoryStore) ListUserAPIKeys(ctx context.Context, principal UserPrincipal) ([]UserAPIKey, error) {
+func (s *MemoryStore) ListUserAPIKeys(
+	ctx context.Context,
+	principal UserPrincipal,
+) ([]UserAPIKey, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]UserAPIKey, 0)
@@ -140,7 +162,11 @@ func (s *MemoryStore) ListUserAPIKeys(ctx context.Context, principal UserPrincip
 	return out, nil
 }
 
-func (s *MemoryStore) RevokeUserAPIKey(ctx context.Context, principal UserPrincipal, keyID string) error {
+func (s *MemoryStore) RevokeUserAPIKey(
+	ctx context.Context,
+	principal UserPrincipal,
+	keyID string,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key, ok := s.userAPIKeys[keyID]
@@ -174,7 +200,12 @@ func (s *MemoryStore) AuthenticateUserAPIKey(ctx context.Context, keyHash string
 	return user, nil
 }
 
-func (s *MemoryStore) RegisterAgent(ctx context.Context, owner User, req RegisterAgentRequest, apiKeyHash string) (Agent, error) {
+func (s *MemoryStore) RegisterAgent(
+	ctx context.Context,
+	owner User,
+	req RegisterAgentRequest,
+	apiKeyHash string,
+) (Agent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.users[owner.UserID]; !ok {
@@ -292,7 +323,11 @@ func (s *MemoryStore) ListAgents(ctx context.Context, principal UserPrincipal) (
 	return out, nil
 }
 
-func (s *MemoryStore) ListAgentSessions(ctx context.Context, principal UserPrincipal, agentID string) ([]AgentSession, error) {
+func (s *MemoryStore) ListAgentSessions(
+	ctx context.Context,
+	principal UserPrincipal,
+	agentID string,
+) ([]AgentSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -312,7 +347,11 @@ func (s *MemoryStore) ListAgentSessions(ctx context.Context, principal UserPrinc
 	return out, nil
 }
 
-func (s *MemoryStore) GetSession(ctx context.Context, principal UserPrincipal, sessionID string) (AgentSession, error) {
+func (s *MemoryStore) GetSession(
+	ctx context.Context,
+	principal UserPrincipal,
+	sessionID string,
+) (AgentSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -328,7 +367,11 @@ func (s *MemoryStore) GetSession(ctx context.Context, principal UserPrincipal, s
 	return AgentSession{}, ErrNotFound
 }
 
-func (s *MemoryStore) ListSessionMessages(ctx context.Context, principal UserPrincipal, sessionID string) ([]MailboxMessage, error) {
+func (s *MemoryStore) ListSessionMessages(
+	ctx context.Context,
+	principal UserPrincipal,
+	sessionID string,
+) ([]MailboxMessage, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -347,7 +390,11 @@ func (s *MemoryStore) ListSessionMessages(ctx context.Context, principal UserPri
 	return out, nil
 }
 
-func (s *MemoryStore) CreateMailboxMessage(ctx context.Context, principal UserPrincipal, req CreateMailboxRequest) (MailboxMessage, error) {
+func (s *MemoryStore) CreateMailboxMessage(
+	ctx context.Context,
+	principal UserPrincipal,
+	req CreateMailboxRequest,
+) (MailboxMessage, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -387,7 +434,10 @@ func (s *MemoryStore) CreateMailboxMessage(ctx context.Context, principal UserPr
 	return msg, nil
 }
 
-func (s *MemoryStore) ListMailbox(ctx context.Context, filter MailboxFilter) ([]MailboxMessage, error) {
+func (s *MemoryStore) ListMailbox(
+	ctx context.Context,
+	filter MailboxFilter,
+) ([]MailboxMessage, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -413,7 +463,12 @@ func (s *MemoryStore) ListMailbox(ctx context.Context, filter MailboxFilter) ([]
 	return limitMailbox(out, filter.Limit), nil
 }
 
-func (s *MemoryStore) PullMailbox(ctx context.Context, agentID string, offset int64, limit int) (MailboxPull, error) {
+func (s *MemoryStore) PullMailbox(
+	ctx context.Context,
+	agentID string,
+	offset int64,
+	limit int,
+) (MailboxPull, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -460,7 +515,12 @@ func (s *MemoryStore) PullMailbox(ctx context.Context, agentID string, offset in
 	return MailboxPull{Messages: candidates, MaxOffset: maxOffset, HasMore: hasMore}, nil
 }
 
-func (s *MemoryStore) MarkMessageResult(ctx context.Context, agentID string, messageID string, req MessageResultRequest) error {
+func (s *MemoryStore) MarkMessageResult(
+	ctx context.Context,
+	agentID string,
+	messageID string,
+	req MessageResultRequest,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -508,7 +568,11 @@ func defaultAPIEndpoint(v string) string {
 	return "http://localhost:8642"
 }
 
-func (s *MemoryStore) ensureUserLocked(email string, displayName string, role string) (User, error) {
+func (s *MemoryStore) ensureUserLocked(
+	email string,
+	displayName string,
+	role string,
+) (User, error) {
 	email = normalizeEmail(email)
 	if email == "" {
 		return User{}, ErrUnauthorized

@@ -13,13 +13,14 @@ Cloudflare Access is the authentication layer for browser users.
 
 - Cloudflare validates the identity provider login.
 - Cloudflare forwards authenticated requests to Cloud Run.
-- pax-manager reads `Cf-Access-Authenticated-User-Email`.
-- Local development can opt into `X-User-Email` and `LOCAL_USER_ID` fallback
-  with `ALLOW_LOCAL_USER_HEADER=true`.
+- pax-manager validates `Cf-Access-Jwt-Assertion` against the configured
+  Cloudflare Access issuer, audience, expiry, and JWKS signature.
+- Local development can opt out of Cloudflare JWT validation with
+  `CLOUDFLARE_ACCESS_DISABLED=true` and then opt into `X-User-Email` and
+  `LOCAL_USER_ID` fallback with `ALLOW_LOCAL_USER_HEADER=true`.
 
-The application must run behind Cloudflare Access or another trusted ingress
-that strips spoofed Cloudflare identity headers. Do not expose it directly to
-the public internet while trusting identity headers.
+Production deployments should keep Cloudflare Access validation enabled and
+must not enable local header fallback.
 
 ## Agent Authentication
 
@@ -39,27 +40,29 @@ Preferred flow:
 `REGISTRATION_TOKEN` remains as a bootstrap escape hatch. When used, ownership
 comes from `REGISTRATION_TOKEN_OWNER_EMAIL`, or `LOCAL_USER_ID` if unset.
 
-### User Platform API Keys
+### Agent API Keys
 
-Users can create long-lived API keys for paxd cloud websocket connections.
+paxd receives an agent API key during registration and uses it for cloud
+websocket connections and authenticated agent HTTP calls.
 
 - Plain keys are returned once.
 - pax-manager stores only SHA-256 hashes.
-- Keys are tied to `owner_user_id`.
-- Revoked keys are rejected.
-- Successful websocket authentication updates `last_used_at`.
+- Keys are tied to `agent_id`.
 
 paxd can authenticate to:
 
 ```text
-/api/agent/ws?key=<apiKey>
+/api/agent/ws?agent_id=<agentId>&session_id=<sessionId>
 ```
 
-or with:
+with:
 
 ```http
-Authorization: Bearer <apiKey>
+X-Pax-Key: <agentApiKey>
 ```
+
+The websocket handshake validates `X-Pax-Key` before upgrade. If `agent_id` is
+present, it must match the authenticated key.
 
 After registration, pax-manager returns:
 
@@ -67,7 +70,7 @@ After registration, pax-manager returns:
 - `apiKey`
 
 The plain API key is returned once and stored by paxd. pax-manager stores only
-the SHA-256 hash. All agent endpoints after registration require:
+the SHA-256 hash. Agent HTTP endpoints after registration require:
 
 ```http
 Authorization: Bearer <apiKey>
@@ -107,3 +110,10 @@ cannot distinguish missing records from records owned by another user.
 - Keep Cloud Run ingress restricted when relying on Cloudflare headers.
 - Rotate registration tokens after bootstrapping a fleet.
 - Prefer short mailbox TTLs for steer messages because they are time-sensitive.
+- API routes enforce a configurable request body cap with `MAX_BODY_BYTES`.
+- API routes use per-client in-memory rate limits. Defaults are 300 requests per
+  minute with burst 60 for `/api/*`, and 30 requests per minute with burst 10
+  for `/api/agent/register`.
+- Cloud Build deploys set Cloud Run `max-instances` and request timeout
+  defaults to bound accidental cost growth. Use Cloud Armor in front of Cloud
+  Run for network-edge rate limits and path rules.

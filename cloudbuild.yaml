@@ -5,6 +5,11 @@ substitutions:
   _IMAGE: pax-manager
   _ADMIN_EMAILS: ""
   _REGISTRATION_TOKEN_OWNER_EMAIL: ""
+  _CLOUDFLARE_ACCESS_ISSUER: "https://billowing-dream-9314.cloudflareaccess.com"
+  _CLOUDFLARE_ACCESS_AUD: "1a59397a05310415570607d5dbfa973e1bcfb74a7a4617c9bc859112cfa0efca"
+  _CLOUDFLARE_ACCESS_JWKS_URL: "https://billowing-dream-9314.cloudflareaccess.com/cdn-cgi/access/certs"
+  _MAX_INSTANCES: "5"
+  _TIMEOUT: "30s"
 
 steps:
   - id: build
@@ -37,8 +42,12 @@ steps:
       - --allow-unauthenticated
       - --port
       - "9879"
+      - --max-instances
+      - ${_MAX_INSTANCES}
+      - --timeout
+      - ${_TIMEOUT}
       - --update-env-vars
-      - ADMIN_EMAILS=${_ADMIN_EMAILS},REGISTRATION_TOKEN_OWNER_EMAIL=${_REGISTRATION_TOKEN_OWNER_EMAIL}
+      - ADMIN_EMAILS=${_ADMIN_EMAILS},REGISTRATION_TOKEN_OWNER_EMAIL=${_REGISTRATION_TOKEN_OWNER_EMAIL},CLOUDFLARE_ACCESS_ISSUER=${_CLOUDFLARE_ACCESS_ISSUER},CLOUDFLARE_ACCESS_AUD=${_CLOUDFLARE_ACCESS_AUD},CLOUDFLARE_ACCESS_JWKS_URL=${_CLOUDFLARE_ACCESS_JWKS_URL}
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
