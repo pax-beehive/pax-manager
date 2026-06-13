@@ -131,6 +131,120 @@ func TestCreateUserAPIKey(t *testing.T) {
 	)
 }
 
+func TestAgents(t *testing.T) {
+	t.Run(
+		"Given an empty agent ID when getting an agent then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().
+				Principal(ctx, auth.RequestMetadata{}).
+				Return(userPrincipal("usr_self", false), nil).
+				Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.GetAgent(ctx, auth.RequestMetadata{}, "")
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run(
+		"Given a visible agent when getting an agent then it returns that agent",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			agent := domain.Agent{AgentID: "agent_1", OwnerUserID: "usr_self"}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().GetAgent(ctx, principal, "agent_1").Return(agent, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.GetAgent(ctx, auth.RequestMetadata{}, "agent_1")
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, agent, data)
+		},
+	)
+
+	t.Run(
+		"Given a visible session under an agent when getting that agent session then it returns the session",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			session := domain.AgentSession{AgentID: "agent_1", SessionID: "sess_1"}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().GetSession(ctx, principal, "sess_1").Return(session, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.GetAgentSession(
+				ctx,
+				auth.RequestMetadata{},
+				"agent_1",
+				"sess_1",
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, session, data)
+		},
+	)
+
+	t.Run(
+		"Given a session under another agent when getting that agent session then it returns not found",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetSession(ctx, principal, "sess_1").
+				Return(domain.AgentSession{AgentID: "agent_2", SessionID: "sess_1"}, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.GetAgentSession(
+				ctx,
+				auth.RequestMetadata{},
+				"agent_1",
+				"sess_1",
+			)
+
+			require.ErrorIs(t, err, domain.ErrNotFound)
+		},
+	)
+}
+
 func TestMailbox(t *testing.T) {
 	t.Run(
 		"Given missing agent ID when creating mailbox message then it returns bad request",
@@ -192,6 +306,81 @@ func TestMailbox(t *testing.T) {
 				map[string]any{"messages": []domain.MailboxMessage{{MessageID: "msg_1"}}},
 				data,
 			)
+		},
+	)
+
+	t.Run(
+		"Given a session message for a matching agent session then it creates the mailbox message",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			req := domain.CreateMailboxRequest{
+				AgentID:     "agent_1",
+				SessionID:   "sess_1",
+				Message:     "continue",
+				MessageType: "chat",
+			}
+			expected := domain.MailboxMessage{
+				MessageID: "msg_1",
+				AgentID:   "agent_1",
+				SessionID: "sess_1",
+			}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetSession(ctx, principal, "sess_1").
+				Return(domain.AgentSession{AgentID: "agent_1", SessionID: "sess_1"}, nil).
+				Once()
+			store.EXPECT().CreateMailboxMessage(ctx, principal, req).Return(expected, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.CreateSessionMessage(ctx, auth.RequestMetadata{}, req)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusCreated, status)
+			require.Equal(t, expected, data)
+		},
+	)
+
+	t.Run(
+		"Given a session message for a different agent session then it returns not found",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetSession(ctx, principal, "sess_1").
+				Return(domain.AgentSession{AgentID: "agent_2", SessionID: "sess_1"}, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.CreateSessionMessage(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateMailboxRequest{
+					AgentID:     "agent_1",
+					SessionID:   "sess_1",
+					Message:     "continue",
+					MessageType: "chat",
+				},
+			)
+
+			require.ErrorIs(t, err, domain.ErrNotFound)
 		},
 	)
 }

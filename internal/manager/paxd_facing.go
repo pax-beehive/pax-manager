@@ -46,6 +46,18 @@ func (s *Service) handleAgentMailbox(
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func (s *Service) handleAgentSessionMailbox(
+	c context.Context,
+	ctx *app.RequestContext,
+	agent Agent,
+	sessionID string,
+	offset int64,
+	limit int,
+) {
+	status, data, err := s.paxd.PullSessionMailbox(c, agent, sessionID, offset, limit)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func (s *Service) handleAgentOffset(
 	c context.Context,
 	ctx *app.RequestContext,

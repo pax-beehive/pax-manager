@@ -40,6 +40,7 @@ help:
 	@printf "  make cloud-build    Submit Cloud Build using cloudbuild.yaml\n"
 	@printf "  make up             Start Postgres and manager with Docker Compose\n"
 	@printf "  make db-up          Start only Postgres with Docker Compose\n"
+	@printf "  make db-ensure      Create local paxdb database if missing\n"
 	@printf "  make db-reset       Recreate local Postgres volume and start Postgres\n"
 	@printf "  make down           Stop Docker Compose services\n"
 	@printf "  make logs           Tail Docker Compose logs\n"
@@ -119,17 +120,21 @@ cloud-build:
 	gcloud builds submit --config cloudbuild.yaml
 
 .PHONY: up
-up:
-	docker compose up --build
+up: db-ensure
+	docker compose up --build -d manager
 
 .PHONY: db-up
-db-up:
+db-up: db-ensure
+
+.PHONY: db-ensure
+db-ensure:
 	docker compose up --build -d postgres
+	docker compose exec -T postgres sh -c 'if ! psql -U "$$POSTGRES_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '\''$$POSTGRES_DB'\''" | grep -q 1; then createdb -U "$$POSTGRES_USER" "$$POSTGRES_DB"; fi'
 
 .PHONY: db-reset
 db-reset:
 	docker compose down -v
-	docker compose up --build -d postgres
+	$(MAKE) db-ensure
 
 .PHONY: down
 down:

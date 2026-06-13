@@ -70,6 +70,12 @@ struct PullMailboxRequest {
   2: optional i32 limit (api.query = "limit")
 }
 
+struct PullSessionMailboxRequest {
+  1: optional string session_id (api.path = "sessionId")
+  2: optional i64 offset (api.query = "offset")
+  3: optional i32 limit (api.query = "limit")
+}
+
 struct Agent {
   1: optional string agent_id
   2: optional string owner_user_id
@@ -89,6 +95,10 @@ struct Agent {
 
 struct AgentListData {
   1: optional list<Agent> agents
+}
+
+struct GetAgentRequest {
+  1: optional string agent_id (api.path = "agentId")
 }
 
 struct AgentSession {
@@ -120,21 +130,26 @@ struct ListAgentSessionsRequest {
   1: optional string agent_id (api.path = "agentId")
 }
 
-struct GetSessionRequest {
-  1: optional string session_id (api.path = "sessionId")
-}
-
-struct ListSessionMessagesRequest {
-  1: optional string session_id (api.path = "sessionId")
+struct GetAgentSessionRequest {
+  1: optional string agent_id (api.path = "agentId")
+  2: optional string session_id (api.path = "sessionId")
 }
 
 struct SessionListData {
   1: optional list<AgentSession> sessions
 }
 
-struct CreateMailboxRequest {
-  1: optional string agent_id
+struct CreateAgentMessageRequest {
+  1: optional string agent_id (api.path = "agentId")
   2: optional string session_id
+  3: optional string message
+  4: optional string message_type
+  5: optional JSON payload
+}
+
+struct CreateSessionMessageRequest {
+  1: optional string agent_id (api.path = "agentId")
+  2: optional string session_id (api.path = "sessionId")
   3: optional string message
   4: optional string message_type
   5: optional JSON payload
@@ -181,11 +196,16 @@ struct UpdateMailboxOffsetRequest {
   1: optional i64 offset
 }
 
-struct ListMailboxRequest {
-  1: optional string agent_id (api.query = "agent_id")
+struct ListAgentMessagesRequest {
+  1: optional string agent_id (api.path = "agentId")
   2: optional string session_id (api.query = "session_id")
   3: optional string status (api.query = "status")
   4: optional i32 limit (api.query = "limit")
+}
+
+struct ListAgentSessionMessagesRequest {
+  1: optional string agent_id (api.path = "agentId")
+  2: optional string session_id (api.path = "sessionId")
 }
 
 struct CreateRegistrationTokenRequest {
@@ -263,6 +283,12 @@ struct AgentListResponse {
   3: optional string message
 }
 
+struct AgentResponse {
+  1: optional Agent data
+  2: optional i32 code
+  3: optional string message
+}
+
 struct SessionListResponse {
   1: optional SessionListData data
   2: optional i32 code
@@ -316,7 +342,10 @@ service PaxManagerAPI {
     (api.post = "/api/agent/status", openapi.tag = "agent", openapi.summary = "Report agent status", openapi.description = "Upserts agent and session status using the paxd session shape.", openapi.security = "agentBearer")
 
   PullMailboxResponse PullMailbox(1: PullMailboxRequest request)
-    (api.get = "/api/agent/mailbox", openapi.tag = "agent", openapi.summary = "Pull mailbox", openapi.description = "Returns pending mailbox messages after the provided offset.", openapi.security = "agentBearer", openapi.query.offset = "Last processed mailbox offset.", openapi.query.limit = "Maximum number of messages to return.")
+    (api.get = "/api/agent/mailbox", openapi.tag = "agent", openapi.summary = "Pull agent mailbox", openapi.description = "Returns pending mailbox messages for the whole agent. Prefer the session-scoped mailbox when the paxd connection is bound to a session.", openapi.security = "agentBearer", openapi.query.offset = "Last processed mailbox offset.", openapi.query.limit = "Maximum number of messages to return.")
+
+  PullMailboxResponse PullSessionMailbox(1: PullSessionMailboxRequest request)
+    (api.get = "/api/agent/sessions/:sessionId/mailbox", openapi.tag = "agent", openapi.summary = "Pull session mailbox", openapi.description = "Returns pending mailbox messages for a specific session owned by the authenticated agent.", openapi.security = "agentBearer", openapi.path.sessionId = "Session identifier.", openapi.query.offset = "Last processed mailbox offset.", openapi.query.limit = "Maximum number of messages to return.")
 
   OKResponse UpdateMailboxOffset(1: UpdateMailboxOffsetRequest request)
     (api.post = "/api/agent/messages/offset", openapi.tag = "agent", openapi.summary = "Update mailbox offset", openapi.description = "Stores the highest mailbox offset processed by the agent.", openapi.security = "agentBearer")
@@ -327,20 +356,26 @@ service PaxManagerAPI {
   AgentListResponse ListAgents(1: EmptyRequest request)
     (api.get = "/api/user/agents", openapi.tag = "user", openapi.summary = "List agents", openapi.description = "Lists agents visible to the current user.", openapi.security = "cloudflareAccess")
 
+  AgentResponse GetAgent(1: GetAgentRequest request)
+    (api.get = "/api/user/agents/:agentId", openapi.tag = "user", openapi.summary = "Get agent", openapi.description = "Returns an agent visible to the current user.", openapi.security = "cloudflareAccess", openapi.path.agentId = "Agent identifier.")
+
   SessionListResponse ListAgentSessions(1: ListAgentSessionsRequest request)
     (api.get = "/api/user/agents/:agentId/sessions", openapi.tag = "user", openapi.summary = "List agent sessions", openapi.description = "Lists session snapshots for an agent visible to the current user.", openapi.security = "cloudflareAccess", openapi.path.agentId = "Agent identifier.")
 
-  AgentSessionResponse GetSession(1: GetSessionRequest request)
-    (api.get = "/api/user/sessions/:sessionId", openapi.tag = "user", openapi.summary = "Get session", openapi.description = "Returns a single session snapshot visible to the current user.", openapi.security = "cloudflareAccess", openapi.path.sessionId = "Session identifier.")
+  AgentSessionResponse GetAgentSession(1: GetAgentSessionRequest request)
+    (api.get = "/api/user/agents/:agentId/sessions/:sessionId", openapi.tag = "user", openapi.summary = "Get agent session", openapi.description = "Returns a session snapshot under an agent visible to the current user.", openapi.security = "cloudflareAccess", openapi.path.agentId = "Agent identifier.", openapi.path.sessionId = "Session identifier.")
 
-  MailboxListResponse ListSessionMessages(1: ListSessionMessagesRequest request)
-    (api.get = "/api/user/sessions/:sessionId/messages", openapi.tag = "user", openapi.summary = "List session messages", openapi.description = "Lists mailbox messages for a session visible to the current user.", openapi.security = "cloudflareAccess", openapi.path.sessionId = "Session identifier.")
+  MailboxListResponse ListAgentMessages(1: ListAgentMessagesRequest request)
+    (api.get = "/api/user/agents/:agentId/messages", openapi.tag = "user", openapi.summary = "List agent messages", openapi.description = "Lists mailbox messages for an agent visible to the current user. This is an aggregate view; use the session-scoped route for a specific conversation.", openapi.security = "cloudflareAccess", openapi.path.agentId = "Agent identifier.", openapi.query.session_id = "Filter by session ID.", openapi.query.status = "Filter by mailbox status.", openapi.query.limit = "Maximum number of messages to return.")
 
-  MailboxMessageResponse CreateMailboxMessage(1: CreateMailboxRequest request)
-    (api.post = "/api/user/message", openapi.tag = "user", openapi.summary = "Create mailbox message", openapi.description = "Queues a message for an owned agent.", openapi.status = "201", openapi.security = "cloudflareAccess")
+  MailboxMessageResponse CreateAgentMessage(1: CreateAgentMessageRequest request)
+    (api.post = "/api/user/agents/:agentId/messages", openapi.tag = "user", openapi.summary = "Create agent-level message", openapi.description = "Queues a bootstrap or agent-level mailbox message. Once a session exists, prefer POST /api/user/agents/{agentId}/sessions/{sessionId}/messages.", openapi.status = "201", openapi.security = "cloudflareAccess", openapi.path.agentId = "Agent identifier.")
 
-  MailboxListResponse ListMailbox(1: ListMailboxRequest request)
-    (api.get = "/api/user/mailbox", openapi.tag = "user", openapi.summary = "List mailbox messages", openapi.description = "Lists mailbox messages visible to the current user.", openapi.security = "cloudflareAccess", openapi.query.agent_id = "Filter by agent ID.", openapi.query.session_id = "Filter by session ID.", openapi.query.status = "Filter by mailbox status.", openapi.query.limit = "Maximum number of messages to return.")
+  MailboxListResponse ListAgentSessionMessages(1: ListAgentSessionMessagesRequest request)
+    (api.get = "/api/user/agents/:agentId/sessions/:sessionId/messages", openapi.tag = "user", openapi.summary = "List agent session messages", openapi.description = "Lists mailbox messages for a specific session under an agent visible to the current user.", openapi.security = "cloudflareAccess", openapi.path.agentId = "Agent identifier.", openapi.path.sessionId = "Session identifier.")
+
+  MailboxMessageResponse CreateSessionMessage(1: CreateSessionMessageRequest request)
+    (api.post = "/api/user/agents/:agentId/sessions/:sessionId/messages", openapi.tag = "user", openapi.summary = "Create session message", openapi.description = "Queues a mailbox message for a specific session under an agent visible to the current user.", openapi.status = "201", openapi.security = "cloudflareAccess", openapi.path.agentId = "Agent identifier.", openapi.path.sessionId = "Session identifier.")
 
   UserAPIKeyListResponse ListUserAPIKeys(1: EmptyRequest request)
     (api.get = "/api/user/api-keys", openapi.tag = "user", openapi.summary = "List platform API keys", openapi.description = "Lists API keys owned by the current user.", openapi.security = "cloudflareAccess")

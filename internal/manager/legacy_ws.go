@@ -99,7 +99,7 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
 			continue
 		}
-		s.handleAgentWSMessage(r, ws, agent, payload)
+		s.handleAgentWSMessage(r, ws, agent, conn.sessionID, payload)
 	}
 }
 
@@ -198,6 +198,7 @@ func (s *Server) handleAgentWSMessage(
 	r *http.Request,
 	ws *websocket.Conn,
 	agent Agent,
+	sessionID string,
 	payload []byte,
 ) {
 	var req agentWSRequest
@@ -205,12 +206,13 @@ func (s *Server) handleAgentWSMessage(
 		_ = writeAgentWSError(ws, "", "", http.StatusBadRequest, "invalid JSON message")
 		return
 	}
-	_ = writeAgentWSResponse(ws, s.handleAgentWSRequest(r.Context(), agent, req))
+	_ = writeAgentWSResponse(ws, s.handleAgentWSRequest(r.Context(), agent, sessionID, req))
 }
 
 func (s *Server) handleAgentWSRequest(
 	ctx context.Context,
 	agent Agent,
+	sessionID string,
 	req agentWSRequest,
 ) agentWSResponse {
 	switch req.Type {
@@ -231,7 +233,7 @@ func (s *Server) handleAgentWSRequest(
 			return agentWSErrorResponse(req.Type, req.RequestID, http.StatusBadRequest, err.Error())
 		}
 		pull.Offset = input.Offset
-		status, data, err := s.paxd.PullMailbox(ctx, agent, pull.Offset, input.Limit)
+		status, data, err := s.pullWSMailbox(ctx, agent, sessionID, pull.Offset, input.Limit)
 		return agentWSResult("pull_mailbox_result", req.RequestID, status, data, err)
 	case "update_offset":
 		var input OffsetRequest
@@ -258,6 +260,19 @@ func (s *Server) handleAgentWSRequest(
 			"unknown message type",
 		)
 	}
+}
+
+func (s *Server) pullWSMailbox(
+	ctx context.Context,
+	agent Agent,
+	sessionID string,
+	offset int64,
+	limit int,
+) (int, any, error) {
+	if sessionID == "" {
+		return s.paxd.PullMailbox(ctx, agent, offset, limit)
+	}
+	return s.paxd.PullSessionMailbox(ctx, agent, sessionID, offset, limit)
 }
 
 func decodeAgentWSData(data json.RawMessage, v any) error {

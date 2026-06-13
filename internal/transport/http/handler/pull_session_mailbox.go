@@ -7,19 +7,24 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+
 	api "github.com/pax-beehive/pax-manager/internal/transport/http/model/paxmanager/api"
 )
 
-// ListSessionMessages .
-// @router /api/user/sessions/:sessionId/messages [GET]
-func ListSessionMessages(ctx context.Context, c *app.RequestContext) {
+// PullSessionMailbox .
+// @router /api/agent/sessions/:sessionId/mailbox [GET]
+func PullSessionMailbox(ctx context.Context, c *app.RequestContext) {
 	var err error
-	var req api.ListSessionMessagesRequest
+	var req api.PullSessionMailboxRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
 		c.String(consts.StatusBadRequest, err.Error())
 		return
 	}
+	if req.GetSessionID() == "" {
+		sessionID := c.Param("sessionId")
+		req.SessionID = &sessionID
+	}
 
-	serviceFromContext(c).ListSessionMessages(ctx, c, &req)
+	serviceFromContext(c).PullSessionMailbox(ctx, c, &req)
 }

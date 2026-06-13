@@ -225,6 +225,17 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 				t.Fatalf("unexpected agent list: %+v", agents.Agents)
 			}
 
+			agent := getJSON[agent](
+				t,
+				fixture,
+				"/api/user/agents/"+registered.AgentID,
+				fixture.userHeaders(),
+				http.StatusOK,
+			)
+			if agent.AgentID != registered.AgentID || agent.Hostname != "integration-host" {
+				t.Fatalf("unexpected agent: %+v", agent)
+			}
+
 			sessions := getJSON[sessionListResponse](
 				t,
 				fixture,
@@ -237,7 +248,7 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 			gotSession := getJSON[session](
 				t,
 				fixture,
-				"/api/user/sessions/"+httpSessionID,
+				"/api/user/agents/"+registered.AgentID+"/sessions/"+httpSessionID,
 				fixture.userHeaders(),
 				http.StatusOK,
 			)
@@ -256,13 +267,13 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 				httpSessionID,
 				"run http tests",
 			)
-			sessionMessages := fixture.listSessionMessages(t, httpSessionID)
+			sessionMessages := fixture.listSessionMessages(t, registered.AgentID, httpSessionID)
 			assertMailboxMessage(t, sessionMessages.Messages, httpMessage.MessageID, "pending", "")
 
 			pull := getJSON[mailboxPullResponse](
 				t,
 				fixture,
-				"/api/agent/mailbox?offset=0&limit=10",
+				"/api/agent/sessions/"+httpSessionID+"/mailbox?offset=0&limit=10",
 				fixture.agentHeaders(registered.APIKey),
 				http.StatusOK,
 			)
@@ -286,7 +297,7 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 				http.StatusOK,
 			)
 
-			completed := fixture.listMailboxByStatus(t, "completed")
+			completed := fixture.listSessionMessages(t, registered.AgentID, httpSessionID)
 			assertMailboxMessage(
 				t,
 				completed.Messages,
@@ -343,7 +354,7 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 			writeWS(t, ws, "update_offset", "offset-1", map[string]any{"offset": wsMaxOffset})
 			assertWSResult(t, readWS(t, ws), "update_offset_result", "offset-1")
 
-			completed := fixture.listMailboxByStatus(t, "completed")
+			completed := fixture.listSessionMessages(t, registered.AgentID, wsSessionID)
 			assertMailboxMessage(
 				t,
 				completed.Messages,
@@ -371,9 +382,8 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 
 			fixture.postExpectError(
 				t,
-				"/api/user/message",
+				"/api/user/agents/"+registered.AgentID+"/sessions/"+httpSessionID+"/messages",
 				map[string]any{
-					"agent_id":     registered.AgentID,
 					"session_id":   httpSessionID,
 					"message":      "cross tenant",
 					"message_type": "chat",
@@ -438,10 +448,8 @@ func (f *integrationFixture) createMailboxMessage(
 	return postJSON[mailboxMessage](
 		t,
 		f,
-		"/api/user/message",
+		"/api/user/agents/"+agentID+"/sessions/"+sessionID+"/messages",
 		map[string]any{
-			"agent_id":     agentID,
-			"session_id":   sessionID,
 			"message":      message,
 			"message_type": "chat",
 		},
@@ -452,27 +460,14 @@ func (f *integrationFixture) createMailboxMessage(
 
 func (f *integrationFixture) listSessionMessages(
 	t *testing.T,
+	agentID string,
 	sessionID string,
 ) mailboxListResponse {
 	t.Helper()
 	return getJSON[mailboxListResponse](
 		t,
 		f,
-		"/api/user/sessions/"+sessionID+"/messages",
-		f.userHeaders(),
-		http.StatusOK,
-	)
-}
-
-func (f *integrationFixture) listMailboxByStatus(
-	t *testing.T,
-	status string,
-) mailboxListResponse {
-	t.Helper()
-	return getJSON[mailboxListResponse](
-		t,
-		f,
-		"/api/user/mailbox?status="+url.QueryEscape(status),
+		"/api/user/agents/"+agentID+"/sessions/"+sessionID+"/messages",
 		f.userHeaders(),
 		http.StatusOK,
 	)

@@ -22,6 +22,7 @@ type Store interface {
 	PullMailbox(
 		ctx context.Context,
 		agentID string,
+		sessionID string,
 		offset int64,
 		limit int,
 	) (domain.MailboxPull, error)
@@ -133,7 +134,30 @@ func (s *Service) PullMailbox(
 	if limit == 0 {
 		limit = 10
 	}
-	pull, err := s.store.PullMailbox(c, agent.AgentID, offset, limit)
+	pull, err := s.store.PullMailbox(c, agent.AgentID, "", offset, limit)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, pull, nil
+}
+
+func (s *Service) PullSessionMailbox(
+	c context.Context,
+	agent domain.Agent,
+	sessionID string,
+	offset int64,
+	limit int,
+) (int, any, error) {
+	if sessionID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "session_id is required",
+		}
+	}
+	if limit == 0 {
+		limit = 10
+	}
+	pull, err := s.store.PullMailbox(c, agent.AgentID, sessionID, offset, limit)
 	if err != nil {
 		return 0, nil, err
 	}

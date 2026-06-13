@@ -2,12 +2,17 @@ package manager
 
 import (
 	"context"
+	"embed"
+	"encoding/json"
 	"net/http"
 
 	"github.com/cloudwego/hertz/pkg/app"
 )
 
 //go:generate go run ../../cmd/openapi-gen -in ../../api/pax_manager.thrift -out openapi_generated.go
+
+//go:embed openapi_generated.json
+var openAPIFS embed.FS
 
 func OpenAPIUI(c context.Context, ctx *app.RequestContext) {
 	serviceFromContext(ctx).handleOpenAPIUI(c, ctx)
@@ -22,7 +27,12 @@ func (s *Service) handleOpenAPIUI(_ context.Context, ctx *app.RequestContext) {
 }
 
 func (s *Service) handleOpenAPIJSON(_ context.Context, ctx *app.RequestContext) {
-	writeJSON(ctx, http.StatusOK, openAPIDocument(requestBaseURL(ctx)))
+	doc, err := openAPIDocument(requestBaseURL(ctx))
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, "openapi document is invalid")
+		return
+	}
+	ctx.Data(http.StatusOK, "application/json; charset=utf-8", doc)
 }
 
 func requestBaseURL(ctx *app.RequestContext) string {
@@ -40,10 +50,17 @@ func requestBaseURL(ctx *app.RequestContext) string {
 	return proto + "://" + host
 }
 
-func openAPIDocument(serverURL string) map[string]any {
-	doc := openAPIBaseDocument()
+func openAPIDocument(serverURL string) ([]byte, error) {
+	raw, err := openAPIFS.ReadFile("openapi_generated.json")
+	if err != nil {
+		return nil, err
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, err
+	}
 	doc["servers"] = []map[string]string{{"url": serverURL}}
-	return doc
+	return json.MarshalIndent(doc, "", "  ")
 }
 
 const openAPIHTML = `<!doctype html>
@@ -181,7 +198,7 @@ const openAPIHTML = `<!doctype html>
   <main>
     <div class="toolbar">
       <input id="filter" type="search" placeholder="Filter endpoints" autocomplete="off">
-      <a class="button" href="/openapi.json">Open JSON</a>
+      <a class="button" href="openapi.json">Open JSON</a>
     </div>
     <div id="content" class="empty">Loading</div>
   </main>
@@ -230,7 +247,7 @@ const openAPIHTML = `<!doctype html>
       visible.forEach((endpoint) => content.appendChild(endpoint));
     }
 
-    fetch("/openapi.json")
+    fetch("openapi.json")
       .then((response) => {
         if (!response.ok) throw new Error("OpenAPI request failed: " + response.status);
         return response.json();

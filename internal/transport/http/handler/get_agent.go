@@ -7,19 +7,24 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+
 	api "github.com/pax-beehive/pax-manager/internal/transport/http/model/paxmanager/api"
 )
 
-// CreateMailboxMessage .
-// @router /api/user/message [POST]
-func CreateMailboxMessage(ctx context.Context, c *app.RequestContext) {
+// GetAgent .
+// @router /api/user/agents/:agentId [GET]
+func GetAgent(ctx context.Context, c *app.RequestContext) {
 	var err error
-	var req api.CreateMailboxRequest
-	err = c.BindJSON(&req)
+	var req api.GetAgentRequest
+	err = c.BindAndValidate(&req)
 	if err != nil {
 		c.String(consts.StatusBadRequest, err.Error())
 		return
 	}
+	if req.GetAgentID() == "" {
+		agentID := c.Param("agentId")
+		req.AgentID = &agentID
+	}
 
-	serviceFromContext(c).CreateMailboxMessage(ctx, c, &req)
+	serviceFromContext(c).GetAgent(ctx, c, &req)
 }

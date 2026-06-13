@@ -139,7 +139,10 @@ func TestMailboxOperations(t *testing.T) {
 			ctx := context.Background()
 			store := paxdmocks.NewMockStore(t)
 			expected := domain.MailboxPull{MaxOffset: 10}
-			store.EXPECT().PullMailbox(ctx, "agent_1", int64(3), 10).Return(expected, nil).Once()
+			store.EXPECT().
+				PullMailbox(ctx, "agent_1", "", int64(3), 10).
+				Return(expected, nil).
+				Once()
 
 			svc := paxd.NewService(
 				store,
@@ -148,6 +151,37 @@ func TestMailboxOperations(t *testing.T) {
 				paxdmocks.NewMockSecretIssuer(t),
 			)
 			status, data, err := svc.PullMailbox(ctx, domain.Agent{AgentID: "agent_1"}, 3, 0)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, expected, data)
+		},
+	)
+
+	t.Run(
+		"Given a session mailbox pull without limit then it filters by session and uses the default limit",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store := paxdmocks.NewMockStore(t)
+			expected := domain.MailboxPull{MaxOffset: 11}
+			store.EXPECT().
+				PullMailbox(ctx, "agent_1", "sess_1", int64(4), 10).
+				Return(expected, nil).
+				Once()
+
+			svc := paxd.NewService(
+				store,
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.PullSessionMailbox(
+				ctx,
+				domain.Agent{AgentID: "agent_1"},
+				"sess_1",
+				4,
+				0,
+			)
 
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, status)

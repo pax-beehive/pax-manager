@@ -137,3 +137,57 @@ func _listsessionmessagesMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _getagentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listagentmessagesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createagentmessageMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _pullsessionmailboxMw() []app.HandlerFunc {
+	return []app.HandlerFunc{handler.AgentAuth()}
+}
+
+func _sessions0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _sessionid0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listagentsessionmessagesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createsessionmessageMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _sessions1Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _sessionid1Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getagentsessionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

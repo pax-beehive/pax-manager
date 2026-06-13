@@ -44,6 +44,22 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	if _, ok := doc.Paths["/api/user/api-keys"]; !ok {
 		t.Fatalf("missing /api/user/api-keys path")
 	}
+	if _, ok := doc.Paths["/api/user/agents/{agentId}/sessions/{sessionId}/messages"]; !ok {
+		t.Fatalf("missing /api/user/agents/{agentId}/sessions/{sessionId}/messages path")
+	}
+	if _, ok := doc.Paths["/api/user/agents/{agentId}/sessions/{sessionId}"]; !ok {
+		t.Fatalf("missing /api/user/agents/{agentId}/sessions/{sessionId} path")
+	}
+	for _, removed := range []string{
+		"/api/user/sessions/{sessionId}",
+		"/api/user/sessions/{sessionId}/messages",
+		"/api/user/message",
+		"/api/user/mailbox",
+	} {
+		if _, ok := doc.Paths[removed]; ok {
+			t.Fatalf("removed path still present: %s", removed)
+		}
+	}
 }
 
 func TestOpenAPIUI(t *testing.T) {
@@ -59,7 +75,7 @@ func TestOpenAPIUI(t *testing.T) {
 		t.Fatalf("content type = %q", contentType)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"pax-manager API", "fetch(\"/openapi.json\")", "Open JSON"} {
+	for _, want := range []string{"pax-manager API", "fetch(\"openapi.json\")", "Open JSON"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("openapi ui missing %q", want)
 		}
@@ -135,9 +151,26 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 		t.Fatalf("status code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
+	agentID := testAgentID(t, srv, "todd@example.com")
 	req = httptest.NewRequest(
 		http.MethodGet,
-		"/api/user/agents/"+testAgentID(t, srv, "todd@example.com")+"/sessions",
+		"/api/user/agents/"+agentID,
+		nil,
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("agent code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	agent := decodeData[Agent](t, rec.Body.Bytes())
+	if agent.AgentID != agentID || agent.Hostname != "workstation" {
+		t.Fatalf("unexpected agent: %+v", agent)
+	}
+
+	req = httptest.NewRequest(
+		http.MethodGet,
+		"/api/user/agents/"+agentID+"/sessions",
 		nil,
 	)
 	req.Header.Set("X-User-Email", "todd@example.com")
@@ -160,19 +193,38 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 	if len(session.WorkspaceRoots) != 1 || session.WorkspaceRoots[0] != "/workspace/repo" {
 		t.Fatalf("workspace roots = %#v", session.WorkspaceRoots)
 	}
+
+	req = httptest.NewRequest(
+		http.MethodGet,
+		"/api/user/agents/"+agentID+"/sessions/sess-1",
+		nil,
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("session code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	gotSession := decodeData[AgentSession](t, rec.Body.Bytes())
+	if gotSession.SessionID != "sess-1" || gotSession.AgentID != agentID {
+		t.Fatalf("unexpected session detail: %+v", gotSession)
+	}
 }
 
 func TestMailboxLifecycle(t *testing.T) {
 	srv, apiKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
+	reportTestSession(t, srv, apiKey, agentID, "sess-1")
 
 	body := []byte(`{
-		"agent_id":"` + agentID + `",
-		"session_id":"sess-1",
 		"message":"run the tests",
 		"message_type":"chat"
 	}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/user/message", bytes.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/user/agents/"+agentID+"/sessions/sess-1/messages",
+		bytes.NewReader(body),
+	)
 	setJSON(req)
 	req.Header.Set("X-User-Email", "todd@example.com")
 	rec := httptest.NewRecorder()
@@ -189,7 +241,11 @@ func TestMailboxLifecycle(t *testing.T) {
 	assertPayloadField(t, created.Payload, "event_type", "start")
 	assertPayloadField(t, created.Payload, "prompt", "run the tests")
 
-	req = httptest.NewRequest(http.MethodGet, "/api/agent/mailbox?offset=0&limit=10", nil)
+	req = httptest.NewRequest(
+		http.MethodGet,
+		"/api/agent/sessions/sess-1/mailbox?offset=0&limit=10",
+		nil,
+	)
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
@@ -232,7 +288,11 @@ func TestMailboxLifecycle(t *testing.T) {
 		t.Fatalf("offset code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/user/mailbox?status=completed", nil)
+	req = httptest.NewRequest(
+		http.MethodGet,
+		"/api/user/agents/"+agentID+"/sessions/sess-1/messages",
+		nil,
+	)
 	req.Header.Set("X-User-Email", "todd@example.com")
 	rec = httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
@@ -266,8 +326,12 @@ func TestTenantIsolationAndAdminBypass(t *testing.T) {
 		t.Fatalf("ellen saw agents: %+v", got.Agents)
 	}
 
-	body := []byte(`{"agent_id":"` + agentID + `","message":"cross tenant","message_type":"chat"}`)
-	req = httptest.NewRequest(http.MethodPost, "/api/user/message", bytes.NewReader(body))
+	body := []byte(`{"message":"cross tenant","message_type":"chat"}`)
+	req = httptest.NewRequest(
+		http.MethodPost,
+		"/api/user/agents/"+agentID+"/sessions/sess-1/messages",
+		bytes.NewReader(body),
+	)
 	setJSON(req)
 	req.Header.Set("X-User-Email", "ellen@example.com")
 	rec = httptest.NewRecorder()
@@ -433,14 +497,17 @@ func TestUserAPIKeyCanBeCreatedListedAndRevoked(t *testing.T) {
 func TestAgentWebsocketAuthenticatesOwnerAndProcessesMailboxFrames(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
+	reportTestSession(t, srv, paxKey, agentID, "sess-1")
 
 	body := []byte(`{
-		"agent_id":"` + agentID + `",
-		"session_id":"sess-1",
 		"message":"run the tests",
 		"message_type":"chat"
 	}`)
-	req := httptest.NewRequest(http.MethodPost, "/api/user/message", bytes.NewReader(body))
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/user/agents/"+agentID+"/sessions/sess-1/messages",
+		bytes.NewReader(body),
+	)
 	setJSON(req)
 	req.Header.Set("X-User-Email", "todd@example.com")
 	rec := httptest.NewRecorder()
@@ -467,7 +534,7 @@ func TestAgentWebsocketAuthenticatesOwnerAndProcessesMailboxFrames(t *testing.T)
 		t.Fatalf("initial session = %q", initial.SessionID)
 	}
 
-	pullResp := srv.handleAgentWSRequest(wsReq.Context(), agent, agentWSRequest{
+	pullResp := srv.handleAgentWSRequest(wsReq.Context(), agent, "sess-1", agentWSRequest{
 		Type:      "pull_mailbox",
 		RequestID: "pull-1",
 		Data:      json.RawMessage(`{"offset":0,"limit":10}`),
@@ -486,7 +553,7 @@ func TestAgentWebsocketAuthenticatesOwnerAndProcessesMailboxFrames(t *testing.T)
 		t.Fatalf("pulled messages = %+v", pull.Messages)
 	}
 
-	resultResp := srv.handleAgentWSRequest(wsReq.Context(), agent, agentWSRequest{
+	resultResp := srv.handleAgentWSRequest(wsReq.Context(), agent, "sess-1", agentWSRequest{
 		Type:      "message_result",
 		RequestID: "result-1",
 		Data: json.RawMessage(
@@ -583,6 +650,27 @@ func testAgentID(t *testing.T, srv *Server, userEmail string) string {
 		t.Fatalf("agents len = %d", len(got.Agents))
 	}
 	return got.Agents[0].AgentID
+}
+
+func reportTestSession(t *testing.T, srv *Server, apiKey string, agentID string, sessionID string) {
+	t.Helper()
+	body := []byte(`{
+		"agent_id":"` + agentID + `",
+		"hostname":"workstation",
+		"sessions":[{
+			"session_id":"` + sessionID + `",
+			"name":"test session",
+			"status":"running"
+		}]
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/agent/status", bytes.NewReader(body))
+	setJSON(req)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("report session code = %d, body = %s", rec.Code, rec.Body.String())
+	}
 }
 
 func assertPayloadField(t *testing.T, payload json.RawMessage, field string, want string) {

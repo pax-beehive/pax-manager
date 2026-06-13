@@ -58,6 +58,41 @@ func (_c *MockService_AgentAuth_Call) RunAndReturn(run func(context.Context, *ap
 	return _c
 }
 
+// CreateAgentMessage provides a mock function with given fields: _a0, _a1, _a2
+func (_m *MockService) CreateAgentMessage(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.CreateAgentMessageRequest) {
+	_m.Called(_a0, _a1, _a2)
+}
+
+// MockService_CreateAgentMessage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateAgentMessage'
+type MockService_CreateAgentMessage_Call struct {
+	*mock.Call
+}
+
+// CreateAgentMessage is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *app.RequestContext
+//   - _a2 *api.CreateAgentMessageRequest
+func (_e *MockService_Expecter) CreateAgentMessage(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_CreateAgentMessage_Call {
+	return &MockService_CreateAgentMessage_Call{Call: _e.mock.On("CreateAgentMessage", _a0, _a1, _a2)}
+}
+
+func (_c *MockService_CreateAgentMessage_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.CreateAgentMessageRequest)) *MockService_CreateAgentMessage_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.CreateAgentMessageRequest))
+	})
+	return _c
+}
+
+func (_c *MockService_CreateAgentMessage_Call) Return() *MockService_CreateAgentMessage_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockService_CreateAgentMessage_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.CreateAgentMessageRequest)) *MockService_CreateAgentMessage_Call {
+	_c.Run(run)
+	return _c
+}
+
 // CreateAgentRegistrationToken provides a mock function with given fields: _a0, _a1, _a2
 func (_m *MockService) CreateAgentRegistrationToken(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.CreateRegistrationTokenRequest) {
 	_m.Called(_a0, _a1, _a2)
@@ -93,37 +128,37 @@ func (_c *MockService_CreateAgentRegistrationToken_Call) RunAndReturn(run func(c
 	return _c
 }
 
-// CreateMailboxMessage provides a mock function with given fields: _a0, _a1, _a2
-func (_m *MockService) CreateMailboxMessage(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.CreateMailboxRequest) {
+// CreateSessionMessage provides a mock function with given fields: _a0, _a1, _a2
+func (_m *MockService) CreateSessionMessage(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.CreateSessionMessageRequest) {
 	_m.Called(_a0, _a1, _a2)
 }
 
-// MockService_CreateMailboxMessage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateMailboxMessage'
-type MockService_CreateMailboxMessage_Call struct {
+// MockService_CreateSessionMessage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSessionMessage'
+type MockService_CreateSessionMessage_Call struct {
 	*mock.Call
 }
 
-// CreateMailboxMessage is a helper method to define mock.On call
+// CreateSessionMessage is a helper method to define mock.On call
 //   - _a0 context.Context
 //   - _a1 *app.RequestContext
-//   - _a2 *api.CreateMailboxRequest
-func (_e *MockService_Expecter) CreateMailboxMessage(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_CreateMailboxMessage_Call {
-	return &MockService_CreateMailboxMessage_Call{Call: _e.mock.On("CreateMailboxMessage", _a0, _a1, _a2)}
+//   - _a2 *api.CreateSessionMessageRequest
+func (_e *MockService_Expecter) CreateSessionMessage(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_CreateSessionMessage_Call {
+	return &MockService_CreateSessionMessage_Call{Call: _e.mock.On("CreateSessionMessage", _a0, _a1, _a2)}
 }
 
-func (_c *MockService_CreateMailboxMessage_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.CreateMailboxRequest)) *MockService_CreateMailboxMessage_Call {
+func (_c *MockService_CreateSessionMessage_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.CreateSessionMessageRequest)) *MockService_CreateSessionMessage_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.CreateMailboxRequest))
+		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.CreateSessionMessageRequest))
 	})
 	return _c
 }
 
-func (_c *MockService_CreateMailboxMessage_Call) Return() *MockService_CreateMailboxMessage_Call {
+func (_c *MockService_CreateSessionMessage_Call) Return() *MockService_CreateSessionMessage_Call {
 	_c.Call.Return()
 	return _c
 }
 
-func (_c *MockService_CreateMailboxMessage_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.CreateMailboxRequest)) *MockService_CreateMailboxMessage_Call {
+func (_c *MockService_CreateSessionMessage_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.CreateSessionMessageRequest)) *MockService_CreateSessionMessage_Call {
 	_c.Run(run)
 	return _c
 }
@@ -163,37 +198,72 @@ func (_c *MockService_CreateUserAPIKey_Call) RunAndReturn(run func(context.Conte
 	return _c
 }
 
-// GetSession provides a mock function with given fields: _a0, _a1, _a2
-func (_m *MockService) GetSession(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.GetSessionRequest) {
+// GetAgent provides a mock function with given fields: _a0, _a1, _a2
+func (_m *MockService) GetAgent(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.GetAgentRequest) {
 	_m.Called(_a0, _a1, _a2)
 }
 
-// MockService_GetSession_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSession'
-type MockService_GetSession_Call struct {
+// MockService_GetAgent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAgent'
+type MockService_GetAgent_Call struct {
 	*mock.Call
 }
 
-// GetSession is a helper method to define mock.On call
+// GetAgent is a helper method to define mock.On call
 //   - _a0 context.Context
 //   - _a1 *app.RequestContext
-//   - _a2 *api.GetSessionRequest
-func (_e *MockService_Expecter) GetSession(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_GetSession_Call {
-	return &MockService_GetSession_Call{Call: _e.mock.On("GetSession", _a0, _a1, _a2)}
+//   - _a2 *api.GetAgentRequest
+func (_e *MockService_Expecter) GetAgent(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_GetAgent_Call {
+	return &MockService_GetAgent_Call{Call: _e.mock.On("GetAgent", _a0, _a1, _a2)}
 }
 
-func (_c *MockService_GetSession_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.GetSessionRequest)) *MockService_GetSession_Call {
+func (_c *MockService_GetAgent_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.GetAgentRequest)) *MockService_GetAgent_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.GetSessionRequest))
+		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.GetAgentRequest))
 	})
 	return _c
 }
 
-func (_c *MockService_GetSession_Call) Return() *MockService_GetSession_Call {
+func (_c *MockService_GetAgent_Call) Return() *MockService_GetAgent_Call {
 	_c.Call.Return()
 	return _c
 }
 
-func (_c *MockService_GetSession_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.GetSessionRequest)) *MockService_GetSession_Call {
+func (_c *MockService_GetAgent_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.GetAgentRequest)) *MockService_GetAgent_Call {
+	_c.Run(run)
+	return _c
+}
+
+// GetAgentSession provides a mock function with given fields: _a0, _a1, _a2
+func (_m *MockService) GetAgentSession(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.GetAgentSessionRequest) {
+	_m.Called(_a0, _a1, _a2)
+}
+
+// MockService_GetAgentSession_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAgentSession'
+type MockService_GetAgentSession_Call struct {
+	*mock.Call
+}
+
+// GetAgentSession is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *app.RequestContext
+//   - _a2 *api.GetAgentSessionRequest
+func (_e *MockService_Expecter) GetAgentSession(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_GetAgentSession_Call {
+	return &MockService_GetAgentSession_Call{Call: _e.mock.On("GetAgentSession", _a0, _a1, _a2)}
+}
+
+func (_c *MockService_GetAgentSession_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.GetAgentSessionRequest)) *MockService_GetAgentSession_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.GetAgentSessionRequest))
+	})
+	return _c
+}
+
+func (_c *MockService_GetAgentSession_Call) Return() *MockService_GetAgentSession_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockService_GetAgentSession_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.GetAgentSessionRequest)) *MockService_GetAgentSession_Call {
 	_c.Run(run)
 	return _c
 }
@@ -229,6 +299,76 @@ func (_c *MockService_Health_Call) Return() *MockService_Health_Call {
 }
 
 func (_c *MockService_Health_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.EmptyRequest)) *MockService_Health_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ListAgentMessages provides a mock function with given fields: _a0, _a1, _a2
+func (_m *MockService) ListAgentMessages(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.ListAgentMessagesRequest) {
+	_m.Called(_a0, _a1, _a2)
+}
+
+// MockService_ListAgentMessages_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAgentMessages'
+type MockService_ListAgentMessages_Call struct {
+	*mock.Call
+}
+
+// ListAgentMessages is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *app.RequestContext
+//   - _a2 *api.ListAgentMessagesRequest
+func (_e *MockService_Expecter) ListAgentMessages(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_ListAgentMessages_Call {
+	return &MockService_ListAgentMessages_Call{Call: _e.mock.On("ListAgentMessages", _a0, _a1, _a2)}
+}
+
+func (_c *MockService_ListAgentMessages_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.ListAgentMessagesRequest)) *MockService_ListAgentMessages_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.ListAgentMessagesRequest))
+	})
+	return _c
+}
+
+func (_c *MockService_ListAgentMessages_Call) Return() *MockService_ListAgentMessages_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockService_ListAgentMessages_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.ListAgentMessagesRequest)) *MockService_ListAgentMessages_Call {
+	_c.Run(run)
+	return _c
+}
+
+// ListAgentSessionMessages provides a mock function with given fields: _a0, _a1, _a2
+func (_m *MockService) ListAgentSessionMessages(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.ListAgentSessionMessagesRequest) {
+	_m.Called(_a0, _a1, _a2)
+}
+
+// MockService_ListAgentSessionMessages_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListAgentSessionMessages'
+type MockService_ListAgentSessionMessages_Call struct {
+	*mock.Call
+}
+
+// ListAgentSessionMessages is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *app.RequestContext
+//   - _a2 *api.ListAgentSessionMessagesRequest
+func (_e *MockService_Expecter) ListAgentSessionMessages(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_ListAgentSessionMessages_Call {
+	return &MockService_ListAgentSessionMessages_Call{Call: _e.mock.On("ListAgentSessionMessages", _a0, _a1, _a2)}
+}
+
+func (_c *MockService_ListAgentSessionMessages_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.ListAgentSessionMessagesRequest)) *MockService_ListAgentSessionMessages_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.ListAgentSessionMessagesRequest))
+	})
+	return _c
+}
+
+func (_c *MockService_ListAgentSessionMessages_Call) Return() *MockService_ListAgentSessionMessages_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockService_ListAgentSessionMessages_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.ListAgentSessionMessagesRequest)) *MockService_ListAgentSessionMessages_Call {
 	_c.Run(run)
 	return _c
 }
@@ -303,76 +443,6 @@ func (_c *MockService_ListAgents_Call) RunAndReturn(run func(context.Context, *a
 	return _c
 }
 
-// ListMailbox provides a mock function with given fields: _a0, _a1, _a2
-func (_m *MockService) ListMailbox(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.ListMailboxRequest) {
-	_m.Called(_a0, _a1, _a2)
-}
-
-// MockService_ListMailbox_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListMailbox'
-type MockService_ListMailbox_Call struct {
-	*mock.Call
-}
-
-// ListMailbox is a helper method to define mock.On call
-//   - _a0 context.Context
-//   - _a1 *app.RequestContext
-//   - _a2 *api.ListMailboxRequest
-func (_e *MockService_Expecter) ListMailbox(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_ListMailbox_Call {
-	return &MockService_ListMailbox_Call{Call: _e.mock.On("ListMailbox", _a0, _a1, _a2)}
-}
-
-func (_c *MockService_ListMailbox_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.ListMailboxRequest)) *MockService_ListMailbox_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.ListMailboxRequest))
-	})
-	return _c
-}
-
-func (_c *MockService_ListMailbox_Call) Return() *MockService_ListMailbox_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockService_ListMailbox_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.ListMailboxRequest)) *MockService_ListMailbox_Call {
-	_c.Run(run)
-	return _c
-}
-
-// ListSessionMessages provides a mock function with given fields: _a0, _a1, _a2
-func (_m *MockService) ListSessionMessages(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.ListSessionMessagesRequest) {
-	_m.Called(_a0, _a1, _a2)
-}
-
-// MockService_ListSessionMessages_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListSessionMessages'
-type MockService_ListSessionMessages_Call struct {
-	*mock.Call
-}
-
-// ListSessionMessages is a helper method to define mock.On call
-//   - _a0 context.Context
-//   - _a1 *app.RequestContext
-//   - _a2 *api.ListSessionMessagesRequest
-func (_e *MockService_Expecter) ListSessionMessages(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_ListSessionMessages_Call {
-	return &MockService_ListSessionMessages_Call{Call: _e.mock.On("ListSessionMessages", _a0, _a1, _a2)}
-}
-
-func (_c *MockService_ListSessionMessages_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.ListSessionMessagesRequest)) *MockService_ListSessionMessages_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.ListSessionMessagesRequest))
-	})
-	return _c
-}
-
-func (_c *MockService_ListSessionMessages_Call) Return() *MockService_ListSessionMessages_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockService_ListSessionMessages_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.ListSessionMessagesRequest)) *MockService_ListSessionMessages_Call {
-	_c.Run(run)
-	return _c
-}
-
 // ListUserAPIKeys provides a mock function with given fields: _a0, _a1, _a2
 func (_m *MockService) ListUserAPIKeys(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.EmptyRequest) {
 	_m.Called(_a0, _a1, _a2)
@@ -439,6 +509,41 @@ func (_c *MockService_PullMailbox_Call) Return() *MockService_PullMailbox_Call {
 }
 
 func (_c *MockService_PullMailbox_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.PullMailboxRequest)) *MockService_PullMailbox_Call {
+	_c.Run(run)
+	return _c
+}
+
+// PullSessionMailbox provides a mock function with given fields: _a0, _a1, _a2
+func (_m *MockService) PullSessionMailbox(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.PullSessionMailboxRequest) {
+	_m.Called(_a0, _a1, _a2)
+}
+
+// MockService_PullSessionMailbox_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PullSessionMailbox'
+type MockService_PullSessionMailbox_Call struct {
+	*mock.Call
+}
+
+// PullSessionMailbox is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *app.RequestContext
+//   - _a2 *api.PullSessionMailboxRequest
+func (_e *MockService_Expecter) PullSessionMailbox(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_PullSessionMailbox_Call {
+	return &MockService_PullSessionMailbox_Call{Call: _e.mock.On("PullSessionMailbox", _a0, _a1, _a2)}
+}
+
+func (_c *MockService_PullSessionMailbox_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.PullSessionMailboxRequest)) *MockService_PullSessionMailbox_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(*api.PullSessionMailboxRequest))
+	})
+	return _c
+}
+
+func (_c *MockService_PullSessionMailbox_Call) Return() *MockService_PullSessionMailbox_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockService_PullSessionMailbox_Call) RunAndReturn(run func(context.Context, *app.RequestContext, *api.PullSessionMailboxRequest)) *MockService_PullSessionMailbox_Call {
 	_c.Run(run)
 	return _c
 }

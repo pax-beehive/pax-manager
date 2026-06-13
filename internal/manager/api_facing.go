@@ -4,12 +4,15 @@ import (
 	"context"
 
 	"github.com/cloudwego/hertz/pkg/app"
-
-	hzapi "github.com/pax-beehive/pax-manager/internal/transport/http/model/paxmanager/api"
 )
 
 func (s *Service) handleUserAgents(c context.Context, ctx *app.RequestContext) {
 	status, data, err := s.userapi.ListAgents(c, requestMetadata(ctx))
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func (s *Service) handleGetAgent(c context.Context, ctx *app.RequestContext, agentID string) {
+	status, data, err := s.userapi.GetAgent(c, requestMetadata(ctx), agentID)
 	writeEndpointResult(ctx, status, data, err)
 }
 
@@ -22,17 +25,52 @@ func (s *Service) handleListAgentSessions(
 	writeEndpointResult(ctx, status, data, err)
 }
 
-func (s *Service) handleGetSession(c context.Context, ctx *app.RequestContext, sessionID string) {
-	status, data, err := s.userapi.GetSession(c, requestMetadata(ctx), sessionID)
+func (s *Service) handleGetAgentSession(
+	c context.Context,
+	ctx *app.RequestContext,
+	agentID string,
+	sessionID string,
+) {
+	status, data, err := s.userapi.GetAgentSession(
+		c,
+		requestMetadata(ctx),
+		agentID,
+		sessionID,
+	)
 	writeEndpointResult(ctx, status, data, err)
 }
 
-func (s *Service) handleListSessionMessages(
+func (s *Service) handleListAgentMessages(
 	c context.Context,
 	ctx *app.RequestContext,
+	agentID string,
+	sessionID string,
+	statusFilter string,
+	limit int,
+) {
+	status, data, err := s.userapi.ListMailbox(
+		c,
+		requestMetadata(ctx),
+		agentID,
+		sessionID,
+		statusFilter,
+		limit,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func (s *Service) handleListAgentSessionMessages(
+	c context.Context,
+	ctx *app.RequestContext,
+	agentID string,
 	sessionID string,
 ) {
-	status, data, err := s.userapi.ListSessionMessages(c, requestMetadata(ctx), sessionID)
+	status, data, err := s.userapi.ListAgentSessionMessages(
+		c,
+		requestMetadata(ctx),
+		agentID,
+		sessionID,
+	)
 	writeEndpointResult(ctx, status, data, err)
 }
 
@@ -45,19 +83,12 @@ func (s *Service) handleUserMessage(
 	writeEndpointResult(ctx, status, data, err)
 }
 
-func (s *Service) handleUserMailbox(
+func (s *Service) handleSessionMessage(
 	c context.Context,
 	ctx *app.RequestContext,
-	req *hzapi.ListMailboxRequest,
+	req CreateMailboxRequest,
 ) {
-	status, data, err := s.userapi.ListMailbox(
-		c,
-		requestMetadata(ctx),
-		req.GetAgentID(),
-		req.GetSessionID(),
-		req.GetStatus(),
-		int(req.GetLimit()),
-	)
+	status, data, err := s.userapi.CreateSessionMessage(c, requestMetadata(ctx), req)
 	writeEndpointResult(ctx, status, data, err)
 }
 
