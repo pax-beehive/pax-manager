@@ -4,6 +4,7 @@ substitutions:
   _SERVICE: pax-manager
   _IMAGE: pax-manager
   _DATABASE_URL_SECRET: pax-manager-database-url
+  _CLOUDSQL_INSTANCE: pax-manager-postgres
   _ADMIN_EMAILS: ""
   _REGISTRATION_TOKEN_OWNER_EMAIL: ""
 
@@ -14,8 +15,6 @@ steps:
       - build
       - -t
       - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
-      - -t
-      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:latest
       - .
 
   - id: push-sha
@@ -23,12 +22,6 @@ steps:
     args:
       - push
       - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
-
-  - id: push-latest
-    name: gcr.io/cloud-builders/docker
-    args:
-      - push
-      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:latest
 
   - id: deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -46,6 +39,8 @@ steps:
       - --allow-unauthenticated
       - --port
       - "9879"
+      - --add-cloudsql-instances
+      - ${PROJECT_ID}:${_REGION}:${_CLOUDSQL_INSTANCE}
       - --set-env-vars
       - ADMIN_EMAILS=${_ADMIN_EMAILS},REGISTRATION_TOKEN_OWNER_EMAIL=${_REGISTRATION_TOKEN_OWNER_EMAIL}
       - --set-secrets
@@ -53,7 +48,6 @@ steps:
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
-  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:latest
 
 options:
   logging: CLOUD_LOGGING_ONLY

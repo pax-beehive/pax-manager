@@ -3,7 +3,7 @@ PKG := ./...
 BIN_DIR := bin
 BIN := $(BIN_DIR)/$(APP)
 GOCACHE ?= /tmp/pax-manager-go-cache
-DATABASE_URL ?= postgres://pax:pax@localhost:5432/pax_manager?sslmode=disable
+DATABASE_URL ?= postgres://pax:pax@localhost:5432/paxdb?sslmode=disable
 PORT ?= 9879
 
 .PHONY: help
@@ -86,7 +86,7 @@ logs:
 
 .PHONY: psql
 psql:
-	docker compose exec postgres psql -U pax -d pax_manager
+	docker compose exec postgres psql -U pax -d paxdb
 
 .PHONY: clean
 clean:

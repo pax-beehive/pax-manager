@@ -8,13 +8,13 @@ services:
     environment:
       POSTGRES_USER: pax
       POSTGRES_PASSWORD: pax
-      POSTGRES_DB: pax_manager
+      POSTGRES_DB: paxdb
     ports:
       - "5432:5432"
     volumes:
       - pax-manager-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pax -d pax_manager"]
+      test: ["CMD-SHELL", "pg_isready -U pax -d paxdb"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -29,7 +29,7 @@ services:
         condition: service_healthy
     environment:
       PORT: "9879"
-      DATABASE_URL: postgres://pax:pax@postgres:5432/pax_manager?sslmode=disable
+      DATABASE_URL: postgres://pax:pax@postgres:5432/paxdb?sslmode=disable
       LOCAL_USER_ID: local@example.local
       ALLOW_LOCAL_USER_HEADER: "true"
       ADMIN_EMAILS: local@example.local

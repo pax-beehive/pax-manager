@@ -87,19 +87,55 @@ Registry, and deploys to Cloud Run.
 Required setup:
 
 ```bash
+gcloud services enable \
+  artifactregistry.googleapis.com \
+  cloudbuild.googleapis.com \
+  run.googleapis.com \
+  secretmanager.googleapis.com \
+  sqladmin.googleapis.com
+
 gcloud artifacts repositories create pax-manager \
   --repository-format=docker \
   --location=us-west1
 
+gcloud sql instances create pax-manager-postgres \
+  --database-version=POSTGRES_16 \
+  --region=us-west1
+
+gcloud sql databases create paxdb \
+  --instance=pax-manager-postgres
+
+gcloud sql users create pax \
+  --instance=pax-manager-postgres \
+  --password='REPLACE_WITH_STRONG_PASSWORD'
+```
+
+Create the `DATABASE_URL` secret using the Cloud SQL Unix socket path. URL
+encode the password if it contains special characters.
+
+```bash
+printf '%s' 'postgres://pax:REPLACE_WITH_URL_ENCODED_PASSWORD@/paxdb?host=/cloudsql/PROJECT_ID:us-west1:pax-manager-postgres&sslmode=disable' \
+  > /tmp/pax-manager-database-url.txt
+
 gcloud secrets create pax-manager-database-url \
-  --data-file=/path/to/database-url.txt
+  --data-file=/tmp/pax-manager-database-url.txt
+```
+
+Grant the Cloud Run runtime service account Cloud SQL access. If you use the
+default Compute Engine service account, it is usually:
+`PROJECT_NUMBER-compute@developer.gserviceaccount.com`.
+
+```bash
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member='serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com' \
+  --role='roles/cloudsql.client'
 ```
 
 Submit a build:
 
 ```bash
 gcloud builds submit \
-  --substitutions=_REGION=us-west1,_REPOSITORY=pax-manager,_SERVICE=pax-manager
+  --substitutions=_REGION=us-west1,_REPOSITORY=pax-manager,_SERVICE=pax-manager,_CLOUDSQL_INSTANCE=pax-manager-postgres
 ```
 
 The deployed service expects Cloudflare Access or another trusted ingress to
