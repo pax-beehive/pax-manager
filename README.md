@@ -1,122 +1,302 @@
-# pax-manager — Fleet Cloud API Gateway
+# pax-manager
 
-> Pax 平台的控制面网关。路由 Dashboard UI 和 paxd Agent 之间的消息，基于 WebSocket 实时通信。
+pax-manager is the Fleet Control Plane API for paxd agents. It stores agent state,
+session snapshots, and user-to-agent mailbox messages in PostgreSQL.
 
-## 架构
+The primary production path is pull-based:
 
+```text
+Dashboard -> pax-manager -> PostgreSQL mailbox
+paxd      -> pax-manager -> PostgreSQL status and mailbox offset
+paxd      -> Hermes API on localhost:8642
 ```
-Dashboard (browser) ──WebSocket──┐
-                                 ├── pax-manager ──WebSocket── paxd (agent)
-Dashboard (browser) ──WebSocket──┘
+
+Agents only need outbound HTTPS. The cloud service never opens an inbound
+connection to a machine running paxd.
+
+## Current Scope
+
+- Multi-tenant users, owner-scoped agents, and admin bypass.
+- Agent registration with owner-bound one-time registration tokens.
+- User-generated platform API keys for paxd cloud websocket connections.
+- Agent status reports with paxd-compatible session fields.
+- PostgreSQL-backed `users`, `agents`, `agent_sessions`, `mailbox`,
+  `message_offsets`, `agent_registration_tokens`, and `user_api_keys` tables.
+- User APIs for listing agents, listing sessions, sending mailbox messages, and
+  checking mailbox state.
+- A narrow legacy `/api/agent/ws` endpoint for existing websocket experiments.
+
+## Configuration
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PORT` | `9879` | HTTP listen port. |
+| `DATABASE_URL` | empty | PostgreSQL connection string. Empty uses in-memory storage for local development. |
+| `REGISTRATION_TOKEN` | empty | Optional bootstrap token for agent registration. Prefer user-minted one-time tokens. |
+| `REGISTRATION_TOKEN_OWNER_EMAIL` | empty | Owner email for the bootstrap registration token. Defaults to `LOCAL_USER_ID`. |
+| `LOCAL_USER_ID` | `local@example.local` | Local development email used only when `ALLOW_LOCAL_USER_HEADER=true`. |
+| `ALLOW_LOCAL_USER_HEADER` | `false` | Enables `X-User-Email` and `LOCAL_USER_ID` fallback for local development only. |
+| `ADMIN_EMAILS` | empty | Comma-separated extra admin email list. These are added to the built-in admin emails. |
+
+Built-in admin emails:
+
+- `toddzheng024@gmail.com`
+- `gengcongkai456789@gmail.com`
+- `zhangjiahang0725@gmail.com`
+
+## Run
+
+```bash
+go run ./cmd/manager
 ```
 
-pax-manager 是一个轻量 WebSocket 中继：
-- **UI → Agent**：Dashboard 发 `agent_prompt` → Gateway 变换为 paxd 可识别的 `chat` 消息 → 路由到 Agent
-- **Agent → UI**：Agent 发 `model.*` 事件 → Gateway 广播到所有连接的 UI
+With PostgreSQL:
 
-无状态、无落库、纯透传。生产环境部署到 GCP Cloud Run。
+```bash
+DATABASE_URL='postgres://user:pass@localhost:5432/pax?sslmode=disable' go run ./cmd/manager
+```
 
-## 端点
+The server executes `db/init.sql` at startup.
 
-| 端点 | 用途 |
-|------|------|
-| `GET /` | Dashboard 静态页面 |
-| `WS /ws` | UI WebSocket（角色自动检测） |
-| `WS /api/agent/ws?key=` | Agent WebSocket（paxd 连接） |
-| `POST /api/agent/register` | Agent HTTP 注册 |
-| `POST /api/agent/status` | Agent 状态上报 |
-| `POST /api/echo` | JSON echo（调试用） |
+## Local Docker
 
-## 消息协议
+Start Postgres and pax-manager:
 
-### UI → Agent
+```bash
+make up
+```
+
+Start only Postgres for local `go run` development:
+
+```bash
+make db-up
+make run
+```
+
+Reset the local Postgres volume and rerun `db/init.sql`:
+
+```bash
+make db-reset
+```
+
+## Cloud Build
+
+`cloudbuild.yaml` builds the main Dockerfile, pushes the image to Artifact
+Registry, and deploys to Cloud Run.
+
+Required setup:
+
+```bash
+gcloud artifacts repositories create pax-manager \
+  --repository-format=docker \
+  --location=us-west1
+
+gcloud secrets create pax-manager-database-url \
+  --data-file=/path/to/database-url.txt
+```
+
+Submit a build:
+
+```bash
+gcloud builds submit \
+  --substitutions=_REGION=us-west1,_REPOSITORY=pax-manager,_SERVICE=pax-manager
+```
+
+The deployed service expects Cloudflare Access or another trusted ingress to
+provide `Cf-Access-Authenticated-User-Email`. Do not enable
+`ALLOW_LOCAL_USER_HEADER` in Cloud Run.
+
+## Database
+
+The DDL is checked in at:
+
+```text
+db/init.sql
+```
+
+It can be applied manually with:
+
+```bash
+psql "$DATABASE_URL" -f db/init.sql
+```
+
+## Agent API
+
+All agent endpoints except registration require:
+
+```http
+Authorization: Bearer <apiKey>
+```
+
+### Register
+
+```http
+POST /api/agent/register
+Content-Type: application/json
+X-Registration-Token: <registrationToken>
+```
 
 ```json
 {
-  "type": "agent_prompt",
-  "agentId": "test-agent",
-  "prompt": "hello",
-  "sessionId": "api-xxx"
+  "name": "workstation",
+  "hostname": "workstation.local",
+  "agentType": "hermes",
+  "os": "linux"
 }
 ```
 
-Gateway 自动变换为 paxd 格式：
+Response:
 
 ```json
 {
-  "type": "chat",
-  "content": "hello",
-  "message_id": "msg-1",
-  "session_id": "api-xxx"
+  "agentId": "agent_...",
+  "apiKey": "pax_..."
 }
 ```
 
-### Agent → UI
+### Report Status
 
-Agent 发送 `model.*` 事件，Gateway 原样广播到所有 UI：
-
-| entity_type | event_type | 含义 |
-|-------------|-----------|------|
-| `turn` | `started` / `done` | 对话轮次 |
-| `message` | `delta` | 逐字内容（assistant/tool） |
-| `tool` | `call` / `result` | 工具调用 |
-| `agent` | `status` | 状态变化（thinking/working/idle） |
-| `file` | `changed` | 文件变更 |
-
-所有事件携带 `sessionId`。
-
-## Session 连续性
-
-```
-前端 send({sessionId}) → manager routeMsg → paxd → Hermes
-                                                      ↓
-前端 ← manager ← paxd ←── sessionId: api-xxx ── X-Hermes-Session-Id
+```http
+POST /api/agent/status
 ```
 
-首次消息 Hermes 创建 session，paxd 从 response header 捕获 `X-Hermes-Session-Id`，通过事件回传给前端。后续消息自动带上 `sessionId` → Hermes 继续同一会话。
+The session shape follows `../paxd/pkg/model.SessionInfo` field names:
 
-## 运行
+```json
+{
+  "sessions": [
+    {
+      "sessionId": "sess-1",
+      "agentType": "hermes",
+      "nativeId": "response-1",
+      "name": "repo task",
+      "projectId": "repo",
+      "preview": "fix failing tests",
+      "workspaceRoots": ["/workspace/repo"],
+      "status": "running",
+      "currentTask": "go test ./...",
+      "messageCount": 7,
+      "tokenUsage": 123,
+      "model": "gpt-test",
+      "runId": "run-1",
+      "runStatus": "running"
+    }
+  ]
+}
+```
+
+### Pull Mailbox
+
+```http
+GET /api/agent/mailbox?offset=0&limit=10
+```
+
+Messages include a `payload` field containing a paxd-style envelope request.
+For a normal chat message, the generated payload is:
+
+```json
+{
+  "entity_type": "turn",
+  "event_type": "start",
+  "sessionId": "sess-1",
+  "prompt": "run the tests"
+}
+```
+
+### Report Result and Offset
+
+```http
+POST /api/agent/messages/{messageId}/result
+POST /api/agent/messages/offset
+```
+
+## User API
+
+User endpoints use Cloudflare Access identity headers. The trusted header is
+`Cf-Access-Authenticated-User-Email`.
+
+For local-only development, set `ALLOW_LOCAL_USER_HEADER=true` to allow
+`X-User-Email` or `LOCAL_USER_ID` fallback. Do not enable that mode on a public
+deployment.
+
+Users are stored in the `users` table. Normal users only see agents and mailbox
+records where `ownerUserId` is their `userId`. Admin status is derived on each
+request from the built-in admin list plus current `ADMIN_EMAILS`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/user/agents` | List agents. |
+| `GET` | `/api/user/agents/{agentId}/sessions` | List sessions for an agent. |
+| `GET` | `/api/user/sessions/{sessionId}` | Get a session snapshot. |
+| `GET` | `/api/user/sessions/{sessionId}/messages` | List mailbox records for a session. |
+| `POST` | `/api/user/message` | Create a mailbox message. |
+| `GET` | `/api/user/mailbox` | List mailbox messages. |
+| `GET` | `/api/user/api-keys` | List user platform API keys. |
+| `POST` | `/api/user/api-keys` | Create a platform API key for paxd cloud websocket use. |
+| `DELETE` | `/api/user/api-keys/{keyId}` | Revoke a platform API key. |
+| `POST` | `/api/user/agent-registration-tokens` | Mint an owner-bound one-time agent registration token. |
+
+### Create a Platform API Key
+
+Users can generate API keys for paxd cloud websocket connections:
+
+```http
+POST /api/user/api-keys
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "workstation paxd"
+}
+```
+
+The plain key is returned once:
+
+```json
+{
+  "apiKey": {
+    "keyId": "key_...",
+    "ownerUserId": "usr_...",
+    "name": "workstation paxd",
+    "prefix": "paxu_..."
+  },
+  "key": "paxu_..."
+}
+```
+
+Use it for the cloud websocket:
+
+```text
+ws://localhost:9879/api/agent/ws?key=paxu_...
+```
+
+The server stores only the key hash. Revoked keys are rejected.
+
+### Create an Agent Registration Token
+
+```http
+POST /api/user/agent-registration-tokens
+Content-Type: application/json
+```
+
+```json
+{
+  "expiresInSeconds": 3600
+}
+```
+
+Admins can mint a token for another user:
+
+```json
+{
+  "ownerEmail": "teammate@example.com",
+  "expiresInSeconds": 3600
+}
+```
+
+## Test
 
 ```bash
-# 前置：paxd + Hermes 在运行
-
-go build -o pax-manager ./cmd/manager/
-./pax-manager
-
-# Dashboard: http://localhost:9879
+GOCACHE=/tmp/pax-manager-go-cache go test ./...
 ```
-
-## 部署（GCP Cloud Run）
-
-```bash
-gcloud builds submit --tag gcr.io/$PROJECT/pax-manager
-
-gcloud run deploy pax-manager \
-  --image gcr.io/$PROJECT/pax-manager \
-  --port 9879 \
-  --min-instances 1
-```
-
-Cloud Run 支持 WebSocket（session affinity 默认开启）。
-
-## 开发
-
-```bash
-# 本地测试
-./pax-manager                           # 端口 9879
-
-# Mock agent（无需 Hermes）
-go run ./cmd/mockagent/ ws://localhost:9879/api/agent/ws
-```
-
-## Pax 生态
-
-| 组件 | 说明 |
-|------|------|
-| **pax-manager** | Cloud API Gateway（本仓库） |
-| [paxd](https://github.com/pax-beehive/paxd) | Agent 侧守护进程 |
-| Hermes | 本地 Agent 运行时 |
-
-## License
-
-MIT
