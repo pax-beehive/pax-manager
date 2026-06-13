@@ -32,6 +32,11 @@ type Store interface {
 	) ([]domain.UserAPIKey, error)
 	RevokeUserAPIKey(ctx context.Context, principal domain.UserPrincipal, keyID string) error
 	ListAgents(ctx context.Context, principal domain.UserPrincipal) ([]domain.Agent, error)
+	GetAgent(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		agentID string,
+	) (domain.Agent, error)
 	ListAgentSessions(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -98,6 +103,28 @@ func (s *Service) ListAgents(c context.Context, meta auth.RequestMetadata) (int,
 	return http.StatusOK, map[string]any{"agents": agents}, nil
 }
 
+func (s *Service) GetAgent(
+	c context.Context,
+	meta auth.RequestMetadata,
+	agentID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if agentID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "agent_id is required",
+		}
+	}
+	agent, err := s.store.GetAgent(c, principal, agentID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, agent, nil
+}
+
 func (s *Service) ListAgentSessions(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -114,29 +141,46 @@ func (s *Service) ListAgentSessions(
 	return http.StatusOK, map[string]any{"sessions": sessions}, nil
 }
 
-func (s *Service) GetSession(
+func (s *Service) GetAgentSession(
 	c context.Context,
 	meta auth.RequestMetadata,
+	agentID string,
 	sessionID string,
 ) (int, any, error) {
 	principal, err := s.principal.Principal(c, meta)
 	if err != nil {
 		return 0, nil, err
 	}
-	session, err := s.store.GetSession(c, principal, sessionID)
+	if agentID == "" || sessionID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "agent_id and session_id are required",
+		}
+	}
+	session, err := s.sessionTarget(c, principal, agentID, sessionID)
 	if err != nil {
 		return 0, nil, err
 	}
 	return http.StatusOK, session, nil
 }
 
-func (s *Service) ListSessionMessages(
+func (s *Service) ListAgentSessionMessages(
 	c context.Context,
 	meta auth.RequestMetadata,
+	agentID string,
 	sessionID string,
 ) (int, any, error) {
 	principal, err := s.principal.Principal(c, meta)
 	if err != nil {
+		return 0, nil, err
+	}
+	if agentID == "" || sessionID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "agent_id and session_id are required",
+		}
+	}
+	if _, err := s.sessionTarget(c, principal, agentID, sessionID); err != nil {
 		return 0, nil, err
 	}
 	messages, err := s.store.ListSessionMessages(c, principal, sessionID)
@@ -167,12 +211,47 @@ func (s *Service) CreateMailboxMessage(
 			Message: "message_type must be chat, steer, or command",
 		}
 	}
+	if req.SessionID != "" {
+		if _, err := s.sessionTarget(c, principal, req.AgentID, req.SessionID); err != nil {
+			return 0, nil, err
+		}
+	}
 
 	msg, err := s.store.CreateMailboxMessage(c, principal, req)
 	if err != nil {
 		return 0, nil, err
 	}
 	return http.StatusCreated, msg, nil
+}
+
+func (s *Service) CreateSessionMessage(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.CreateMailboxRequest,
+) (int, any, error) {
+	if req.AgentID == "" || req.SessionID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "agent_id and session_id are required",
+		}
+	}
+	return s.CreateMailboxMessage(c, meta, req)
+}
+
+func (s *Service) sessionTarget(
+	c context.Context,
+	principal domain.UserPrincipal,
+	agentID string,
+	sessionID string,
+) (domain.AgentSession, error) {
+	session, err := s.store.GetSession(c, principal, sessionID)
+	if err != nil {
+		return domain.AgentSession{}, err
+	}
+	if session.AgentID != agentID {
+		return domain.AgentSession{}, domain.ErrNotFound
+	}
+	return session, nil
 }
 
 func (s *Service) ListMailbox(

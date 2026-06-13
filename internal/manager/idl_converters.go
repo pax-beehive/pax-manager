@@ -67,6 +67,9 @@ func sessionStatusInputs(inputs []*hzapi.SessionStatusInput) []SessionStatusInpu
 }
 
 func tokenUsage(input *hzapi.TokenUsage) TokenUsage {
+	if input == nil {
+		return TokenUsage{}
+	}
 	return TokenUsage{
 		Input:  input.GetInputTokens(),
 		Output: input.GetOutputTokens(),
@@ -88,7 +91,17 @@ func messageResultRequest(req *hzapi.ReportMessageResultRequest) MessageResultRe
 	}
 }
 
-func createMailboxRequest(req *hzapi.CreateMailboxRequest) CreateMailboxRequest {
+func createAgentMessageRequest(req *hzapi.CreateAgentMessageRequest) CreateMailboxRequest {
+	return CreateMailboxRequest{
+		AgentID:     req.GetAgentID(),
+		SessionID:   req.GetSessionID(),
+		Message:     req.GetMessage(),
+		MessageType: req.GetMessageType(),
+		Payload:     json.RawMessage(req.GetPayload()),
+	}
+}
+
+func createSessionMessageRequest(req *hzapi.CreateSessionMessageRequest) CreateMailboxRequest {
 	return CreateMailboxRequest{
 		AgentID:     req.GetAgentID(),
 		SessionID:   req.GetSessionID(),

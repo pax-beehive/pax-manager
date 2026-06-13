@@ -396,6 +396,26 @@ func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal)
 	return scanAgents(rows)
 }
 
+func (s *PostgresStore) GetAgent(
+	ctx context.Context,
+	principal UserPrincipal,
+	agentID string,
+) (Agent, error) {
+	query := `
+		SELECT agent_id, owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
+			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+		FROM agents
+		WHERE agent_id = $1
+	`
+	args := []any{agentID}
+	if !principal.IsAdmin {
+		query += ` AND owner_user_id = $2`
+		args = append(args, principal.User.UserID)
+	}
+	row := s.db.QueryRowContext(ctx, query, args...)
+	return scanAgent(row)
+}
+
 func (s *PostgresStore) ListAgentSessions(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -535,6 +555,7 @@ func (s *PostgresStore) ListMailbox(
 func (s *PostgresStore) PullMailbox(
 	ctx context.Context,
 	agentID string,
+	sessionID string,
 	offset int64,
 	limit int,
 ) (MailboxPull, error) {
@@ -549,20 +570,7 @@ func (s *PostgresStore) PullMailbox(
 	defer func() { _ = tx.Rollback() }()
 
 	now := s.now().UTC()
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE mailbox
-		SET status = 'expired'
-		WHERE agent_id = $1 AND status = 'pending' AND expires_at IS NOT NULL AND expires_at < $2
-	`, agentID, now); err != nil {
-		return MailboxPull{}, err
-	}
-
-	rows, err := tx.QueryContext(ctx, mailboxSelectSQL+`
-		WHERE agent_id = $1 AND id > $2 AND status = 'pending'
-		ORDER BY id ASC
-		LIMIT $3
-		FOR UPDATE SKIP LOCKED
-	`, agentID, offset, limit+1)
+	rows, err := s.pullMailboxRows(ctx, tx, agentID, sessionID, offset, limit, now)
 	if err != nil {
 		return MailboxPull{}, err
 	}
@@ -600,6 +608,47 @@ func (s *PostgresStore) PullMailbox(
 		return MailboxPull{}, err
 	}
 	return MailboxPull{Messages: messages, MaxOffset: maxOffset, HasMore: hasMore}, nil
+}
+
+func (s *PostgresStore) pullMailboxRows(
+	ctx context.Context,
+	tx *sql.Tx,
+	agentID string,
+	sessionID string,
+	offset int64,
+	limit int,
+	now time.Time,
+) (*sql.Rows, error) {
+	if sessionID == "" {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE mailbox
+			SET status = 'expired'
+			WHERE agent_id = $1 AND status = 'pending' AND expires_at IS NOT NULL AND expires_at < $2
+		`, agentID, now); err != nil {
+			return nil, err
+		}
+		return tx.QueryContext(ctx, mailboxSelectSQL+`
+			WHERE agent_id = $1 AND id > $2 AND status = 'pending'
+			ORDER BY id ASC
+			LIMIT $3
+			FOR UPDATE SKIP LOCKED
+		`, agentID, offset, limit+1)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE mailbox
+		SET status = 'expired'
+		WHERE agent_id = $1 AND session_id = $2 AND status = 'pending'
+			AND expires_at IS NOT NULL AND expires_at < $3
+	`, agentID, sessionID, now); err != nil {
+		return nil, err
+	}
+	return tx.QueryContext(ctx, mailboxSelectSQL+`
+		WHERE agent_id = $1 AND session_id = $2 AND id > $3 AND status = 'pending'
+		ORDER BY id ASC
+		LIMIT $4
+		FOR UPDATE SKIP LOCKED
+	`, agentID, sessionID, offset, limit+1)
 }
 
 func (s *PostgresStore) MarkMessageResult(

@@ -102,6 +102,9 @@ Start Postgres and pax-manager:
 make up
 ```
 
+`make up` starts Postgres first and creates the local `paxdb` database if an
+older Docker volume is missing it.
+
 Start only Postgres for local `go run` development:
 
 ```bash
@@ -289,10 +292,13 @@ The session shape follows `../paxd/pkg/model.SessionInfo` field names:
 
 ```http
 GET /api/agent/mailbox?offset=0&limit=10
+GET /api/agent/sessions/{sessionId}/mailbox?offset=0&limit=10
 ```
 
-Messages include a `payload` field containing a paxd-style envelope request.
-For a normal chat message, the generated payload is:
+Use the agent mailbox when one paxd process dispatches work for many sessions.
+Use the session mailbox when the paxd connection is bound to one session.
+Messages include a `payload` field containing a paxd-style envelope request. For
+a normal chat message, the generated payload is:
 
 ```json
 {
@@ -327,15 +333,20 @@ request from the built-in admin list plus current `ADMIN_EMAILS`.
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/api/user/agents` | List agents. |
+| `GET` | `/api/user/agents/{agentId}` | Get one agent. |
 | `GET` | `/api/user/agents/{agentId}/sessions` | List sessions for an agent. |
-| `GET` | `/api/user/sessions/{sessionId}` | Get a session snapshot. |
-| `GET` | `/api/user/sessions/{sessionId}/messages` | List mailbox records for a session. |
-| `POST` | `/api/user/message` | Create a mailbox message. |
-| `GET` | `/api/user/mailbox` | List mailbox messages. |
+| `GET` | `/api/user/agents/{agentId}/sessions/{sessionId}` | Get one session under an agent. |
+| `GET` | `/api/user/agents/{agentId}/messages` | List mailbox messages for an agent. |
+| `POST` | `/api/user/agents/{agentId}/messages` | Create a bootstrap or agent-level mailbox message. |
+| `GET` | `/api/user/agents/{agentId}/sessions/{sessionId}/messages` | List mailbox records for a session under an agent. |
+| `POST` | `/api/user/agents/{agentId}/sessions/{sessionId}/messages` | Create a mailbox message for a specific session. |
 | `GET` | `/api/user/api-keys` | List user platform API keys. |
 | `POST` | `/api/user/api-keys` | Create a user platform API key. |
 | `DELETE` | `/api/user/api-keys/{keyId}` | Revoke a platform API key. |
 | `POST` | `/api/user/agent-registration-tokens` | Mint an owner-bound one-time agent registration token. |
+
+The agent-scoped message create route is for bootstrap or agent-level commands.
+Once a session exists, send messages through the session-scoped route.
 
 ### Create a Platform API Key
 

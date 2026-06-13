@@ -123,6 +123,12 @@ func (h hertzHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if agentID := agentIDFromPath(r.URL.Path); agentID != "" {
+		ctx.Set("routeAgentID", agentID)
+	}
+	if sessionID := sessionIDFromPath(r.URL.Path); sessionID != "" {
+		ctx.Set("routeSessionID", sessionID)
+	}
 	h.h.ServeHTTP(r.Context(), ctx)
 	ctx.Response.Header.VisitAll(func(k, v []byte) {
 		w.Header().Add(string(k), string(v))

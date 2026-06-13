@@ -7,19 +7,24 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+
 	api "github.com/pax-beehive/pax-manager/internal/transport/http/model/paxmanager/api"
 )
 
-// GetSession .
-// @router /api/user/sessions/:sessionId [GET]
-func GetSession(ctx context.Context, c *app.RequestContext) {
+// CreateAgentMessage .
+// @router /api/user/agents/:agentId/messages [POST]
+func CreateAgentMessage(ctx context.Context, c *app.RequestContext) {
 	var err error
-	var req api.GetSessionRequest
+	var req api.CreateAgentMessageRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
 		c.String(consts.StatusBadRequest, err.Error())
 		return
 	}
+	if req.GetAgentID() == "" {
+		agentID := c.Param("agentId")
+		req.AgentID = &agentID
+	}
 
-	serviceFromContext(c).GetSession(ctx, c, &req)
+	serviceFromContext(c).CreateAgentMessage(ctx, c, &req)
 }

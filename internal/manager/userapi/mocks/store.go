@@ -190,6 +190,64 @@ func (_c *MockStore_CreateUserAPIKey_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
+// GetAgent provides a mock function with given fields: ctx, principal, agentID
+func (_m *MockStore) GetAgent(ctx context.Context, principal domain.UserPrincipal, agentID string) (domain.Agent, error) {
+	ret := _m.Called(ctx, principal, agentID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAgent")
+	}
+
+	var r0 domain.Agent
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) (domain.Agent, error)); ok {
+		return rf(ctx, principal, agentID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) domain.Agent); ok {
+		r0 = rf(ctx, principal, agentID)
+	} else {
+		r0 = ret.Get(0).(domain.Agent)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, agentID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetAgent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAgent'
+type MockStore_GetAgent_Call struct {
+	*mock.Call
+}
+
+// GetAgent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - agentID string
+func (_e *MockStore_Expecter) GetAgent(ctx interface{}, principal interface{}, agentID interface{}) *MockStore_GetAgent_Call {
+	return &MockStore_GetAgent_Call{Call: _e.mock.On("GetAgent", ctx, principal, agentID)}
+}
+
+func (_c *MockStore_GetAgent_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, agentID string)) *MockStore_GetAgent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetAgent_Call) Return(_a0 domain.Agent, _a1 error) *MockStore_GetAgent_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Agent, error)) *MockStore_GetAgent_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetSession provides a mock function with given fields: ctx, principal, sessionID
 func (_m *MockStore) GetSession(ctx context.Context, principal domain.UserPrincipal, sessionID string) (domain.AgentSession, error) {
 	ret := _m.Called(ctx, principal, sessionID)

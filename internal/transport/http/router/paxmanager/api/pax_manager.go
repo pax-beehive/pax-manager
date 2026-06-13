@@ -33,6 +33,13 @@ func Register(r *server.Hertz) {
 					_messageid.POST("/result", append(_reportmessageresultMw(), handler.ReportMessageResult)...)
 				}
 			}
+			{
+				_sessions := _agent.Group("/sessions", _sessionsMw()...)
+				{
+					_sessionid := _sessions.Group("/:sessionId", _sessionidMw()...)
+					_sessionid.GET("/mailbox", append(_pullsessionmailboxMw(), handler.PullSessionMailbox)...)
+				}
+			}
 		}
 		{
 			_user := _api.Group("/user", _userMw()...)
@@ -40,26 +47,28 @@ func Register(r *server.Hertz) {
 			_user.GET("/agents", append(_listagentsMw(), handler.ListAgents)...)
 			_user.GET("/api-keys", append(_listuserapikeysMw(), handler.ListUserAPIKeys)...)
 			_user.POST("/api-keys", append(_createuserapikeyMw(), handler.CreateUserAPIKey)...)
-			_user.GET("/mailbox", append(_listmailboxMw(), handler.ListMailbox)...)
-			_user.POST("/message", append(_createmailboxmessageMw(), handler.CreateMailboxMessage)...)
 			{
 				_agents := _user.Group("/agents", _agentsMw()...)
+				_agents.GET("/:agentId", append(_getagentMw(), handler.GetAgent)...)
 				{
 					_agentid := _agents.Group("/:agentId", _agentidMw()...)
+					_agentid.GET("/messages", append(_listagentmessagesMw(), handler.ListAgentMessages)...)
+					_agentid.POST("/messages", append(_createagentmessageMw(), handler.CreateAgentMessage)...)
 					_agentid.GET("/sessions", append(_listagentsessionsMw(), handler.ListAgentSessions)...)
+					{
+						_sessions0 := _agentid.Group("/sessions", _sessions0Mw()...)
+						_sessions0.GET("/:sessionId", append(_getagentsessionMw(), handler.GetAgentSession)...)
+						{
+							_sessionid0 := _sessions0.Group("/:sessionId", _sessionid0Mw()...)
+							_sessionid0.GET("/messages", append(_listagentsessionmessagesMw(), handler.ListAgentSessionMessages)...)
+							_sessionid0.POST("/messages", append(_createsessionmessageMw(), handler.CreateSessionMessage)...)
+						}
+					}
 				}
 			}
 			{
 				_api_keys := _user.Group("/api-keys", _api_keysMw()...)
 				_api_keys.DELETE("/:keyId", append(_revokeuserapikeyMw(), handler.RevokeUserAPIKey)...)
-			}
-			{
-				_sessions := _user.Group("/sessions", _sessionsMw()...)
-				_sessions.GET("/:sessionId", append(_getsessionMw(), handler.GetSession)...)
-				{
-					_sessionid := _sessions.Group("/:sessionId", _sessionidMw()...)
-					_sessionid.GET("/messages", append(_listsessionmessagesMw(), handler.ListSessionMessages)...)
-				}
 			}
 		}
 	}

@@ -71,9 +71,9 @@ func (_c *MockStore_MarkMessageResult_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
-// PullMailbox provides a mock function with given fields: ctx, agentID, offset, limit
-func (_m *MockStore) PullMailbox(ctx context.Context, agentID string, offset int64, limit int) (domain.MailboxPull, error) {
-	ret := _m.Called(ctx, agentID, offset, limit)
+// PullMailbox provides a mock function with given fields: ctx, agentID, sessionID, offset, limit
+func (_m *MockStore) PullMailbox(ctx context.Context, agentID string, sessionID string, offset int64, limit int) (domain.MailboxPull, error) {
+	ret := _m.Called(ctx, agentID, sessionID, offset, limit)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PullMailbox")
@@ -81,17 +81,17 @@ func (_m *MockStore) PullMailbox(ctx context.Context, agentID string, offset int
 
 	var r0 domain.MailboxPull
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, int64, int) (domain.MailboxPull, error)); ok {
-		return rf(ctx, agentID, offset, limit)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, int) (domain.MailboxPull, error)); ok {
+		return rf(ctx, agentID, sessionID, offset, limit)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, int64, int) domain.MailboxPull); ok {
-		r0 = rf(ctx, agentID, offset, limit)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, int) domain.MailboxPull); ok {
+		r0 = rf(ctx, agentID, sessionID, offset, limit)
 	} else {
 		r0 = ret.Get(0).(domain.MailboxPull)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, int64, int) error); ok {
-		r1 = rf(ctx, agentID, offset, limit)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int64, int) error); ok {
+		r1 = rf(ctx, agentID, sessionID, offset, limit)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -107,15 +107,16 @@ type MockStore_PullMailbox_Call struct {
 // PullMailbox is a helper method to define mock.On call
 //   - ctx context.Context
 //   - agentID string
+//   - sessionID string
 //   - offset int64
 //   - limit int
-func (_e *MockStore_Expecter) PullMailbox(ctx interface{}, agentID interface{}, offset interface{}, limit interface{}) *MockStore_PullMailbox_Call {
-	return &MockStore_PullMailbox_Call{Call: _e.mock.On("PullMailbox", ctx, agentID, offset, limit)}
+func (_e *MockStore_Expecter) PullMailbox(ctx interface{}, agentID interface{}, sessionID interface{}, offset interface{}, limit interface{}) *MockStore_PullMailbox_Call {
+	return &MockStore_PullMailbox_Call{Call: _e.mock.On("PullMailbox", ctx, agentID, sessionID, offset, limit)}
 }
 
-func (_c *MockStore_PullMailbox_Call) Run(run func(ctx context.Context, agentID string, offset int64, limit int)) *MockStore_PullMailbox_Call {
+func (_c *MockStore_PullMailbox_Call) Run(run func(ctx context.Context, agentID string, sessionID string, offset int64, limit int)) *MockStore_PullMailbox_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(int64), args[3].(int))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int64), args[4].(int))
 	})
 	return _c
 }
@@ -125,7 +126,7 @@ func (_c *MockStore_PullMailbox_Call) Return(_a0 domain.MailboxPull, _a1 error) 
 	return _c
 }
 
-func (_c *MockStore_PullMailbox_Call) RunAndReturn(run func(context.Context, string, int64, int) (domain.MailboxPull, error)) *MockStore_PullMailbox_Call {
+func (_c *MockStore_PullMailbox_Call) RunAndReturn(run func(context.Context, string, string, int64, int) (domain.MailboxPull, error)) *MockStore_PullMailbox_Call {
 	_c.Call.Return(run)
 	return _c
 }

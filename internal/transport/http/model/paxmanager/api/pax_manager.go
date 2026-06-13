@@ -3131,6 +3131,271 @@ func (p *PullMailboxRequest) String() string {
 
 }
 
+type PullSessionMailboxRequest struct {
+	SessionID *string `thrift:"session_id,1,optional" json:"session_id,omitempty" path:"sessionId"`
+	Offset    *int64  `thrift:"offset,2,optional" json:"offset,omitempty" query:"offset"`
+	Limit     *int32  `thrift:"limit,3,optional" json:"limit,omitempty" query:"limit"`
+}
+
+func NewPullSessionMailboxRequest() *PullSessionMailboxRequest {
+	return &PullSessionMailboxRequest{}
+}
+
+func (p *PullSessionMailboxRequest) InitDefault() {
+}
+
+var PullSessionMailboxRequest_SessionID_DEFAULT string
+
+func (p *PullSessionMailboxRequest) GetSessionID() (v string) {
+	if !p.IsSetSessionID() {
+		return PullSessionMailboxRequest_SessionID_DEFAULT
+	}
+	return *p.SessionID
+}
+
+var PullSessionMailboxRequest_Offset_DEFAULT int64
+
+func (p *PullSessionMailboxRequest) GetOffset() (v int64) {
+	if !p.IsSetOffset() {
+		return PullSessionMailboxRequest_Offset_DEFAULT
+	}
+	return *p.Offset
+}
+
+var PullSessionMailboxRequest_Limit_DEFAULT int32
+
+func (p *PullSessionMailboxRequest) GetLimit() (v int32) {
+	if !p.IsSetLimit() {
+		return PullSessionMailboxRequest_Limit_DEFAULT
+	}
+	return *p.Limit
+}
+
+var fieldIDToName_PullSessionMailboxRequest = map[int16]string{
+	1: "session_id",
+	2: "offset",
+	3: "limit",
+}
+
+func (p *PullSessionMailboxRequest) IsSetSessionID() bool {
+	return p.SessionID != nil
+}
+
+func (p *PullSessionMailboxRequest) IsSetOffset() bool {
+	return p.Offset != nil
+}
+
+func (p *PullSessionMailboxRequest) IsSetLimit() bool {
+	return p.Limit != nil
+}
+
+func (p *PullSessionMailboxRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.I64 {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PullSessionMailboxRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PullSessionMailboxRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SessionID = _field
+	return nil
+}
+func (p *PullSessionMailboxRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *int64
+	if v, err := iprot.ReadI64(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Offset = _field
+	return nil
+}
+func (p *PullSessionMailboxRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Limit = _field
+	return nil
+}
+
+func (p *PullSessionMailboxRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("PullSessionMailboxRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PullSessionMailboxRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSessionID() {
+		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SessionID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PullSessionMailboxRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetOffset() {
+		if err = oprot.WriteFieldBegin("offset", thrift.I64, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI64(*p.Offset); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *PullSessionMailboxRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetLimit() {
+		if err = oprot.WriteFieldBegin("limit", thrift.I32, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.Limit); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *PullSessionMailboxRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PullSessionMailboxRequest(%+v)", *p)
+
+}
+
 type Agent struct {
 	AgentID       *string `thrift:"agent_id,1,optional" form:"agent_id" json:"agent_id,omitempty" query:"agent_id"`
 	OwnerUserID   *string `thrift:"owner_user_id,2,optional" form:"owner_user_id" json:"owner_user_id,omitempty" query:"owner_user_id"`
@@ -4191,6 +4456,157 @@ func (p *AgentListData) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("AgentListData(%+v)", *p)
+
+}
+
+type GetAgentRequest struct {
+	AgentID *string `thrift:"agent_id,1,optional" json:"agent_id,omitempty" path:"agentId"`
+}
+
+func NewGetAgentRequest() *GetAgentRequest {
+	return &GetAgentRequest{}
+}
+
+func (p *GetAgentRequest) InitDefault() {
+}
+
+var GetAgentRequest_AgentID_DEFAULT string
+
+func (p *GetAgentRequest) GetAgentID() (v string) {
+	if !p.IsSetAgentID() {
+		return GetAgentRequest_AgentID_DEFAULT
+	}
+	return *p.AgentID
+}
+
+var fieldIDToName_GetAgentRequest = map[int16]string{
+	1: "agent_id",
+}
+
+func (p *GetAgentRequest) IsSetAgentID() bool {
+	return p.AgentID != nil
+}
+
+func (p *GetAgentRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_GetAgentRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *GetAgentRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AgentID = _field
+	return nil
+}
+
+func (p *GetAgentRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetAgentRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *GetAgentRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAgentID() {
+		if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.AgentID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *GetAgentRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("GetAgentRequest(%+v)", *p)
 
 }
 
@@ -5713,35 +6129,50 @@ func (p *ListAgentSessionsRequest) String() string {
 
 }
 
-type GetSessionRequest struct {
-	SessionID *string `thrift:"session_id,1,optional" json:"session_id,omitempty" path:"sessionId"`
+type GetAgentSessionRequest struct {
+	AgentID   *string `thrift:"agent_id,1,optional" json:"agent_id,omitempty" path:"agentId"`
+	SessionID *string `thrift:"session_id,2,optional" json:"session_id,omitempty" path:"sessionId"`
 }
 
-func NewGetSessionRequest() *GetSessionRequest {
-	return &GetSessionRequest{}
+func NewGetAgentSessionRequest() *GetAgentSessionRequest {
+	return &GetAgentSessionRequest{}
 }
 
-func (p *GetSessionRequest) InitDefault() {
+func (p *GetAgentSessionRequest) InitDefault() {
 }
 
-var GetSessionRequest_SessionID_DEFAULT string
+var GetAgentSessionRequest_AgentID_DEFAULT string
 
-func (p *GetSessionRequest) GetSessionID() (v string) {
+func (p *GetAgentSessionRequest) GetAgentID() (v string) {
+	if !p.IsSetAgentID() {
+		return GetAgentSessionRequest_AgentID_DEFAULT
+	}
+	return *p.AgentID
+}
+
+var GetAgentSessionRequest_SessionID_DEFAULT string
+
+func (p *GetAgentSessionRequest) GetSessionID() (v string) {
 	if !p.IsSetSessionID() {
-		return GetSessionRequest_SessionID_DEFAULT
+		return GetAgentSessionRequest_SessionID_DEFAULT
 	}
 	return *p.SessionID
 }
 
-var fieldIDToName_GetSessionRequest = map[int16]string{
-	1: "session_id",
+var fieldIDToName_GetAgentSessionRequest = map[int16]string{
+	1: "agent_id",
+	2: "session_id",
 }
 
-func (p *GetSessionRequest) IsSetSessionID() bool {
+func (p *GetAgentSessionRequest) IsSetAgentID() bool {
+	return p.AgentID != nil
+}
+
+func (p *GetAgentSessionRequest) IsSetSessionID() bool {
 	return p.SessionID != nil
 }
 
-func (p *GetSessionRequest) Read(iprot thrift.TProtocol) (err error) {
+func (p *GetAgentSessionRequest) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -5768,152 +6199,9 @@ func (p *GetSessionRequest) Read(iprot thrift.TProtocol) (err error) {
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
 				goto SkipFieldError
 			}
-		default:
-			if err = iprot.Skip(fieldTypeId); err != nil {
-				goto SkipFieldError
-			}
-		}
-		if err = iprot.ReadFieldEnd(); err != nil {
-			goto ReadFieldEndError
-		}
-	}
-	if err = iprot.ReadStructEnd(); err != nil {
-		goto ReadStructEndError
-	}
-
-	return nil
-ReadStructBeginError:
-	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
-ReadFieldBeginError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
-ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_GetSessionRequest[fieldId]), err)
-SkipFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
-
-ReadFieldEndError:
-	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
-ReadStructEndError:
-	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-}
-
-func (p *GetSessionRequest) ReadField1(iprot thrift.TProtocol) error {
-
-	var _field *string
-	if v, err := iprot.ReadString(); err != nil {
-		return err
-	} else {
-		_field = &v
-	}
-	p.SessionID = _field
-	return nil
-}
-
-func (p *GetSessionRequest) Write(oprot thrift.TProtocol) (err error) {
-	var fieldId int16
-	if err = oprot.WriteStructBegin("GetSessionRequest"); err != nil {
-		goto WriteStructBeginError
-	}
-	if p != nil {
-		if err = p.writeField1(oprot); err != nil {
-			fieldId = 1
-			goto WriteFieldError
-		}
-	}
-	if err = oprot.WriteFieldStop(); err != nil {
-		goto WriteFieldStopError
-	}
-	if err = oprot.WriteStructEnd(); err != nil {
-		goto WriteStructEndError
-	}
-	return nil
-WriteStructBeginError:
-	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-WriteFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
-WriteFieldStopError:
-	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
-WriteStructEndError:
-	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
-}
-
-func (p *GetSessionRequest) writeField1(oprot thrift.TProtocol) (err error) {
-	if p.IsSetSessionID() {
-		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 1); err != nil {
-			goto WriteFieldBeginError
-		}
-		if err := oprot.WriteString(*p.SessionID); err != nil {
-			return err
-		}
-		if err = oprot.WriteFieldEnd(); err != nil {
-			goto WriteFieldEndError
-		}
-	}
-	return nil
-WriteFieldBeginError:
-	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
-WriteFieldEndError:
-	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
-}
-
-func (p *GetSessionRequest) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("GetSessionRequest(%+v)", *p)
-
-}
-
-type ListSessionMessagesRequest struct {
-	SessionID *string `thrift:"session_id,1,optional" json:"session_id,omitempty" path:"sessionId"`
-}
-
-func NewListSessionMessagesRequest() *ListSessionMessagesRequest {
-	return &ListSessionMessagesRequest{}
-}
-
-func (p *ListSessionMessagesRequest) InitDefault() {
-}
-
-var ListSessionMessagesRequest_SessionID_DEFAULT string
-
-func (p *ListSessionMessagesRequest) GetSessionID() (v string) {
-	if !p.IsSetSessionID() {
-		return ListSessionMessagesRequest_SessionID_DEFAULT
-	}
-	return *p.SessionID
-}
-
-var fieldIDToName_ListSessionMessagesRequest = map[int16]string{
-	1: "session_id",
-}
-
-func (p *ListSessionMessagesRequest) IsSetSessionID() bool {
-	return p.SessionID != nil
-}
-
-func (p *ListSessionMessagesRequest) Read(iprot thrift.TProtocol) (err error) {
-
-	var fieldTypeId thrift.TType
-	var fieldId int16
-
-	if _, err = iprot.ReadStructBegin(); err != nil {
-		goto ReadStructBeginError
-	}
-
-	for {
-		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
-		if err != nil {
-			goto ReadFieldBeginError
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-
-		switch fieldId {
-		case 1:
+		case 2:
 			if fieldTypeId == thrift.STRING {
-				if err = p.ReadField1(iprot); err != nil {
+				if err = p.ReadField2(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -5938,7 +6226,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ListSessionMessagesRequest[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_GetAgentSessionRequest[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -5948,7 +6236,18 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *ListSessionMessagesRequest) ReadField1(iprot thrift.TProtocol) error {
+func (p *GetAgentSessionRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AgentID = _field
+	return nil
+}
+func (p *GetAgentSessionRequest) ReadField2(iprot thrift.TProtocol) error {
 
 	var _field *string
 	if v, err := iprot.ReadString(); err != nil {
@@ -5960,14 +6259,18 @@ func (p *ListSessionMessagesRequest) ReadField1(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *ListSessionMessagesRequest) Write(oprot thrift.TProtocol) (err error) {
+func (p *GetAgentSessionRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("ListSessionMessagesRequest"); err != nil {
+	if err = oprot.WriteStructBegin("GetAgentSessionRequest"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
 		if err = p.writeField1(oprot); err != nil {
 			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
 			goto WriteFieldError
 		}
 	}
@@ -5988,12 +6291,12 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *ListSessionMessagesRequest) writeField1(oprot thrift.TProtocol) (err error) {
-	if p.IsSetSessionID() {
-		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 1); err != nil {
+func (p *GetAgentSessionRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAgentID() {
+		if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 1); err != nil {
 			goto WriteFieldBeginError
 		}
-		if err := oprot.WriteString(*p.SessionID); err != nil {
+		if err := oprot.WriteString(*p.AgentID); err != nil {
 			return err
 		}
 		if err = oprot.WriteFieldEnd(); err != nil {
@@ -6007,11 +6310,30 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
 }
 
-func (p *ListSessionMessagesRequest) String() string {
+func (p *GetAgentSessionRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSessionID() {
+		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SessionID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *GetAgentSessionRequest) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("ListSessionMessagesRequest(%+v)", *p)
+	return fmt.Sprintf("GetAgentSessionRequest(%+v)", *p)
 
 }
 
@@ -6186,67 +6508,67 @@ func (p *SessionListData) String() string {
 
 }
 
-type CreateMailboxRequest struct {
-	AgentID     *string `thrift:"agent_id,1,optional" form:"agent_id" json:"agent_id,omitempty" query:"agent_id"`
+type CreateAgentMessageRequest struct {
+	AgentID     *string `thrift:"agent_id,1,optional" json:"agent_id,omitempty" path:"agentId"`
 	SessionID   *string `thrift:"session_id,2,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
 	Message     *string `thrift:"message,3,optional" form:"message" json:"message,omitempty" query:"message"`
 	MessageType *string `thrift:"message_type,4,optional" form:"message_type" json:"message_type,omitempty" query:"message_type"`
 	Payload     JSON    `thrift:"payload,5,optional" form:"payload" json:"payload,omitempty" query:"payload"`
 }
 
-func NewCreateMailboxRequest() *CreateMailboxRequest {
-	return &CreateMailboxRequest{}
+func NewCreateAgentMessageRequest() *CreateAgentMessageRequest {
+	return &CreateAgentMessageRequest{}
 }
 
-func (p *CreateMailboxRequest) InitDefault() {
+func (p *CreateAgentMessageRequest) InitDefault() {
 }
 
-var CreateMailboxRequest_AgentID_DEFAULT string
+var CreateAgentMessageRequest_AgentID_DEFAULT string
 
-func (p *CreateMailboxRequest) GetAgentID() (v string) {
+func (p *CreateAgentMessageRequest) GetAgentID() (v string) {
 	if !p.IsSetAgentID() {
-		return CreateMailboxRequest_AgentID_DEFAULT
+		return CreateAgentMessageRequest_AgentID_DEFAULT
 	}
 	return *p.AgentID
 }
 
-var CreateMailboxRequest_SessionID_DEFAULT string
+var CreateAgentMessageRequest_SessionID_DEFAULT string
 
-func (p *CreateMailboxRequest) GetSessionID() (v string) {
+func (p *CreateAgentMessageRequest) GetSessionID() (v string) {
 	if !p.IsSetSessionID() {
-		return CreateMailboxRequest_SessionID_DEFAULT
+		return CreateAgentMessageRequest_SessionID_DEFAULT
 	}
 	return *p.SessionID
 }
 
-var CreateMailboxRequest_Message_DEFAULT string
+var CreateAgentMessageRequest_Message_DEFAULT string
 
-func (p *CreateMailboxRequest) GetMessage() (v string) {
+func (p *CreateAgentMessageRequest) GetMessage() (v string) {
 	if !p.IsSetMessage() {
-		return CreateMailboxRequest_Message_DEFAULT
+		return CreateAgentMessageRequest_Message_DEFAULT
 	}
 	return *p.Message
 }
 
-var CreateMailboxRequest_MessageType_DEFAULT string
+var CreateAgentMessageRequest_MessageType_DEFAULT string
 
-func (p *CreateMailboxRequest) GetMessageType() (v string) {
+func (p *CreateAgentMessageRequest) GetMessageType() (v string) {
 	if !p.IsSetMessageType() {
-		return CreateMailboxRequest_MessageType_DEFAULT
+		return CreateAgentMessageRequest_MessageType_DEFAULT
 	}
 	return *p.MessageType
 }
 
-var CreateMailboxRequest_Payload_DEFAULT JSON
+var CreateAgentMessageRequest_Payload_DEFAULT JSON
 
-func (p *CreateMailboxRequest) GetPayload() (v JSON) {
+func (p *CreateAgentMessageRequest) GetPayload() (v JSON) {
 	if !p.IsSetPayload() {
-		return CreateMailboxRequest_Payload_DEFAULT
+		return CreateAgentMessageRequest_Payload_DEFAULT
 	}
 	return p.Payload
 }
 
-var fieldIDToName_CreateMailboxRequest = map[int16]string{
+var fieldIDToName_CreateAgentMessageRequest = map[int16]string{
 	1: "agent_id",
 	2: "session_id",
 	3: "message",
@@ -6254,27 +6576,27 @@ var fieldIDToName_CreateMailboxRequest = map[int16]string{
 	5: "payload",
 }
 
-func (p *CreateMailboxRequest) IsSetAgentID() bool {
+func (p *CreateAgentMessageRequest) IsSetAgentID() bool {
 	return p.AgentID != nil
 }
 
-func (p *CreateMailboxRequest) IsSetSessionID() bool {
+func (p *CreateAgentMessageRequest) IsSetSessionID() bool {
 	return p.SessionID != nil
 }
 
-func (p *CreateMailboxRequest) IsSetMessage() bool {
+func (p *CreateAgentMessageRequest) IsSetMessage() bool {
 	return p.Message != nil
 }
 
-func (p *CreateMailboxRequest) IsSetMessageType() bool {
+func (p *CreateAgentMessageRequest) IsSetMessageType() bool {
 	return p.MessageType != nil
 }
 
-func (p *CreateMailboxRequest) IsSetPayload() bool {
+func (p *CreateAgentMessageRequest) IsSetPayload() bool {
 	return p.Payload != nil
 }
 
-func (p *CreateMailboxRequest) Read(iprot thrift.TProtocol) (err error) {
+func (p *CreateAgentMessageRequest) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -6352,7 +6674,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_CreateMailboxRequest[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_CreateAgentMessageRequest[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -6362,7 +6684,7 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *CreateMailboxRequest) ReadField1(iprot thrift.TProtocol) error {
+func (p *CreateAgentMessageRequest) ReadField1(iprot thrift.TProtocol) error {
 
 	var _field *string
 	if v, err := iprot.ReadString(); err != nil {
@@ -6373,7 +6695,7 @@ func (p *CreateMailboxRequest) ReadField1(iprot thrift.TProtocol) error {
 	p.AgentID = _field
 	return nil
 }
-func (p *CreateMailboxRequest) ReadField2(iprot thrift.TProtocol) error {
+func (p *CreateAgentMessageRequest) ReadField2(iprot thrift.TProtocol) error {
 
 	var _field *string
 	if v, err := iprot.ReadString(); err != nil {
@@ -6384,7 +6706,7 @@ func (p *CreateMailboxRequest) ReadField2(iprot thrift.TProtocol) error {
 	p.SessionID = _field
 	return nil
 }
-func (p *CreateMailboxRequest) ReadField3(iprot thrift.TProtocol) error {
+func (p *CreateAgentMessageRequest) ReadField3(iprot thrift.TProtocol) error {
 
 	var _field *string
 	if v, err := iprot.ReadString(); err != nil {
@@ -6395,7 +6717,7 @@ func (p *CreateMailboxRequest) ReadField3(iprot thrift.TProtocol) error {
 	p.Message = _field
 	return nil
 }
-func (p *CreateMailboxRequest) ReadField4(iprot thrift.TProtocol) error {
+func (p *CreateAgentMessageRequest) ReadField4(iprot thrift.TProtocol) error {
 
 	var _field *string
 	if v, err := iprot.ReadString(); err != nil {
@@ -6406,7 +6728,7 @@ func (p *CreateMailboxRequest) ReadField4(iprot thrift.TProtocol) error {
 	p.MessageType = _field
 	return nil
 }
-func (p *CreateMailboxRequest) ReadField5(iprot thrift.TProtocol) error {
+func (p *CreateAgentMessageRequest) ReadField5(iprot thrift.TProtocol) error {
 
 	var _field JSON
 	if v, err := iprot.ReadBinary(); err != nil {
@@ -6418,9 +6740,9 @@ func (p *CreateMailboxRequest) ReadField5(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *CreateMailboxRequest) Write(oprot thrift.TProtocol) (err error) {
+func (p *CreateAgentMessageRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("CreateMailboxRequest"); err != nil {
+	if err = oprot.WriteStructBegin("CreateAgentMessageRequest"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
@@ -6462,7 +6784,7 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *CreateMailboxRequest) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *CreateAgentMessageRequest) writeField1(oprot thrift.TProtocol) (err error) {
 	if p.IsSetAgentID() {
 		if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 1); err != nil {
 			goto WriteFieldBeginError
@@ -6481,7 +6803,7 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
 }
 
-func (p *CreateMailboxRequest) writeField2(oprot thrift.TProtocol) (err error) {
+func (p *CreateAgentMessageRequest) writeField2(oprot thrift.TProtocol) (err error) {
 	if p.IsSetSessionID() {
 		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 2); err != nil {
 			goto WriteFieldBeginError
@@ -6500,7 +6822,7 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
 }
 
-func (p *CreateMailboxRequest) writeField3(oprot thrift.TProtocol) (err error) {
+func (p *CreateAgentMessageRequest) writeField3(oprot thrift.TProtocol) (err error) {
 	if p.IsSetMessage() {
 		if err = oprot.WriteFieldBegin("message", thrift.STRING, 3); err != nil {
 			goto WriteFieldBeginError
@@ -6519,7 +6841,7 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
 }
 
-func (p *CreateMailboxRequest) writeField4(oprot thrift.TProtocol) (err error) {
+func (p *CreateAgentMessageRequest) writeField4(oprot thrift.TProtocol) (err error) {
 	if p.IsSetMessageType() {
 		if err = oprot.WriteFieldBegin("message_type", thrift.STRING, 4); err != nil {
 			goto WriteFieldBeginError
@@ -6538,7 +6860,7 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
 }
 
-func (p *CreateMailboxRequest) writeField5(oprot thrift.TProtocol) (err error) {
+func (p *CreateAgentMessageRequest) writeField5(oprot thrift.TProtocol) (err error) {
 	if p.IsSetPayload() {
 		if err = oprot.WriteFieldBegin("payload", thrift.STRING, 5); err != nil {
 			goto WriteFieldBeginError
@@ -6557,11 +6879,390 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
 }
 
-func (p *CreateMailboxRequest) String() string {
+func (p *CreateAgentMessageRequest) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("CreateMailboxRequest(%+v)", *p)
+	return fmt.Sprintf("CreateAgentMessageRequest(%+v)", *p)
+
+}
+
+type CreateSessionMessageRequest struct {
+	AgentID     *string `thrift:"agent_id,1,optional" json:"agent_id,omitempty" path:"agentId"`
+	SessionID   *string `thrift:"session_id,2,optional" json:"session_id,omitempty" path:"sessionId"`
+	Message     *string `thrift:"message,3,optional" form:"message" json:"message,omitempty" query:"message"`
+	MessageType *string `thrift:"message_type,4,optional" form:"message_type" json:"message_type,omitempty" query:"message_type"`
+	Payload     JSON    `thrift:"payload,5,optional" form:"payload" json:"payload,omitempty" query:"payload"`
+}
+
+func NewCreateSessionMessageRequest() *CreateSessionMessageRequest {
+	return &CreateSessionMessageRequest{}
+}
+
+func (p *CreateSessionMessageRequest) InitDefault() {
+}
+
+var CreateSessionMessageRequest_AgentID_DEFAULT string
+
+func (p *CreateSessionMessageRequest) GetAgentID() (v string) {
+	if !p.IsSetAgentID() {
+		return CreateSessionMessageRequest_AgentID_DEFAULT
+	}
+	return *p.AgentID
+}
+
+var CreateSessionMessageRequest_SessionID_DEFAULT string
+
+func (p *CreateSessionMessageRequest) GetSessionID() (v string) {
+	if !p.IsSetSessionID() {
+		return CreateSessionMessageRequest_SessionID_DEFAULT
+	}
+	return *p.SessionID
+}
+
+var CreateSessionMessageRequest_Message_DEFAULT string
+
+func (p *CreateSessionMessageRequest) GetMessage() (v string) {
+	if !p.IsSetMessage() {
+		return CreateSessionMessageRequest_Message_DEFAULT
+	}
+	return *p.Message
+}
+
+var CreateSessionMessageRequest_MessageType_DEFAULT string
+
+func (p *CreateSessionMessageRequest) GetMessageType() (v string) {
+	if !p.IsSetMessageType() {
+		return CreateSessionMessageRequest_MessageType_DEFAULT
+	}
+	return *p.MessageType
+}
+
+var CreateSessionMessageRequest_Payload_DEFAULT JSON
+
+func (p *CreateSessionMessageRequest) GetPayload() (v JSON) {
+	if !p.IsSetPayload() {
+		return CreateSessionMessageRequest_Payload_DEFAULT
+	}
+	return p.Payload
+}
+
+var fieldIDToName_CreateSessionMessageRequest = map[int16]string{
+	1: "agent_id",
+	2: "session_id",
+	3: "message",
+	4: "message_type",
+	5: "payload",
+}
+
+func (p *CreateSessionMessageRequest) IsSetAgentID() bool {
+	return p.AgentID != nil
+}
+
+func (p *CreateSessionMessageRequest) IsSetSessionID() bool {
+	return p.SessionID != nil
+}
+
+func (p *CreateSessionMessageRequest) IsSetMessage() bool {
+	return p.Message != nil
+}
+
+func (p *CreateSessionMessageRequest) IsSetMessageType() bool {
+	return p.MessageType != nil
+}
+
+func (p *CreateSessionMessageRequest) IsSetPayload() bool {
+	return p.Payload != nil
+}
+
+func (p *CreateSessionMessageRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_CreateSessionMessageRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *CreateSessionMessageRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AgentID = _field
+	return nil
+}
+func (p *CreateSessionMessageRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SessionID = _field
+	return nil
+}
+func (p *CreateSessionMessageRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Message = _field
+	return nil
+}
+func (p *CreateSessionMessageRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.MessageType = _field
+	return nil
+}
+func (p *CreateSessionMessageRequest) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field JSON
+	if v, err := iprot.ReadBinary(); err != nil {
+		return err
+	} else {
+		_field = JSON(v)
+	}
+	p.Payload = _field
+	return nil
+}
+
+func (p *CreateSessionMessageRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("CreateSessionMessageRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *CreateSessionMessageRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAgentID() {
+		if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.AgentID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *CreateSessionMessageRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSessionID() {
+		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SessionID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *CreateSessionMessageRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetMessage() {
+		if err = oprot.WriteFieldBegin("message", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Message); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *CreateSessionMessageRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetMessageType() {
+		if err = oprot.WriteFieldBegin("message_type", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.MessageType); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *CreateSessionMessageRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPayload() {
+		if err = oprot.WriteFieldBegin("payload", thrift.STRING, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBinary([]byte(p.Payload)); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *CreateSessionMessageRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("CreateSessionMessageRequest(%+v)", *p)
 
 }
 
@@ -8557,80 +9258,80 @@ func (p *UpdateMailboxOffsetRequest) String() string {
 
 }
 
-type ListMailboxRequest struct {
-	AgentID   *string `thrift:"agent_id,1,optional" json:"agent_id,omitempty" query:"agent_id"`
+type ListAgentMessagesRequest struct {
+	AgentID   *string `thrift:"agent_id,1,optional" json:"agent_id,omitempty" path:"agentId"`
 	SessionID *string `thrift:"session_id,2,optional" json:"session_id,omitempty" query:"session_id"`
 	Status    *string `thrift:"status,3,optional" json:"status,omitempty" query:"status"`
 	Limit     *int32  `thrift:"limit,4,optional" json:"limit,omitempty" query:"limit"`
 }
 
-func NewListMailboxRequest() *ListMailboxRequest {
-	return &ListMailboxRequest{}
+func NewListAgentMessagesRequest() *ListAgentMessagesRequest {
+	return &ListAgentMessagesRequest{}
 }
 
-func (p *ListMailboxRequest) InitDefault() {
+func (p *ListAgentMessagesRequest) InitDefault() {
 }
 
-var ListMailboxRequest_AgentID_DEFAULT string
+var ListAgentMessagesRequest_AgentID_DEFAULT string
 
-func (p *ListMailboxRequest) GetAgentID() (v string) {
+func (p *ListAgentMessagesRequest) GetAgentID() (v string) {
 	if !p.IsSetAgentID() {
-		return ListMailboxRequest_AgentID_DEFAULT
+		return ListAgentMessagesRequest_AgentID_DEFAULT
 	}
 	return *p.AgentID
 }
 
-var ListMailboxRequest_SessionID_DEFAULT string
+var ListAgentMessagesRequest_SessionID_DEFAULT string
 
-func (p *ListMailboxRequest) GetSessionID() (v string) {
+func (p *ListAgentMessagesRequest) GetSessionID() (v string) {
 	if !p.IsSetSessionID() {
-		return ListMailboxRequest_SessionID_DEFAULT
+		return ListAgentMessagesRequest_SessionID_DEFAULT
 	}
 	return *p.SessionID
 }
 
-var ListMailboxRequest_Status_DEFAULT string
+var ListAgentMessagesRequest_Status_DEFAULT string
 
-func (p *ListMailboxRequest) GetStatus() (v string) {
+func (p *ListAgentMessagesRequest) GetStatus() (v string) {
 	if !p.IsSetStatus() {
-		return ListMailboxRequest_Status_DEFAULT
+		return ListAgentMessagesRequest_Status_DEFAULT
 	}
 	return *p.Status
 }
 
-var ListMailboxRequest_Limit_DEFAULT int32
+var ListAgentMessagesRequest_Limit_DEFAULT int32
 
-func (p *ListMailboxRequest) GetLimit() (v int32) {
+func (p *ListAgentMessagesRequest) GetLimit() (v int32) {
 	if !p.IsSetLimit() {
-		return ListMailboxRequest_Limit_DEFAULT
+		return ListAgentMessagesRequest_Limit_DEFAULT
 	}
 	return *p.Limit
 }
 
-var fieldIDToName_ListMailboxRequest = map[int16]string{
+var fieldIDToName_ListAgentMessagesRequest = map[int16]string{
 	1: "agent_id",
 	2: "session_id",
 	3: "status",
 	4: "limit",
 }
 
-func (p *ListMailboxRequest) IsSetAgentID() bool {
+func (p *ListAgentMessagesRequest) IsSetAgentID() bool {
 	return p.AgentID != nil
 }
 
-func (p *ListMailboxRequest) IsSetSessionID() bool {
+func (p *ListAgentMessagesRequest) IsSetSessionID() bool {
 	return p.SessionID != nil
 }
 
-func (p *ListMailboxRequest) IsSetStatus() bool {
+func (p *ListAgentMessagesRequest) IsSetStatus() bool {
 	return p.Status != nil
 }
 
-func (p *ListMailboxRequest) IsSetLimit() bool {
+func (p *ListAgentMessagesRequest) IsSetLimit() bool {
 	return p.Limit != nil
 }
 
-func (p *ListMailboxRequest) Read(iprot thrift.TProtocol) (err error) {
+func (p *ListAgentMessagesRequest) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -8700,7 +9401,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ListMailboxRequest[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ListAgentMessagesRequest[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -8710,7 +9411,7 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *ListMailboxRequest) ReadField1(iprot thrift.TProtocol) error {
+func (p *ListAgentMessagesRequest) ReadField1(iprot thrift.TProtocol) error {
 
 	var _field *string
 	if v, err := iprot.ReadString(); err != nil {
@@ -8721,7 +9422,7 @@ func (p *ListMailboxRequest) ReadField1(iprot thrift.TProtocol) error {
 	p.AgentID = _field
 	return nil
 }
-func (p *ListMailboxRequest) ReadField2(iprot thrift.TProtocol) error {
+func (p *ListAgentMessagesRequest) ReadField2(iprot thrift.TProtocol) error {
 
 	var _field *string
 	if v, err := iprot.ReadString(); err != nil {
@@ -8732,7 +9433,7 @@ func (p *ListMailboxRequest) ReadField2(iprot thrift.TProtocol) error {
 	p.SessionID = _field
 	return nil
 }
-func (p *ListMailboxRequest) ReadField3(iprot thrift.TProtocol) error {
+func (p *ListAgentMessagesRequest) ReadField3(iprot thrift.TProtocol) error {
 
 	var _field *string
 	if v, err := iprot.ReadString(); err != nil {
@@ -8743,7 +9444,7 @@ func (p *ListMailboxRequest) ReadField3(iprot thrift.TProtocol) error {
 	p.Status = _field
 	return nil
 }
-func (p *ListMailboxRequest) ReadField4(iprot thrift.TProtocol) error {
+func (p *ListAgentMessagesRequest) ReadField4(iprot thrift.TProtocol) error {
 
 	var _field *int32
 	if v, err := iprot.ReadI32(); err != nil {
@@ -8755,9 +9456,9 @@ func (p *ListMailboxRequest) ReadField4(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *ListMailboxRequest) Write(oprot thrift.TProtocol) (err error) {
+func (p *ListAgentMessagesRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("ListMailboxRequest"); err != nil {
+	if err = oprot.WriteStructBegin("ListAgentMessagesRequest"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
@@ -8795,7 +9496,7 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *ListMailboxRequest) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *ListAgentMessagesRequest) writeField1(oprot thrift.TProtocol) (err error) {
 	if p.IsSetAgentID() {
 		if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 1); err != nil {
 			goto WriteFieldBeginError
@@ -8814,7 +9515,7 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
 }
 
-func (p *ListMailboxRequest) writeField2(oprot thrift.TProtocol) (err error) {
+func (p *ListAgentMessagesRequest) writeField2(oprot thrift.TProtocol) (err error) {
 	if p.IsSetSessionID() {
 		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 2); err != nil {
 			goto WriteFieldBeginError
@@ -8833,7 +9534,7 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
 }
 
-func (p *ListMailboxRequest) writeField3(oprot thrift.TProtocol) (err error) {
+func (p *ListAgentMessagesRequest) writeField3(oprot thrift.TProtocol) (err error) {
 	if p.IsSetStatus() {
 		if err = oprot.WriteFieldBegin("status", thrift.STRING, 3); err != nil {
 			goto WriteFieldBeginError
@@ -8852,7 +9553,7 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
 }
 
-func (p *ListMailboxRequest) writeField4(oprot thrift.TProtocol) (err error) {
+func (p *ListAgentMessagesRequest) writeField4(oprot thrift.TProtocol) (err error) {
 	if p.IsSetLimit() {
 		if err = oprot.WriteFieldBegin("limit", thrift.I32, 4); err != nil {
 			goto WriteFieldBeginError
@@ -8871,11 +9572,219 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
 }
 
-func (p *ListMailboxRequest) String() string {
+func (p *ListAgentMessagesRequest) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("ListMailboxRequest(%+v)", *p)
+	return fmt.Sprintf("ListAgentMessagesRequest(%+v)", *p)
+
+}
+
+type ListAgentSessionMessagesRequest struct {
+	AgentID   *string `thrift:"agent_id,1,optional" json:"agent_id,omitempty" path:"agentId"`
+	SessionID *string `thrift:"session_id,2,optional" json:"session_id,omitempty" path:"sessionId"`
+}
+
+func NewListAgentSessionMessagesRequest() *ListAgentSessionMessagesRequest {
+	return &ListAgentSessionMessagesRequest{}
+}
+
+func (p *ListAgentSessionMessagesRequest) InitDefault() {
+}
+
+var ListAgentSessionMessagesRequest_AgentID_DEFAULT string
+
+func (p *ListAgentSessionMessagesRequest) GetAgentID() (v string) {
+	if !p.IsSetAgentID() {
+		return ListAgentSessionMessagesRequest_AgentID_DEFAULT
+	}
+	return *p.AgentID
+}
+
+var ListAgentSessionMessagesRequest_SessionID_DEFAULT string
+
+func (p *ListAgentSessionMessagesRequest) GetSessionID() (v string) {
+	if !p.IsSetSessionID() {
+		return ListAgentSessionMessagesRequest_SessionID_DEFAULT
+	}
+	return *p.SessionID
+}
+
+var fieldIDToName_ListAgentSessionMessagesRequest = map[int16]string{
+	1: "agent_id",
+	2: "session_id",
+}
+
+func (p *ListAgentSessionMessagesRequest) IsSetAgentID() bool {
+	return p.AgentID != nil
+}
+
+func (p *ListAgentSessionMessagesRequest) IsSetSessionID() bool {
+	return p.SessionID != nil
+}
+
+func (p *ListAgentSessionMessagesRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ListAgentSessionMessagesRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ListAgentSessionMessagesRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AgentID = _field
+	return nil
+}
+func (p *ListAgentSessionMessagesRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SessionID = _field
+	return nil
+}
+
+func (p *ListAgentSessionMessagesRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListAgentSessionMessagesRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ListAgentSessionMessagesRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAgentID() {
+		if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.AgentID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ListAgentSessionMessagesRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSessionID() {
+		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SessionID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *ListAgentSessionMessagesRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ListAgentSessionMessagesRequest(%+v)", *p)
 
 }
 
@@ -12152,6 +13061,268 @@ func (p *AgentListResponse) String() string {
 
 }
 
+type AgentResponse struct {
+	Data    *Agent  `thrift:"data,1,optional" form:"data" json:"data,omitempty" query:"data"`
+	Code    *int32  `thrift:"code,2,optional" form:"code" json:"code,omitempty" query:"code"`
+	Message *string `thrift:"message,3,optional" form:"message" json:"message,omitempty" query:"message"`
+}
+
+func NewAgentResponse() *AgentResponse {
+	return &AgentResponse{}
+}
+
+func (p *AgentResponse) InitDefault() {
+}
+
+var AgentResponse_Data_DEFAULT *Agent
+
+func (p *AgentResponse) GetData() (v *Agent) {
+	if !p.IsSetData() {
+		return AgentResponse_Data_DEFAULT
+	}
+	return p.Data
+}
+
+var AgentResponse_Code_DEFAULT int32
+
+func (p *AgentResponse) GetCode() (v int32) {
+	if !p.IsSetCode() {
+		return AgentResponse_Code_DEFAULT
+	}
+	return *p.Code
+}
+
+var AgentResponse_Message_DEFAULT string
+
+func (p *AgentResponse) GetMessage() (v string) {
+	if !p.IsSetMessage() {
+		return AgentResponse_Message_DEFAULT
+	}
+	return *p.Message
+}
+
+var fieldIDToName_AgentResponse = map[int16]string{
+	1: "data",
+	2: "code",
+	3: "message",
+}
+
+func (p *AgentResponse) IsSetData() bool {
+	return p.Data != nil
+}
+
+func (p *AgentResponse) IsSetCode() bool {
+	return p.Code != nil
+}
+
+func (p *AgentResponse) IsSetMessage() bool {
+	return p.Message != nil
+}
+
+func (p *AgentResponse) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_AgentResponse[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *AgentResponse) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewAgent()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Data = _field
+	return nil
+}
+func (p *AgentResponse) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Code = _field
+	return nil
+}
+func (p *AgentResponse) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Message = _field
+	return nil
+}
+
+func (p *AgentResponse) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("AgentResponse"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *AgentResponse) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetData() {
+		if err = oprot.WriteFieldBegin("data", thrift.STRUCT, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Data.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *AgentResponse) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCode() {
+		if err = oprot.WriteFieldBegin("code", thrift.I32, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.Code); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *AgentResponse) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetMessage() {
+		if err = oprot.WriteFieldBegin("message", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Message); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *AgentResponse) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("AgentResponse(%+v)", *p)
+
+}
+
 type SessionListResponse struct {
 	Data    *SessionListData `thrift:"data,1,optional" form:"data" json:"data,omitempty" query:"data"`
 	Code    *int32           `thrift:"code,2,optional" form:"code" json:"code,omitempty" query:"code"`
@@ -13995,21 +15166,27 @@ type PaxManagerAPI interface {
 
 	PullMailbox(ctx context.Context, request *PullMailboxRequest) (r *PullMailboxResponse, err error)
 
+	PullSessionMailbox(ctx context.Context, request *PullSessionMailboxRequest) (r *PullMailboxResponse, err error)
+
 	UpdateMailboxOffset(ctx context.Context, request *UpdateMailboxOffsetRequest) (r *OKResponse, err error)
 
 	ReportMessageResult(ctx context.Context, request *ReportMessageResultRequest) (r *OKResponse, err error)
 
 	ListAgents(ctx context.Context, request *EmptyRequest) (r *AgentListResponse, err error)
 
+	GetAgent(ctx context.Context, request *GetAgentRequest) (r *AgentResponse, err error)
+
 	ListAgentSessions(ctx context.Context, request *ListAgentSessionsRequest) (r *SessionListResponse, err error)
 
-	GetSession(ctx context.Context, request *GetSessionRequest) (r *AgentSessionResponse, err error)
+	GetAgentSession(ctx context.Context, request *GetAgentSessionRequest) (r *AgentSessionResponse, err error)
 
-	ListSessionMessages(ctx context.Context, request *ListSessionMessagesRequest) (r *MailboxListResponse, err error)
+	ListAgentMessages(ctx context.Context, request *ListAgentMessagesRequest) (r *MailboxListResponse, err error)
 
-	CreateMailboxMessage(ctx context.Context, request *CreateMailboxRequest) (r *MailboxMessageResponse, err error)
+	CreateAgentMessage(ctx context.Context, request *CreateAgentMessageRequest) (r *MailboxMessageResponse, err error)
 
-	ListMailbox(ctx context.Context, request *ListMailboxRequest) (r *MailboxListResponse, err error)
+	ListAgentSessionMessages(ctx context.Context, request *ListAgentSessionMessagesRequest) (r *MailboxListResponse, err error)
+
+	CreateSessionMessage(ctx context.Context, request *CreateSessionMessageRequest) (r *MailboxMessageResponse, err error)
 
 	ListUserAPIKeys(ctx context.Context, request *EmptyRequest) (r *UserAPIKeyListResponse, err error)
 
@@ -14082,6 +15259,15 @@ func (p *PaxManagerAPIClient) PullMailbox(ctx context.Context, request *PullMail
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) PullSessionMailbox(ctx context.Context, request *PullSessionMailboxRequest) (r *PullMailboxResponse, err error) {
+	var _args PaxManagerAPIPullSessionMailboxArgs
+	_args.Request = request
+	var _result PaxManagerAPIPullSessionMailboxResult
+	if err = p.Client_().Call(ctx, "PullSessionMailbox", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) UpdateMailboxOffset(ctx context.Context, request *UpdateMailboxOffsetRequest) (r *OKResponse, err error) {
 	var _args PaxManagerAPIUpdateMailboxOffsetArgs
 	_args.Request = request
@@ -14109,6 +15295,15 @@ func (p *PaxManagerAPIClient) ListAgents(ctx context.Context, request *EmptyRequ
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) GetAgent(ctx context.Context, request *GetAgentRequest) (r *AgentResponse, err error) {
+	var _args PaxManagerAPIGetAgentArgs
+	_args.Request = request
+	var _result PaxManagerAPIGetAgentResult
+	if err = p.Client_().Call(ctx, "GetAgent", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) ListAgentSessions(ctx context.Context, request *ListAgentSessionsRequest) (r *SessionListResponse, err error) {
 	var _args PaxManagerAPIListAgentSessionsArgs
 	_args.Request = request
@@ -14118,38 +15313,47 @@ func (p *PaxManagerAPIClient) ListAgentSessions(ctx context.Context, request *Li
 	}
 	return _result.GetSuccess(), nil
 }
-func (p *PaxManagerAPIClient) GetSession(ctx context.Context, request *GetSessionRequest) (r *AgentSessionResponse, err error) {
-	var _args PaxManagerAPIGetSessionArgs
+func (p *PaxManagerAPIClient) GetAgentSession(ctx context.Context, request *GetAgentSessionRequest) (r *AgentSessionResponse, err error) {
+	var _args PaxManagerAPIGetAgentSessionArgs
 	_args.Request = request
-	var _result PaxManagerAPIGetSessionResult
-	if err = p.Client_().Call(ctx, "GetSession", &_args, &_result); err != nil {
+	var _result PaxManagerAPIGetAgentSessionResult
+	if err = p.Client_().Call(ctx, "GetAgentSession", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
 }
-func (p *PaxManagerAPIClient) ListSessionMessages(ctx context.Context, request *ListSessionMessagesRequest) (r *MailboxListResponse, err error) {
-	var _args PaxManagerAPIListSessionMessagesArgs
+func (p *PaxManagerAPIClient) ListAgentMessages(ctx context.Context, request *ListAgentMessagesRequest) (r *MailboxListResponse, err error) {
+	var _args PaxManagerAPIListAgentMessagesArgs
 	_args.Request = request
-	var _result PaxManagerAPIListSessionMessagesResult
-	if err = p.Client_().Call(ctx, "ListSessionMessages", &_args, &_result); err != nil {
+	var _result PaxManagerAPIListAgentMessagesResult
+	if err = p.Client_().Call(ctx, "ListAgentMessages", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
 }
-func (p *PaxManagerAPIClient) CreateMailboxMessage(ctx context.Context, request *CreateMailboxRequest) (r *MailboxMessageResponse, err error) {
-	var _args PaxManagerAPICreateMailboxMessageArgs
+func (p *PaxManagerAPIClient) CreateAgentMessage(ctx context.Context, request *CreateAgentMessageRequest) (r *MailboxMessageResponse, err error) {
+	var _args PaxManagerAPICreateAgentMessageArgs
 	_args.Request = request
-	var _result PaxManagerAPICreateMailboxMessageResult
-	if err = p.Client_().Call(ctx, "CreateMailboxMessage", &_args, &_result); err != nil {
+	var _result PaxManagerAPICreateAgentMessageResult
+	if err = p.Client_().Call(ctx, "CreateAgentMessage", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
 }
-func (p *PaxManagerAPIClient) ListMailbox(ctx context.Context, request *ListMailboxRequest) (r *MailboxListResponse, err error) {
-	var _args PaxManagerAPIListMailboxArgs
+func (p *PaxManagerAPIClient) ListAgentSessionMessages(ctx context.Context, request *ListAgentSessionMessagesRequest) (r *MailboxListResponse, err error) {
+	var _args PaxManagerAPIListAgentSessionMessagesArgs
 	_args.Request = request
-	var _result PaxManagerAPIListMailboxResult
-	if err = p.Client_().Call(ctx, "ListMailbox", &_args, &_result); err != nil {
+	var _result PaxManagerAPIListAgentSessionMessagesResult
+	if err = p.Client_().Call(ctx, "ListAgentSessionMessages", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) CreateSessionMessage(ctx context.Context, request *CreateSessionMessageRequest) (r *MailboxMessageResponse, err error) {
+	var _args PaxManagerAPICreateSessionMessageArgs
+	_args.Request = request
+	var _result PaxManagerAPICreateSessionMessageResult
+	if err = p.Client_().Call(ctx, "CreateSessionMessage", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
@@ -14215,14 +15419,17 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("RegisterAgent", &paxManagerAPIProcessorRegisterAgent{handler: handler})
 	self.AddToProcessorMap("ReportAgentStatus", &paxManagerAPIProcessorReportAgentStatus{handler: handler})
 	self.AddToProcessorMap("PullMailbox", &paxManagerAPIProcessorPullMailbox{handler: handler})
+	self.AddToProcessorMap("PullSessionMailbox", &paxManagerAPIProcessorPullSessionMailbox{handler: handler})
 	self.AddToProcessorMap("UpdateMailboxOffset", &paxManagerAPIProcessorUpdateMailboxOffset{handler: handler})
 	self.AddToProcessorMap("ReportMessageResult", &paxManagerAPIProcessorReportMessageResult{handler: handler})
 	self.AddToProcessorMap("ListAgents", &paxManagerAPIProcessorListAgents{handler: handler})
+	self.AddToProcessorMap("GetAgent", &paxManagerAPIProcessorGetAgent{handler: handler})
 	self.AddToProcessorMap("ListAgentSessions", &paxManagerAPIProcessorListAgentSessions{handler: handler})
-	self.AddToProcessorMap("GetSession", &paxManagerAPIProcessorGetSession{handler: handler})
-	self.AddToProcessorMap("ListSessionMessages", &paxManagerAPIProcessorListSessionMessages{handler: handler})
-	self.AddToProcessorMap("CreateMailboxMessage", &paxManagerAPIProcessorCreateMailboxMessage{handler: handler})
-	self.AddToProcessorMap("ListMailbox", &paxManagerAPIProcessorListMailbox{handler: handler})
+	self.AddToProcessorMap("GetAgentSession", &paxManagerAPIProcessorGetAgentSession{handler: handler})
+	self.AddToProcessorMap("ListAgentMessages", &paxManagerAPIProcessorListAgentMessages{handler: handler})
+	self.AddToProcessorMap("CreateAgentMessage", &paxManagerAPIProcessorCreateAgentMessage{handler: handler})
+	self.AddToProcessorMap("ListAgentSessionMessages", &paxManagerAPIProcessorListAgentSessionMessages{handler: handler})
+	self.AddToProcessorMap("CreateSessionMessage", &paxManagerAPIProcessorCreateSessionMessage{handler: handler})
 	self.AddToProcessorMap("ListUserAPIKeys", &paxManagerAPIProcessorListUserAPIKeys{handler: handler})
 	self.AddToProcessorMap("CreateUserAPIKey", &paxManagerAPIProcessorCreateUserAPIKey{handler: handler})
 	self.AddToProcessorMap("RevokeUserAPIKey", &paxManagerAPIProcessorRevokeUserAPIKey{handler: handler})
@@ -14439,6 +15646,54 @@ func (p *paxManagerAPIProcessorPullMailbox) Process(ctx context.Context, seqId i
 	return true, err
 }
 
+type paxManagerAPIProcessorPullSessionMailbox struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorPullSessionMailbox) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIPullSessionMailboxArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("PullSessionMailbox", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIPullSessionMailboxResult{}
+	var retval *PullMailboxResponse
+	if retval, err2 = p.handler.PullSessionMailbox(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing PullSessionMailbox: "+err2.Error())
+		oprot.WriteMessageBegin("PullSessionMailbox", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("PullSessionMailbox", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
 type paxManagerAPIProcessorUpdateMailboxOffset struct {
 	handler PaxManagerAPI
 }
@@ -14583,6 +15838,54 @@ func (p *paxManagerAPIProcessorListAgents) Process(ctx context.Context, seqId in
 	return true, err
 }
 
+type paxManagerAPIProcessorGetAgent struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorGetAgent) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIGetAgentArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("GetAgent", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIGetAgentResult{}
+	var retval *AgentResponse
+	if retval, err2 = p.handler.GetAgent(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing GetAgent: "+err2.Error())
+		oprot.WriteMessageBegin("GetAgent", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("GetAgent", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
 type paxManagerAPIProcessorListAgentSessions struct {
 	handler PaxManagerAPI
 }
@@ -14631,16 +15934,16 @@ func (p *paxManagerAPIProcessorListAgentSessions) Process(ctx context.Context, s
 	return true, err
 }
 
-type paxManagerAPIProcessorGetSession struct {
+type paxManagerAPIProcessorGetAgentSession struct {
 	handler PaxManagerAPI
 }
 
-func (p *paxManagerAPIProcessorGetSession) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := PaxManagerAPIGetSessionArgs{}
+func (p *paxManagerAPIProcessorGetAgentSession) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIGetAgentSessionArgs{}
 	if err = args.Read(iprot); err != nil {
 		iprot.ReadMessageEnd()
 		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("GetSession", thrift.EXCEPTION, seqId)
+		oprot.WriteMessageBegin("GetAgentSession", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush(ctx)
@@ -14649,11 +15952,11 @@ func (p *paxManagerAPIProcessorGetSession) Process(ctx context.Context, seqId in
 
 	iprot.ReadMessageEnd()
 	var err2 error
-	result := PaxManagerAPIGetSessionResult{}
+	result := PaxManagerAPIGetAgentSessionResult{}
 	var retval *AgentSessionResponse
-	if retval, err2 = p.handler.GetSession(ctx, args.Request); err2 != nil {
-		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing GetSession: "+err2.Error())
-		oprot.WriteMessageBegin("GetSession", thrift.EXCEPTION, seqId)
+	if retval, err2 = p.handler.GetAgentSession(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing GetAgentSession: "+err2.Error())
+		oprot.WriteMessageBegin("GetAgentSession", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush(ctx)
@@ -14661,7 +15964,7 @@ func (p *paxManagerAPIProcessorGetSession) Process(ctx context.Context, seqId in
 	} else {
 		result.Success = retval
 	}
-	if err2 = oprot.WriteMessageBegin("GetSession", thrift.REPLY, seqId); err2 != nil {
+	if err2 = oprot.WriteMessageBegin("GetAgentSession", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -14679,16 +15982,16 @@ func (p *paxManagerAPIProcessorGetSession) Process(ctx context.Context, seqId in
 	return true, err
 }
 
-type paxManagerAPIProcessorListSessionMessages struct {
+type paxManagerAPIProcessorListAgentMessages struct {
 	handler PaxManagerAPI
 }
 
-func (p *paxManagerAPIProcessorListSessionMessages) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := PaxManagerAPIListSessionMessagesArgs{}
+func (p *paxManagerAPIProcessorListAgentMessages) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIListAgentMessagesArgs{}
 	if err = args.Read(iprot); err != nil {
 		iprot.ReadMessageEnd()
 		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("ListSessionMessages", thrift.EXCEPTION, seqId)
+		oprot.WriteMessageBegin("ListAgentMessages", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush(ctx)
@@ -14697,11 +16000,11 @@ func (p *paxManagerAPIProcessorListSessionMessages) Process(ctx context.Context,
 
 	iprot.ReadMessageEnd()
 	var err2 error
-	result := PaxManagerAPIListSessionMessagesResult{}
+	result := PaxManagerAPIListAgentMessagesResult{}
 	var retval *MailboxListResponse
-	if retval, err2 = p.handler.ListSessionMessages(ctx, args.Request); err2 != nil {
-		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListSessionMessages: "+err2.Error())
-		oprot.WriteMessageBegin("ListSessionMessages", thrift.EXCEPTION, seqId)
+	if retval, err2 = p.handler.ListAgentMessages(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListAgentMessages: "+err2.Error())
+		oprot.WriteMessageBegin("ListAgentMessages", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush(ctx)
@@ -14709,7 +16012,7 @@ func (p *paxManagerAPIProcessorListSessionMessages) Process(ctx context.Context,
 	} else {
 		result.Success = retval
 	}
-	if err2 = oprot.WriteMessageBegin("ListSessionMessages", thrift.REPLY, seqId); err2 != nil {
+	if err2 = oprot.WriteMessageBegin("ListAgentMessages", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -14727,16 +16030,16 @@ func (p *paxManagerAPIProcessorListSessionMessages) Process(ctx context.Context,
 	return true, err
 }
 
-type paxManagerAPIProcessorCreateMailboxMessage struct {
+type paxManagerAPIProcessorCreateAgentMessage struct {
 	handler PaxManagerAPI
 }
 
-func (p *paxManagerAPIProcessorCreateMailboxMessage) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := PaxManagerAPICreateMailboxMessageArgs{}
+func (p *paxManagerAPIProcessorCreateAgentMessage) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPICreateAgentMessageArgs{}
 	if err = args.Read(iprot); err != nil {
 		iprot.ReadMessageEnd()
 		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("CreateMailboxMessage", thrift.EXCEPTION, seqId)
+		oprot.WriteMessageBegin("CreateAgentMessage", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush(ctx)
@@ -14745,11 +16048,11 @@ func (p *paxManagerAPIProcessorCreateMailboxMessage) Process(ctx context.Context
 
 	iprot.ReadMessageEnd()
 	var err2 error
-	result := PaxManagerAPICreateMailboxMessageResult{}
+	result := PaxManagerAPICreateAgentMessageResult{}
 	var retval *MailboxMessageResponse
-	if retval, err2 = p.handler.CreateMailboxMessage(ctx, args.Request); err2 != nil {
-		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing CreateMailboxMessage: "+err2.Error())
-		oprot.WriteMessageBegin("CreateMailboxMessage", thrift.EXCEPTION, seqId)
+	if retval, err2 = p.handler.CreateAgentMessage(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing CreateAgentMessage: "+err2.Error())
+		oprot.WriteMessageBegin("CreateAgentMessage", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush(ctx)
@@ -14757,7 +16060,7 @@ func (p *paxManagerAPIProcessorCreateMailboxMessage) Process(ctx context.Context
 	} else {
 		result.Success = retval
 	}
-	if err2 = oprot.WriteMessageBegin("CreateMailboxMessage", thrift.REPLY, seqId); err2 != nil {
+	if err2 = oprot.WriteMessageBegin("CreateAgentMessage", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -14775,16 +16078,16 @@ func (p *paxManagerAPIProcessorCreateMailboxMessage) Process(ctx context.Context
 	return true, err
 }
 
-type paxManagerAPIProcessorListMailbox struct {
+type paxManagerAPIProcessorListAgentSessionMessages struct {
 	handler PaxManagerAPI
 }
 
-func (p *paxManagerAPIProcessorListMailbox) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
-	args := PaxManagerAPIListMailboxArgs{}
+func (p *paxManagerAPIProcessorListAgentSessionMessages) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIListAgentSessionMessagesArgs{}
 	if err = args.Read(iprot); err != nil {
 		iprot.ReadMessageEnd()
 		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
-		oprot.WriteMessageBegin("ListMailbox", thrift.EXCEPTION, seqId)
+		oprot.WriteMessageBegin("ListAgentSessionMessages", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush(ctx)
@@ -14793,11 +16096,11 @@ func (p *paxManagerAPIProcessorListMailbox) Process(ctx context.Context, seqId i
 
 	iprot.ReadMessageEnd()
 	var err2 error
-	result := PaxManagerAPIListMailboxResult{}
+	result := PaxManagerAPIListAgentSessionMessagesResult{}
 	var retval *MailboxListResponse
-	if retval, err2 = p.handler.ListMailbox(ctx, args.Request); err2 != nil {
-		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListMailbox: "+err2.Error())
-		oprot.WriteMessageBegin("ListMailbox", thrift.EXCEPTION, seqId)
+	if retval, err2 = p.handler.ListAgentSessionMessages(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListAgentSessionMessages: "+err2.Error())
+		oprot.WriteMessageBegin("ListAgentSessionMessages", thrift.EXCEPTION, seqId)
 		x.Write(oprot)
 		oprot.WriteMessageEnd()
 		oprot.Flush(ctx)
@@ -14805,7 +16108,55 @@ func (p *paxManagerAPIProcessorListMailbox) Process(ctx context.Context, seqId i
 	} else {
 		result.Success = retval
 	}
-	if err2 = oprot.WriteMessageBegin("ListMailbox", thrift.REPLY, seqId); err2 != nil {
+	if err2 = oprot.WriteMessageBegin("ListAgentSessionMessages", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorCreateSessionMessage struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorCreateSessionMessage) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPICreateSessionMessageArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("CreateSessionMessage", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPICreateSessionMessageResult{}
+	var retval *MailboxMessageResponse
+	if retval, err2 = p.handler.CreateSessionMessage(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing CreateSessionMessage: "+err2.Error())
+		oprot.WriteMessageBegin("CreateSessionMessage", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("CreateSessionMessage", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -16191,6 +17542,300 @@ func (p *PaxManagerAPIPullMailboxResult) String() string {
 
 }
 
+type PaxManagerAPIPullSessionMailboxArgs struct {
+	Request *PullSessionMailboxRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIPullSessionMailboxArgs() *PaxManagerAPIPullSessionMailboxArgs {
+	return &PaxManagerAPIPullSessionMailboxArgs{}
+}
+
+func (p *PaxManagerAPIPullSessionMailboxArgs) InitDefault() {
+}
+
+var PaxManagerAPIPullSessionMailboxArgs_Request_DEFAULT *PullSessionMailboxRequest
+
+func (p *PaxManagerAPIPullSessionMailboxArgs) GetRequest() (v *PullSessionMailboxRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIPullSessionMailboxArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIPullSessionMailboxArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIPullSessionMailboxArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIPullSessionMailboxArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIPullSessionMailboxArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPullSessionMailboxArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewPullSessionMailboxRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIPullSessionMailboxArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("PullSessionMailbox_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPullSessionMailboxArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPullSessionMailboxArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIPullSessionMailboxArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIPullSessionMailboxResult struct {
+	Success *PullMailboxResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIPullSessionMailboxResult() *PaxManagerAPIPullSessionMailboxResult {
+	return &PaxManagerAPIPullSessionMailboxResult{}
+}
+
+func (p *PaxManagerAPIPullSessionMailboxResult) InitDefault() {
+}
+
+var PaxManagerAPIPullSessionMailboxResult_Success_DEFAULT *PullMailboxResponse
+
+func (p *PaxManagerAPIPullSessionMailboxResult) GetSuccess() (v *PullMailboxResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIPullSessionMailboxResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIPullSessionMailboxResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIPullSessionMailboxResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIPullSessionMailboxResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIPullSessionMailboxResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPullSessionMailboxResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewPullMailboxResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIPullSessionMailboxResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("PullSessionMailbox_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPullSessionMailboxResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPullSessionMailboxResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIPullSessionMailboxResult(%+v)", *p)
+
+}
+
 type PaxManagerAPIUpdateMailboxOffsetArgs struct {
 	Request *UpdateMailboxOffsetRequest `thrift:"request,1"`
 }
@@ -17073,6 +18718,300 @@ func (p *PaxManagerAPIListAgentsResult) String() string {
 
 }
 
+type PaxManagerAPIGetAgentArgs struct {
+	Request *GetAgentRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIGetAgentArgs() *PaxManagerAPIGetAgentArgs {
+	return &PaxManagerAPIGetAgentArgs{}
+}
+
+func (p *PaxManagerAPIGetAgentArgs) InitDefault() {
+}
+
+var PaxManagerAPIGetAgentArgs_Request_DEFAULT *GetAgentRequest
+
+func (p *PaxManagerAPIGetAgentArgs) GetRequest() (v *GetAgentRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIGetAgentArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIGetAgentArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIGetAgentArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIGetAgentArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetAgentArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetAgentArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewGetAgentRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetAgentArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetAgent_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetAgentArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetAgentArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetAgentArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetAgentResult struct {
+	Success *AgentResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIGetAgentResult() *PaxManagerAPIGetAgentResult {
+	return &PaxManagerAPIGetAgentResult{}
+}
+
+func (p *PaxManagerAPIGetAgentResult) InitDefault() {
+}
+
+var PaxManagerAPIGetAgentResult_Success_DEFAULT *AgentResponse
+
+func (p *PaxManagerAPIGetAgentResult) GetSuccess() (v *AgentResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIGetAgentResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIGetAgentResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIGetAgentResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIGetAgentResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetAgentResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetAgentResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewAgentResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetAgentResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetAgent_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetAgentResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetAgentResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetAgentResult(%+v)", *p)
+
+}
+
 type PaxManagerAPIListAgentSessionsArgs struct {
 	Request *ListAgentSessionsRequest `thrift:"request,1"`
 }
@@ -17367,35 +19306,35 @@ func (p *PaxManagerAPIListAgentSessionsResult) String() string {
 
 }
 
-type PaxManagerAPIGetSessionArgs struct {
-	Request *GetSessionRequest `thrift:"request,1"`
+type PaxManagerAPIGetAgentSessionArgs struct {
+	Request *GetAgentSessionRequest `thrift:"request,1"`
 }
 
-func NewPaxManagerAPIGetSessionArgs() *PaxManagerAPIGetSessionArgs {
-	return &PaxManagerAPIGetSessionArgs{}
+func NewPaxManagerAPIGetAgentSessionArgs() *PaxManagerAPIGetAgentSessionArgs {
+	return &PaxManagerAPIGetAgentSessionArgs{}
 }
 
-func (p *PaxManagerAPIGetSessionArgs) InitDefault() {
+func (p *PaxManagerAPIGetAgentSessionArgs) InitDefault() {
 }
 
-var PaxManagerAPIGetSessionArgs_Request_DEFAULT *GetSessionRequest
+var PaxManagerAPIGetAgentSessionArgs_Request_DEFAULT *GetAgentSessionRequest
 
-func (p *PaxManagerAPIGetSessionArgs) GetRequest() (v *GetSessionRequest) {
+func (p *PaxManagerAPIGetAgentSessionArgs) GetRequest() (v *GetAgentSessionRequest) {
 	if !p.IsSetRequest() {
-		return PaxManagerAPIGetSessionArgs_Request_DEFAULT
+		return PaxManagerAPIGetAgentSessionArgs_Request_DEFAULT
 	}
 	return p.Request
 }
 
-var fieldIDToName_PaxManagerAPIGetSessionArgs = map[int16]string{
+var fieldIDToName_PaxManagerAPIGetAgentSessionArgs = map[int16]string{
 	1: "request",
 }
 
-func (p *PaxManagerAPIGetSessionArgs) IsSetRequest() bool {
+func (p *PaxManagerAPIGetAgentSessionArgs) IsSetRequest() bool {
 	return p.Request != nil
 }
 
-func (p *PaxManagerAPIGetSessionArgs) Read(iprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIGetAgentSessionArgs) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -17441,7 +19380,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetSessionArgs[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetAgentSessionArgs[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -17451,8 +19390,8 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIGetSessionArgs) ReadField1(iprot thrift.TProtocol) error {
-	_field := NewGetSessionRequest()
+func (p *PaxManagerAPIGetAgentSessionArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewGetAgentSessionRequest()
 	if err := _field.Read(iprot); err != nil {
 		return err
 	}
@@ -17460,9 +19399,9 @@ func (p *PaxManagerAPIGetSessionArgs) ReadField1(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *PaxManagerAPIGetSessionArgs) Write(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIGetAgentSessionArgs) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("GetSession_args"); err != nil {
+	if err = oprot.WriteStructBegin("GetAgentSession_args"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
@@ -17488,7 +19427,7 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIGetSessionArgs) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIGetAgentSessionArgs) writeField1(oprot thrift.TProtocol) (err error) {
 	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
 		goto WriteFieldBeginError
 	}
@@ -17505,43 +19444,43 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
 }
 
-func (p *PaxManagerAPIGetSessionArgs) String() string {
+func (p *PaxManagerAPIGetAgentSessionArgs) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("PaxManagerAPIGetSessionArgs(%+v)", *p)
+	return fmt.Sprintf("PaxManagerAPIGetAgentSessionArgs(%+v)", *p)
 
 }
 
-type PaxManagerAPIGetSessionResult struct {
+type PaxManagerAPIGetAgentSessionResult struct {
 	Success *AgentSessionResponse `thrift:"success,0,optional"`
 }
 
-func NewPaxManagerAPIGetSessionResult() *PaxManagerAPIGetSessionResult {
-	return &PaxManagerAPIGetSessionResult{}
+func NewPaxManagerAPIGetAgentSessionResult() *PaxManagerAPIGetAgentSessionResult {
+	return &PaxManagerAPIGetAgentSessionResult{}
 }
 
-func (p *PaxManagerAPIGetSessionResult) InitDefault() {
+func (p *PaxManagerAPIGetAgentSessionResult) InitDefault() {
 }
 
-var PaxManagerAPIGetSessionResult_Success_DEFAULT *AgentSessionResponse
+var PaxManagerAPIGetAgentSessionResult_Success_DEFAULT *AgentSessionResponse
 
-func (p *PaxManagerAPIGetSessionResult) GetSuccess() (v *AgentSessionResponse) {
+func (p *PaxManagerAPIGetAgentSessionResult) GetSuccess() (v *AgentSessionResponse) {
 	if !p.IsSetSuccess() {
-		return PaxManagerAPIGetSessionResult_Success_DEFAULT
+		return PaxManagerAPIGetAgentSessionResult_Success_DEFAULT
 	}
 	return p.Success
 }
 
-var fieldIDToName_PaxManagerAPIGetSessionResult = map[int16]string{
+var fieldIDToName_PaxManagerAPIGetAgentSessionResult = map[int16]string{
 	0: "success",
 }
 
-func (p *PaxManagerAPIGetSessionResult) IsSetSuccess() bool {
+func (p *PaxManagerAPIGetAgentSessionResult) IsSetSuccess() bool {
 	return p.Success != nil
 }
 
-func (p *PaxManagerAPIGetSessionResult) Read(iprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIGetAgentSessionResult) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -17587,7 +19526,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetSessionResult[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetAgentSessionResult[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -17597,7 +19536,7 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIGetSessionResult) ReadField0(iprot thrift.TProtocol) error {
+func (p *PaxManagerAPIGetAgentSessionResult) ReadField0(iprot thrift.TProtocol) error {
 	_field := NewAgentSessionResponse()
 	if err := _field.Read(iprot); err != nil {
 		return err
@@ -17606,9 +19545,9 @@ func (p *PaxManagerAPIGetSessionResult) ReadField0(iprot thrift.TProtocol) error
 	return nil
 }
 
-func (p *PaxManagerAPIGetSessionResult) Write(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIGetAgentSessionResult) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("GetSession_result"); err != nil {
+	if err = oprot.WriteStructBegin("GetAgentSession_result"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
@@ -17634,7 +19573,7 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIGetSessionResult) writeField0(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIGetAgentSessionResult) writeField0(oprot thrift.TProtocol) (err error) {
 	if p.IsSetSuccess() {
 		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
 			goto WriteFieldBeginError
@@ -17653,43 +19592,43 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
 }
 
-func (p *PaxManagerAPIGetSessionResult) String() string {
+func (p *PaxManagerAPIGetAgentSessionResult) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("PaxManagerAPIGetSessionResult(%+v)", *p)
+	return fmt.Sprintf("PaxManagerAPIGetAgentSessionResult(%+v)", *p)
 
 }
 
-type PaxManagerAPIListSessionMessagesArgs struct {
-	Request *ListSessionMessagesRequest `thrift:"request,1"`
+type PaxManagerAPIListAgentMessagesArgs struct {
+	Request *ListAgentMessagesRequest `thrift:"request,1"`
 }
 
-func NewPaxManagerAPIListSessionMessagesArgs() *PaxManagerAPIListSessionMessagesArgs {
-	return &PaxManagerAPIListSessionMessagesArgs{}
+func NewPaxManagerAPIListAgentMessagesArgs() *PaxManagerAPIListAgentMessagesArgs {
+	return &PaxManagerAPIListAgentMessagesArgs{}
 }
 
-func (p *PaxManagerAPIListSessionMessagesArgs) InitDefault() {
+func (p *PaxManagerAPIListAgentMessagesArgs) InitDefault() {
 }
 
-var PaxManagerAPIListSessionMessagesArgs_Request_DEFAULT *ListSessionMessagesRequest
+var PaxManagerAPIListAgentMessagesArgs_Request_DEFAULT *ListAgentMessagesRequest
 
-func (p *PaxManagerAPIListSessionMessagesArgs) GetRequest() (v *ListSessionMessagesRequest) {
+func (p *PaxManagerAPIListAgentMessagesArgs) GetRequest() (v *ListAgentMessagesRequest) {
 	if !p.IsSetRequest() {
-		return PaxManagerAPIListSessionMessagesArgs_Request_DEFAULT
+		return PaxManagerAPIListAgentMessagesArgs_Request_DEFAULT
 	}
 	return p.Request
 }
 
-var fieldIDToName_PaxManagerAPIListSessionMessagesArgs = map[int16]string{
+var fieldIDToName_PaxManagerAPIListAgentMessagesArgs = map[int16]string{
 	1: "request",
 }
 
-func (p *PaxManagerAPIListSessionMessagesArgs) IsSetRequest() bool {
+func (p *PaxManagerAPIListAgentMessagesArgs) IsSetRequest() bool {
 	return p.Request != nil
 }
 
-func (p *PaxManagerAPIListSessionMessagesArgs) Read(iprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentMessagesArgs) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -17735,7 +19674,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListSessionMessagesArgs[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListAgentMessagesArgs[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -17745,8 +19684,8 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListSessionMessagesArgs) ReadField1(iprot thrift.TProtocol) error {
-	_field := NewListSessionMessagesRequest()
+func (p *PaxManagerAPIListAgentMessagesArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewListAgentMessagesRequest()
 	if err := _field.Read(iprot); err != nil {
 		return err
 	}
@@ -17754,9 +19693,9 @@ func (p *PaxManagerAPIListSessionMessagesArgs) ReadField1(iprot thrift.TProtocol
 	return nil
 }
 
-func (p *PaxManagerAPIListSessionMessagesArgs) Write(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentMessagesArgs) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("ListSessionMessages_args"); err != nil {
+	if err = oprot.WriteStructBegin("ListAgentMessages_args"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
@@ -17782,7 +19721,7 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListSessionMessagesArgs) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentMessagesArgs) writeField1(oprot thrift.TProtocol) (err error) {
 	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
 		goto WriteFieldBeginError
 	}
@@ -17799,43 +19738,43 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListSessionMessagesArgs) String() string {
+func (p *PaxManagerAPIListAgentMessagesArgs) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("PaxManagerAPIListSessionMessagesArgs(%+v)", *p)
+	return fmt.Sprintf("PaxManagerAPIListAgentMessagesArgs(%+v)", *p)
 
 }
 
-type PaxManagerAPIListSessionMessagesResult struct {
+type PaxManagerAPIListAgentMessagesResult struct {
 	Success *MailboxListResponse `thrift:"success,0,optional"`
 }
 
-func NewPaxManagerAPIListSessionMessagesResult() *PaxManagerAPIListSessionMessagesResult {
-	return &PaxManagerAPIListSessionMessagesResult{}
+func NewPaxManagerAPIListAgentMessagesResult() *PaxManagerAPIListAgentMessagesResult {
+	return &PaxManagerAPIListAgentMessagesResult{}
 }
 
-func (p *PaxManagerAPIListSessionMessagesResult) InitDefault() {
+func (p *PaxManagerAPIListAgentMessagesResult) InitDefault() {
 }
 
-var PaxManagerAPIListSessionMessagesResult_Success_DEFAULT *MailboxListResponse
+var PaxManagerAPIListAgentMessagesResult_Success_DEFAULT *MailboxListResponse
 
-func (p *PaxManagerAPIListSessionMessagesResult) GetSuccess() (v *MailboxListResponse) {
+func (p *PaxManagerAPIListAgentMessagesResult) GetSuccess() (v *MailboxListResponse) {
 	if !p.IsSetSuccess() {
-		return PaxManagerAPIListSessionMessagesResult_Success_DEFAULT
+		return PaxManagerAPIListAgentMessagesResult_Success_DEFAULT
 	}
 	return p.Success
 }
 
-var fieldIDToName_PaxManagerAPIListSessionMessagesResult = map[int16]string{
+var fieldIDToName_PaxManagerAPIListAgentMessagesResult = map[int16]string{
 	0: "success",
 }
 
-func (p *PaxManagerAPIListSessionMessagesResult) IsSetSuccess() bool {
+func (p *PaxManagerAPIListAgentMessagesResult) IsSetSuccess() bool {
 	return p.Success != nil
 }
 
-func (p *PaxManagerAPIListSessionMessagesResult) Read(iprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentMessagesResult) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -17881,7 +19820,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListSessionMessagesResult[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListAgentMessagesResult[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -17891,7 +19830,7 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListSessionMessagesResult) ReadField0(iprot thrift.TProtocol) error {
+func (p *PaxManagerAPIListAgentMessagesResult) ReadField0(iprot thrift.TProtocol) error {
 	_field := NewMailboxListResponse()
 	if err := _field.Read(iprot); err != nil {
 		return err
@@ -17900,9 +19839,9 @@ func (p *PaxManagerAPIListSessionMessagesResult) ReadField0(iprot thrift.TProtoc
 	return nil
 }
 
-func (p *PaxManagerAPIListSessionMessagesResult) Write(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentMessagesResult) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("ListSessionMessages_result"); err != nil {
+	if err = oprot.WriteStructBegin("ListAgentMessages_result"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
@@ -17928,7 +19867,7 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListSessionMessagesResult) writeField0(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentMessagesResult) writeField0(oprot thrift.TProtocol) (err error) {
 	if p.IsSetSuccess() {
 		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
 			goto WriteFieldBeginError
@@ -17947,43 +19886,43 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListSessionMessagesResult) String() string {
+func (p *PaxManagerAPIListAgentMessagesResult) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("PaxManagerAPIListSessionMessagesResult(%+v)", *p)
+	return fmt.Sprintf("PaxManagerAPIListAgentMessagesResult(%+v)", *p)
 
 }
 
-type PaxManagerAPICreateMailboxMessageArgs struct {
-	Request *CreateMailboxRequest `thrift:"request,1"`
+type PaxManagerAPICreateAgentMessageArgs struct {
+	Request *CreateAgentMessageRequest `thrift:"request,1"`
 }
 
-func NewPaxManagerAPICreateMailboxMessageArgs() *PaxManagerAPICreateMailboxMessageArgs {
-	return &PaxManagerAPICreateMailboxMessageArgs{}
+func NewPaxManagerAPICreateAgentMessageArgs() *PaxManagerAPICreateAgentMessageArgs {
+	return &PaxManagerAPICreateAgentMessageArgs{}
 }
 
-func (p *PaxManagerAPICreateMailboxMessageArgs) InitDefault() {
+func (p *PaxManagerAPICreateAgentMessageArgs) InitDefault() {
 }
 
-var PaxManagerAPICreateMailboxMessageArgs_Request_DEFAULT *CreateMailboxRequest
+var PaxManagerAPICreateAgentMessageArgs_Request_DEFAULT *CreateAgentMessageRequest
 
-func (p *PaxManagerAPICreateMailboxMessageArgs) GetRequest() (v *CreateMailboxRequest) {
+func (p *PaxManagerAPICreateAgentMessageArgs) GetRequest() (v *CreateAgentMessageRequest) {
 	if !p.IsSetRequest() {
-		return PaxManagerAPICreateMailboxMessageArgs_Request_DEFAULT
+		return PaxManagerAPICreateAgentMessageArgs_Request_DEFAULT
 	}
 	return p.Request
 }
 
-var fieldIDToName_PaxManagerAPICreateMailboxMessageArgs = map[int16]string{
+var fieldIDToName_PaxManagerAPICreateAgentMessageArgs = map[int16]string{
 	1: "request",
 }
 
-func (p *PaxManagerAPICreateMailboxMessageArgs) IsSetRequest() bool {
+func (p *PaxManagerAPICreateAgentMessageArgs) IsSetRequest() bool {
 	return p.Request != nil
 }
 
-func (p *PaxManagerAPICreateMailboxMessageArgs) Read(iprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPICreateAgentMessageArgs) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -18029,7 +19968,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPICreateMailboxMessageArgs[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPICreateAgentMessageArgs[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -18039,8 +19978,8 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPICreateMailboxMessageArgs) ReadField1(iprot thrift.TProtocol) error {
-	_field := NewCreateMailboxRequest()
+func (p *PaxManagerAPICreateAgentMessageArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewCreateAgentMessageRequest()
 	if err := _field.Read(iprot); err != nil {
 		return err
 	}
@@ -18048,9 +19987,9 @@ func (p *PaxManagerAPICreateMailboxMessageArgs) ReadField1(iprot thrift.TProtoco
 	return nil
 }
 
-func (p *PaxManagerAPICreateMailboxMessageArgs) Write(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPICreateAgentMessageArgs) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("CreateMailboxMessage_args"); err != nil {
+	if err = oprot.WriteStructBegin("CreateAgentMessage_args"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
@@ -18076,7 +20015,7 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPICreateMailboxMessageArgs) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPICreateAgentMessageArgs) writeField1(oprot thrift.TProtocol) (err error) {
 	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
 		goto WriteFieldBeginError
 	}
@@ -18093,43 +20032,43 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
 }
 
-func (p *PaxManagerAPICreateMailboxMessageArgs) String() string {
+func (p *PaxManagerAPICreateAgentMessageArgs) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("PaxManagerAPICreateMailboxMessageArgs(%+v)", *p)
+	return fmt.Sprintf("PaxManagerAPICreateAgentMessageArgs(%+v)", *p)
 
 }
 
-type PaxManagerAPICreateMailboxMessageResult struct {
+type PaxManagerAPICreateAgentMessageResult struct {
 	Success *MailboxMessageResponse `thrift:"success,0,optional"`
 }
 
-func NewPaxManagerAPICreateMailboxMessageResult() *PaxManagerAPICreateMailboxMessageResult {
-	return &PaxManagerAPICreateMailboxMessageResult{}
+func NewPaxManagerAPICreateAgentMessageResult() *PaxManagerAPICreateAgentMessageResult {
+	return &PaxManagerAPICreateAgentMessageResult{}
 }
 
-func (p *PaxManagerAPICreateMailboxMessageResult) InitDefault() {
+func (p *PaxManagerAPICreateAgentMessageResult) InitDefault() {
 }
 
-var PaxManagerAPICreateMailboxMessageResult_Success_DEFAULT *MailboxMessageResponse
+var PaxManagerAPICreateAgentMessageResult_Success_DEFAULT *MailboxMessageResponse
 
-func (p *PaxManagerAPICreateMailboxMessageResult) GetSuccess() (v *MailboxMessageResponse) {
+func (p *PaxManagerAPICreateAgentMessageResult) GetSuccess() (v *MailboxMessageResponse) {
 	if !p.IsSetSuccess() {
-		return PaxManagerAPICreateMailboxMessageResult_Success_DEFAULT
+		return PaxManagerAPICreateAgentMessageResult_Success_DEFAULT
 	}
 	return p.Success
 }
 
-var fieldIDToName_PaxManagerAPICreateMailboxMessageResult = map[int16]string{
+var fieldIDToName_PaxManagerAPICreateAgentMessageResult = map[int16]string{
 	0: "success",
 }
 
-func (p *PaxManagerAPICreateMailboxMessageResult) IsSetSuccess() bool {
+func (p *PaxManagerAPICreateAgentMessageResult) IsSetSuccess() bool {
 	return p.Success != nil
 }
 
-func (p *PaxManagerAPICreateMailboxMessageResult) Read(iprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPICreateAgentMessageResult) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -18175,7 +20114,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPICreateMailboxMessageResult[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPICreateAgentMessageResult[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -18185,7 +20124,7 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPICreateMailboxMessageResult) ReadField0(iprot thrift.TProtocol) error {
+func (p *PaxManagerAPICreateAgentMessageResult) ReadField0(iprot thrift.TProtocol) error {
 	_field := NewMailboxMessageResponse()
 	if err := _field.Read(iprot); err != nil {
 		return err
@@ -18194,9 +20133,9 @@ func (p *PaxManagerAPICreateMailboxMessageResult) ReadField0(iprot thrift.TProto
 	return nil
 }
 
-func (p *PaxManagerAPICreateMailboxMessageResult) Write(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPICreateAgentMessageResult) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("CreateMailboxMessage_result"); err != nil {
+	if err = oprot.WriteStructBegin("CreateAgentMessage_result"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
@@ -18222,7 +20161,7 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPICreateMailboxMessageResult) writeField0(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPICreateAgentMessageResult) writeField0(oprot thrift.TProtocol) (err error) {
 	if p.IsSetSuccess() {
 		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
 			goto WriteFieldBeginError
@@ -18241,43 +20180,43 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
 }
 
-func (p *PaxManagerAPICreateMailboxMessageResult) String() string {
+func (p *PaxManagerAPICreateAgentMessageResult) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("PaxManagerAPICreateMailboxMessageResult(%+v)", *p)
+	return fmt.Sprintf("PaxManagerAPICreateAgentMessageResult(%+v)", *p)
 
 }
 
-type PaxManagerAPIListMailboxArgs struct {
-	Request *ListMailboxRequest `thrift:"request,1"`
+type PaxManagerAPIListAgentSessionMessagesArgs struct {
+	Request *ListAgentSessionMessagesRequest `thrift:"request,1"`
 }
 
-func NewPaxManagerAPIListMailboxArgs() *PaxManagerAPIListMailboxArgs {
-	return &PaxManagerAPIListMailboxArgs{}
+func NewPaxManagerAPIListAgentSessionMessagesArgs() *PaxManagerAPIListAgentSessionMessagesArgs {
+	return &PaxManagerAPIListAgentSessionMessagesArgs{}
 }
 
-func (p *PaxManagerAPIListMailboxArgs) InitDefault() {
+func (p *PaxManagerAPIListAgentSessionMessagesArgs) InitDefault() {
 }
 
-var PaxManagerAPIListMailboxArgs_Request_DEFAULT *ListMailboxRequest
+var PaxManagerAPIListAgentSessionMessagesArgs_Request_DEFAULT *ListAgentSessionMessagesRequest
 
-func (p *PaxManagerAPIListMailboxArgs) GetRequest() (v *ListMailboxRequest) {
+func (p *PaxManagerAPIListAgentSessionMessagesArgs) GetRequest() (v *ListAgentSessionMessagesRequest) {
 	if !p.IsSetRequest() {
-		return PaxManagerAPIListMailboxArgs_Request_DEFAULT
+		return PaxManagerAPIListAgentSessionMessagesArgs_Request_DEFAULT
 	}
 	return p.Request
 }
 
-var fieldIDToName_PaxManagerAPIListMailboxArgs = map[int16]string{
+var fieldIDToName_PaxManagerAPIListAgentSessionMessagesArgs = map[int16]string{
 	1: "request",
 }
 
-func (p *PaxManagerAPIListMailboxArgs) IsSetRequest() bool {
+func (p *PaxManagerAPIListAgentSessionMessagesArgs) IsSetRequest() bool {
 	return p.Request != nil
 }
 
-func (p *PaxManagerAPIListMailboxArgs) Read(iprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentSessionMessagesArgs) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -18323,7 +20262,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListMailboxArgs[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListAgentSessionMessagesArgs[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -18333,8 +20272,8 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListMailboxArgs) ReadField1(iprot thrift.TProtocol) error {
-	_field := NewListMailboxRequest()
+func (p *PaxManagerAPIListAgentSessionMessagesArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewListAgentSessionMessagesRequest()
 	if err := _field.Read(iprot); err != nil {
 		return err
 	}
@@ -18342,9 +20281,9 @@ func (p *PaxManagerAPIListMailboxArgs) ReadField1(iprot thrift.TProtocol) error 
 	return nil
 }
 
-func (p *PaxManagerAPIListMailboxArgs) Write(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentSessionMessagesArgs) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("ListMailbox_args"); err != nil {
+	if err = oprot.WriteStructBegin("ListAgentSessionMessages_args"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
@@ -18370,7 +20309,7 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListMailboxArgs) writeField1(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentSessionMessagesArgs) writeField1(oprot thrift.TProtocol) (err error) {
 	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
 		goto WriteFieldBeginError
 	}
@@ -18387,43 +20326,43 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListMailboxArgs) String() string {
+func (p *PaxManagerAPIListAgentSessionMessagesArgs) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("PaxManagerAPIListMailboxArgs(%+v)", *p)
+	return fmt.Sprintf("PaxManagerAPIListAgentSessionMessagesArgs(%+v)", *p)
 
 }
 
-type PaxManagerAPIListMailboxResult struct {
+type PaxManagerAPIListAgentSessionMessagesResult struct {
 	Success *MailboxListResponse `thrift:"success,0,optional"`
 }
 
-func NewPaxManagerAPIListMailboxResult() *PaxManagerAPIListMailboxResult {
-	return &PaxManagerAPIListMailboxResult{}
+func NewPaxManagerAPIListAgentSessionMessagesResult() *PaxManagerAPIListAgentSessionMessagesResult {
+	return &PaxManagerAPIListAgentSessionMessagesResult{}
 }
 
-func (p *PaxManagerAPIListMailboxResult) InitDefault() {
+func (p *PaxManagerAPIListAgentSessionMessagesResult) InitDefault() {
 }
 
-var PaxManagerAPIListMailboxResult_Success_DEFAULT *MailboxListResponse
+var PaxManagerAPIListAgentSessionMessagesResult_Success_DEFAULT *MailboxListResponse
 
-func (p *PaxManagerAPIListMailboxResult) GetSuccess() (v *MailboxListResponse) {
+func (p *PaxManagerAPIListAgentSessionMessagesResult) GetSuccess() (v *MailboxListResponse) {
 	if !p.IsSetSuccess() {
-		return PaxManagerAPIListMailboxResult_Success_DEFAULT
+		return PaxManagerAPIListAgentSessionMessagesResult_Success_DEFAULT
 	}
 	return p.Success
 }
 
-var fieldIDToName_PaxManagerAPIListMailboxResult = map[int16]string{
+var fieldIDToName_PaxManagerAPIListAgentSessionMessagesResult = map[int16]string{
 	0: "success",
 }
 
-func (p *PaxManagerAPIListMailboxResult) IsSetSuccess() bool {
+func (p *PaxManagerAPIListAgentSessionMessagesResult) IsSetSuccess() bool {
 	return p.Success != nil
 }
 
-func (p *PaxManagerAPIListMailboxResult) Read(iprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentSessionMessagesResult) Read(iprot thrift.TProtocol) (err error) {
 
 	var fieldTypeId thrift.TType
 	var fieldId int16
@@ -18469,7 +20408,7 @@ ReadStructBeginError:
 ReadFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
 ReadFieldError:
-	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListMailboxResult[fieldId]), err)
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListAgentSessionMessagesResult[fieldId]), err)
 SkipFieldError:
 	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
 
@@ -18479,7 +20418,7 @@ ReadStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListMailboxResult) ReadField0(iprot thrift.TProtocol) error {
+func (p *PaxManagerAPIListAgentSessionMessagesResult) ReadField0(iprot thrift.TProtocol) error {
 	_field := NewMailboxListResponse()
 	if err := _field.Read(iprot); err != nil {
 		return err
@@ -18488,9 +20427,9 @@ func (p *PaxManagerAPIListMailboxResult) ReadField0(iprot thrift.TProtocol) erro
 	return nil
 }
 
-func (p *PaxManagerAPIListMailboxResult) Write(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentSessionMessagesResult) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
-	if err = oprot.WriteStructBegin("ListMailbox_result"); err != nil {
+	if err = oprot.WriteStructBegin("ListAgentSessionMessages_result"); err != nil {
 		goto WriteStructBeginError
 	}
 	if p != nil {
@@ -18516,7 +20455,7 @@ WriteStructEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListMailboxResult) writeField0(oprot thrift.TProtocol) (err error) {
+func (p *PaxManagerAPIListAgentSessionMessagesResult) writeField0(oprot thrift.TProtocol) (err error) {
 	if p.IsSetSuccess() {
 		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
 			goto WriteFieldBeginError
@@ -18535,11 +20474,305 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
 }
 
-func (p *PaxManagerAPIListMailboxResult) String() string {
+func (p *PaxManagerAPIListAgentSessionMessagesResult) String() string {
 	if p == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("PaxManagerAPIListMailboxResult(%+v)", *p)
+	return fmt.Sprintf("PaxManagerAPIListAgentSessionMessagesResult(%+v)", *p)
+
+}
+
+type PaxManagerAPICreateSessionMessageArgs struct {
+	Request *CreateSessionMessageRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPICreateSessionMessageArgs() *PaxManagerAPICreateSessionMessageArgs {
+	return &PaxManagerAPICreateSessionMessageArgs{}
+}
+
+func (p *PaxManagerAPICreateSessionMessageArgs) InitDefault() {
+}
+
+var PaxManagerAPICreateSessionMessageArgs_Request_DEFAULT *CreateSessionMessageRequest
+
+func (p *PaxManagerAPICreateSessionMessageArgs) GetRequest() (v *CreateSessionMessageRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPICreateSessionMessageArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPICreateSessionMessageArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPICreateSessionMessageArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPICreateSessionMessageArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPICreateSessionMessageArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPICreateSessionMessageArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewCreateSessionMessageRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPICreateSessionMessageArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("CreateSessionMessage_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPICreateSessionMessageArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPICreateSessionMessageArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPICreateSessionMessageArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPICreateSessionMessageResult struct {
+	Success *MailboxMessageResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPICreateSessionMessageResult() *PaxManagerAPICreateSessionMessageResult {
+	return &PaxManagerAPICreateSessionMessageResult{}
+}
+
+func (p *PaxManagerAPICreateSessionMessageResult) InitDefault() {
+}
+
+var PaxManagerAPICreateSessionMessageResult_Success_DEFAULT *MailboxMessageResponse
+
+func (p *PaxManagerAPICreateSessionMessageResult) GetSuccess() (v *MailboxMessageResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPICreateSessionMessageResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPICreateSessionMessageResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPICreateSessionMessageResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPICreateSessionMessageResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPICreateSessionMessageResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPICreateSessionMessageResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewMailboxMessageResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPICreateSessionMessageResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("CreateSessionMessage_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPICreateSessionMessageResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPICreateSessionMessageResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPICreateSessionMessageResult(%+v)", *p)
 
 }
 

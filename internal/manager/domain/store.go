@@ -35,6 +35,7 @@ type Store interface {
 	AuthenticateAgent(ctx context.Context, apiKeyHash string) (Agent, error)
 	UpsertAgentStatus(ctx context.Context, report AgentStatusReport) error
 	ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error)
+	GetAgent(ctx context.Context, principal UserPrincipal, agentID string) (Agent, error)
 	ListAgentSessions(
 		ctx context.Context,
 		principal UserPrincipal,
@@ -52,7 +53,13 @@ type Store interface {
 		req CreateMailboxRequest,
 	) (MailboxMessage, error)
 	ListMailbox(ctx context.Context, filter MailboxFilter) ([]MailboxMessage, error)
-	PullMailbox(ctx context.Context, agentID string, offset int64, limit int) (MailboxPull, error)
+	PullMailbox(
+		ctx context.Context,
+		agentID string,
+		sessionID string,
+		offset int64,
+		limit int,
+	) (MailboxPull, error)
 	MarkMessageResult(
 		ctx context.Context,
 		agentID string,

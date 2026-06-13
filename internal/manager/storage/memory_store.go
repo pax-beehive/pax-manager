@@ -323,6 +323,21 @@ func (s *MemoryStore) ListAgents(ctx context.Context, principal UserPrincipal) (
 	return out, nil
 }
 
+func (s *MemoryStore) GetAgent(
+	ctx context.Context,
+	principal UserPrincipal,
+	agentID string,
+) (Agent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	agent, ok := s.agents[agentID]
+	if !ok || !canAccessOwner(principal, agent.OwnerUserID) {
+		return Agent{}, ErrNotFound
+	}
+	return agent, nil
+}
+
 func (s *MemoryStore) ListAgentSessions(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -466,6 +481,7 @@ func (s *MemoryStore) ListMailbox(
 func (s *MemoryStore) PullMailbox(
 	ctx context.Context,
 	agentID string,
+	sessionID string,
 	offset int64,
 	limit int,
 ) (MailboxPull, error) {
@@ -480,6 +496,9 @@ func (s *MemoryStore) PullMailbox(
 	candidates := make([]MailboxMessage, 0)
 	for _, msg := range s.mailbox {
 		if msg.AgentID != agentID || msg.ID <= offset {
+			continue
+		}
+		if sessionID != "" && msg.SessionID != sessionID {
 			continue
 		}
 		if msg.Status != "pending" {

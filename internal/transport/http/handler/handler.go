@@ -19,14 +19,21 @@ type Service interface {
 	RegisterAgent(context.Context, *app.RequestContext, *api.RegisterAgentRequest)
 	ReportAgentStatus(context.Context, *app.RequestContext, *api.AgentStatusReportRequest)
 	PullMailbox(context.Context, *app.RequestContext, *api.PullMailboxRequest)
+	PullSessionMailbox(context.Context, *app.RequestContext, *api.PullSessionMailboxRequest)
 	UpdateMailboxOffset(context.Context, *app.RequestContext, *api.UpdateMailboxOffsetRequest)
 	ReportMessageResult(context.Context, *app.RequestContext, *api.ReportMessageResultRequest)
 	ListAgents(context.Context, *app.RequestContext, *api.EmptyRequest)
+	GetAgent(context.Context, *app.RequestContext, *api.GetAgentRequest)
 	ListAgentSessions(context.Context, *app.RequestContext, *api.ListAgentSessionsRequest)
-	GetSession(context.Context, *app.RequestContext, *api.GetSessionRequest)
-	ListSessionMessages(context.Context, *app.RequestContext, *api.ListSessionMessagesRequest)
-	CreateMailboxMessage(context.Context, *app.RequestContext, *api.CreateMailboxRequest)
-	ListMailbox(context.Context, *app.RequestContext, *api.ListMailboxRequest)
+	GetAgentSession(context.Context, *app.RequestContext, *api.GetAgentSessionRequest)
+	ListAgentMessages(context.Context, *app.RequestContext, *api.ListAgentMessagesRequest)
+	CreateAgentMessage(context.Context, *app.RequestContext, *api.CreateAgentMessageRequest)
+	ListAgentSessionMessages(
+		context.Context,
+		*app.RequestContext,
+		*api.ListAgentSessionMessagesRequest,
+	)
+	CreateSessionMessage(context.Context, *app.RequestContext, *api.CreateSessionMessageRequest)
 	ListUserAPIKeys(context.Context, *app.RequestContext, *api.EmptyRequest)
 	CreateUserAPIKey(context.Context, *app.RequestContext, *api.CreateUserAPIKeyRequest)
 	RevokeUserAPIKey(context.Context, *app.RequestContext, *api.RevokeUserAPIKeyRequest)
