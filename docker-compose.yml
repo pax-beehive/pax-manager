@@ -1,0 +1,40 @@
+services:
+  postgres:
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    image: pax-manager-postgres:local
+    container_name: pax-manager-postgres
+    environment:
+      POSTGRES_USER: pax
+      POSTGRES_PASSWORD: pax
+      POSTGRES_DB: pax_manager
+    ports:
+      - "5432:5432"
+    volumes:
+      - pax-manager-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pax -d pax_manager"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pax-manager
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "9879"
+      DATABASE_URL: postgres://pax:pax@postgres:5432/pax_manager?sslmode=disable
+      LOCAL_USER_ID: local@example.local
+      ALLOW_LOCAL_USER_HEADER: "true"
+      ADMIN_EMAILS: local@example.local
+    ports:
+      - "9879:9879"
+
+volumes:
+  pax-manager-postgres-data:

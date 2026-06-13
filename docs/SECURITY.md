@@ -1,126 +1,109 @@
 # Security Plan
 
-pax-manager (Fleet Cloud API) 安全防护设计。部署在 GCP Cloud Run，面向公网。
+pax-manager is intended to run on Google Cloud Run behind Cloudflare Access.
 
-## 1. 传输层：TLS
+## Transport
 
-**来源：GCP Cloud Run 自带。**
+Cloud Run terminates TLS for the public service. The application does not manage
+certificates directly.
 
-Cloud Run 默认 TLS termination，不需要自己配证书。所有流量强制 HTTPS，HTTP→HTTPS 自动 301。
+## Dashboard Authentication
 
-- DNS → Cloud Run mapping 在 Cloud Console 里绑
-- Let's Encrypt 证书自动颁发和续期
-- 不做额外配置
+Cloudflare Access is the authentication layer for browser users.
 
-## 2. 认证
+- Cloudflare validates the identity provider login.
+- Cloudflare forwards authenticated requests to Cloud Run.
+- pax-manager reads `Cf-Access-Authenticated-User-Email`.
+- Local development can opt into `X-User-Email` and `LOCAL_USER_ID` fallback
+  with `ALLOW_LOCAL_USER_HEADER=true`.
 
-**来源：Cloudflare Access。**
+The application must run behind Cloudflare Access or another trusted ingress
+that strips spoofed Cloudflare identity headers. Do not expose it directly to
+the public internet while trusting identity headers.
 
-Gateway 层统一检查。两种身份来源共用一套中间件。
+## Agent Authentication
 
-### 2.1 Dashboard（User → Gateway）
+There are two agent credential types.
 
-```
-Browser → Cloudflare Access → Cloud Run
-           │
-           ├── OIDC (Google 登录)
-           ├── 验证通过后注入 Header: Cf-Access-Jwt-Assertion
-           └── Gateway 解析 JWT → 提取 email → 映射到 user 身份
-```
+### Agent Registration Tokens
 
-- 用户身份：`Cf-Access-Jwt-Assertion` JWT 中的 email
-- 只允许配置的邮箱列表访问（kevin + todd）
-- 不在 Gateway 做 session/cookie 管理
+Agent registration requires an owner-bound one-time registration token.
 
-### 2.2 Agent（paxd → Gateway）
+Preferred flow:
 
-```
-paxd → Cloudflare Access → Cloud Run
-        │
-        ├── Service Token (CF-Access-Client-Id + CF-Access-Client-Secret)
-        ├── Cloudflare 验证后放行
-        └── Gateway 解析 Cf-Access-Client-Id → 查到 agent 身份
-```
+1. A browser user calls `POST /api/user/agent-registration-tokens`.
+2. pax-manager stores only the token hash in `agent_registration_tokens`.
+3. paxd sends the plain token once in `X-Registration-Token`.
+4. pax-manager marks the token as used and creates the agent under that owner.
 
-- 每个 agent 在 Cloudflare Dashboard 创建 Service Token
-- 生成一对 client_id + client_secret
-- paxd 配置 `cloud.cf_client_id` + `cloud.cf_client_secret`
-- paxd 在每个 HTTP 请求头携带这两个值
-- Gateway 维护映射：`client_id → agent_id → owner`
+`REGISTRATION_TOKEN` remains as a bootstrap escape hatch. When used, ownership
+comes from `REGISTRATION_TOKEN_OWNER_EMAIL`, or `LOCAL_USER_ID` if unset.
 
-## 3. 授权 / 数据隔离
+### User Platform API Keys
 
-**不做多租户 DDL。用 owner 字段 + admin override。**
+Users can create long-lived API keys for paxd cloud websocket connections.
 
-| 表 | 字段 |
-|----|------|
-| `agents` | `owner TEXT NOT NULL` |
-| `sessions` | `owner TEXT NOT NULL`（通过 agent 继承） |
-| `messages` | `owner TEXT NOT NULL`（通过 session 继承） |
+- Plain keys are returned once.
+- pax-manager stores only SHA-256 hashes.
+- Keys are tied to `owner_user_id`.
+- Revoked keys are rejected.
+- Successful websocket authentication updates `last_used_at`.
 
-### Gateway 中间件
+paxd can authenticate to:
 
-```go
-func AuthMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // 1. 检查 Cf-Access-Jwt-Assertion（User）
-        if jwt := r.Header.Get("Cf-Access-Jwt-Assertion"); jwt != "" {
-            email := validateAndExtractEmail(jwt)
-            r = r.WithContext(context.WithValue(r.Context(), "user", email))
-            r = r.WithContext(context.WithValue(r.Context(), "role", "user"))
-            r = r.WithContext(context.WithValue(r.Context(), "is_admin", isAdmin(email)))
-            next.ServeHTTP(w, r)
-            return
-        }
-
-        // 2. 检查 CF-Access-Client-Id（Agent Service Token）
-        if clientID := r.Header.Get("Cf-Access-Client-Id"); clientID != "" {
-            agent := lookupAgentByClientID(clientID)
-            r = r.WithContext(context.WithValue(r.Context(), "agent_id", agent.ID))
-            r = r.WithContext(context.WithValue(r.Context(), "owner", agent.Owner))
-            r = r.WithContext(context.WithValue(r.Context(), "role", "agent"))
-            next.ServeHTTP(w, r)
-            return
-        }
-
-        // 3. 未认证
-        http.Error(w, "unauthorized", 401)
-    })
-}
+```text
+/api/agent/ws?key=<apiKey>
 ```
 
-### 查询模式
+or with:
 
-```sql
--- User 请求：只查自己的数据
-SELECT * FROM agents WHERE owner = $current_user;
-
--- Admin 请求：查所有人的数据
-SELECT * FROM agents;  -- 不设 WHERE，admin 豁免
+```http
+Authorization: Bearer <apiKey>
 ```
 
-### Admin 列表
+After registration, pax-manager returns:
 
-硬编码在 Gateway 环境变量中：
+- `agentId`
+- `apiKey`
 
-```yaml
-ADMIN_EMAILS: "kevin@example.com"
+The plain API key is returned once and stored by paxd. pax-manager stores only
+the SHA-256 hash. All agent endpoints after registration require:
+
+```http
+Authorization: Bearer <apiKey>
 ```
 
-## 4. 不做的事
+## Authorization
 
-| 项 | 原因 |
-|----|------|
-| **端到端加密** | 不需要。Cloud 是自己控制的 GCP 实例。加密消息在 Cloud 也能解 |
-| **自建 API Key 系统** | Cloudflare Service Tokens 已覆盖，不用自己做生成/轮换/吊销 |
-| **多租户 DDL** | Tenant 隔离等有第三个用户再说。当前只需要 owner 字段 |
-| **Rate limiting** | MVP 阶段不做。流量低，Cloud Run 自带一定保护 |
-| **Audit log** | 不做。所有 tool/message 已在 DB 中，天然可审计 |
+pax-manager is multi-tenant at the application and schema level.
 
-## 5. Cloudflare 配置清单
+- `users` stores Cloudflare/local identities.
+- `agents.owner_user_id` is the tenant boundary for each agent.
+- `mailbox.owner_user_id` stores the agent owner for direct filtering.
+- `agent_sessions` inherits ownership through `agent_id`.
+- Normal user APIs filter by the caller's `user_id`.
+- Built-in admin users and users listed in the current `ADMIN_EMAILS` setting
+  bypass tenant filters. Persisted `users.role` is not used as the source of
+  admin authority.
 
-- [ ] Dashboard 应用：OIDC (Google)，allowed emails: kevin + todd
-- [ ] Service Token 1：kevin 的 agent
-- [ ] Service Token 2：todd 的 agent
-- [ ] 两个应用都指向同一个 Cloud Run 后端
-- [ ] TLS：Cloud Run 默认已启用
+Built-in admin emails:
+
+- `toddzheng024@gmail.com`
+- `gengcongkai456789@gmail.com`
+- `zhangjiahang0725@gmail.com`
+
+Cross-tenant access should return `404` for object-specific routes so callers
+cannot distinguish missing records from records owned by another user.
+
+## Data Handling
+
+- Hermes local API keys stay on the agent machine and are never uploaded.
+- Mailbox payloads and results are stored in PostgreSQL.
+- Completed mailbox rows should be deleted or archived by a scheduled cleanup
+  job once retention policy is finalized.
+
+## Operational Notes
+
+- Keep Cloud Run ingress restricted when relying on Cloudflare headers.
+- Rotate registration tokens after bootstrapping a fleet.
+- Prefer short mailbox TTLs for steer messages because they are time-sensitive.

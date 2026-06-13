@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pax · Echo</title>
+<title>Pax Echo</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -147,13 +147,13 @@
 
 <div class="grid">
   <div class="panel">
-    <div class="panel-header">Input · Request JSON</div>
+    <div class="panel-header">Input - Request JSON</div>
     <div class="panel-body">
       <textarea id="input" placeholder='{"type":"chat","content":"hello world"}'></textarea>
     </div>
   </div>
   <div class="panel">
-    <div class="panel-header">Output · Response</div>
+    <div class="panel-header">Output - Response</div>
     <div class="panel-body">
       <div class="response" id="output"></div>
     </div>
@@ -203,8 +203,8 @@ async function send() {
 
   // Send
   dot.className = 'status-dot off';
-  hint.textContent = 'sending…';
-  output.textContent = '…';
+  hint.textContent = 'sending...';
+  output.textContent = '...';
 
   try {
     const res = await fetch('/api/echo', {
@@ -217,7 +217,7 @@ async function send() {
     output.className = 'response';
     output.textContent = JSON.stringify(data, null, 2);
     dot.className = 'status-dot';
-    hint.textContent = `HTTP ${res.status} · ${new Date().toLocaleTimeString()}`;
+    hint.textContent = `HTTP ${res.status} - ${new Date().toLocaleTimeString()}`;
   } catch (e) {
     output.className = 'response error';
     output.textContent = `Fetch Error: ${e.message}`;

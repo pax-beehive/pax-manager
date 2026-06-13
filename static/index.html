@@ -3,208 +3,170 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>pax-manager · Dashboard</title>
+<title>pax-manager Dashboard</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e0e0e0;height:100vh;display:flex;flex-direction:column}
-  header{background:#111;border-bottom:1px solid #222;padding:12px 20px;display:flex;align-items:center;justify-content:space-between}
-  header h1{font-size:16px;font-weight:600;color:#fff}
-  .status{font-size:12px;padding:4px 10px;border-radius:12px}
-  .status.online{background:#0f3;color:#000}
-  .status.offline{background:#333;color:#888}
-  main{flex:1;display:flex;overflow:hidden}
-  .sidebar{width:240px;background:#0d0d0d;border-right:1px solid #222;padding:16px;overflow-y:auto}
-  .sidebar h3{font-size:12px;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
-  .agent-item{padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:4px}
-  .agent-item:hover{background:#1a1a1a}
-  .agent-item.active{background:#1a3a5c;color:#6af}
-  .agent-item .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px}
-  .agent-item .dot.online{background:#0f3}
-  .chat-area{flex:1;display:flex;flex-direction:column}
-  .messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:8px}
-  .msg{max-width:70%;padding:10px 14px;border-radius:8px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
-  .msg.user{align-self:flex-end;background:#1a3a5c;color:#cde}
-  .msg.assistant{align-self:flex-start;background:#1a1a1a;color:#ddd}
-  .msg.tool{align-self:flex-start;background:#1a1f0a;color:#8a8;font-size:11px;font-family:monospace}
-  .msg.status{align-self:center;background:transparent;color:#555;font-size:11px;padding:4px}
-  .input-area{border-top:1px solid #222;padding:12px 20px;display:flex;gap:8px}
-  .input-area input{flex:1;background:#111;border:1px solid #333;border-radius:6px;padding:10px 14px;color:#e0e0e0;font-size:13px;outline:none}
-  .input-area input:focus{border-color:#6af}
-  .input-area button{background:#1a3a5c;border:none;color:#cde;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:13px}
-  .input-area button:hover{background:#245080}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0b0b0c;color:#e6e6e6;height:100vh;display:flex;flex-direction:column}
+  header{height:48px;border-bottom:1px solid #242428;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:#111114}
+  h1{font-size:15px;font-weight:650}
+  .status{font-size:12px;color:#8b949e}
+  main{flex:1;display:grid;grid-template-columns:280px 1fr;min-height:0}
+  aside{border-right:1px solid #242428;background:#101012;overflow:auto;padding:14px}
+  .section-title{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.08em;margin:4px 0 10px}
+  .agent{width:100%;text-align:left;background:transparent;color:#ddd;border:1px solid transparent;border-radius:6px;padding:10px;margin-bottom:8px;cursor:pointer}
+  .agent:hover{background:#19191d}
+  .agent.active{border-color:#4f8cff;background:#142034}
+  .agent-name{font-size:13px;font-weight:600}
+  .agent-meta{font-size:11px;color:#8b949e;margin-top:4px}
+  .content{display:grid;grid-template-rows:1fr auto;min-height:0}
+  .panes{display:grid;grid-template-columns:320px 1fr;min-height:0}
+  .sessions{border-right:1px solid #242428;padding:14px;overflow:auto}
+  .session{width:100%;text-align:left;background:#141416;color:#ddd;border:1px solid #25252a;border-radius:6px;padding:10px;margin-bottom:8px;cursor:pointer}
+  .session.active{border-color:#4f8cff}
+  .session-name{font-size:13px;font-weight:600}
+  .session-meta{font-size:11px;color:#8b949e;margin-top:4px}
+  .messages{padding:16px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+  .msg{border:1px solid #25252a;background:#141416;border-radius:6px;padding:10px;font-size:13px;line-height:1.45;white-space:pre-wrap}
+  .msg.pending{border-color:#8a6d1d}
+  .msg.completed{border-color:#245c35}
+  .msg.failed{border-color:#7a2525}
+  .composer{border-top:1px solid #242428;padding:12px;display:grid;grid-template-columns:120px 1fr 96px;gap:8px}
+  select,input,button{background:#111114;color:#e6e6e6;border:1px solid #303038;border-radius:6px;padding:9px 10px;font-size:13px}
+  button{background:#1f6feb;border-color:#1f6feb;cursor:pointer;font-weight:600}
+  button:disabled{opacity:.45;cursor:not-allowed}
 </style>
 </head>
 <body>
 <header>
-  <h1>🧪 pax-manager · Dashboard</h1>
-  <span id="sessionInfo" style="font-size:11px;color:#555;font-family:monospace;margin-right:12px">no session</span>
-  <span class="status offline" id="connStatus">disconnected</span>
+  <h1>pax-manager Dashboard</h1>
+  <span class="status" id="status">loading</span>
 </header>
 <main>
-  <aside class="sidebar">
-    <h3>Agents</h3>
-    <div id="agentList"></div>
+  <aside>
+    <div class="section-title">Agents</div>
+    <div id="agents"></div>
   </aside>
-  <div class="chat-area">
-    <div class="messages" id="messages"></div>
-    <div class="input-area">
-      <input type="text" id="promptInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')send()">
-      <button onclick="send()">Send</button>
+  <section class="content">
+    <div class="panes">
+      <div class="sessions">
+        <div class="section-title">Sessions</div>
+        <div id="sessions"></div>
+      </div>
+      <div class="messages" id="messages"></div>
     </div>
-  </div>
+    <div class="composer">
+      <select id="messageType">
+        <option value="chat">chat</option>
+        <option value="steer">steer</option>
+        <option value="command">command</option>
+      </select>
+      <input id="messageInput" placeholder="Send a mailbox message" onkeydown="if(event.key==='Enter')sendMessage()">
+      <button id="sendButton" onclick="sendMessage()">Send</button>
+    </div>
+  </section>
 </main>
 <script>
-const wsUrl = 'ws://' + location.host + '/ws';
-let ws;
-let selectedAgent = null;
-let pendingDelta = null;
-let pendingTurnId = null;
-let currentSessionId = null;
+let selectedAgent = '';
+let selectedSession = '';
 
-function connect(){
-  ws = new WebSocket(wsUrl);
-  ws.onopen = () => {
-    document.getElementById('connStatus').textContent = 'connected';
-    document.getElementById('connStatus').className = 'status online';
-    ws.send(JSON.stringify({type:'list_projects'}));
-  };
-  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
-  ws.onclose = () => {
-    document.getElementById('connStatus').textContent = 'disconnected';
-    document.getElementById('connStatus').className = 'status offline';
-    setTimeout(connect, 2000);
-  };
-}
-
-function flushDelta(){
-  pendingDelta = null;
-  pendingTurnId = null;
-}
-
-function handleMessage(msg){
-  const msgs = document.getElementById('messages');
-
-  if(msg.sessionId && !currentSessionId){
-    currentSessionId = msg.sessionId;
-    document.getElementById('sessionInfo').textContent = currentSessionId.slice(0,16) + '\u2026';
-    document.getElementById('sessionInfo').style.color = '#3fb950';
-  }
-
-  if(msg.type === 'agent_list'){
-    const agents = msg.agents || [];
-    let html = '';
-    agents.forEach(a => {
-      const active = selectedAgent === a.id ? ' active' : '';
-      const dot = a.status === 'online' ? 'online' : '';
-      html += `<div class="agent-item${active}" onclick="selectAgent('${a.id}')">
-        <span class="dot ${dot}"></span>${a.name}
-        <div style="font-size:10px;color:#555;margin-left:14px">${a.platform || 'unknown'}</div>
-      </div>`;
-    });
-    document.getElementById('agentList').innerHTML = html;
-    if(agents.length === 1) selectedAgent = agents[0].id;
-    return;
-  }
-
-  if(msg.entity_type === 'turn' && msg.event_type === 'started') flushDelta();
-  if(msg.entity_type === 'turn' && msg.event_type === 'done'){
-    flushDelta();
-    const d = document.createElement('div');
-    d.className = 'msg status';
-    d.textContent = msg.status === 'completed' ? '\u2705 done' : '\u26a0 ' + msg.status;
-    msgs.appendChild(d);
-    msgs.scrollTop = msgs.scrollHeight;
-    return;
-  }
-
-  if(msg.entity_type === 'agent' && msg.event_type === 'status'){
-    flushDelta();
-    const d = document.createElement('div');
-    d.className = 'msg status';
-    d.textContent = (msg.icon||'') + ' ' + (msg.label||'') + (msg.detail?' ' + msg.detail:'');
-    msgs.appendChild(d);
-    msgs.scrollTop = msgs.scrollHeight;
-    return;
-  }
-
-  if(msg.entity_type === 'message' && msg.event_type === 'delta'){
-    if(msg.role === 'tool'){
-      flushDelta();
-      const d = document.createElement('div');
-      d.className = 'msg tool';
-      d.textContent = msg.content;
-      msgs.appendChild(d);
-      msgs.scrollTop = msgs.scrollHeight;
-      return;
-    }
-    if(!pendingDelta || pendingTurnId !== msg.turnId){
-      flushDelta();
-      pendingDelta = document.createElement('div');
-      pendingDelta.className = 'msg assistant';
-      msgs.appendChild(pendingDelta);
-      pendingTurnId = msg.turnId;
-    }
-    pendingDelta.textContent += msg.content;
-    msgs.scrollTop = msgs.scrollHeight;
-    return;
-  }
-
-  if(msg.entity_type === 'tool' && msg.event_type === 'call'){
-    flushDelta();
-    const d = document.createElement('div');
-    d.className = 'msg tool';
-    d.textContent = '\ud83d\udd27 ' + msg.name + ': ' + truncate(msg.arguments, 100);
-    msgs.appendChild(d);
-    msgs.scrollTop = msgs.scrollHeight;
-    return;
-  }
-
-  if(msg.entity_type === 'file' && msg.event_type === 'changed'){
-    flushDelta();
-    const d = document.createElement('div');
-    d.className = 'msg tool';
-    d.textContent = '\ud83d\udcc1 files: ' + (msg.changes||[]).map(c=>c.path).join(', ');
-    msgs.appendChild(d);
-    msgs.scrollTop = msgs.scrollHeight;
-    return;
-  }
-}
-
-function selectAgent(id){
-  selectedAgent = id;
-  document.querySelectorAll('.agent-item').forEach(el => {
-    el.classList.toggle('active', el.textContent.trim().startsWith(id));
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    headers: {'Content-Type': 'application/json', ...(options.headers || {})},
+    ...options,
   });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 }
 
-function send(){
-  const input = document.getElementById('promptInput');
-  const text = input.value.trim();
-  if(!text || !ws) return;
+async function loadAgents() {
+  const data = await api('/api/user/agents');
+  const agents = data.agents || [];
+  const root = document.getElementById('agents');
+  root.innerHTML = agents.map(agent => `
+    <button class="agent ${agent.agentId === selectedAgent ? 'active' : ''}" onclick="selectAgent('${agent.agentId}')">
+      <div class="agent-name">${escapeHtml(agent.name || agent.hostname || agent.agentId)}</div>
+      <div class="agent-meta">${escapeHtml(agent.status)} / ${escapeHtml(agent.agentType || 'unknown')}</div>
+    </button>
+  `).join('');
+  if (!selectedAgent && agents.length) await selectAgent(agents[0].agentId);
+  document.getElementById('status').textContent = `${agents.length} agents`;
+}
+
+async function selectAgent(agentId) {
+  selectedAgent = agentId;
+  selectedSession = '';
+  await loadSessions();
+  await loadMailbox();
+}
+
+async function loadSessions() {
+  if (!selectedAgent) return;
+  const data = await api(`/api/user/agents/${encodeURIComponent(selectedAgent)}/sessions`);
+  const sessions = data.sessions || [];
+  const root = document.getElementById('sessions');
+  root.innerHTML = sessions.map(session => `
+    <button class="session ${session.sessionId === selectedSession ? 'active' : ''}" onclick="selectSession('${session.sessionId}')">
+      <div class="session-name">${escapeHtml(session.name || session.sessionId)}</div>
+      <div class="session-meta">${escapeHtml(session.status)} / ${escapeHtml(session.currentTask || '')}</div>
+    </button>
+  `).join('');
+}
+
+async function selectSession(sessionId) {
+  selectedSession = sessionId;
+  await loadMailbox();
+}
+
+async function loadMailbox() {
+  const params = new URLSearchParams();
+  if (selectedAgent) params.set('agent_id', selectedAgent);
+  if (selectedSession) params.set('session_id', selectedSession);
+  const data = await api(`/api/user/mailbox?${params.toString()}`);
+  const root = document.getElementById('messages');
+  root.innerHTML = (data.messages || []).map(msg => `
+    <div class="msg ${escapeHtml(msg.status)}">
+      <strong>${escapeHtml(msg.messageType)} / ${escapeHtml(msg.status)}</strong>
+      <div>${escapeHtml(msg.message)}</div>
+      ${msg.result ? `<div>${escapeHtml(msg.result)}</div>` : ''}
+      ${msg.error ? `<div>${escapeHtml(msg.error)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+async function sendMessage() {
+  const input = document.getElementById('messageInput');
+  const message = input.value.trim();
+  if (!selectedAgent || !message) return;
+  await api('/api/user/message', {
+    method: 'POST',
+    body: JSON.stringify({
+      agentId: selectedAgent,
+      sessionId: selectedSession,
+      message,
+      messageType: document.getElementById('messageType').value,
+    }),
+  });
   input.value = '';
-
-  ws.send(JSON.stringify({
-    type: 'agent_prompt',
-    agentId: selectedAgent,
-    prompt: text,
-    sessionId: currentSessionId || ''
-  }));
-
-  const msgs = document.getElementById('messages');
-  const d = document.createElement('div');
-  d.className = 'msg user';
-  d.textContent = text;
-  msgs.appendChild(d);
-  msgs.scrollTop = msgs.scrollHeight;
+  await loadMailbox();
 }
 
-function truncate(s, n){
-  if(!s) return '';
-  s = String(s);
-  return s.length > n ? s.slice(0, n) + '\u2026' : s;
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char]));
 }
 
-connect();
+loadAgents().catch(err => {
+  document.getElementById('status').textContent = 'error';
+  document.getElementById('messages').textContent = err.message;
+});
+setInterval(() => {
+  loadAgents().then(loadSessions).then(loadMailbox).catch(() => {});
+}, 5000);
 </script>
 </body>
 </html>
