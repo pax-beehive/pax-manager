@@ -9,19 +9,10 @@
           "agent_type": {
             "type": "string"
           },
-          "api_endpoint": {
-            "type": "string"
-          },
-          "hermes_version": {
-            "type": "string"
-          },
-          "hostname": {
-            "type": "string"
+          "capabilities": {
+            "type": "object"
           },
           "last_heartbeat": {
-            "type": "string"
-          },
-          "machine_type": {
             "type": "string"
           },
           "metadata": {
@@ -30,11 +21,11 @@
           "name": {
             "type": "string"
           },
+          "node_id": {
+            "type": "string"
+          },
           "online": {
             "type": "boolean"
-          },
-          "os": {
-            "type": "string"
           },
           "owner_user_id": {
             "type": "string"
@@ -114,6 +105,9 @@
             "format": "int32",
             "type": "integer"
           },
+          "metadata": {
+            "type": "object"
+          },
           "model": {
             "type": "string"
           },
@@ -121,6 +115,9 @@
             "type": "string"
           },
           "native_id": {
+            "type": "string"
+          },
+          "node_id": {
             "type": "string"
           },
           "preview": {
@@ -144,17 +141,8 @@
           "status": {
             "type": "string"
           },
-          "token_input": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "token_output": {
-            "format": "int64",
-            "type": "integer"
-          },
           "token_usage": {
-            "format": "int64",
-            "type": "integer"
+            "$ref": "#/components/schemas/TokenUsage"
           },
           "updated_at": {
             "type": "string"
@@ -183,13 +171,28 @@
         },
         "type": "object"
       },
-      "AgentStatusReportRequest": {
+      "AgentStatusInput": {
         "properties": {
           "agent_id": {
             "type": "string"
           },
-          "hostname": {
+          "agent_type": {
             "type": "string"
+          },
+          "capabilities": {
+            "type": "object"
+          },
+          "last_heartbeat": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "online": {
+            "type": "boolean"
           },
           "sessions": {
             "items": {
@@ -197,16 +200,24 @@
             },
             "type": "array"
           },
-          "system": {
-            "type": "object"
-          },
-          "timestamp": {
+          "status": {
             "type": "string"
           }
         },
         "type": "object"
       },
-      "CreateAgentMessageRequest": {
+      "CreateNodeAgentData": {
+        "properties": {
+          "agent": {
+            "$ref": "#/components/schemas/Agent"
+          },
+          "bootstrap_message": {
+            "$ref": "#/components/schemas/MailboxMessage"
+          }
+        },
+        "type": "object"
+      },
+      "CreateNodeAgentMessageRequest": {
         "properties": {
           "agent_id": {
             "type": "string"
@@ -217,16 +228,174 @@
           "message_type": {
             "type": "string"
           },
+          "node_id": {
+            "type": "string"
+          },
           "payload": {
             "type": "object"
           },
           "session_id": {
             "type": "string"
+          },
+          "user_id": {
+            "type": "string"
           }
         },
         "type": "object"
       },
-      "CreateRegistrationTokenData": {
+      "CreateNodeAgentRequest": {
+        "properties": {
+          "agent_type": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "object"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateNodeAgentResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CreateNodeAgentData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateNodeAgentSessionMessageRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "message_type": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateNodeAgentSessionRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "agent_type": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "native_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "workspace_roots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CreateNodeOutboundMessageRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "events": {
+            "type": "object"
+          },
+          "file_changes": {
+            "items": {
+              "$ref": "#/components/schemas/FileChange"
+            },
+            "type": "array"
+          },
+          "message_type": {
+            "type": "string"
+          },
+          "parent_message_id": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "response_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "token_usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          },
+          "turn_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateNodeRegistrationTokenData": {
         "properties": {
           "expires_at": {
             "type": "string"
@@ -240,7 +409,7 @@
         },
         "type": "object"
       },
-      "CreateRegistrationTokenRequest": {
+      "CreateNodeRegistrationTokenRequest": {
         "properties": {
           "expires_in_seconds": {
             "format": "int64",
@@ -251,40 +420,23 @@
           },
           "owner_user_id": {
             "type": "string"
+          },
+          "user_id": {
+            "type": "string"
           }
         },
         "type": "object"
       },
-      "CreateRegistrationTokenResponse": {
+      "CreateNodeRegistrationTokenResponse": {
         "properties": {
           "code": {
             "format": "int32",
             "type": "integer"
           },
           "data": {
-            "$ref": "#/components/schemas/CreateRegistrationTokenData"
+            "$ref": "#/components/schemas/CreateNodeRegistrationTokenData"
           },
           "message": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CreateSessionMessageRequest": {
-        "properties": {
-          "agent_id": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "message_type": {
-            "type": "string"
-          },
-          "payload": {
-            "type": "object"
-          },
-          "session_id": {
             "type": "string"
           }
         },
@@ -305,6 +457,9 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "user_id": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -317,6 +472,29 @@
           },
           "data": {
             "$ref": "#/components/schemas/CreateUserAPIKeyData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CurrentUserData": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "type": "object"
+      },
+      "CurrentUserResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CurrentUserData"
           },
           "message": {
             "type": "string"
@@ -347,20 +525,68 @@
         },
         "type": "object"
       },
-      "GetAgentRequest": {
+      "FileChange": {
         "properties": {
-          "agent_id": {
+          "new_content": {
+            "type": "string"
+          },
+          "old_content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "tool": {
             "type": "string"
           }
         },
         "type": "object"
       },
-      "GetAgentSessionRequest": {
+      "GetCurrentUserRequest": {
+        "properties": {
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetNodeAgentRequest": {
         "properties": {
           "agent_id": {
             "type": "string"
           },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetNodeAgentSessionRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
           "session_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetNodeRequest": {
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
             "type": "string"
           }
         },
@@ -389,7 +615,7 @@
         },
         "type": "object"
       },
-      "ListAgentMessagesRequest": {
+      "ListNodeAgentMessagesRequest": {
         "properties": {
           "agent_id": {
             "type": "string"
@@ -398,29 +624,74 @@
             "format": "int32",
             "type": "integer"
           },
+          "node_id": {
+            "type": "string"
+          },
           "session_id": {
             "type": "string"
           },
           "status": {
             "type": "string"
+          },
+          "user_id": {
+            "type": "string"
           }
         },
         "type": "object"
       },
-      "ListAgentSessionMessagesRequest": {
+      "ListNodeAgentSessionMessagesRequest": {
         "properties": {
           "agent_id": {
             "type": "string"
           },
+          "node_id": {
+            "type": "string"
+          },
           "session_id": {
+            "type": "string"
+          },
+          "user_id": {
             "type": "string"
           }
         },
         "type": "object"
       },
-      "ListAgentSessionsRequest": {
+      "ListNodeAgentSessionsRequest": {
         "properties": {
           "agent_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListNodeAgentsRequest": {
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListNodesRequest": {
+        "properties": {
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListUserAPIKeysRequest": {
+        "properties": {
+          "user_id": {
             "type": "string"
           }
         },
@@ -466,11 +737,23 @@
           "delivered_at": {
             "type": "string"
           },
+          "direction": {
+            "type": "string"
+          },
           "error": {
             "type": "string"
           },
+          "events": {
+            "type": "object"
+          },
           "expires_at": {
             "type": "string"
+          },
+          "file_changes": {
+            "items": {
+              "$ref": "#/components/schemas/FileChange"
+            },
+            "type": "array"
           },
           "id": {
             "format": "int64",
@@ -485,11 +768,20 @@
           "message_type": {
             "type": "string"
           },
+          "node_id": {
+            "type": "string"
+          },
           "owner_user_id": {
+            "type": "string"
+          },
+          "parent_message_id": {
             "type": "string"
           },
           "payload": {
             "type": "object"
+          },
+          "response_id": {
+            "type": "string"
           },
           "result": {
             "type": "string"
@@ -498,6 +790,12 @@
             "type": "string"
           },
           "status": {
+            "type": "string"
+          },
+          "token_usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          },
+          "turn_id": {
             "type": "string"
           },
           "user_id": {
@@ -539,6 +837,131 @@
         },
         "type": "object"
       },
+      "MarkNodeMessageDeliveredRequest": {
+        "properties": {
+          "delivered_at": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Node": {
+        "properties": {
+          "api_endpoint": {
+            "type": "string"
+          },
+          "arch": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "last_heartbeat": {
+            "type": "string"
+          },
+          "machine_type": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "os": {
+            "type": "string"
+          },
+          "owner_user_id": {
+            "type": "string"
+          },
+          "paxd_version": {
+            "type": "string"
+          },
+          "registered_at": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NodeListData": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/Node"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "NodeListResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NodeListData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NodeResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Node"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NodeStatusReportRequest": {
+        "properties": {
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/AgentStatusInput"
+            },
+            "type": "array"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "system": {
+            "type": "object"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "OKData": {
         "properties": {
           "ok": {
@@ -565,19 +988,6 @@
       "OpenAPI": {
         "type": "object"
       },
-      "PullMailboxRequest": {
-        "properties": {
-          "limit": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "offset": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
       "PullMailboxResponse": {
         "properties": {
           "code": {
@@ -593,8 +1003,27 @@
         },
         "type": "object"
       },
-      "PullSessionMailboxRequest": {
+      "PullNodeAgentMailboxRequest": {
         "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PullNodeAgentSessionMailboxRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
           "limit": {
             "format": "int32",
             "type": "integer"
@@ -609,26 +1038,36 @@
         },
         "type": "object"
       },
-      "RegisterAgentData": {
+      "PullNodeMailboxRequest": {
         "properties": {
-          "agent_id": {
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RegisterNodeData": {
+        "properties": {
+          "api_key": {
             "type": "string"
           },
-          "api_key": {
+          "node_id": {
             "type": "string"
           }
         },
         "type": "object"
       },
-      "RegisterAgentRequest": {
+      "RegisterNodeRequest": {
         "properties": {
-          "agent_type": {
-            "type": "string"
-          },
           "api_endpoint": {
             "type": "string"
           },
-          "hermes_version": {
+          "arch": {
             "type": "string"
           },
           "hostname": {
@@ -645,18 +1084,21 @@
           },
           "os": {
             "type": "string"
+          },
+          "paxd_version": {
+            "type": "string"
           }
         },
         "type": "object"
       },
-      "RegisterAgentResponse": {
+      "RegisterNodeResponse": {
         "properties": {
           "code": {
             "format": "int32",
             "type": "integer"
           },
           "data": {
-            "$ref": "#/components/schemas/RegisterAgentData"
+            "$ref": "#/components/schemas/RegisterNodeData"
           },
           "message": {
             "type": "string"
@@ -664,22 +1106,43 @@
         },
         "type": "object"
       },
-      "ReportMessageResultRequest": {
+      "ReportNodeMessageResultRequest": {
         "properties": {
           "completed_at": {
+            "type": "string"
+          },
+          "content": {
             "type": "string"
           },
           "error": {
             "type": "string"
           },
+          "events": {
+            "type": "object"
+          },
+          "file_changes": {
+            "items": {
+              "$ref": "#/components/schemas/FileChange"
+            },
+            "type": "array"
+          },
           "message_id": {
             "type": "string"
+          },
+          "payload": {
+            "type": "object"
           },
           "result": {
             "type": "string"
           },
+          "result_message_id": {
+            "type": "string"
+          },
           "status": {
             "type": "string"
+          },
+          "token_usage": {
+            "$ref": "#/components/schemas/TokenUsage"
           }
         },
         "type": "object"
@@ -687,6 +1150,9 @@
       "RevokeUserAPIKeyRequest": {
         "properties": {
           "key_id": {
+            "type": "string"
+          },
+          "user_id": {
             "type": "string"
           }
         },
@@ -777,11 +1243,39 @@
       },
       "TokenUsage": {
         "properties": {
+          "actual_cost_usd": {
+            "format": "double",
+            "type": "number"
+          },
+          "cache_creation_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cache_read_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cache_write_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "format": "double",
+            "type": "number"
+          },
+          "estimated_cost_usd": {
+            "format": "double",
+            "type": "number"
+          },
           "input_tokens": {
             "format": "int64",
             "type": "integer"
           },
           "output_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reasoning_tokens": {
             "format": "int64",
             "type": "integer"
           },
@@ -792,11 +1286,37 @@
         },
         "type": "object"
       },
-      "UpdateMailboxOffsetRequest": {
+      "UpdateNodeMailboxOffsetRequest": {
         "properties": {
           "offset": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "User": {
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "is_admin": {
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -855,16 +1375,16 @@
       }
     },
     "securitySchemes": {
-      "agentBearer": {
-        "description": "Agent API key returned during registration.",
-        "scheme": "bearer",
-        "type": "http"
-      },
       "cloudflareAccess": {
         "description": "Cloudflare Access JWT assertion header.",
         "in": "header",
         "name": "Cf-Access-Jwt-Assertion",
         "type": "apiKey"
+      },
+      "nodeBearer": {
+        "description": "Node API key returned during registration.",
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -875,10 +1395,100 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/api/agent/mailbox": {
+    "/api/v1/health": {
       "get": {
-        "description": "Returns pending mailbox messages for the whole agent. Prefer the session-scoped mailbox when the paxd connection is bound to a session.",
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Health check",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/node/agents/{agent_id}/mailbox": {
+      "get": {
+        "description": "Returns pending mailbox messages for an agent hosted by the authenticated node.",
         "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Maximum number of messages to return.",
             "in": "query",
@@ -904,7 +1514,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PullMailboxRequest"
+                "$ref": "#/components/schemas/PullNodeAgentMailboxRequest"
               }
             }
           },
@@ -941,6 +1551,16 @@
             },
             "description": "Unauthorized."
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
           "404": {
             "content": {
               "application/json": {
@@ -964,23 +1584,257 @@
         },
         "security": [
           {
-            "agentBearer": []
+            "nodeBearer": []
           }
         ],
-        "summary": "Pull agent mailbox",
+        "summary": "Pull node agent mailbox",
         "tags": [
-          "agent"
+          "node"
         ]
       }
     },
-    "/api/agent/messages/offset": {
-      "post": {
-        "description": "Stores the highest mailbox offset processed by the agent.",
+    "/api/v1/node/agents/{agent_id}/sessions/{session_id}/mailbox": {
+      "get": {
+        "description": "Returns pending mailbox messages for a specific session under an agent hosted by the authenticated node.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session identifier.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of messages to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Last processed mailbox offset.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateMailboxOffsetRequest"
+                "$ref": "#/components/schemas/PullNodeAgentSessionMailboxRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PullMailboxResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Pull node agent session mailbox",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/mailbox": {
+      "get": {
+        "description": "Returns pending node-level bootstrap or control messages.",
+        "parameters": [
+          {
+            "description": "Maximum number of messages to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Last processed mailbox offset.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PullNodeMailboxRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PullMailboxResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Pull node mailbox",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/messages/offset": {
+      "post": {
+        "description": "Stores the highest mailbox offset processed by the node.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeMailboxOffsetRequest"
               }
             }
           },
@@ -1017,6 +1871,16 @@
             },
             "description": "Unauthorized."
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1040,23 +1904,109 @@
         },
         "security": [
           {
-            "agentBearer": []
+            "nodeBearer": []
           }
         ],
-        "summary": "Update mailbox offset",
+        "summary": "Update node mailbox offset",
         "tags": [
-          "agent"
+          "node"
         ]
       }
     },
-    "/api/agent/messages/{messageId}/result": {
+    "/api/v1/node/messages/outbound": {
       "post": {
-        "description": "Marks a mailbox message completed or failed.",
+        "description": "Stores a structured node-to-user response message for a processed mailbox item.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeOutboundMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxMessageResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Create node outbound message",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/messages/{message_id}/delivered": {
+      "post": {
+        "description": "Acknowledges that the authenticated node received a mailbox message.",
         "parameters": [
           {
             "description": "Mailbox message identifier.",
             "in": "path",
-            "name": "messageId",
+            "name": "message_id",
             "required": true,
             "schema": {
               "type": "string"
@@ -1067,7 +2017,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReportMessageResultRequest"
+                "$ref": "#/components/schemas/MarkNodeMessageDeliveredRequest"
               }
             }
           },
@@ -1104,6 +2054,16 @@
             },
             "description": "Unauthorized."
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1127,18 +2087,115 @@
         },
         "security": [
           {
-            "agentBearer": []
+            "nodeBearer": []
           }
         ],
-        "summary": "Report message result",
+        "summary": "Mark node message delivered",
         "tags": [
-          "agent"
+          "node"
         ]
       }
     },
-    "/api/agent/register": {
+    "/api/v1/node/messages/{message_id}/result": {
       "post": {
-        "description": "Registers a paxd agent with an owner-bound registration token.",
+        "description": "Marks a mailbox message completed or failed.",
+        "parameters": [
+          {
+            "description": "Mailbox message identifier.",
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportNodeMessageResultRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OKResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Report node message result",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/register": {
+      "post": {
+        "description": "Registers a paxd node with an owner-bound registration token.",
         "parameters": [
           {
             "description": "One-time registration token minted by a user.",
@@ -1154,109 +2211,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RegisterAgentRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegisterAgentResponse"
-                }
-              }
-            },
-            "description": "Successful response."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid request."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error."
-          }
-        },
-        "summary": "Register agent",
-        "tags": [
-          "agent"
-        ]
-      }
-    },
-    "/api/agent/sessions/{sessionId}/mailbox": {
-      "get": {
-        "description": "Returns pending mailbox messages for a specific session owned by the authenticated agent.",
-        "parameters": [
-          {
-            "description": "Session identifier.",
-            "in": "path",
-            "name": "sessionId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Maximum number of messages to return.",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Last processed mailbox offset.",
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PullSessionMailboxRequest"
+                "$ref": "#/components/schemas/RegisterNodeRequest"
               }
             }
           },
@@ -1267,7 +2222,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PullMailboxResponse"
+                  "$ref": "#/components/schemas/RegisterNodeResponse"
                 }
               }
             },
@@ -1293,6 +2248,16 @@
             },
             "description": "Unauthorized."
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1314,25 +2279,20 @@
             "description": "Internal server error."
           }
         },
-        "security": [
-          {
-            "agentBearer": []
-          }
-        ],
-        "summary": "Pull session mailbox",
+        "summary": "Register node",
         "tags": [
-          "agent"
+          "node"
         ]
       }
     },
-    "/api/agent/status": {
+    "/api/v1/node/status": {
       "post": {
-        "description": "Upserts agent and session status using the paxd session shape.",
+        "description": "Upserts node, hosted agents, and agent session status.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AgentStatusReportRequest"
+                "$ref": "#/components/schemas/NodeStatusReportRequest"
               }
             }
           },
@@ -1369,6 +2329,16 @@
             },
             "description": "Unauthorized."
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1392,835 +2362,34 @@
         },
         "security": [
           {
-            "agentBearer": []
+            "nodeBearer": []
           }
         ],
-        "summary": "Report agent status",
+        "summary": "Report node status",
         "tags": [
-          "agent"
+          "node"
         ]
       }
     },
-    "/api/user/agent-registration-tokens": {
-      "post": {
-        "description": "Mints an owner-bound one-time agent registration token.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRegistrationTokenRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateRegistrationTokenResponse"
-                }
-              }
-            },
-            "description": "Successful response."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid request."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "Create agent registration token",
-        "tags": [
-          "user"
-        ]
-      }
-    },
-    "/api/user/agents": {
-      "get": {
-        "description": "Lists agents visible to the current user.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EmptyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentListResponse"
-                }
-              }
-            },
-            "description": "Successful response."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid request."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "List agents",
-        "tags": [
-          "user"
-        ]
-      }
-    },
-    "/api/user/agents/{agentId}": {
-      "get": {
-        "description": "Returns an agent visible to the current user.",
-        "parameters": [
-          {
-            "description": "Agent identifier.",
-            "in": "path",
-            "name": "agentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GetAgentRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentResponse"
-                }
-              }
-            },
-            "description": "Successful response."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid request."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "Get agent",
-        "tags": [
-          "user"
-        ]
-      }
-    },
-    "/api/user/agents/{agentId}/messages": {
-      "get": {
-        "description": "Lists mailbox messages for an agent visible to the current user. This is an aggregate view; use the session-scoped route for a specific conversation.",
-        "parameters": [
-          {
-            "description": "Agent identifier.",
-            "in": "path",
-            "name": "agentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Maximum number of messages to return.",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Filter by session ID.",
-            "in": "query",
-            "name": "session_id",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by mailbox status.",
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ListAgentMessagesRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MailboxListResponse"
-                }
-              }
-            },
-            "description": "Successful response."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid request."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "List agent messages",
-        "tags": [
-          "user"
-        ]
-      },
-      "post": {
-        "description": "Queues a bootstrap or agent-level mailbox message. Once a session exists, prefer POST /api/user/agents/{agentId}/sessions/{sessionId}/messages.",
-        "parameters": [
-          {
-            "description": "Agent identifier.",
-            "in": "path",
-            "name": "agentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateAgentMessageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MailboxMessageResponse"
-                }
-              }
-            },
-            "description": "Successful response."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid request."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "Create agent-level message",
-        "tags": [
-          "user"
-        ]
-      }
-    },
-    "/api/user/agents/{agentId}/sessions": {
-      "get": {
-        "description": "Lists session snapshots for an agent visible to the current user.",
-        "parameters": [
-          {
-            "description": "Agent identifier.",
-            "in": "path",
-            "name": "agentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ListAgentSessionsRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionListResponse"
-                }
-              }
-            },
-            "description": "Successful response."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid request."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "List agent sessions",
-        "tags": [
-          "user"
-        ]
-      }
-    },
-    "/api/user/agents/{agentId}/sessions/{sessionId}": {
-      "get": {
-        "description": "Returns a session snapshot under an agent visible to the current user.",
-        "parameters": [
-          {
-            "description": "Agent identifier.",
-            "in": "path",
-            "name": "agentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Session identifier.",
-            "in": "path",
-            "name": "sessionId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GetAgentSessionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentSessionResponse"
-                }
-              }
-            },
-            "description": "Successful response."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid request."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "Get agent session",
-        "tags": [
-          "user"
-        ]
-      }
-    },
-    "/api/user/agents/{agentId}/sessions/{sessionId}/messages": {
-      "get": {
-        "description": "Lists mailbox messages for a specific session under an agent visible to the current user.",
-        "parameters": [
-          {
-            "description": "Agent identifier.",
-            "in": "path",
-            "name": "agentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Session identifier.",
-            "in": "path",
-            "name": "sessionId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ListAgentSessionMessagesRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MailboxListResponse"
-                }
-              }
-            },
-            "description": "Successful response."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid request."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "List agent session messages",
-        "tags": [
-          "user"
-        ]
-      },
-      "post": {
-        "description": "Queues a mailbox message for a specific session under an agent visible to the current user.",
-        "parameters": [
-          {
-            "description": "Agent identifier.",
-            "in": "path",
-            "name": "agentId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Session identifier.",
-            "in": "path",
-            "name": "sessionId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSessionMessageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MailboxMessageResponse"
-                }
-              }
-            },
-            "description": "Successful response."
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Invalid request."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized."
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not found."
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Internal server error."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "Create session message",
-        "tags": [
-          "user"
-        ]
-      }
-    },
-    "/api/user/api-keys": {
+    "/api/v1/user/{user_id}/api-keys": {
       "get": {
         "description": "Lists API keys owned by the current user.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EmptyRequest"
+                "$ref": "#/components/schemas/ListUserAPIKeysRequest"
               }
             }
           },
@@ -2257,6 +2426,16 @@
             },
             "description": "Unauthorized."
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2290,6 +2469,17 @@
       },
       "post": {
         "description": "Creates a user platform API key. The plain key is returned once.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2301,7 +2491,7 @@
           "required": true
         },
         "responses": {
-          "201": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
@@ -2330,6 +2520,16 @@
               }
             },
             "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
           },
           "404": {
             "content": {
@@ -2363,14 +2563,23 @@
         ]
       }
     },
-    "/api/user/api-keys/{keyId}": {
+    "/api/v1/user/{user_id}/api-keys/{key_id}": {
       "delete": {
         "description": "Revokes a user platform API key.",
         "parameters": [
           {
             "description": "API key identifier.",
             "in": "path",
-            "name": "keyId",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
             "required": true,
             "schema": {
               "type": "string"
@@ -2418,6 +2627,16 @@
             },
             "description": "Unauthorized."
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2450,14 +2669,25 @@
         ]
       }
     },
-    "/health": {
+    "/api/v1/user/{user_id}/me": {
       "get": {
-        "description": "",
+        "description": "Returns the authenticated user profile and authorization flags.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EmptyRequest"
+                "$ref": "#/components/schemas/GetCurrentUserRequest"
               }
             }
           },
@@ -2468,7 +2698,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
+                  "$ref": "#/components/schemas/CurrentUserResponse"
                 }
               }
             },
@@ -2494,6 +2724,16 @@
             },
             "description": "Unauthorized."
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2515,9 +2755,1493 @@
             "description": "Internal server error."
           }
         },
-        "summary": "Health check",
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get current user",
         "tags": [
-          "system"
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/node-registration-tokens": {
+      "post": {
+        "description": "Mints an owner-bound one-time node registration token.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeRegistrationTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateNodeRegistrationTokenResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Create node registration token",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes": {
+      "get": {
+        "description": "Lists nodes visible to the current user.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListNodesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List nodes",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}": {
+      "get": {
+        "description": "Returns a node visible to the current user.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetNodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get node",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/agents": {
+      "get": {
+        "description": "Lists agents hosted by a node visible to the current user.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListNodeAgentsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List node agents",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "description": "Queues an agent bootstrap request for a node visible to the current user.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateNodeAgentResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Bootstrap node agent",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}": {
+      "get": {
+        "description": "Returns an agent under a node visible to the current user.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetNodeAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get node agent",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/messages": {
+      "get": {
+        "description": "Lists mailbox messages for an agent under a node visible to the current user.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of messages to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by session ID.",
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by mailbox status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListNodeAgentMessagesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List node agent messages",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "description": "Queues a bootstrap or agent-level mailbox message.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeAgentMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxMessageResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Create node agent message",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions": {
+      "get": {
+        "description": "Lists sessions for an agent under a node visible to the current user.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListNodeAgentSessionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List node agent sessions",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "description": "Creates or reserves a session before the first user message is queued.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeAgentSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Create node agent session",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}": {
+      "get": {
+        "description": "Returns a session for an agent under a node visible to the current user.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session identifier.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetNodeAgentSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get node agent session",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages": {
+      "get": {
+        "description": "Lists mailbox messages for a specific session under an agent and node visible to the current user.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session identifier.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListNodeAgentSessionMessagesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List node agent session messages",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "description": "Queues a mailbox message for a specific session under an agent and node visible to the current user.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session identifier.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeAgentSessionMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxMessageResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Create node agent session message",
+        "tags": [
+          "user"
         ]
       }
     }
@@ -2528,8 +4252,8 @@
       "name": "system"
     },
     {
-      "description": "paxd-facing endpoints authenticated with bearer agent API keys.",
-      "name": "agent"
+      "description": "paxd-facing endpoints authenticated with node API keys.",
+      "name": "node"
     },
     {
       "description": "Cloudflare Access user endpoints.",

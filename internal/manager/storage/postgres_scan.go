@@ -15,6 +15,7 @@ func scanAgent(row rowScanner) (Agent, error) {
 	var metadata []byte
 	if err := row.Scan(
 		&agent.AgentID,
+		&agent.NodeID,
 		&agent.OwnerUserID,
 		&agent.Name,
 		&agent.Hostname,
@@ -33,6 +34,46 @@ func scanAgent(row rowScanner) (Agent, error) {
 	agent.Online = agent.Status == "online"
 	agent.Metadata = json.RawMessage(metadata)
 	return agent, nil
+}
+
+func scanNode(row rowScanner) (Node, error) {
+	var node Node
+	var metadata []byte
+	if err := row.Scan(
+		&node.NodeID,
+		&node.OwnerUserID,
+		&node.Name,
+		&node.Hostname,
+		&node.MachineType,
+		&node.OS,
+		&node.Arch,
+		&node.PaxdVersion,
+		&node.APIEndpoint,
+		&node.Status,
+		&node.LastHeartbeat,
+		&node.RegisteredAt,
+		&metadata,
+	); err != nil {
+		return Node{}, mapSQLError(err)
+	}
+	node.Online = node.Status == "online"
+	node.Metadata = json.RawMessage(metadata)
+	return node, nil
+}
+
+func scanNodes(rows *sql.Rows) ([]Node, error) {
+	out := make([]Node, 0)
+	for rows.Next() {
+		node, err := scanNode(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, node)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func scanAgents(rows *sql.Rows) ([]Agent, error) {
@@ -55,6 +96,7 @@ func scanSession(row rowScanner) (AgentSession, error) {
 	var roots []byte
 	if err := row.Scan(
 		&session.ID,
+		&session.NodeID,
 		&session.AgentID,
 		&session.SessionID,
 		&session.SessionName,
@@ -68,9 +110,16 @@ func scanSession(row rowScanner) (AgentSession, error) {
 		&session.CurrentTask,
 		&session.LastMessageAt,
 		&session.MessageCount,
-		&session.TokenInput,
-		&session.TokenOutput,
-		&session.TokenTotal,
+		&session.TokenUsage.Input,
+		&session.TokenUsage.Output,
+		&session.TokenUsage.Total,
+		&session.TokenUsage.CacheRead,
+		&session.TokenUsage.CacheWrite,
+		&session.TokenUsage.CacheCreation,
+		&session.TokenUsage.Reasoning,
+		&session.TokenUsage.EstimatedCostUSD,
+		&session.TokenUsage.ActualCostUSD,
+		&session.TokenUsage.CostUSD,
 		&session.Model,
 		&session.RunID,
 		&session.RunStatus,
@@ -79,6 +128,9 @@ func scanSession(row rowScanner) (AgentSession, error) {
 	); err != nil {
 		return AgentSession{}, mapSQLError(err)
 	}
+	session.TokenInput = session.TokenUsage.Input
+	session.TokenOutput = session.TokenUsage.Output
+	session.TokenTotal = session.TokenUsage.Total
 	_ = json.Unmarshal(roots, &session.WorkspaceRoots)
 	return session, nil
 }
@@ -101,11 +153,15 @@ func scanSessions(rows *sql.Rows) ([]AgentSession, error) {
 func scanMailbox(row rowScanner) (MailboxMessage, error) {
 	var msg MailboxMessage
 	var payload []byte
+	var events []byte
+	var fileChanges []byte
+	var tokenUsage []byte
 	if err := row.Scan(
 		&msg.ID,
 		&msg.MessageID,
 		&msg.UserID,
 		&msg.OwnerUserID,
+		&msg.NodeID,
 		&msg.AgentID,
 		&msg.SessionID,
 		&msg.Message,
@@ -118,10 +174,20 @@ func scanMailbox(row rowScanner) (MailboxMessage, error) {
 		&msg.Error,
 		&msg.CreatedAt,
 		&msg.ExpiresAt,
+		&msg.Direction,
+		&msg.ParentMessageID,
+		&msg.TurnID,
+		&msg.ResponseID,
+		&events,
+		&fileChanges,
+		&tokenUsage,
 	); err != nil {
 		return MailboxMessage{}, mapSQLError(err)
 	}
 	msg.Payload = json.RawMessage(payload)
+	msg.Events = json.RawMessage(events)
+	_ = json.Unmarshal(fileChanges, &msg.FileChanges)
+	_ = json.Unmarshal(tokenUsage, &msg.TokenUsage)
 	return msg, nil
 }
 

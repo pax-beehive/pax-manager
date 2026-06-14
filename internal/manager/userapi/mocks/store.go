@@ -81,6 +81,129 @@ func (_c *MockStore_CreateMailboxMessage_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// CreateNodeAgent provides a mock function with given fields: ctx, principal, req
+func (_m *MockStore) CreateNodeAgent(ctx context.Context, principal domain.UserPrincipal, req domain.CreateAgentRequest) (domain.Agent, domain.MailboxMessage, error) {
+	ret := _m.Called(ctx, principal, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateNodeAgent")
+	}
+
+	var r0 domain.Agent
+	var r1 domain.MailboxMessage
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.CreateAgentRequest) (domain.Agent, domain.MailboxMessage, error)); ok {
+		return rf(ctx, principal, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.CreateAgentRequest) domain.Agent); ok {
+		r0 = rf(ctx, principal, req)
+	} else {
+		r0 = ret.Get(0).(domain.Agent)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.CreateAgentRequest) domain.MailboxMessage); ok {
+		r1 = rf(ctx, principal, req)
+	} else {
+		r1 = ret.Get(1).(domain.MailboxMessage)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, domain.UserPrincipal, domain.CreateAgentRequest) error); ok {
+		r2 = rf(ctx, principal, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockStore_CreateNodeAgent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateNodeAgent'
+type MockStore_CreateNodeAgent_Call struct {
+	*mock.Call
+}
+
+// CreateNodeAgent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - req domain.CreateAgentRequest
+func (_e *MockStore_Expecter) CreateNodeAgent(ctx interface{}, principal interface{}, req interface{}) *MockStore_CreateNodeAgent_Call {
+	return &MockStore_CreateNodeAgent_Call{Call: _e.mock.On("CreateNodeAgent", ctx, principal, req)}
+}
+
+func (_c *MockStore_CreateNodeAgent_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, req domain.CreateAgentRequest)) *MockStore_CreateNodeAgent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.CreateAgentRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateNodeAgent_Call) Return(_a0 domain.Agent, _a1 domain.MailboxMessage, _a2 error) *MockStore_CreateNodeAgent_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockStore_CreateNodeAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.CreateAgentRequest) (domain.Agent, domain.MailboxMessage, error)) *MockStore_CreateNodeAgent_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateNodeAgentSession provides a mock function with given fields: ctx, principal, req
+func (_m *MockStore) CreateNodeAgentSession(ctx context.Context, principal domain.UserPrincipal, req domain.CreateSessionRequest) (domain.AgentSession, error) {
+	ret := _m.Called(ctx, principal, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateNodeAgentSession")
+	}
+
+	var r0 domain.AgentSession
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.CreateSessionRequest) (domain.AgentSession, error)); ok {
+		return rf(ctx, principal, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.CreateSessionRequest) domain.AgentSession); ok {
+		r0 = rf(ctx, principal, req)
+	} else {
+		r0 = ret.Get(0).(domain.AgentSession)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.CreateSessionRequest) error); ok {
+		r1 = rf(ctx, principal, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateNodeAgentSession_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateNodeAgentSession'
+type MockStore_CreateNodeAgentSession_Call struct {
+	*mock.Call
+}
+
+// CreateNodeAgentSession is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - req domain.CreateSessionRequest
+func (_e *MockStore_Expecter) CreateNodeAgentSession(ctx interface{}, principal interface{}, req interface{}) *MockStore_CreateNodeAgentSession_Call {
+	return &MockStore_CreateNodeAgentSession_Call{Call: _e.mock.On("CreateNodeAgentSession", ctx, principal, req)}
+}
+
+func (_c *MockStore_CreateNodeAgentSession_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, req domain.CreateSessionRequest)) *MockStore_CreateNodeAgentSession_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.CreateSessionRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateNodeAgentSession_Call) Return(_a0 domain.AgentSession, _a1 error) *MockStore_CreateNodeAgentSession_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateNodeAgentSession_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.CreateSessionRequest) (domain.AgentSession, error)) *MockStore_CreateNodeAgentSession_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateRegistrationToken provides a mock function with given fields: ctx, ownerUserID, tokenHash, expiresAt
 func (_m *MockStore) CreateRegistrationToken(ctx context.Context, ownerUserID string, tokenHash string, expiresAt *time.Time) error {
 	ret := _m.Called(ctx, ownerUserID, tokenHash, expiresAt)
@@ -244,6 +367,64 @@ func (_c *MockStore_GetAgent_Call) Return(_a0 domain.Agent, _a1 error) *MockStor
 }
 
 func (_c *MockStore_GetAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Agent, error)) *MockStore_GetAgent_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetNode provides a mock function with given fields: ctx, principal, nodeID
+func (_m *MockStore) GetNode(ctx context.Context, principal domain.UserPrincipal, nodeID string) (domain.Node, error) {
+	ret := _m.Called(ctx, principal, nodeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetNode")
+	}
+
+	var r0 domain.Node
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) (domain.Node, error)); ok {
+		return rf(ctx, principal, nodeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) domain.Node); ok {
+		r0 = rf(ctx, principal, nodeID)
+	} else {
+		r0 = ret.Get(0).(domain.Node)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, nodeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetNode'
+type MockStore_GetNode_Call struct {
+	*mock.Call
+}
+
+// GetNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - nodeID string
+func (_e *MockStore_Expecter) GetNode(ctx interface{}, principal interface{}, nodeID interface{}) *MockStore_GetNode_Call {
+	return &MockStore_GetNode_Call{Call: _e.mock.On("GetNode", ctx, principal, nodeID)}
+}
+
+func (_c *MockStore_GetNode_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, nodeID string)) *MockStore_GetNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetNode_Call) Return(_a0 domain.Node, _a1 error) *MockStore_GetNode_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetNode_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Node, error)) *MockStore_GetNode_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -594,6 +775,125 @@ func (_c *MockStore_ListMailbox_Call) Return(_a0 []domain.MailboxMessage, _a1 er
 }
 
 func (_c *MockStore_ListMailbox_Call) RunAndReturn(run func(context.Context, domain.MailboxFilter) ([]domain.MailboxMessage, error)) *MockStore_ListMailbox_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListNodeAgents provides a mock function with given fields: ctx, principal, nodeID
+func (_m *MockStore) ListNodeAgents(ctx context.Context, principal domain.UserPrincipal, nodeID string) ([]domain.Agent, error) {
+	ret := _m.Called(ctx, principal, nodeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListNodeAgents")
+	}
+
+	var r0 []domain.Agent
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) ([]domain.Agent, error)); ok {
+		return rf(ctx, principal, nodeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) []domain.Agent); ok {
+		r0 = rf(ctx, principal, nodeID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.Agent)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, nodeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListNodeAgents_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListNodeAgents'
+type MockStore_ListNodeAgents_Call struct {
+	*mock.Call
+}
+
+// ListNodeAgents is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - nodeID string
+func (_e *MockStore_Expecter) ListNodeAgents(ctx interface{}, principal interface{}, nodeID interface{}) *MockStore_ListNodeAgents_Call {
+	return &MockStore_ListNodeAgents_Call{Call: _e.mock.On("ListNodeAgents", ctx, principal, nodeID)}
+}
+
+func (_c *MockStore_ListNodeAgents_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, nodeID string)) *MockStore_ListNodeAgents_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListNodeAgents_Call) Return(_a0 []domain.Agent, _a1 error) *MockStore_ListNodeAgents_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListNodeAgents_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) ([]domain.Agent, error)) *MockStore_ListNodeAgents_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListNodes provides a mock function with given fields: ctx, principal
+func (_m *MockStore) ListNodes(ctx context.Context, principal domain.UserPrincipal) ([]domain.Node, error) {
+	ret := _m.Called(ctx, principal)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListNodes")
+	}
+
+	var r0 []domain.Node
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal) ([]domain.Node, error)); ok {
+		return rf(ctx, principal)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal) []domain.Node); ok {
+		r0 = rf(ctx, principal)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.Node)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal) error); ok {
+		r1 = rf(ctx, principal)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListNodes_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListNodes'
+type MockStore_ListNodes_Call struct {
+	*mock.Call
+}
+
+// ListNodes is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+func (_e *MockStore_Expecter) ListNodes(ctx interface{}, principal interface{}) *MockStore_ListNodes_Call {
+	return &MockStore_ListNodes_Call{Call: _e.mock.On("ListNodes", ctx, principal)}
+}
+
+func (_c *MockStore_ListNodes_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal)) *MockStore_ListNodes_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListNodes_Call) Return(_a0 []domain.Node, _a1 error) *MockStore_ListNodes_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListNodes_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal) ([]domain.Node, error)) *MockStore_ListNodes_Call {
 	_c.Call.Return(run)
 	return _c
 }

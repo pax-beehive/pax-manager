@@ -22,6 +22,64 @@ func (_m *MockStore) EXPECT() *MockStore_Expecter {
 	return &MockStore_Expecter{mock: &_m.Mock}
 }
 
+// CreateNodeOutboundMessage provides a mock function with given fields: ctx, node, req
+func (_m *MockStore) CreateNodeOutboundMessage(ctx context.Context, node domain.Node, req domain.CreateOutboundMessageRequest) (domain.MailboxMessage, error) {
+	ret := _m.Called(ctx, node, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateNodeOutboundMessage")
+	}
+
+	var r0 domain.MailboxMessage
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Node, domain.CreateOutboundMessageRequest) (domain.MailboxMessage, error)); ok {
+		return rf(ctx, node, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Node, domain.CreateOutboundMessageRequest) domain.MailboxMessage); ok {
+		r0 = rf(ctx, node, req)
+	} else {
+		r0 = ret.Get(0).(domain.MailboxMessage)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.Node, domain.CreateOutboundMessageRequest) error); ok {
+		r1 = rf(ctx, node, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateNodeOutboundMessage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateNodeOutboundMessage'
+type MockStore_CreateNodeOutboundMessage_Call struct {
+	*mock.Call
+}
+
+// CreateNodeOutboundMessage is a helper method to define mock.On call
+//   - ctx context.Context
+//   - node domain.Node
+//   - req domain.CreateOutboundMessageRequest
+func (_e *MockStore_Expecter) CreateNodeOutboundMessage(ctx interface{}, node interface{}, req interface{}) *MockStore_CreateNodeOutboundMessage_Call {
+	return &MockStore_CreateNodeOutboundMessage_Call{Call: _e.mock.On("CreateNodeOutboundMessage", ctx, node, req)}
+}
+
+func (_c *MockStore_CreateNodeOutboundMessage_Call) Run(run func(ctx context.Context, node domain.Node, req domain.CreateOutboundMessageRequest)) *MockStore_CreateNodeOutboundMessage_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.Node), args[2].(domain.CreateOutboundMessageRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateNodeOutboundMessage_Call) Return(_a0 domain.MailboxMessage, _a1 error) *MockStore_CreateNodeOutboundMessage_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateNodeOutboundMessage_Call) RunAndReturn(run func(context.Context, domain.Node, domain.CreateOutboundMessageRequest) (domain.MailboxMessage, error)) *MockStore_CreateNodeOutboundMessage_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MarkMessageResult provides a mock function with given fields: ctx, agentID, messageID, req
 func (_m *MockStore) MarkMessageResult(ctx context.Context, agentID string, messageID string, req domain.MessageResultRequest) error {
 	ret := _m.Called(ctx, agentID, messageID, req)
@@ -67,6 +125,103 @@ func (_c *MockStore_MarkMessageResult_Call) Return(_a0 error) *MockStore_MarkMes
 }
 
 func (_c *MockStore_MarkMessageResult_Call) RunAndReturn(run func(context.Context, string, string, domain.MessageResultRequest) error) *MockStore_MarkMessageResult_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// MarkNodeMessageDelivered provides a mock function with given fields: ctx, nodeID, req
+func (_m *MockStore) MarkNodeMessageDelivered(ctx context.Context, nodeID string, req domain.MarkDeliveredRequest) error {
+	ret := _m.Called(ctx, nodeID, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkNodeMessageDelivered")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, domain.MarkDeliveredRequest) error); ok {
+		r0 = rf(ctx, nodeID, req)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStore_MarkNodeMessageDelivered_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkNodeMessageDelivered'
+type MockStore_MarkNodeMessageDelivered_Call struct {
+	*mock.Call
+}
+
+// MarkNodeMessageDelivered is a helper method to define mock.On call
+//   - ctx context.Context
+//   - nodeID string
+//   - req domain.MarkDeliveredRequest
+func (_e *MockStore_Expecter) MarkNodeMessageDelivered(ctx interface{}, nodeID interface{}, req interface{}) *MockStore_MarkNodeMessageDelivered_Call {
+	return &MockStore_MarkNodeMessageDelivered_Call{Call: _e.mock.On("MarkNodeMessageDelivered", ctx, nodeID, req)}
+}
+
+func (_c *MockStore_MarkNodeMessageDelivered_Call) Run(run func(ctx context.Context, nodeID string, req domain.MarkDeliveredRequest)) *MockStore_MarkNodeMessageDelivered_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(domain.MarkDeliveredRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_MarkNodeMessageDelivered_Call) Return(_a0 error) *MockStore_MarkNodeMessageDelivered_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStore_MarkNodeMessageDelivered_Call) RunAndReturn(run func(context.Context, string, domain.MarkDeliveredRequest) error) *MockStore_MarkNodeMessageDelivered_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// MarkNodeMessageResult provides a mock function with given fields: ctx, nodeID, messageID, req
+func (_m *MockStore) MarkNodeMessageResult(ctx context.Context, nodeID string, messageID string, req domain.MessageResultRequest) error {
+	ret := _m.Called(ctx, nodeID, messageID, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkNodeMessageResult")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, domain.MessageResultRequest) error); ok {
+		r0 = rf(ctx, nodeID, messageID, req)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStore_MarkNodeMessageResult_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MarkNodeMessageResult'
+type MockStore_MarkNodeMessageResult_Call struct {
+	*mock.Call
+}
+
+// MarkNodeMessageResult is a helper method to define mock.On call
+//   - ctx context.Context
+//   - nodeID string
+//   - messageID string
+//   - req domain.MessageResultRequest
+func (_e *MockStore_Expecter) MarkNodeMessageResult(ctx interface{}, nodeID interface{}, messageID interface{}, req interface{}) *MockStore_MarkNodeMessageResult_Call {
+	return &MockStore_MarkNodeMessageResult_Call{Call: _e.mock.On("MarkNodeMessageResult", ctx, nodeID, messageID, req)}
+}
+
+func (_c *MockStore_MarkNodeMessageResult_Call) Run(run func(ctx context.Context, nodeID string, messageID string, req domain.MessageResultRequest)) *MockStore_MarkNodeMessageResult_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(domain.MessageResultRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_MarkNodeMessageResult_Call) Return(_a0 error) *MockStore_MarkNodeMessageResult_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStore_MarkNodeMessageResult_Call) RunAndReturn(run func(context.Context, string, string, domain.MessageResultRequest) error) *MockStore_MarkNodeMessageResult_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -131,6 +286,67 @@ func (_c *MockStore_PullMailbox_Call) RunAndReturn(run func(context.Context, str
 	return _c
 }
 
+// PullNodeMailbox provides a mock function with given fields: ctx, nodeID, agentID, sessionID, offset, limit
+func (_m *MockStore) PullNodeMailbox(ctx context.Context, nodeID string, agentID string, sessionID string, offset int64, limit int) (domain.MailboxPull, error) {
+	ret := _m.Called(ctx, nodeID, agentID, sessionID, offset, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PullNodeMailbox")
+	}
+
+	var r0 domain.MailboxPull
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, int64, int) (domain.MailboxPull, error)); ok {
+		return rf(ctx, nodeID, agentID, sessionID, offset, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, int64, int) domain.MailboxPull); ok {
+		r0 = rf(ctx, nodeID, agentID, sessionID, offset, limit)
+	} else {
+		r0 = ret.Get(0).(domain.MailboxPull)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, int64, int) error); ok {
+		r1 = rf(ctx, nodeID, agentID, sessionID, offset, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_PullNodeMailbox_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PullNodeMailbox'
+type MockStore_PullNodeMailbox_Call struct {
+	*mock.Call
+}
+
+// PullNodeMailbox is a helper method to define mock.On call
+//   - ctx context.Context
+//   - nodeID string
+//   - agentID string
+//   - sessionID string
+//   - offset int64
+//   - limit int
+func (_e *MockStore_Expecter) PullNodeMailbox(ctx interface{}, nodeID interface{}, agentID interface{}, sessionID interface{}, offset interface{}, limit interface{}) *MockStore_PullNodeMailbox_Call {
+	return &MockStore_PullNodeMailbox_Call{Call: _e.mock.On("PullNodeMailbox", ctx, nodeID, agentID, sessionID, offset, limit)}
+}
+
+func (_c *MockStore_PullNodeMailbox_Call) Run(run func(ctx context.Context, nodeID string, agentID string, sessionID string, offset int64, limit int)) *MockStore_PullNodeMailbox_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(int64), args[5].(int))
+	})
+	return _c
+}
+
+func (_c *MockStore_PullNodeMailbox_Call) Return(_a0 domain.MailboxPull, _a1 error) *MockStore_PullNodeMailbox_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_PullNodeMailbox_Call) RunAndReturn(run func(context.Context, string, string, string, int64, int) (domain.MailboxPull, error)) *MockStore_PullNodeMailbox_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RegisterAgent provides a mock function with given fields: ctx, owner, req, apiKeyHash
 func (_m *MockStore) RegisterAgent(ctx context.Context, owner domain.User, req domain.RegisterAgentRequest, apiKeyHash string) (domain.Agent, error) {
 	ret := _m.Called(ctx, owner, req, apiKeyHash)
@@ -186,6 +402,113 @@ func (_c *MockStore_RegisterAgent_Call) Return(_a0 domain.Agent, _a1 error) *Moc
 }
 
 func (_c *MockStore_RegisterAgent_Call) RunAndReturn(run func(context.Context, domain.User, domain.RegisterAgentRequest, string) (domain.Agent, error)) *MockStore_RegisterAgent_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RegisterNode provides a mock function with given fields: ctx, owner, req, apiKeyHash
+func (_m *MockStore) RegisterNode(ctx context.Context, owner domain.User, req domain.RegisterNodeRequest, apiKeyHash string) (domain.Node, error) {
+	ret := _m.Called(ctx, owner, req, apiKeyHash)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RegisterNode")
+	}
+
+	var r0 domain.Node
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.User, domain.RegisterNodeRequest, string) (domain.Node, error)); ok {
+		return rf(ctx, owner, req, apiKeyHash)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.User, domain.RegisterNodeRequest, string) domain.Node); ok {
+		r0 = rf(ctx, owner, req, apiKeyHash)
+	} else {
+		r0 = ret.Get(0).(domain.Node)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.User, domain.RegisterNodeRequest, string) error); ok {
+		r1 = rf(ctx, owner, req, apiKeyHash)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_RegisterNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RegisterNode'
+type MockStore_RegisterNode_Call struct {
+	*mock.Call
+}
+
+// RegisterNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - owner domain.User
+//   - req domain.RegisterNodeRequest
+//   - apiKeyHash string
+func (_e *MockStore_Expecter) RegisterNode(ctx interface{}, owner interface{}, req interface{}, apiKeyHash interface{}) *MockStore_RegisterNode_Call {
+	return &MockStore_RegisterNode_Call{Call: _e.mock.On("RegisterNode", ctx, owner, req, apiKeyHash)}
+}
+
+func (_c *MockStore_RegisterNode_Call) Run(run func(ctx context.Context, owner domain.User, req domain.RegisterNodeRequest, apiKeyHash string)) *MockStore_RegisterNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.User), args[2].(domain.RegisterNodeRequest), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_RegisterNode_Call) Return(_a0 domain.Node, _a1 error) *MockStore_RegisterNode_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_RegisterNode_Call) RunAndReturn(run func(context.Context, domain.User, domain.RegisterNodeRequest, string) (domain.Node, error)) *MockStore_RegisterNode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateNodeOffset provides a mock function with given fields: ctx, nodeID, offset
+func (_m *MockStore) UpdateNodeOffset(ctx context.Context, nodeID string, offset int64) error {
+	ret := _m.Called(ctx, nodeID, offset)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateNodeOffset")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) error); ok {
+		r0 = rf(ctx, nodeID, offset)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStore_UpdateNodeOffset_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateNodeOffset'
+type MockStore_UpdateNodeOffset_Call struct {
+	*mock.Call
+}
+
+// UpdateNodeOffset is a helper method to define mock.On call
+//   - ctx context.Context
+//   - nodeID string
+//   - offset int64
+func (_e *MockStore_Expecter) UpdateNodeOffset(ctx interface{}, nodeID interface{}, offset interface{}) *MockStore_UpdateNodeOffset_Call {
+	return &MockStore_UpdateNodeOffset_Call{Call: _e.mock.On("UpdateNodeOffset", ctx, nodeID, offset)}
+}
+
+func (_c *MockStore_UpdateNodeOffset_Call) Run(run func(ctx context.Context, nodeID string, offset int64)) *MockStore_UpdateNodeOffset_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockStore_UpdateNodeOffset_Call) Return(_a0 error) *MockStore_UpdateNodeOffset_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStore_UpdateNodeOffset_Call) RunAndReturn(run func(context.Context, string, int64) error) *MockStore_UpdateNodeOffset_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -281,6 +604,54 @@ func (_c *MockStore_UpsertAgentStatus_Call) Return(_a0 error) *MockStore_UpsertA
 }
 
 func (_c *MockStore_UpsertAgentStatus_Call) RunAndReturn(run func(context.Context, domain.AgentStatusReport) error) *MockStore_UpsertAgentStatus_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpsertNodeStatus provides a mock function with given fields: ctx, node, report
+func (_m *MockStore) UpsertNodeStatus(ctx context.Context, node domain.Node, report domain.NodeStatusReport) error {
+	ret := _m.Called(ctx, node, report)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpsertNodeStatus")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Node, domain.NodeStatusReport) error); ok {
+		r0 = rf(ctx, node, report)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStore_UpsertNodeStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpsertNodeStatus'
+type MockStore_UpsertNodeStatus_Call struct {
+	*mock.Call
+}
+
+// UpsertNodeStatus is a helper method to define mock.On call
+//   - ctx context.Context
+//   - node domain.Node
+//   - report domain.NodeStatusReport
+func (_e *MockStore_Expecter) UpsertNodeStatus(ctx interface{}, node interface{}, report interface{}) *MockStore_UpsertNodeStatus_Call {
+	return &MockStore_UpsertNodeStatus_Call{Call: _e.mock.On("UpsertNodeStatus", ctx, node, report)}
+}
+
+func (_c *MockStore_UpsertNodeStatus_Call) Run(run func(ctx context.Context, node domain.Node, report domain.NodeStatusReport)) *MockStore_UpsertNodeStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.Node), args[2].(domain.NodeStatusReport))
+	})
+	return _c
+}
+
+func (_c *MockStore_UpsertNodeStatus_Call) Return(_a0 error) *MockStore_UpsertNodeStatus_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStore_UpsertNodeStatus_Call) RunAndReturn(run func(context.Context, domain.Node, domain.NodeStatusReport) error) *MockStore_UpsertNodeStatus_Call {
 	_c.Call.Return(run)
 	return _c
 }

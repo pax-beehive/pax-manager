@@ -16,14 +16,24 @@ var (
 
 type User = domain.User
 type UserPrincipal = domain.UserPrincipal
+type Node = domain.Node
 type Agent = domain.Agent
 type AgentSession = domain.AgentSession
 type MailboxMessage = domain.MailboxMessage
+type RegisterNodeRequest = domain.RegisterNodeRequest
 type RegisterAgentRequest = domain.RegisterAgentRequest
 type UserAPIKey = domain.UserAPIKey
+type NodeStatusReport = domain.NodeStatusReport
+type AgentStatusInput = domain.AgentStatusInput
 type AgentStatusReport = domain.AgentStatusReport
+type SessionStatusInput = domain.SessionStatusInput
+type FileChange = domain.FileChange
 type CreateMailboxRequest = domain.CreateMailboxRequest
 type MessageResultRequest = domain.MessageResultRequest
+type MarkDeliveredRequest = domain.MarkDeliveredRequest
+type CreateOutboundMessageRequest = domain.CreateOutboundMessageRequest
+type CreateAgentRequest = domain.CreateAgentRequest
+type CreateSessionRequest = domain.CreateSessionRequest
 type MailboxPull = domain.MailboxPull
 type MailboxFilter = domain.MailboxFilter
 

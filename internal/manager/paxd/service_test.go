@@ -46,7 +46,7 @@ func TestRegisterAgent(t *testing.T) {
 			)
 
 			require.NoError(t, err)
-			require.Equal(t, http.StatusCreated, status)
+			require.Equal(t, http.StatusOK, status)
 			require.Equal(
 				t,
 				domain.RegisterAgentResponse{AgentID: "agent_1", APIKey: "pax_raw_key"},
