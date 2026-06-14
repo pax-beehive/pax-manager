@@ -1,10 +1,10 @@
 # ISSUE-006 No GET /api/user/me endpoint
 
-**Status:** open  
-**Severity:** medium  
-**Component:** api  
-**Found:** 2026-06-13  
-**Resolved:** —
+**Status:** resolved
+**Severity:** medium
+**Component:** api
+**Found:** 2026-06-13
+**Resolved:** 2026-06-14
 
 ## Summary
 
@@ -46,11 +46,17 @@ The auth flow (`auth.Service.Principal`) resolves the user from CF Access JWT on
 ## Affected code
 
 ```
-internal/transport/http/router/paxmanager/api/pax_manager.go — no /api/user/me route
-internal/manager/idl_handlers.go — no handler
-internal/manager/api_facing.go — no handleUserMe
+internal/transport/http/router/paxmanager/api/pax_manager.go - no /api/user/me route
+internal/manager/idl_handlers.go - no handler
+internal/manager/api_facing.go - no handleUserMe
 ```
 
 ## Proposed fix
 
 Add `GET /api/user/me` to the Thrift IDL. Handler calls `userapi.GetMe` which runs `Principal()` and returns the UserPrincipal. No new store methods needed.
+
+## Resolution
+
+The v1 user API now exposes `GET /api/v1/user/:user_id/me`. The endpoint
+returns the current authenticated user identity and admin flag from the
+Cloudflare Access backed principal.

@@ -12,8 +12,10 @@ type MemoryStore struct {
 	now              func() time.Time
 	nextMailbox      int64
 	nextSession      int64
+	nodes            map[string]Node
 	agents           map[string]Agent
 	apiKeys          map[string]string
+	nodeAPIKeys      map[string]string
 	users            map[string]User
 	usersByEmail     map[string]string
 	regTokens        map[string]registrationToken
@@ -27,8 +29,10 @@ type MemoryStore struct {
 func NewMemoryStore(now func() time.Time) *MemoryStore {
 	return &MemoryStore{
 		now:              now,
+		nodes:            make(map[string]Node),
 		agents:           make(map[string]Agent),
 		apiKeys:          make(map[string]string),
+		nodeAPIKeys:      make(map[string]string),
 		users:            make(map[string]User),
 		usersByEmail:     make(map[string]string),
 		regTokens:        make(map[string]registrationToken),
@@ -216,9 +220,29 @@ func (s *MemoryStore) RegisterAgent(
 	if err != nil {
 		return Agent{}, err
 	}
+	nodeID, err := newSecret("node")
+	if err != nil {
+		return Agent{}, err
+	}
 	now := s.now().UTC()
+	node := Node{
+		NodeID:        nodeID,
+		OwnerUserID:   owner.UserID,
+		Name:          defaultAgentName(req),
+		Hostname:      req.Hostname,
+		MachineType:   req.MachineType,
+		OS:            req.OS,
+		PaxdVersion:   req.HermesVersion,
+		APIEndpoint:   defaultAPIEndpoint(req.APIEndpoint),
+		Status:        "online",
+		Online:        true,
+		LastHeartbeat: &now,
+		RegisteredAt:  now,
+		Metadata:      req.Metadata,
+	}
 	agent := Agent{
 		AgentID:       agentID,
+		NodeID:        nodeID,
 		OwnerUserID:   owner.UserID,
 		Name:          defaultAgentName(req),
 		Hostname:      req.Hostname,
@@ -233,9 +257,215 @@ func (s *MemoryStore) RegisterAgent(
 		RegisteredAt:  now,
 		Metadata:      req.Metadata,
 	}
+	s.nodes[nodeID] = node
 	s.agents[agentID] = agent
 	s.apiKeys[apiKeyHash] = agentID
+	s.nodeAPIKeys[apiKeyHash] = nodeID
 	return agent, nil
+}
+
+func (s *MemoryStore) RegisterNode(
+	ctx context.Context,
+	owner User,
+	req RegisterNodeRequest,
+	apiKeyHash string,
+) (Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.users[owner.UserID]; !ok {
+		return Node{}, ErrNotFound
+	}
+	nodeID, err := newSecret("node")
+	if err != nil {
+		return Node{}, err
+	}
+	now := s.now().UTC()
+	node := Node{
+		NodeID:        nodeID,
+		OwnerUserID:   owner.UserID,
+		Name:          defaultNodeName(req),
+		Hostname:      req.Hostname,
+		MachineType:   req.MachineType,
+		OS:            defaultOS(req.OS),
+		Arch:          req.Arch,
+		PaxdVersion:   req.PaxdVersion,
+		APIEndpoint:   defaultAPIEndpoint(req.APIEndpoint),
+		Status:        "online",
+		Online:        true,
+		LastHeartbeat: &now,
+		RegisteredAt:  now,
+		Metadata:      req.Metadata,
+	}
+	s.nodes[nodeID] = node
+	s.nodeAPIKeys[apiKeyHash] = nodeID
+	return node, nil
+}
+
+func (s *MemoryStore) AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	nodeID, ok := s.nodeAPIKeys[apiKeyHash]
+	if !ok {
+		return Node{}, ErrUnauthorized
+	}
+	node, ok := s.nodes[nodeID]
+	if !ok {
+		return Node{}, ErrUnauthorized
+	}
+	return node, nil
+}
+
+func (s *MemoryStore) UpsertNodeStatus(
+	ctx context.Context,
+	node Node,
+	report NodeStatusReport,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, ok := s.nodes[node.NodeID]
+	if !ok {
+		return ErrNotFound
+	}
+	now := s.now().UTC()
+	current.Status = "online"
+	current.Online = true
+	current.LastHeartbeat = &now
+	if report.Hostname != "" {
+		current.Hostname = report.Hostname
+	}
+	if len(report.Metadata) > 0 {
+		current.Metadata = report.Metadata
+	}
+	s.nodes[node.NodeID] = current
+
+	for _, input := range report.Agents {
+		agent, err := s.upsertNodeAgentLocked(current, input, now)
+		if err != nil {
+			return err
+		}
+		for _, session := range input.Sessions {
+			s.upsertSessionLocked(current.NodeID, agent.AgentID, session, now)
+		}
+	}
+	return nil
+}
+
+func (s *MemoryStore) ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Node, 0, len(s.nodes))
+	for _, node := range s.nodes {
+		if canAccessOwner(principal, node.OwnerUserID) {
+			out = append(out, node)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].RegisteredAt.Before(out[j].RegisteredAt)
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) GetNode(
+	ctx context.Context,
+	principal UserPrincipal,
+	nodeID string,
+) (Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	node, ok := s.nodes[nodeID]
+	if !ok || !canAccessOwner(principal, node.OwnerUserID) {
+		return Node{}, ErrNotFound
+	}
+	return node, nil
+}
+
+func (s *MemoryStore) ListNodeAgents(
+	ctx context.Context,
+	principal UserPrincipal,
+	nodeID string,
+) ([]Agent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	node, ok := s.nodes[nodeID]
+	if !ok || !canAccessOwner(principal, node.OwnerUserID) {
+		return nil, ErrNotFound
+	}
+	out := make([]Agent, 0)
+	for _, agent := range s.agents {
+		if agent.NodeID == nodeID {
+			out = append(out, agent)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].RegisteredAt.Before(out[j].RegisteredAt)
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) CreateNodeAgent(
+	ctx context.Context,
+	principal UserPrincipal,
+	req CreateAgentRequest,
+) (Agent, MailboxMessage, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	node, ok := s.nodes[req.NodeID]
+	if !ok || !canAccessOwner(principal, node.OwnerUserID) {
+		return Agent{}, MailboxMessage{}, ErrNotFound
+	}
+	now := s.now().UTC()
+	agent, err := s.createNodeAgentLocked(node, req.Name, req.AgentType, req.Metadata, now)
+	if err != nil {
+		return Agent{}, MailboxMessage{}, err
+	}
+	msg, err := s.createMailboxLocked(
+		principal.User.UserID,
+		node.OwnerUserID,
+		node.NodeID,
+		agent.AgentID,
+		"",
+		"bootstrap",
+		"command",
+		req.Metadata,
+		"pending",
+		now,
+	)
+	if err != nil {
+		return Agent{}, MailboxMessage{}, err
+	}
+	return agent, msg, nil
+}
+
+func (s *MemoryStore) CreateNodeAgentSession(
+	ctx context.Context,
+	principal UserPrincipal,
+	req CreateSessionRequest,
+) (AgentSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[req.AgentID]
+	if !ok || agent.NodeID != req.NodeID || !canAccessOwner(principal, agent.OwnerUserID) {
+		return AgentSession{}, ErrNotFound
+	}
+	now := s.now().UTC()
+	input := SessionStatusInput{
+		SessionID:      req.SessionID,
+		AgentType:      req.AgentType,
+		NativeID:       req.NativeID,
+		SessionName:    req.SessionName,
+		ProjectID:      req.ProjectID,
+		WorkspaceRoots: req.WorkspaceRoots,
+		Source:         req.Source,
+		Status:         "idle",
+	}
+	if input.SessionID == "" {
+		generated, err := newSecret("sess")
+		if err != nil {
+			return AgentSession{}, err
+		}
+		input.SessionID = generated
+	}
+	return s.upsertSessionLocked(req.NodeID, req.AgentID, input, now), nil
 }
 
 func (s *MemoryStore) AuthenticateAgent(ctx context.Context, apiKeyHash string) (Agent, error) {
@@ -274,33 +504,8 @@ func (s *MemoryStore) UpsertAgentStatus(ctx context.Context, report AgentStatusR
 		if input.SessionID == "" {
 			continue
 		}
-		existing, exists := s.sessions[sessionKey(report.AgentID, input.SessionID)]
-		if !exists {
-			s.nextSession++
-			existing.ID = s.nextSession
-			existing.AgentID = report.AgentID
-			existing.SessionID = input.SessionID
-			existing.CreatedAt = now
-		}
-		existing.SessionName = input.SessionName
-		existing.AgentType = input.AgentType
-		existing.NativeID = input.NativeID
-		existing.ProjectID = input.ProjectID
-		existing.Preview = input.Preview
-		existing.WorkspaceRoots = append([]string(nil), input.WorkspaceRoots...)
-		existing.Source = input.Source
-		existing.Status = defaultSessionStatus(input.Status)
-		existing.CurrentTask = input.CurrentTask
-		existing.LastMessageAt = input.LastMessageAt
-		existing.MessageCount = input.MessageCount
-		existing.TokenInput = input.TokenUsage.Input
-		existing.TokenOutput = input.TokenUsage.Output
-		existing.TokenTotal = input.TokenUsage.Total
-		existing.Model = input.Model
-		existing.RunID = input.RunID
-		existing.RunStatus = input.RunStatus
-		existing.UpdatedAt = now
-		s.sessions[sessionKey(report.AgentID, input.SessionID)] = existing
+		nodeID := agent.NodeID
+		s.upsertSessionLocked(nodeID, report.AgentID, input, now)
 	}
 
 	return nil
@@ -436,12 +641,14 @@ func (s *MemoryStore) CreateMailboxMessage(
 		MessageID:   messageID,
 		UserID:      principal.User.UserID,
 		OwnerUserID: agent.OwnerUserID,
+		NodeID:      agent.NodeID,
 		AgentID:     req.AgentID,
 		SessionID:   req.SessionID,
 		Message:     req.Message,
 		MessageType: messageType,
 		Payload:     payload,
 		Status:      "pending",
+		Direction:   "user_to_node",
 		CreatedAt:   now,
 		ExpiresAt:   expiresAt(now, messageType),
 	}
@@ -462,6 +669,9 @@ func (s *MemoryStore) ListMailbox(
 			continue
 		}
 		if filter.AgentID != "" && msg.AgentID != filter.AgentID {
+			continue
+		}
+		if filter.NodeID != "" && msg.NodeID != filter.NodeID {
 			continue
 		}
 		if filter.SessionID != "" && msg.SessionID != filter.SessionID {
@@ -534,6 +744,64 @@ func (s *MemoryStore) PullMailbox(
 	return MailboxPull{Messages: candidates, MaxOffset: maxOffset, HasMore: hasMore}, nil
 }
 
+func (s *MemoryStore) PullNodeMailbox(
+	ctx context.Context,
+	nodeID string,
+	agentID string,
+	sessionID string,
+	offset int64,
+	limit int,
+) (MailboxPull, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if limit <= 0 || limit > 100 {
+		limit = 10
+	}
+	if _, ok := s.nodes[nodeID]; !ok {
+		return MailboxPull{}, ErrNotFound
+	}
+	now := s.now().UTC()
+	candidates := make([]MailboxMessage, 0)
+	for _, msg := range s.mailbox {
+		if msg.NodeID != nodeID || msg.ID <= offset {
+			continue
+		}
+		if agentID != "" && msg.AgentID != agentID {
+			continue
+		}
+		if sessionID != "" && msg.SessionID != sessionID {
+			continue
+		}
+		if msg.Direction == "node_to_user" || msg.Status != "pending" {
+			continue
+		}
+		if msg.ExpiresAt != nil && msg.ExpiresAt.Before(now) {
+			msg.Status = "expired"
+			s.mailbox[msg.ID] = msg
+			continue
+		}
+		candidates = append(candidates, msg)
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].ID < candidates[j].ID
+	})
+	hasMore := len(candidates) > limit
+	if hasMore {
+		candidates = candidates[:limit]
+	}
+	maxOffset := offset
+	deliveredAt := now
+	for i := range candidates {
+		candidates[i].Status = "delivered"
+		candidates[i].DeliveredAt = &deliveredAt
+		s.mailbox[candidates[i].ID] = candidates[i]
+		if candidates[i].ID > maxOffset {
+			maxOffset = candidates[i].ID
+		}
+	}
+	return MailboxPull{Messages: candidates, MaxOffset: maxOffset, HasMore: hasMore}, nil
+}
+
 func (s *MemoryStore) MarkMessageResult(
 	ctx context.Context,
 	agentID string,
@@ -563,6 +831,103 @@ func (s *MemoryStore) MarkMessageResult(
 	return ErrNotFound
 }
 
+func (s *MemoryStore) MarkNodeMessageResult(
+	ctx context.Context,
+	nodeID string,
+	messageID string,
+	req MessageResultRequest,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, msg := range s.mailbox {
+		if msg.NodeID == nodeID && msg.MessageID == messageID {
+			if req.Status != "completed" && req.Status != "failed" {
+				return ErrConflict
+			}
+			completedAt := s.now().UTC()
+			if req.CompletedAt != nil {
+				completedAt = req.CompletedAt.UTC()
+			}
+			msg.Status = req.Status
+			msg.Result = firstNonEmpty(req.Result, req.Content, req.ResultMessageID)
+			msg.Error = req.Error
+			msg.Payload = req.Payload
+			msg.Events = req.Events
+			msg.FileChanges = append([]FileChange(nil), req.FileChanges...)
+			msg.TokenUsage = req.TokenUsage
+			msg.CompletedAt = &completedAt
+			s.mailbox[id] = msg
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+func (s *MemoryStore) MarkNodeMessageDelivered(
+	ctx context.Context,
+	nodeID string,
+	req MarkDeliveredRequest,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, msg := range s.mailbox {
+		if msg.NodeID == nodeID && msg.MessageID == req.MessageID {
+			deliveredAt := s.now().UTC()
+			if req.DeliveredAt != nil {
+				deliveredAt = req.DeliveredAt.UTC()
+			}
+			if msg.Status == "pending" {
+				msg.Status = "delivered"
+			}
+			msg.DeliveredAt = &deliveredAt
+			s.mailbox[id] = msg
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+func (s *MemoryStore) CreateNodeOutboundMessage(
+	ctx context.Context,
+	node Node,
+	req CreateOutboundMessageRequest,
+) (MailboxMessage, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[req.AgentID]
+	if !ok || agent.NodeID != node.NodeID {
+		return MailboxMessage{}, ErrNotFound
+	}
+	createdAt := s.now().UTC()
+	if req.CreatedAt != nil {
+		createdAt = req.CreatedAt.UTC()
+	}
+	msg, err := s.createMailboxLocked(
+		node.OwnerUserID,
+		node.OwnerUserID,
+		node.NodeID,
+		req.AgentID,
+		req.SessionID,
+		req.Content,
+		defaultOutboundMessageType(req.MessageType),
+		req.Payload,
+		defaultOutboundStatus(req.Status),
+		createdAt,
+	)
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	msg.Direction = "node_to_user"
+	msg.ParentMessageID = req.ParentMessageID
+	msg.TurnID = req.TurnID
+	msg.ResponseID = req.ResponseID
+	msg.Events = req.Events
+	msg.FileChanges = append([]FileChange(nil), req.FileChanges...)
+	msg.TokenUsage = req.TokenUsage
+	s.mailbox[msg.ID] = msg
+	return msg, nil
+}
+
 func (s *MemoryStore) UpdateOffset(ctx context.Context, agentID string, offset int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -576,6 +941,18 @@ func (s *MemoryStore) UpdateOffset(ctx context.Context, agentID string, offset i
 	return nil
 }
 
+func (s *MemoryStore) UpdateNodeOffset(ctx context.Context, nodeID string, offset int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.nodes[nodeID]; !ok {
+		return ErrNotFound
+	}
+	if offset > s.offsets[nodeID] {
+		s.offsets[nodeID] = offset
+	}
+	return nil
+}
+
 func sessionKey(agentID, sessionID string) string {
 	return agentID + "\x00" + sessionID
 }
@@ -585,6 +962,139 @@ func defaultAPIEndpoint(v string) string {
 		return v
 	}
 	return "http://localhost:8642"
+}
+
+func (s *MemoryStore) upsertNodeAgentLocked(
+	node Node,
+	input AgentStatusInput,
+	now time.Time,
+) (Agent, error) {
+	if input.AgentID != "" {
+		if agent, ok := s.agents[input.AgentID]; ok {
+			agent.NodeID = node.NodeID
+			agent.OwnerUserID = node.OwnerUserID
+			agent.Name = firstNonEmpty(input.Name, agent.Name)
+			agent.AgentType = firstNonEmpty(input.AgentType, agent.AgentType)
+			agent.Status = defaultSessionStatus(input.Status)
+			agent.Online = input.Online || input.Status == "online"
+			if input.LastHeartbeat != nil {
+				agent.LastHeartbeat = input.LastHeartbeat
+			} else {
+				agent.LastHeartbeat = &now
+			}
+			agent.Metadata = input.Metadata
+			s.agents[agent.AgentID] = agent
+			return agent, nil
+		}
+	}
+	return s.createNodeAgentLocked(node, input.Name, input.AgentType, input.Metadata, now)
+}
+
+func (s *MemoryStore) createNodeAgentLocked(
+	node Node,
+	name string,
+	agentType string,
+	metadata []byte,
+	now time.Time,
+) (Agent, error) {
+	agentID, err := newSecret("agent")
+	if err != nil {
+		return Agent{}, err
+	}
+	agent := Agent{
+		AgentID:       agentID,
+		NodeID:        node.NodeID,
+		OwnerUserID:   node.OwnerUserID,
+		Name:          firstNonEmpty(name, "agent"),
+		Hostname:      node.Hostname,
+		AgentType:     firstNonEmpty(agentType, "hermes"),
+		MachineType:   node.MachineType,
+		OS:            node.OS,
+		HermesVersion: node.PaxdVersion,
+		APIEndpoint:   node.APIEndpoint,
+		Status:        "online",
+		Online:        true,
+		LastHeartbeat: &now,
+		RegisteredAt:  now,
+		Metadata:      metadata,
+	}
+	s.agents[agentID] = agent
+	return agent, nil
+}
+
+func (s *MemoryStore) upsertSessionLocked(
+	nodeID string,
+	agentID string,
+	input SessionStatusInput,
+	now time.Time,
+) AgentSession {
+	existing, exists := s.sessions[sessionKey(agentID, input.SessionID)]
+	if !exists {
+		s.nextSession++
+		existing.ID = s.nextSession
+		existing.NodeID = nodeID
+		existing.AgentID = agentID
+		existing.SessionID = input.SessionID
+		existing.CreatedAt = now
+	}
+	existing.NodeID = nodeID
+	existing.SessionName = input.SessionName
+	existing.AgentType = input.AgentType
+	existing.NativeID = input.NativeID
+	existing.ProjectID = input.ProjectID
+	existing.Preview = input.Preview
+	existing.WorkspaceRoots = append([]string(nil), input.WorkspaceRoots...)
+	existing.Source = input.Source
+	existing.Status = defaultSessionStatus(input.Status)
+	existing.CurrentTask = input.CurrentTask
+	existing.LastMessageAt = input.LastMessageAt
+	existing.MessageCount = input.MessageCount
+	existing.TokenUsage = input.TokenUsage
+	existing.TokenInput = input.TokenUsage.Input
+	existing.TokenOutput = input.TokenUsage.Output
+	existing.TokenTotal = input.TokenUsage.Total
+	existing.Model = input.Model
+	existing.RunID = input.RunID
+	existing.RunStatus = input.RunStatus
+	existing.UpdatedAt = now
+	s.sessions[sessionKey(agentID, input.SessionID)] = existing
+	return existing
+}
+
+func (s *MemoryStore) createMailboxLocked(
+	userID string,
+	ownerUserID string,
+	nodeID string,
+	agentID string,
+	sessionID string,
+	message string,
+	messageType string,
+	payload []byte,
+	status string,
+	createdAt time.Time,
+) (MailboxMessage, error) {
+	messageID, err := newSecret("msg")
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	s.nextMailbox++
+	msg := MailboxMessage{
+		ID:          s.nextMailbox,
+		MessageID:   messageID,
+		UserID:      userID,
+		OwnerUserID: ownerUserID,
+		NodeID:      nodeID,
+		AgentID:     agentID,
+		SessionID:   sessionID,
+		Message:     message,
+		MessageType: messageType,
+		Payload:     payload,
+		Status:      status,
+		CreatedAt:   createdAt,
+		ExpiresAt:   expiresAt(createdAt, messageType),
+	}
+	s.mailbox[msg.ID] = msg
+	return msg, nil
 }
 
 func (s *MemoryStore) ensureUserLocked(
@@ -643,6 +1153,43 @@ func defaultAgentType(req RegisterAgentRequest) string {
 		return req.MachineType
 	}
 	return "hermes"
+}
+
+func defaultNodeName(req RegisterNodeRequest) string {
+	if req.Name != "" {
+		return req.Name
+	}
+	return req.Hostname
+}
+
+func defaultOS(v string) string {
+	if v != "" {
+		return v
+	}
+	return "unknown"
+}
+
+func defaultOutboundMessageType(v string) string {
+	if v != "" {
+		return v
+	}
+	return "turn_result"
+}
+
+func defaultOutboundStatus(v string) string {
+	if v != "" {
+		return v
+	}
+	return "completed"
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func defaultSessionStatus(v string) string {

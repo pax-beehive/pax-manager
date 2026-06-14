@@ -20,13 +20,27 @@ func TestBuildSpecFromThrift(t *testing.T) {
 		t.Fatalf("openapi = %v", spec["openapi"])
 	}
 	paths := spec["paths"].(map[string]any)
-	if _, ok := paths["/api/user/api-keys"]; !ok {
-		t.Fatal("missing /api/user/api-keys")
+	if _, ok := paths["/api/v1/user/{user_id}/api-keys"]; !ok {
+		t.Fatal("missing /api/v1/user/{user_id}/api-keys")
 	}
-	register := paths["/api/agent/register"].(map[string]any)["post"].(map[string]any)
+	for _, path := range []string{
+		"/api/v1/node/messages/{message_id}/delivered",
+		"/api/v1/node/messages/outbound",
+		"/api/v1/user/{user_id}/me",
+		"/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions",
+	} {
+		if _, ok := paths[path]; !ok {
+			t.Fatalf("missing %s", path)
+		}
+	}
+	register := paths["/api/v1/node/register"].(map[string]any)["post"].(map[string]any)
 	parameters := register["parameters"].([]map[string]any)
 	if len(parameters) != 1 || parameters[0]["name"] != "X-Registration-Token" {
 		t.Fatalf("register parameters = %#v", parameters)
+	}
+	responses := register["responses"].(map[string]any)
+	if _, ok := responses["200"]; !ok {
+		t.Fatal("missing 200 register response")
 	}
 	components := spec["components"].(map[string]any)
 	schemas := components["schemas"].(map[string]any)

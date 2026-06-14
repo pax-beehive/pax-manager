@@ -55,7 +55,7 @@ type session struct {
 	Status         string   `json:"status"`
 	CurrentTask    string   `json:"current_task"`
 	MessageCount   int      `json:"message_count"`
-	TokenTotal     int64    `json:"token_usage"`
+	TokenTotal     int64    `json:"token_total"`
 	WorkspaceRoots []string `json:"workspace_roots"`
 }
 
@@ -131,8 +131,11 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 			assertEnvelopeCode(t, health, http.StatusOK)
 
 			openAPI := fixture.getRaw(t, "/openapi.json", http.StatusOK)
-			if !bytes.Contains(openAPI, []byte(`"/api/user/agents"`)) {
-				t.Fatalf("openapi document does not include user agents route")
+			if !bytes.Contains(openAPI, []byte(`"/api/v1/user/{user_id}/nodes"`)) {
+				t.Fatalf("openapi document does not include user nodes route")
+			}
+			if !bytes.Contains(openAPI, []byte(`"/api/v1/node/messages/outbound"`)) {
+				t.Fatalf("openapi document does not include node outbound route")
 			}
 		},
 	)
@@ -151,7 +154,7 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 				"/api/user/api-keys",
 				map[string]any{"name": "integration automation"},
 				fixture.userHeaders(),
-				http.StatusCreated,
+				http.StatusOK,
 			)
 			if created.APIKey.KeyID == "" || created.Key == "" || created.APIKey.Prefix == "" {
 				t.Fatalf("bad user api key response: %+v", created)
@@ -182,7 +185,7 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 				"/api/user/agent-registration-tokens",
 				map[string]any{"expires_in_seconds": 600},
 				fixture.userHeaders(),
-				http.StatusCreated,
+				http.StatusOK,
 			)
 			if token.Token == "" || token.OwnerUserID == "" {
 				t.Fatalf("bad registration token response: %+v", token)
@@ -200,7 +203,7 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 					"os":           "linux",
 				},
 				map[string]string{"X-Registration-Token": token.Token},
-				http.StatusCreated,
+				http.StatusOK,
 			)
 			if registered.AgentID == "" || registered.APIKey == "" {
 				t.Fatalf("bad agent registration response: %+v", registered)
@@ -454,7 +457,7 @@ func (f *integrationFixture) createMailboxMessage(
 			"message_type": "chat",
 		},
 		f.userHeaders(),
-		http.StatusCreated,
+		http.StatusOK,
 	)
 }
 

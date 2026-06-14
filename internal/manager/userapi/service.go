@@ -32,6 +32,23 @@ type Store interface {
 	) ([]domain.UserAPIKey, error)
 	RevokeUserAPIKey(ctx context.Context, principal domain.UserPrincipal, keyID string) error
 	ListAgents(ctx context.Context, principal domain.UserPrincipal) ([]domain.Agent, error)
+	ListNodes(ctx context.Context, principal domain.UserPrincipal) ([]domain.Node, error)
+	GetNode(ctx context.Context, principal domain.UserPrincipal, nodeID string) (domain.Node, error)
+	ListNodeAgents(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		nodeID string,
+	) ([]domain.Agent, error)
+	CreateNodeAgent(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.CreateAgentRequest,
+	) (domain.Agent, domain.MailboxMessage, error)
+	CreateNodeAgentSession(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.CreateSessionRequest,
+	) (domain.AgentSession, error)
 	GetAgent(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -101,6 +118,112 @@ func (s *Service) ListAgents(c context.Context, meta auth.RequestMetadata) (int,
 		return 0, nil, err
 	}
 	return http.StatusOK, map[string]any{"agents": agents}, nil
+}
+
+func (s *Service) CurrentUser(c context.Context, meta auth.RequestMetadata) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{
+		"user": map[string]any{
+			"user_id":      principal.User.UserID,
+			"email":        principal.User.Email,
+			"name":         principal.User.DisplayName,
+			"role":         principal.User.Role,
+			"is_admin":     principal.IsAdmin,
+			"created_at":   principal.User.CreatedAt,
+			"last_seen_at": principal.User.LastSeenAt,
+		},
+	}, nil
+}
+
+func (s *Service) ListNodes(c context.Context, meta auth.RequestMetadata) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	nodes, err := s.store.ListNodes(c, principal)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"nodes": nodes}, nil
+}
+
+func (s *Service) GetNode(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if nodeID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "node_id is required"}
+	}
+	node, err := s.store.GetNode(c, principal, nodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, node, nil
+}
+
+func (s *Service) ListNodeAgents(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	agents, err := s.store.ListNodeAgents(c, principal, nodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"agents": agents}, nil
+}
+
+func (s *Service) CreateNodeAgent(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.CreateAgentRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if req.NodeID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "node_id is required"}
+	}
+	agent, bootstrap, err := s.store.CreateNodeAgent(c, principal, req)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"agent": agent, "bootstrap_message": bootstrap}, nil
+}
+
+func (s *Service) CreateNodeAgentSession(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.CreateSessionRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if req.NodeID == "" || req.AgentID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id and agent_id are required",
+		}
+	}
+	session, err := s.store.CreateNodeAgentSession(c, principal, req)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, session, nil
 }
 
 func (s *Service) GetAgent(
@@ -211,7 +334,7 @@ func (s *Service) CreateMailboxMessage(
 			Message: "message_type must be chat, steer, or command",
 		}
 	}
-	if req.SessionID != "" {
+	if req.NodeID == "" && req.SessionID != "" {
 		if _, err := s.sessionTarget(c, principal, req.AgentID, req.SessionID); err != nil {
 			return 0, nil, err
 		}
@@ -221,7 +344,7 @@ func (s *Service) CreateMailboxMessage(
 	if err != nil {
 		return 0, nil, err
 	}
-	return http.StatusCreated, msg, nil
+	return http.StatusOK, msg, nil
 }
 
 func (s *Service) CreateSessionMessage(
@@ -328,7 +451,7 @@ func (s *Service) CreateRegistrationToken(
 	if err := s.store.CreateRegistrationToken(c, owner.UserID, s.secrets.Hash(token), expiresAt); err != nil {
 		return 0, nil, err
 	}
-	return http.StatusCreated, domain.CreateRegistrationTokenResponse{
+	return http.StatusOK, domain.CreateRegistrationTokenResponse{
 		Token:       token,
 		OwnerUserID: owner.UserID,
 		ExpiresAt:   expiresAt,
@@ -361,7 +484,7 @@ func (s *Service) CreateUserAPIKey(
 	if err != nil {
 		return 0, nil, err
 	}
-	return http.StatusCreated, domain.CreateUserAPIKeyResponse{APIKey: keyMeta, Key: key}, nil
+	return http.StatusOK, domain.CreateUserAPIKeyResponse{APIKey: keyMeta, Key: key}, nil
 }
 
 func (s *Service) ListUserAPIKeys(c context.Context, meta auth.RequestMetadata) (int, any, error) {

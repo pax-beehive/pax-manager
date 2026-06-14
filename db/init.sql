@@ -40,7 +40,27 @@ CREATE TABLE IF NOT EXISTS agents (
     metadata JSONB
 );
 
+CREATE TABLE IF NOT EXISTS nodes (
+    node_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id),
+    name TEXT NOT NULL DEFAULT '',
+    hostname TEXT NOT NULL,
+    machine_type TEXT NOT NULL DEFAULT '',
+    os TEXT NOT NULL DEFAULT 'unknown',
+    arch TEXT NOT NULL DEFAULT '',
+    paxd_version TEXT NOT NULL DEFAULT '',
+    api_endpoint TEXT NOT NULL DEFAULT 'http://localhost:8642',
+    api_key_hash TEXT UNIQUE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'offline',
+    last_heartbeat TIMESTAMPTZ,
+    registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    metadata JSONB
+);
+
+CREATE INDEX IF NOT EXISTS idx_nodes_owner ON nodes(owner_user_id);
+
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS owner_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(node_id);
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_type TEXT NOT NULL DEFAULT 'hermes';
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS machine_type TEXT NOT NULL DEFAULT '';
@@ -50,6 +70,7 @@ ALTER TABLE agents ADD COLUMN IF NOT EXISTS api_endpoint TEXT NOT NULL DEFAULT '
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS metadata JSONB;
 
 CREATE INDEX IF NOT EXISTS idx_agents_owner ON agents(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_agents_node ON agents(node_id);
 
 CREATE TABLE IF NOT EXISTS agent_sessions (
     id BIGSERIAL PRIMARY KEY,
@@ -78,6 +99,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
 );
 
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS session_name TEXT;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(node_id);
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS agent_type TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS native_id TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS project_id TEXT;
@@ -90,6 +112,14 @@ ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS message_count INTEGER NOT NU
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS token_input BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS token_output BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS token_total BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS cache_read_tokens BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS cache_write_tokens BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS cache_creation_tokens BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS reasoning_tokens BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS estimated_cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS actual_cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS metadata JSONB;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS model TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS run_id TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS run_status TEXT;
@@ -119,20 +149,35 @@ CREATE TABLE IF NOT EXISTS mailbox (
 );
 
 ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS owner_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(node_id);
 ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS payload JSONB;
 ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
 ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS result TEXT;
 ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS error TEXT;
 ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'user_to_node';
+ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS parent_message_id TEXT;
+ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS turn_id TEXT;
+ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS response_id TEXT;
+ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS events JSONB;
+ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS file_changes JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS token_usage JSONB;
 
 CREATE INDEX IF NOT EXISTS idx_mailbox_owner ON mailbox(owner_user_id, id);
 CREATE INDEX IF NOT EXISTS idx_mailbox_agent ON mailbox(agent_id, status, id);
+CREATE INDEX IF NOT EXISTS idx_mailbox_node ON mailbox(node_id, status, id);
 CREATE INDEX IF NOT EXISTS idx_mailbox_created ON mailbox(created_at);
 CREATE INDEX IF NOT EXISTS idx_mailbox_session ON mailbox(session_id, id);
 
 CREATE TABLE IF NOT EXISTS message_offsets (
     agent_id TEXT PRIMARY KEY REFERENCES agents(agent_id) ON DELETE CASCADE,
+    last_offset BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS node_message_offsets (
+    node_id TEXT PRIMARY KEY REFERENCES nodes(node_id) ON DELETE CASCADE,
     last_offset BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

@@ -33,6 +33,27 @@ type Store interface {
 		apiKeyHash string,
 	) (Agent, error)
 	AuthenticateAgent(ctx context.Context, apiKeyHash string) (Agent, error)
+	RegisterNode(
+		ctx context.Context,
+		owner User,
+		req RegisterNodeRequest,
+		apiKeyHash string,
+	) (Node, error)
+	AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error)
+	UpsertNodeStatus(ctx context.Context, node Node, report NodeStatusReport) error
+	ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error)
+	GetNode(ctx context.Context, principal UserPrincipal, nodeID string) (Node, error)
+	ListNodeAgents(ctx context.Context, principal UserPrincipal, nodeID string) ([]Agent, error)
+	CreateNodeAgent(
+		ctx context.Context,
+		principal UserPrincipal,
+		req CreateAgentRequest,
+	) (Agent, MailboxMessage, error)
+	CreateNodeAgentSession(
+		ctx context.Context,
+		principal UserPrincipal,
+		req CreateSessionRequest,
+	) (AgentSession, error)
 	UpsertAgentStatus(ctx context.Context, report AgentStatusReport) error
 	ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error)
 	GetAgent(ctx context.Context, principal UserPrincipal, agentID string) (Agent, error)
@@ -60,11 +81,36 @@ type Store interface {
 		offset int64,
 		limit int,
 	) (MailboxPull, error)
+	PullNodeMailbox(
+		ctx context.Context,
+		nodeID string,
+		agentID string,
+		sessionID string,
+		offset int64,
+		limit int,
+	) (MailboxPull, error)
 	MarkMessageResult(
 		ctx context.Context,
 		agentID string,
 		messageID string,
 		req MessageResultRequest,
 	) error
+	MarkNodeMessageResult(
+		ctx context.Context,
+		nodeID string,
+		messageID string,
+		req MessageResultRequest,
+	) error
+	MarkNodeMessageDelivered(
+		ctx context.Context,
+		nodeID string,
+		req MarkDeliveredRequest,
+	) error
+	CreateNodeOutboundMessage(
+		ctx context.Context,
+		node Node,
+		req CreateOutboundMessageRequest,
+	) (MailboxMessage, error)
 	UpdateOffset(ctx context.Context, agentID string, offset int64) error
+	UpdateNodeOffset(ctx context.Context, nodeID string, offset int64) error
 }

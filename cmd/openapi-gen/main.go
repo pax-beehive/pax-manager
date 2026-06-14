@@ -82,7 +82,10 @@ func main() {
 		src.WriteString("(")
 		src.WriteString(strconv.Quote(path))
 		src.WriteString(", ")
-		if method.Annotations["openapi.security"] == "agentBearer" {
+		switch method.Annotations["openapi.security"] {
+		case "nodeBearer":
+			src.WriteString("NodeAuth(), ")
+		case "agentBearer":
 			src.WriteString("AgentAuth(), ")
 		}
 		src.WriteString(handler)
@@ -153,14 +156,32 @@ func parseStruct(lines []string, start int) (thriftStruct, int, error) {
 func parseService(lines []string, start int) ([]thriftMethod, int, error) {
 	var methods []thriftMethod
 	methodRE := regexp.MustCompile(
-		`^\s*([A-Za-z_][A-Za-z0-9_]*)\s+([A-Za-z_][A-Za-z0-9_]*)\((.*)\)`,
+		`^\s*([A-Za-z_][A-Za-z0-9_]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)\s*(.*)$`,
+	)
+	methodStartRE := regexp.MustCompile(
+		`^\s*[A-Za-z_][A-Za-z0-9_]*\s+[A-Za-z_][A-Za-z0-9_]*\s*\(`,
 	)
 	for i := start + 1; i < len(lines); i++ {
 		line := strings.TrimSpace(stripComment(lines[i]))
 		if strings.Contains(line, "}") {
 			return methods, i, nil
 		}
-		matches := methodRE.FindStringSubmatch(line)
+		if !methodStartRE.MatchString(line) {
+			continue
+		}
+
+		signature := line
+		for !strings.Contains(signature, ")") && i+1 < len(lines) {
+			i++
+			signature += " " + strings.TrimSpace(stripComment(lines[i]))
+		}
+		for !strings.Contains(signature, ") (") && !strings.HasSuffix(strings.TrimSpace(signature), ")") &&
+			i+1 < len(lines) {
+			i++
+			signature += " " + strings.TrimSpace(stripComment(lines[i]))
+		}
+
+		matches := methodRE.FindStringSubmatch(signature)
 		if matches == nil {
 			continue
 		}
@@ -169,15 +190,31 @@ func parseService(lines []string, start int) ([]thriftMethod, int, error) {
 			Name:        matches[2],
 			RequestType: requestType(matches[3]),
 		}
-		annotationText := ""
-		if strings.Contains(line, "(") && strings.Contains(line, ")") &&
-			strings.Contains(line, "http.") {
-			annotationText = line[strings.Index(line, "("):]
-		} else if i+1 < len(lines) {
+		annotationText := strings.TrimSpace(matches[4])
+		if annotationText == "(" {
+			for i+1 < len(lines) {
+				i++
+				next := strings.TrimSpace(stripComment(lines[i]))
+				annotationText += " " + next
+				if strings.Contains(next, ")") {
+					break
+				}
+			}
+		} else if annotationText == "" && i+1 < len(lines) {
 			next := strings.TrimSpace(stripComment(lines[i+1]))
 			if strings.HasPrefix(next, "(") {
-				annotationText = next
 				i++
+				annotationText = next
+				if !strings.Contains(next, ")") {
+					for i+1 < len(lines) {
+						i++
+						more := strings.TrimSpace(stripComment(lines[i]))
+						annotationText += " " + more
+						if strings.Contains(more, ")") {
+							break
+						}
+					}
+				}
 			}
 		}
 		method.Annotations = parseAnnotations(annotationText)
@@ -191,9 +228,11 @@ func requestType(args string) string {
 	if args == "" {
 		return ""
 	}
-	parts := strings.Fields(args)
-	if len(parts) >= 2 {
-		return parts[1]
+	fieldRE := regexp.MustCompile(
+		`^\s*\d+:\s+(?:(?:required|optional)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s+[A-Za-z_][A-Za-z0-9_]*\s*$`,
+	)
+	if matches := fieldRE.FindStringSubmatch(args); matches != nil {
+		return matches[1]
 	}
 	return ""
 }
@@ -236,18 +275,18 @@ func buildSpec(doc thriftDoc) map[string]any {
 		"tags": []map[string]string{
 			{"name": "system", "description": "Health and metadata endpoints."},
 			{
-				"name":        "agent",
-				"description": "paxd-facing endpoints authenticated with bearer agent API keys.",
+				"name":        "node",
+				"description": "paxd-facing endpoints authenticated with node API keys.",
 			},
 			{"name": "user", "description": "Cloudflare Access user endpoints."},
 		},
 		"paths": paths,
 		"components": map[string]any{
 			"securitySchemes": map[string]any{
-				"agentBearer": map[string]any{
+				"nodeBearer": map[string]any{
 					"type":        "http",
 					"scheme":      "bearer",
-					"description": "Agent API key returned during registration.",
+					"description": "Node API key returned during registration.",
 				},
 				"cloudflareAccess": map[string]any{
 					"type":        "apiKey",
@@ -270,6 +309,7 @@ func operation(method thriftMethod) map[string]any {
 		status: response("Successful response.", method.ReturnType),
 		"400":  response("Invalid request.", "ErrorResponse"),
 		"401":  response("Unauthorized.", "ErrorResponse"),
+		"403":  response("Forbidden.", "ErrorResponse"),
 		"404":  response("Not found.", "ErrorResponse"),
 		"500":  response("Internal server error.", "ErrorResponse"),
 	}
@@ -400,6 +440,8 @@ func typeSchema(typ string) map[string]any {
 		return map[string]any{"type": "integer", "format": "int32"}
 	case "i64":
 		return map[string]any{"type": "integer", "format": "int64"}
+	case "double":
+		return map[string]any{"type": "number", "format": "double"}
 	case "Timestamp":
 		return map[string]any{"type": "string", "format": "date-time"}
 	case "JSON":

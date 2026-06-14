@@ -97,6 +97,26 @@ The handoff should include:
 Keep handoff docs factual. They should let the next agent continue without
 reverse-engineering the entire repository.
 
+## Issue Practice
+
+Track local issues under `issues/`. When a change fixes or partially fixes an
+issue, update the issue file and `issues/README.md` in the same change.
+
+Each issue file should keep the header metadata accurate:
+
+- `Status`: `open`, `in-progress`, `partial`, or `resolved`
+- `Resolved`: use `YYYY-MM-DD` for resolved issues, otherwise `-`
+- add a short `Resolution` section for fixed issues
+- add a short `Current note` section for partial issues
+
+Do not mark a legacy protocol issue as resolved only because a new v1 endpoint
+works. Call out whether the fix applies to the current node API, the legacy
+agent API, or both.
+
+When creating a handoff after fixing issues, include the issue numbers that
+changed status, the verification commands, and any issue that intentionally
+remains open.
+
 ## Safety
 
 - Do not revert user changes unless explicitly asked.

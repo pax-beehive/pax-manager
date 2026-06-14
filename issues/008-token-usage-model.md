@@ -1,14 +1,14 @@
 # ISSUE-008 Token usage model too narrow vs paxd reporting
 
-**Status:** medium  
-**Severity:** medium  
-**Component:** session / storage  
-**Found:** 2026-06-13  
-**Resolved:** —
+**Status:** resolved
+**Severity:** medium
+**Component:** session / storage
+**Found:** 2026-06-13
+**Resolved:** 2026-06-14
 
 ## Summary
 
-The `agent_sessions` table stores only 3 token fields (`token_input`, `token_output`, `token_total` — via `db/init.sql:70-72`). But paxd's Hermes client reports much finer-grained token data: `input`, `cache_read`, `cache_write`, `output`, `reasoning`, `estimated_cost_usd`, `actual_cost_usd`.
+The `agent_sessions` table stores only 3 token fields (`token_input`, `token_output`, `token_total` - via `db/init.sql:70-72`). But paxd's Hermes client reports much finer-grained token data: `input`, `cache_read`, `cache_write`, `output`, `reasoning`, `estimated_cost_usd`, `actual_cost_usd`.
 
 The domain model `TokenUsage` struct (`domain/models.go:166-170`) also only has `Input`, `Output`, `Total`. paxd's `StatusReport.SessionReport.TokenUsage` (`paxd/internal/cloud/client.go:93-101`) has all seven fields.
 
@@ -50,10 +50,10 @@ Expand the `agent_sessions` schema and `TokenUsage` domain model to capture all 
 ## Affected code
 
 ```
-internal/manager/domain/models.go:166-170 — TokenUsage struct
-db/init.sql:70-72 — agent_sessions token columns
-internal/transport/http/model/paxmanager/api/ — Thrift-generated TokenUsage model
-api/pax_manager.thrift — TokenUsage definition
+internal/manager/domain/models.go:166-170 - TokenUsage struct
+db/init.sql:70-72 - agent_sessions token columns
+internal/transport/http/model/paxmanager/api/ - Thrift-generated TokenUsage model
+api/pax_manager.thrift - TokenUsage definition
 ```
 
 ## Proposed fix
@@ -62,3 +62,10 @@ api/pax_manager.thrift — TokenUsage definition
 2. Update domain `TokenUsage` with matching fields
 3. Update `TokenUsage.UnmarshalJSON` to accept paxd's field names
 4. Regenerate Thrift
+
+## Resolution
+
+`TokenUsage` now carries input, output, total, cache read, cache write,
+reasoning, estimated cost, and actual cost fields. The PostgreSQL schema stores
+those values, and JSON parsing accepts both the existing manager names and the
+paxd status report field names.

@@ -41,14 +41,14 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	if len(doc.Servers) != 1 || doc.Servers[0].URL != "https://api.example.com" {
 		t.Fatalf("servers = %+v", doc.Servers)
 	}
-	if _, ok := doc.Paths["/api/user/api-keys"]; !ok {
-		t.Fatalf("missing /api/user/api-keys path")
+	if _, ok := doc.Paths["/api/v1/user/{user_id}/api-keys"]; !ok {
+		t.Fatalf("missing /api/v1/user/{user_id}/api-keys path")
 	}
-	if _, ok := doc.Paths["/api/user/agents/{agentId}/sessions/{sessionId}/messages"]; !ok {
-		t.Fatalf("missing /api/user/agents/{agentId}/sessions/{sessionId}/messages path")
+	if _, ok := doc.Paths["/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages"]; !ok {
+		t.Fatalf("missing /api/v1 user node agent session messages path")
 	}
-	if _, ok := doc.Paths["/api/user/agents/{agentId}/sessions/{sessionId}"]; !ok {
-		t.Fatalf("missing /api/user/agents/{agentId}/sessions/{sessionId} path")
+	if _, ok := doc.Paths["/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}"]; !ok {
+		t.Fatalf("missing /api/v1 user node agent session path")
 	}
 	for _, removed := range []string{
 		"/api/user/sessions/{sessionId}",
@@ -229,7 +229,7 @@ func TestMailboxLifecycle(t *testing.T) {
 	req.Header.Set("X-User-Email", "todd@example.com")
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("create message code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
@@ -460,7 +460,7 @@ func TestUserAPIKeyCanBeCreatedListedAndRevoked(t *testing.T) {
 	req.Header.Set("X-User-Email", "todd@example.com")
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("create api key code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	created := decodeData[CreateUserAPIKeyResponse](t, rec.Body.Bytes())
@@ -512,7 +512,7 @@ func TestAgentWebsocketAuthenticatesOwnerAndProcessesMailboxFrames(t *testing.T)
 	req.Header.Set("X-User-Email", "todd@example.com")
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("create message code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	created := decodeData[MailboxMessage](t, rec.Body.Bytes())
@@ -576,6 +576,193 @@ func TestWebsocketRejectsMissingAPIKey(t *testing.T) {
 	}
 }
 
+func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {
+	t.Run(
+		"Given a Cloudflare user and a registered node when messaging a session then the node can pull, acknowledge, complete, and publish an outbound response",
+		func(t *testing.T) {
+			srv, _ := testServer(t, "todd@example.com")
+			userHeaders := func(req *http.Request) {
+				req.Header.Set("X-User-Email", "todd@example.com")
+				setJSON(req)
+			}
+
+			meReq := httptest.NewRequest(http.MethodGet, "/api/v1/user/self/me", nil)
+			userHeaders(meReq)
+			meRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(meRec, meReq)
+			if meRec.Code != http.StatusOK {
+				t.Fatalf("me code = %d, body = %s", meRec.Code, meRec.Body.String())
+			}
+
+			tokenReq := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/user/self/node-registration-tokens",
+				bytes.NewReader([]byte(`{}`)),
+			)
+			userHeaders(tokenReq)
+			tokenRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(tokenRec, tokenReq)
+			if tokenRec.Code != http.StatusOK {
+				t.Fatalf("node token code = %d, body = %s", tokenRec.Code, tokenRec.Body.String())
+			}
+			tokenResp := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
+
+			registerReq := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/node/register",
+				bytes.NewReader(
+					[]byte(`{"name":"node-a","hostname":"node-a","os":"linux","arch":"arm64"}`),
+				),
+			)
+			setJSON(registerReq)
+			registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
+			registerRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(registerRec, registerReq)
+			if registerRec.Code != http.StatusOK {
+				t.Fatalf(
+					"node register code = %d, body = %s",
+					registerRec.Code,
+					registerRec.Body.String(),
+				)
+			}
+			registeredNode := decodeData[RegisterNodeResponse](t, registerRec.Body.Bytes())
+			if registeredNode.NodeID == "" || registeredNode.APIKey == "" {
+				t.Fatalf("bad node register response: %+v", registeredNode)
+			}
+
+			createAgentReq := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/user/self/nodes/"+registeredNode.NodeID+"/agents",
+				bytes.NewReader([]byte(`{"name":"hermes-a","agent_type":"hermes"}`)),
+			)
+			userHeaders(createAgentReq)
+			createAgentRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(createAgentRec, createAgentReq)
+			if createAgentRec.Code != http.StatusOK {
+				t.Fatalf(
+					"create node agent code = %d, body = %s",
+					createAgentRec.Code,
+					createAgentRec.Body.String(),
+				)
+			}
+			agentResp := decodeData[struct {
+				Agent Agent `json:"agent"`
+			}](t, createAgentRec.Body.Bytes())
+			if agentResp.Agent.AgentID == "" {
+				t.Fatalf("missing agent: %+v", agentResp)
+			}
+
+			createSessionReq := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/user/self/nodes/"+registeredNode.NodeID+"/agents/"+agentResp.Agent.AgentID+"/sessions",
+				bytes.NewReader([]byte(`{"session_id":"sess-node-1","name":"first session"}`)),
+			)
+			userHeaders(createSessionReq)
+			createSessionRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(createSessionRec, createSessionReq)
+			if createSessionRec.Code != http.StatusOK {
+				t.Fatalf(
+					"create node session code = %d, body = %s",
+					createSessionRec.Code,
+					createSessionRec.Body.String(),
+				)
+			}
+
+			messageReq := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/user/self/nodes/"+registeredNode.NodeID+"/agents/"+agentResp.Agent.AgentID+
+					"/sessions/sess-node-1/messages",
+				bytes.NewReader([]byte(`{"message":"build the app","message_type":"chat"}`)),
+			)
+			userHeaders(messageReq)
+			messageRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(messageRec, messageReq)
+			if messageRec.Code != http.StatusOK {
+				t.Fatalf(
+					"create node session message code = %d, body = %s",
+					messageRec.Code,
+					messageRec.Body.String(),
+				)
+			}
+			created := decodeData[MailboxMessage](t, messageRec.Body.Bytes())
+
+			pullReq := httptest.NewRequest(
+				http.MethodGet,
+				"/api/v1/node/agents/"+agentResp.Agent.AgentID+"/sessions/sess-node-1/mailbox?offset=0&limit=10",
+				nil,
+			)
+			pullReq.Header.Set("X-Pax-Key", registeredNode.APIKey)
+			pullRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(pullRec, pullReq)
+			if pullRec.Code != http.StatusOK {
+				t.Fatalf(
+					"pull node session mailbox code = %d, body = %s",
+					pullRec.Code,
+					pullRec.Body.String(),
+				)
+			}
+			pull := decodeData[MailboxPull](t, pullRec.Body.Bytes())
+			if len(pull.Messages) != 1 || pull.Messages[0].MessageID != created.MessageID {
+				t.Fatalf("pulled node messages = %+v", pull.Messages)
+			}
+
+			deliveredReq := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/node/messages/"+created.MessageID+"/delivered",
+				nil,
+			)
+			deliveredReq.Header.Set("X-Pax-Key", registeredNode.APIKey)
+			deliveredRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(deliveredRec, deliveredReq)
+			if deliveredRec.Code != http.StatusOK {
+				t.Fatalf(
+					"delivered code = %d, body = %s",
+					deliveredRec.Code,
+					deliveredRec.Body.String(),
+				)
+			}
+
+			resultReq := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/node/messages/"+created.MessageID+"/result",
+				bytes.NewReader(
+					[]byte(
+						`{"status":"completed","content":"done","token_usage":{"inputTokens":10,"outputTokens":5,"reasoningTokens":2}}`,
+					),
+				),
+			)
+			setJSON(resultReq)
+			resultReq.Header.Set("X-Pax-Key", registeredNode.APIKey)
+			resultRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(resultRec, resultReq)
+			if resultRec.Code != http.StatusOK {
+				t.Fatalf("result code = %d, body = %s", resultRec.Code, resultRec.Body.String())
+			}
+
+			outboundReq := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/node/messages/outbound",
+				bytes.NewReader(
+					[]byte(
+						`{"agent_id":"`+agentResp.Agent.AgentID+`","session_id":"sess-node-1","content":"done","parent_message_id":"`+created.MessageID+`","token_usage":{"total_tokens":17}}`,
+					),
+				),
+			)
+			setJSON(outboundReq)
+			outboundReq.Header.Set("X-Pax-Key", registeredNode.APIKey)
+			outboundRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(outboundRec, outboundReq)
+			if outboundRec.Code != http.StatusOK {
+				t.Fatalf(
+					"outbound code = %d, body = %s",
+					outboundRec.Code,
+					outboundRec.Body.String(),
+				)
+			}
+		},
+	)
+}
+
 func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 	t.Helper()
 	now := func() time.Time { return time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC) }
@@ -596,7 +783,7 @@ func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 	tokenReq.Header.Set("X-User-Email", ownerEmail)
 	tokenRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(tokenRec, tokenReq)
-	if tokenRec.Code != http.StatusCreated {
+	if tokenRec.Code != http.StatusOK {
 		t.Fatalf("registration token code = %d, body = %s", tokenRec.Code, tokenRec.Body.String())
 	}
 	tokenResp := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
@@ -611,7 +798,7 @@ func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 	req.Header.Set("X-Registration-Token", tokenResp.Token)
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("register code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	registered := decodeData[RegisterAgentResponse](t, rec.Body.Bytes())

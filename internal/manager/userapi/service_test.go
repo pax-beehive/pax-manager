@@ -78,7 +78,7 @@ func TestCreateRegistrationToken(t *testing.T) {
 			)
 
 			require.NoError(t, err)
-			require.Equal(t, http.StatusCreated, status)
+			require.Equal(t, http.StatusOK, status)
 			resp := data.(domain.CreateRegistrationTokenResponse)
 			require.Equal(t, "reg_raw", resp.Token)
 			require.Equal(t, "usr_owner", resp.OwnerUserID)
@@ -121,7 +121,7 @@ func TestCreateUserAPIKey(t *testing.T) {
 			)
 
 			require.NoError(t, err)
-			require.Equal(t, http.StatusCreated, status)
+			require.Equal(t, http.StatusOK, status)
 			require.Equal(
 				t,
 				domain.CreateUserAPIKeyResponse{APIKey: keyMeta, Key: "paxu_1234567890"},
@@ -344,7 +344,7 @@ func TestMailbox(t *testing.T) {
 			status, data, err := svc.CreateSessionMessage(ctx, auth.RequestMetadata{}, req)
 
 			require.NoError(t, err)
-			require.Equal(t, http.StatusCreated, status)
+			require.Equal(t, http.StatusOK, status)
 			require.Equal(t, expected, data)
 		},
 	)

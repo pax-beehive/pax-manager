@@ -1,18 +1,18 @@
 # ISSUE-001 Agent-to-user outbound message endpoint missing
 
-**Status:** open  
-**Severity:** blocker  
-**Component:** api / mailbox  
-**Found:** 2026-06-13  
-**Resolved:** —
+**Status:** resolved
+**Severity:** blocker
+**Component:** api / mailbox
+**Found:** 2026-06-13
+**Resolved:** 2026-06-14
 
 ## Summary
 
-pax-manager has no endpoint for an agent to push a completed turn result (events, file changes, token usage) back to the cloud. The agent-facing API only supports `POST /api/agent/messages/:messageId/result` which accepts a status + error string — not structured turn data. This means agents cannot send responses to users through pax-manager.
+pax-manager has no endpoint for an agent to push a completed turn result (events, file changes, token usage) back to the cloud. The agent-facing API only supports `POST /api/agent/messages/:messageId/result` which accepts a status + error string - not structured turn data. This means agents cannot send responses to users through pax-manager.
 
 ## Round-trip affected
 
-- [x] User-agent messaging round-trip (agent → user direction)
+- [x] User-agent messaging round-trip (agent -> user direction)
 
 ## Current behavior
 
@@ -52,7 +52,7 @@ An endpoint that allows authenticated agents to:
 1. Mark a mailbox message as delivered (`POST .../delivered`)
 2. Push a turn result with structured events back (`POST /api/agent/messages/outbound` or similar)
 
-The result should be stored as a new mailbox row (direction: agent→user) or written into the existing message's result field.
+The result should be stored as a new mailbox row (direction: agent -> user) or written into the existing message's result field.
 
 ## Impact
 
@@ -61,13 +61,23 @@ The result should be stored as a new mailbox row (direction: agent→user) or wr
 ## Affected code
 
 ```
-internal/transport/http/router/paxmanager/api/pax_manager.go — no outbound route
-internal/transport/http/handler/handler.go:17-46 — Service interface, no outbound method
-internal/manager/paxd_facing.go — no handle method for outbound
-internal/manager/paxd/service.go — no CreateOutbound/ReportDelivery in Store interface
-internal/manager/storage/postgres_store.go — no UPSERT for outbound messages
+internal/transport/http/router/paxmanager/api/pax_manager.go - no outbound route
+internal/transport/http/handler/handler.go:17-46 - Service interface, no outbound method
+internal/manager/paxd_facing.go - no handle method for outbound
+internal/manager/paxd/service.go - no CreateOutbound/ReportDelivery in Store interface
+internal/manager/storage/postgres_store.go - no UPSERT for outbound messages
 ```
 
 ## Proposed fix
 
 Add `POST /api/agent/messages/outbound` and `POST /api/agent/messages/:messageId/delivered` to the Thrift IDL, regenerate, implement in store and service layers. Outbound creates a new mailbox message with session_id linking.
+
+## Resolution
+
+The v1 node API now exposes `POST /api/v1/node/messages/outbound` for
+agent-to-user messages and `POST /api/v1/node/messages/:message_id/result` for
+structured turn result reporting. Outbound messages are stored as mailbox rows
+scoped by user, node, agent, and session.
+
+The legacy `/api/agent/messages/outbound` HTTP route was not added. Paxd should
+migrate to the v1 node API for this behavior.

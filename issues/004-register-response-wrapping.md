@@ -1,10 +1,10 @@
 # ISSUE-004 Register response field naming mismatch
 
-**Status:** open  
-**Severity:** high  
-**Component:** api  
-**Found:** 2026-06-13  
-**Resolved:** —
+**Status:** open
+**Severity:** high
+**Component:** api
+**Found:** 2026-06-13
+**Resolved:** -
 
 ## Summary
 
@@ -21,7 +21,7 @@ pax-manager response (from `domain.RegisterAgentResponse`):
 {"agent_id": "agent_xxx", "api_key": "pax_xxx"}
 ```
 
-Wait — checking `domain/models.go:103-106`:
+Wait - checking `domain/models.go:103-106`:
 ```go
 type RegisterAgentResponse struct {
     AgentID string `json:"agent_id"`
@@ -31,7 +31,7 @@ type RegisterAgentResponse struct {
 
 The Go struct tags use `json:"agent_id"` and `json:"api_key"` which is correct snake_case.
 
-However, the response goes through `writeEndpointResult` → `writeData` → `ctx.JSON(status, apiResponse{Data: data, ...})`. The `Data` field is `any`. Hertz JSON serialization uses the struct tags. So the response should actually be:
+However, the response goes through `writeEndpointResult` -> `writeData` -> `ctx.JSON(status, apiResponse{Data: data, ...})`. The `Data` field is `any`. Hertz JSON serialization uses the struct tags. So the response should actually be:
 ```json
 {"data": {"agent_id": "...", "api_key": "..."}, "code": 201, "message": "ok"}
 ```
@@ -62,8 +62,8 @@ B. paxd client parses the envelope first, then extracts the data field
 ## Affected code
 
 ```
-pax-manager: internal/manager/paxd/service.go:98-101 — returns RegisterAgentResponse wrapped in {data,code,message}
-pax-manager: internal/manager/server.go:179-181 — writeData wraps in apiResponse
+pax-manager: internal/manager/paxd/service.go:98-101 - returns RegisterAgentResponse wrapped in {data,code,message}
+pax-manager: internal/manager/server.go:179-181 - writeData wraps in apiResponse
 ```
 
 ## Proposed fix

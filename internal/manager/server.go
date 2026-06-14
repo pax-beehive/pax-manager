@@ -100,6 +100,7 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.Use(injectService(s), s.protect())
 
 	httprouter.GeneratedRegister(h)
+	registerIDLRoutes(h)
 
 	h.GET("/openapi", OpenAPIUI)
 	h.GET("/openapi.json", OpenAPIJSON)
@@ -255,6 +256,15 @@ func agentFromContext(ctx *app.RequestContext) Agent {
 	return agent
 }
 
+func nodeFromContext(ctx *app.RequestContext) Node {
+	v, ok := ctx.Get("node")
+	if !ok {
+		return Node{}
+	}
+	node, _ := v.(Node)
+	return node
+}
+
 func injectService(s *Service) app.HandlerFunc {
 	return func(c context.Context, ctx *app.RequestContext) {
 		ctx.Set("requestContext", c)
@@ -267,6 +277,27 @@ func AgentAuth() app.HandlerFunc {
 	return func(c context.Context, ctx *app.RequestContext) {
 		serviceFromContext(ctx).AgentAuth(c, ctx)
 	}
+}
+
+func NodeAuth() app.HandlerFunc {
+	return func(c context.Context, ctx *app.RequestContext) {
+		serviceFromContext(ctx).NodeAuth(c, ctx)
+	}
+}
+
+func (s *Service) NodeAuth(c context.Context, ctx *app.RequestContext) {
+	token := paxKeyFromHertz(ctx)
+	if token == "" {
+		writeError(ctx, http.StatusUnauthorized, "missing pax key")
+		return
+	}
+	node, err := s.store.AuthenticateNode(c, s.secrets.Hash(token))
+	if err != nil {
+		writeStoreError(ctx, err)
+		return
+	}
+	ctx.Set("node", node)
+	ctx.Next(c)
 }
 
 func (s *Service) AgentAuth(c context.Context, ctx *app.RequestContext) {
