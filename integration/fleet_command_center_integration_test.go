@@ -64,15 +64,17 @@ type sessionListResponse struct {
 }
 
 type mailboxMessage struct {
-	ID          int64           `json:"id"`
-	MessageID   string          `json:"message_id"`
-	AgentID     string          `json:"agent_id"`
-	SessionID   string          `json:"session_id"`
-	Message     string          `json:"message"`
-	MessageType string          `json:"message_type"`
-	Payload     json.RawMessage `json:"payload"`
-	Status      string          `json:"status"`
-	Result      string          `json:"result"`
+	ID              int64           `json:"id"`
+	MessageID       string          `json:"message_id"`
+	AgentID         string          `json:"agent_id"`
+	SessionID       string          `json:"session_id"`
+	Message         string          `json:"message"`
+	MessageType     string          `json:"message_type"`
+	Payload         json.RawMessage `json:"payload"`
+	Status          string          `json:"status"`
+	Result          string          `json:"result"`
+	Direction       string          `json:"direction"`
+	ParentMessageID string          `json:"parent_message_id"`
 }
 
 type mailboxListResponse struct {
