@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/common/adaptor"
+	"github.com/gorilla/websocket"
 )
 
 func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
@@ -573,6 +574,62 @@ func TestWebsocketRejectsMissingAPIKey(t *testing.T) {
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("missing key code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/user/agents/", srv.handleUserACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/agent/tunnel?agent_id="+agentID,
+		agentHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer agentWS.Close()
+
+	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
+	userWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/user/agents/"+agentID+"/tunnel",
+		userHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial user tunnel: %v", err)
+	}
+	defer userWS.Close()
+
+	requestPayload := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
+	if err := userWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
+		t.Fatalf("write user request: %v", err)
+	}
+	messageType, gotRequest, err := agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent request: %v", err)
+	}
+	if messageType != websocket.TextMessage || string(gotRequest) != string(requestPayload) {
+		t.Fatalf("agent got type=%d payload=%s", messageType, gotRequest)
+	}
+
+	responsePayload := []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`)
+	if err := agentWS.WriteMessage(websocket.TextMessage, responsePayload); err != nil {
+		t.Fatalf("write agent response: %v", err)
+	}
+	messageType, gotResponse, err := userWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read user response: %v", err)
+	}
+	if messageType != websocket.TextMessage || string(gotResponse) != string(responsePayload) {
+		t.Fatalf("user got type=%d payload=%s", messageType, gotResponse)
 	}
 }
 

@@ -25,6 +25,7 @@ type Service struct {
 	store           Store
 	clock           func() time.Time
 	agentWS         *AgentWSHub
+	acpTunnels      *ACPTunnelHub
 	maxBodyBytes    int64
 	apiLimiter      *rateLimiter
 	registerLimiter *rateLimiter
@@ -44,6 +45,7 @@ func newServer(cfg Config, store Store) *Service {
 		store:        store,
 		clock:        time.Now,
 		agentWS:      NewAgentWSHub(),
+		acpTunnels:   NewACPTunnelHub(),
 		maxBodyBytes: cfg.MaxBodyBytes,
 		apiLimiter:   newRateLimiter(cfg.APIRateLimitPerMinute, cfg.APIRateLimitBurst, time.Now),
 		registerLimiter: newRateLimiter(
@@ -109,6 +111,15 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		"/api/agent/ws",
 		AgentWSAuthPreflight(),
 		adaptor.HertzHandler(http.HandlerFunc(s.handleAgentWS)),
+	)
+	h.GET(
+		"/api/agent/tunnel",
+		AgentWSAuthPreflight(),
+		adaptor.HertzHandler(http.HandlerFunc(s.handleAgentACPTunnel)),
+	)
+	h.GET(
+		"/api/user/agents/:agentID/tunnel",
+		adaptor.HertzHandler(http.HandlerFunc(s.handleUserACPTunnel)),
 	)
 
 	h.Static("/", "static")
