@@ -69,43 +69,129 @@ func (h *ACPTunnelHub) release(conn *ACPTunnelAgent) {
 }
 
 func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
-	_, _, initial, err := s.authenticateAgentWS(r)
+	log.Printf(
+		"agent acp tunnel request: path=%s query_agent_id=%q remote=%s",
+		r.URL.Path,
+		websocketAgentID(r),
+		r.RemoteAddr,
+	)
+	initial, authMode, err := s.authenticateAgentACPTunnel(r)
 	if err != nil {
+		status, message := endpointErrorStatus(err)
+		log.Printf(
+			"agent acp tunnel rejected: query_agent_id=%q status=%d reason=%s err=%v",
+			websocketAgentID(r),
+			status,
+			message,
+			err,
+		)
 		writeHTTPEndpointError(w, err)
 		return
 	}
 
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("agent acp tunnel upgrade: %v", err)
+		log.Printf(
+			"agent acp tunnel upgrade failed: agent_id=%s auth_mode=%s err=%v",
+			initial.AgentID,
+			authMode,
+			err,
+		)
 		return
 	}
 
 	conn := &ACPTunnelAgent{agentID: initial.AgentID, ws: ws}
 	s.acpTunnels.add(initial.AgentID, conn)
-	log.Printf("agent acp tunnel connected: %s", initial.AgentID)
+	log.Printf("agent acp tunnel connected: agent_id=%s auth_mode=%s", initial.AgentID, authMode)
 	defer func() {
 		s.acpTunnels.remove(initial.AgentID, conn)
 		_ = ws.Close()
-		log.Printf("agent acp tunnel disconnected: %s", initial.AgentID)
+		log.Printf("agent acp tunnel disconnected: agent_id=%s auth_mode=%s", initial.AgentID, authMode)
 	}()
 
 	<-r.Context().Done()
 }
 
+func (s *Server) authenticateAgentACPTunnel(
+	r *http.Request,
+) (agentWSInitialRequest, string, error) {
+	paxKey := websocketPaxKey(r)
+	if paxKey == "" {
+		return agentWSInitialRequest{}, "", apperr.Error{
+			Status:  http.StatusUnauthorized,
+			Message: "missing pax key",
+		}
+	}
+
+	requestAgentID := websocketAgentID(r)
+	keyHash := s.secrets.Hash(paxKey)
+	agent, agentErr := s.store.AuthenticateAgent(r.Context(), keyHash)
+	if agentErr == nil {
+		if requestAgentID != "" && requestAgentID != agent.AgentID {
+			return agentWSInitialRequest{}, "", apperr.Error{
+				Status:  http.StatusForbidden,
+				Message: "agent_id does not match pax key",
+			}
+		}
+		return agentWSInitialRequest{
+			AgentID:   agent.AgentID,
+			SessionID: websocketSessionID(r),
+		}, "agent_key", nil
+	}
+
+	node, nodeErr := s.store.AuthenticateNode(r.Context(), keyHash)
+	if nodeErr != nil {
+		log.Printf(
+			"agent acp tunnel auth failed: query_agent_id=%q key_prefix=%q agent_err=%v node_err=%v",
+			requestAgentID,
+			s.secrets.Prefix(paxKey),
+			agentErr,
+			nodeErr,
+		)
+		return agentWSInitialRequest{}, "", nodeErr
+	}
+	if requestAgentID == "" {
+		return agentWSInitialRequest{}, "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "agent_id is required for node-authenticated tunnel",
+		}
+	}
+	agent, err := s.store.GetNodeAgent(r.Context(), node.NodeID, requestAgentID)
+	if err != nil {
+		log.Printf(
+			"agent acp tunnel node auth accepted but agent not found: node_id=%s query_agent_id=%q err=%v",
+			node.NodeID,
+			requestAgentID,
+			err,
+		)
+		return agentWSInitialRequest{}, "", err
+	}
+
+	return agentWSInitialRequest{
+		AgentID:   agent.AgentID,
+		SessionID: websocketSessionID(r),
+	}, "node_key", nil
+}
+
 func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 	agentID := userTunnelAgentID(r)
+	log.Printf("user acp tunnel request: path=%s agent_id=%q remote=%s", r.URL.Path, agentID, r.RemoteAddr)
 	if agentID == "" {
+		log.Printf("user acp tunnel rejected: reason=missing_agent_id")
 		writeHTTPError(w, http.StatusBadRequest, "agent_id is required")
 		return
 	}
 	if err := s.authorizeUserTunnel(r, agentID); err != nil {
+		status, message := endpointErrorStatus(err)
+		log.Printf("user acp tunnel rejected: agent_id=%s status=%d reason=%s err=%v", agentID, status, message, err)
 		writeHTTPEndpointError(w, err)
 		return
 	}
 
 	agentConn, err := s.acpTunnels.claim(agentID)
 	if err != nil {
+		status, message := endpointErrorStatus(err)
+		log.Printf("user acp tunnel claim failed: agent_id=%s status=%d reason=%s err=%v", agentID, status, message, err)
 		writeHTTPEndpointError(w, err)
 		return
 	}
@@ -113,7 +199,7 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 
 	userWS, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("user acp tunnel upgrade: %v", err)
+		log.Printf("user acp tunnel upgrade failed: agent_id=%s err=%v", agentID, err)
 		return
 	}
 	defer userWS.Close()
@@ -156,9 +242,13 @@ func userTunnelAgentID(r *http.Request) string {
 	if agentID := r.PathValue("agentID"); agentID != "" {
 		return agentID
 	}
-	if rest, ok := strings.CutPrefix(r.URL.Path, "/api/user/agents/"); ok {
-		if agentID, suffix, ok := strings.Cut(rest, "/"); ok && suffix == "tunnel" {
-			return agentID
+	if rest, ok := strings.CutPrefix(r.URL.Path, "/api/v1/user/"); ok {
+		_, rest, ok := strings.Cut(rest, "/agents/")
+		if ok {
+			agentID, suffix, ok := strings.Cut(rest, "/")
+			if ok && suffix == "tunnel" {
+				return agentID
+			}
 		}
 	}
 	if agentID := r.URL.Query().Get("agent_id"); agentID != "" {

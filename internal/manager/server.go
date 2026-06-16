@@ -113,12 +113,11 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		adaptor.HertzHandler(http.HandlerFunc(s.handleAgentWS)),
 	)
 	h.GET(
-		"/api/agent/tunnel",
-		AgentWSAuthPreflight(),
+		"/api/v1/agent/tunnel",
 		adaptor.HertzHandler(http.HandlerFunc(s.handleAgentACPTunnel)),
 	)
 	h.GET(
-		"/api/user/agents/:agentID/tunnel",
+		"/api/v1/user/:userID/agents/:agentID/tunnel",
 		adaptor.HertzHandler(http.HandlerFunc(s.handleUserACPTunnel)),
 	)
 
@@ -344,21 +343,46 @@ func cloudflareVerifier(cfg Config) auth.UserIdentityVerifier {
 func AgentWSAuthPreflight() app.HandlerFunc {
 	return func(c context.Context, ctx *app.RequestContext) {
 		s := serviceFromContext(ctx)
+		requestAgentID := websocketAgentIDFromHertz(ctx)
+		path := string(ctx.Path())
 		token := paxKeyFromHertz(ctx)
 		if token == "" {
+			log.Printf("agent websocket auth rejected: path=%s query_agent_id=%q reason=missing_pax_key", path, requestAgentID)
 			writeError(ctx, http.StatusUnauthorized, "missing pax key")
 			return
 		}
 		agent, err := s.store.AuthenticateAgent(c, s.secrets.Hash(token))
 		if err != nil {
+			status, message := endpointErrorStatus(err)
+			log.Printf(
+				"agent websocket auth rejected: path=%s query_agent_id=%q key_prefix=%q status=%d reason=%s err=%v",
+				path,
+				requestAgentID,
+				s.secrets.Prefix(token),
+				status,
+				message,
+				err,
+			)
 			writeEndpointError(ctx, err)
 			return
 		}
-		if requestAgentID := websocketAgentIDFromHertz(ctx); requestAgentID != "" &&
-			requestAgentID != agent.AgentID {
+		if requestAgentID != "" && requestAgentID != agent.AgentID {
+			log.Printf(
+				"agent websocket auth rejected: path=%s query_agent_id=%q authenticated_agent_id=%s reason=agent_id_mismatch",
+				path,
+				requestAgentID,
+				agent.AgentID,
+			)
 			writeError(ctx, http.StatusForbidden, "agent_id does not match pax key")
 			return
 		}
+		log.Printf(
+			"agent websocket auth accepted: path=%s query_agent_id=%q authenticated_agent_id=%s key_prefix=%q",
+			path,
+			requestAgentID,
+			agent.AgentID,
+			s.secrets.Prefix(token),
+		)
 		ctx.Next(c)
 	}
 }

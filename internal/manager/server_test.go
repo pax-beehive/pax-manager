@@ -51,6 +51,12 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	if _, ok := doc.Paths["/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}"]; !ok {
 		t.Fatalf("missing /api/v1 user node agent session path")
 	}
+	if _, ok := doc.Paths["/api/v1/agent/tunnel"]; !ok {
+		t.Fatalf("missing /api/v1/agent/tunnel websocket path")
+	}
+	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/tunnel"]; !ok {
+		t.Fatalf("missing /api/v1/user/{user_id}/agents/{agent_id}/tunnel websocket path")
+	}
 	for _, removed := range []string{
 		"/api/user/sessions/{sessionId}",
 		"/api/user/sessions/{sessionId}/messages",
@@ -582,15 +588,15 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	agentID := testAgentID(t, srv, "todd@example.com")
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/agent/tunnel", srv.handleAgentACPTunnel)
-	mux.HandleFunc("/api/user/agents/", srv.handleUserACPTunnel)
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleUserACPTunnel)
 	httpServer := httptest.NewServer(mux)
 	defer httpServer.Close()
 	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
 	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
 	agentWS, _, err := websocket.DefaultDialer.Dial(
-		baseWS+"/api/agent/tunnel?agent_id="+agentID,
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID,
 		agentHeader,
 	)
 	if err != nil {
@@ -600,7 +606,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
-		baseWS+"/api/user/agents/"+agentID+"/tunnel",
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel",
 		userHeader,
 	)
 	if err != nil {
@@ -631,6 +637,72 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	if messageType != websocket.TextMessage || string(gotResponse) != string(responsePayload) {
 		t.Fatalf("user got type=%d payload=%s", messageType, gotResponse)
 	}
+}
+
+func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	userHeaders := func(req *http.Request) {
+		req.Header.Set("X-User-Email", "todd@example.com")
+		setJSON(req)
+	}
+
+	tokenReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/node-registration-tokens",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	userHeaders(tokenReq)
+	tokenRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(tokenRec, tokenReq)
+	if tokenRec.Code != http.StatusOK {
+		t.Fatalf("node token code = %d, body = %s", tokenRec.Code, tokenRec.Body.String())
+	}
+	tokenResp := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
+
+	registerReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/register",
+		bytes.NewReader([]byte(`{"name":"node-a","hostname":"node-a","os":"linux","arch":"arm64"}`)),
+	)
+	setJSON(registerReq)
+	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
+	registerRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(registerRec, registerReq)
+	if registerRec.Code != http.StatusOK {
+		t.Fatalf("node register code = %d, body = %s", registerRec.Code, registerRec.Body.String())
+	}
+	registeredNode := decodeData[RegisterNodeResponse](t, registerRec.Body.Bytes())
+
+	createAgentReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+registeredNode.NodeID+"/agents",
+		bytes.NewReader([]byte(`{"name":"hermes-a","agent_type":"hermes"}`)),
+	)
+	userHeaders(createAgentReq)
+	createAgentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createAgentRec, createAgentReq)
+	if createAgentRec.Code != http.StatusOK {
+		t.Fatalf("create node agent code = %d, body = %s", createAgentRec.Code, createAgentRec.Body.String())
+	}
+	agentResp := decodeData[struct {
+		Agent Agent `json:"agent"`
+	}](t, createAgentRec.Body.Bytes())
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentHeader := http.Header{"X-Pax-Key": []string{registeredNode.APIKey}}
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentResp.Agent.AgentID,
+		agentHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel with node key: %v", err)
+	}
+	defer agentWS.Close()
 }
 
 func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {

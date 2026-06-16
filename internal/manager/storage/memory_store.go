@@ -379,6 +379,16 @@ func (s *MemoryStore) GetNode(
 	return node, nil
 }
 
+func (s *MemoryStore) GetNodeAgent(ctx context.Context, nodeID string, agentID string) (Agent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[agentID]
+	if !ok || agent.NodeID != nodeID {
+		return Agent{}, ErrNotFound
+	}
+	return agent, nil
+}
+
 func (s *MemoryStore) ListNodeAgents(
 	ctx context.Context,
 	principal UserPrincipal,
