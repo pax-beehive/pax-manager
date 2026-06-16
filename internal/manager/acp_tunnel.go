@@ -21,10 +21,13 @@ type ACPTunnelHub struct {
 }
 
 type ACPTunnelAgent struct {
-	agentID string
-	ws      *websocket.Conn
-	mu      sync.Mutex
-	paired  bool
+	agentID      string
+	ws           *websocket.Conn
+	mu           sync.Mutex
+	agentWriteMu sync.Mutex
+	userWriteMu  sync.Mutex
+	paired       bool
+	userWS       *websocket.Conn
 }
 
 func NewACPTunnelHub() *ACPTunnelHub {
@@ -66,6 +69,60 @@ func (h *ACPTunnelHub) release(conn *ACPTunnelAgent) {
 	conn.mu.Lock()
 	defer conn.mu.Unlock()
 	conn.paired = false
+	conn.userWS = nil
+}
+
+func (a *ACPTunnelAgent) attachUser(userWS *websocket.Conn) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.userWS = userWS
+}
+
+func (a *ACPTunnelAgent) closeUser() {
+	a.mu.Lock()
+	userWS := a.userWS
+	a.userWS = nil
+	a.paired = false
+	a.mu.Unlock()
+	if userWS != nil {
+		_ = userWS.Close()
+	}
+}
+
+func (a *ACPTunnelAgent) currentUser() *websocket.Conn {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.userWS
+}
+
+func (a *ACPTunnelAgent) writeToAgent(messageType int, payload []byte) error {
+	a.agentWriteMu.Lock()
+	defer a.agentWriteMu.Unlock()
+	return a.ws.WriteMessage(messageType, payload)
+}
+
+func (a *ACPTunnelAgent) forwardAgentFrames() error {
+	for {
+		messageType, payload, err := a.ws.ReadMessage()
+		if err != nil {
+			return err
+		}
+		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
+			continue
+		}
+		userWS := a.currentUser()
+		if userWS == nil {
+			log.Printf("agent acp tunnel dropped frame without user: agent_id=%s", a.agentID)
+			continue
+		}
+		a.userWriteMu.Lock()
+		err = userWS.WriteMessage(messageType, payload)
+		a.userWriteMu.Unlock()
+		if err != nil {
+			log.Printf("agent acp tunnel failed to write user frame: agent_id=%s err=%v", a.agentID, err)
+			a.closeUser()
+		}
+	}
 }
 
 func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
@@ -105,11 +162,15 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 	log.Printf("agent acp tunnel connected: agent_id=%s auth_mode=%s", initial.AgentID, authMode)
 	defer func() {
 		s.acpTunnels.remove(initial.AgentID, conn)
+		conn.closeUser()
 		_ = ws.Close()
 		log.Printf("agent acp tunnel disconnected: agent_id=%s auth_mode=%s", initial.AgentID, authMode)
 	}()
 
-	<-r.Context().Done()
+	err = conn.forwardAgentFrames()
+	if err != nil && !isWebSocketCloseError(err) {
+		log.Printf("agent acp tunnel read ended: agent_id=%s auth_mode=%s err=%v", initial.AgentID, authMode, err)
+	}
 }
 
 func (s *Server) authenticateAgentACPTunnel(
@@ -202,20 +263,17 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 		log.Printf("user acp tunnel upgrade failed: agent_id=%s err=%v", agentID, err)
 		return
 	}
-	defer userWS.Close()
+	agentConn.attachUser(userWS)
+	defer func() {
+		agentConn.closeUser()
+	}()
 
 	log.Printf("user acp tunnel connected: %s", agentID)
 	defer log.Printf("user acp tunnel disconnected: %s", agentID)
 
-	errCh := make(chan error, 2)
-	go func() { errCh <- relayWebSocketFrames(userWS, agentConn.ws) }()
-	go func() { errCh <- relayWebSocketFrames(agentConn.ws, userWS) }()
-
-	err = <-errCh
-	_ = userWS.Close()
-	_ = agentConn.ws.Close()
+	err = relayUserFramesToAgent(userWS, agentConn)
 	if err != nil && !isWebSocketCloseError(err) {
-		log.Printf("acp tunnel relay ended: %v", err)
+		log.Printf("user acp tunnel relay ended: agent_id=%s err=%v", agentID, err)
 	}
 }
 
@@ -257,16 +315,16 @@ func userTunnelAgentID(r *http.Request) string {
 	return r.URL.Query().Get("agentId")
 }
 
-func relayWebSocketFrames(src *websocket.Conn, dst *websocket.Conn) error {
+func relayUserFramesToAgent(userWS *websocket.Conn, agentConn *ACPTunnelAgent) error {
 	for {
-		messageType, payload, err := src.ReadMessage()
+		messageType, payload, err := userWS.ReadMessage()
 		if err != nil {
 			return err
 		}
 		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
 			continue
 		}
-		if err := dst.WriteMessage(messageType, payload); err != nil {
+		if err := agentConn.writeToAgent(messageType, payload); err != nil {
 			return err
 		}
 	}

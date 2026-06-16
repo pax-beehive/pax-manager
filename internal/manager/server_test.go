@@ -639,6 +639,81 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	}
 }
 
+func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleUserACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID,
+		agentHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer agentWS.Close()
+
+	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
+	userWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel",
+		userHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial first user tunnel: %v", err)
+	}
+
+	firstPayload := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`)
+	if err := userWS.WriteMessage(websocket.TextMessage, firstPayload); err != nil {
+		t.Fatalf("write first user request: %v", err)
+	}
+	_, gotRequest, err := agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read first agent request: %v", err)
+	}
+	if string(gotRequest) != string(firstPayload) {
+		t.Fatalf("first agent payload = %s", gotRequest)
+	}
+	if err := userWS.Close(); err != nil {
+		t.Fatalf("close first user tunnel: %v", err)
+	}
+
+	var secondUserWS *websocket.Conn
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		secondUserWS, _, err = websocket.DefaultDialer.Dial(
+			baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel",
+			userHeader,
+		)
+		if err == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("dial second user tunnel: %v", err)
+	}
+	defer secondUserWS.Close()
+
+	secondPayload := []byte(`{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/tmp"}}`)
+	if err := secondUserWS.WriteMessage(websocket.TextMessage, secondPayload); err != nil {
+		t.Fatalf("write second user request: %v", err)
+	}
+	_, gotRequest, err = agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read second agent request: %v", err)
+	}
+	if string(gotRequest) != string(secondPayload) {
+		t.Fatalf("second agent payload = %s", gotRequest)
+	}
+}
+
 func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	userHeaders := func(req *http.Request) {
