@@ -90,6 +90,7 @@ func (p serviceAdminPolicy) RoleForEmail(email string) string {
 
 func (s *Service) engine(addr string) *hertzserver.Hertz {
 	h := hertzserver.Default(hertzserver.WithHostPorts(addr))
+	h.NoHijackConnPool = true
 	s.registerRoutes(h)
 	return h
 }
