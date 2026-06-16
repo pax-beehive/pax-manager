@@ -43,6 +43,7 @@ type Store interface {
 	UpsertNodeStatus(ctx context.Context, node Node, report NodeStatusReport) error
 	ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error)
 	GetNode(ctx context.Context, principal UserPrincipal, nodeID string) (Node, error)
+	GetNodeAgent(ctx context.Context, nodeID string, agentID string) (Agent, error)
 	ListNodeAgents(ctx context.Context, principal UserPrincipal, nodeID string) ([]Agent, error)
 	CreateNodeAgent(
 		ctx context.Context,

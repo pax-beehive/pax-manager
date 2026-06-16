@@ -485,6 +485,17 @@ func (s *PostgresStore) GetNode(
 	return scanNode(s.db.QueryRowContext(ctx, query, args...))
 }
 
+func (s *PostgresStore) GetNodeAgent(ctx context.Context, nodeID string, agentID string) (Agent, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type,
+			machine_type, os, hermes_version, api_endpoint, computed_status(last_heartbeat),
+			last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+		FROM agents
+		WHERE node_id = $1 AND agent_id = $2
+	`, nodeID, agentID)
+	return scanAgent(row)
+}
+
 func (s *PostgresStore) ListNodeAgents(
 	ctx context.Context,
 	principal UserPrincipal,
