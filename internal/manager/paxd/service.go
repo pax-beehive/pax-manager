@@ -18,6 +18,7 @@ type Store interface {
 		req domain.RegisterAgentRequest,
 		apiKeyHash string,
 	) (domain.Agent, error)
+	AuthenticateNode(ctx context.Context, apiKeyHash string) (domain.Node, error)
 	UpsertAgentStatus(ctx context.Context, report domain.AgentStatusReport) error
 	PullMailbox(
 		ctx context.Context,
@@ -39,6 +40,11 @@ type Store interface {
 		req domain.RegisterNodeRequest,
 		apiKeyHash string,
 	) (domain.Node, error)
+	CreateNodeAgent(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.CreateAgentRequest,
+	) (domain.Agent, domain.MailboxMessage, error)
 	UpsertNodeStatus(ctx context.Context, node domain.Node, report domain.NodeStatusReport) error
 	PullNodeMailbox(
 		ctx context.Context,
@@ -163,6 +169,77 @@ func (s *Service) RegisterNode(
 	return http.StatusOK, domain.RegisterNodeResponse{NodeID: node.NodeID, APIKey: apiKey}, nil
 }
 
+func (s *Service) RegisterNodeAgent(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.RegisterNodeAgentRequest,
+) (int, any, error) {
+	paxKey := firstNonEmpty(
+		meta.Header("X-Pax-Key"),
+		auth.BearerToken(meta.Header("Authorization")),
+	)
+	registrationToken := meta.Header("X-Registration-Token")
+	if paxKey != "" && registrationToken != "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "provide either X-Pax-Key or X-Registration-Token, not both",
+		}
+	}
+
+	var node domain.Node
+	apiKey := ""
+	if paxKey != "" {
+		var err error
+		node, err = s.store.AuthenticateNode(c, s.secrets.Hash(paxKey))
+		if err != nil {
+			return 0, nil, err
+		}
+	} else {
+		if registrationToken == "" {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusUnauthorized,
+				Message: "missing pax key or registration token",
+			}
+		}
+		if req.Node.Hostname == "" {
+			return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "node.hostname is required"}
+		}
+		if req.Node.OS == "" {
+			req.Node.OS = "unknown"
+		}
+		owner, err := s.registrationOwner.RegistrationOwner(c, meta)
+		if err != nil {
+			return 0, nil, err
+		}
+		apiKey, err = s.secrets.New("pax")
+		if err != nil {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusInternalServerError,
+				Message: "could not generate api key",
+			}
+		}
+		node, err = s.store.RegisterNode(c, owner, req.Node, s.secrets.Hash(apiKey))
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+
+	agentReq := req.Agent
+	agentReq.NodeID = node.NodeID
+	principal := domain.UserPrincipal{User: domain.User{UserID: node.OwnerUserID}}
+	agent, _, err := s.store.CreateNodeAgent(c, principal, agentReq)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return http.StatusOK, domain.RegisterNodeAgentResponse{
+		NodeID:  node.NodeID,
+		APIKey:  apiKey,
+		AgentID: agent.AgentID,
+		Agent:   agent,
+	}, nil
+}
+
 func (s *Service) ReportStatus(
 	c context.Context,
 	agent domain.Agent,
@@ -185,6 +262,15 @@ func (s *Service) ReportStatus(
 		return 0, nil, err
 	}
 	return http.StatusOK, map[string]bool{"ok": true}, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (s *Service) ReportNodeStatus(

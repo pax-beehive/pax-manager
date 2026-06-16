@@ -140,6 +140,18 @@ type RegisterNodeResponse struct {
 	APIKey string `json:"api_key"`
 }
 
+type RegisterNodeAgentRequest struct {
+	Node  RegisterNodeRequest `json:"node"`
+	Agent CreateAgentRequest  `json:"agent"`
+}
+
+type RegisterNodeAgentResponse struct {
+	NodeID  string `json:"node_id"`
+	APIKey  string `json:"api_key,omitempty"`
+	AgentID string `json:"agent_id"`
+	Agent   Agent  `json:"agent"`
+}
+
 type RegisterAgentRequest struct {
 	Name          string          `json:"name"`
 	AgentType     string          `json:"agent_type"`

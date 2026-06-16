@@ -22,6 +22,69 @@ func (_m *MockStore) EXPECT() *MockStore_Expecter {
 	return &MockStore_Expecter{mock: &_m.Mock}
 }
 
+// AuthenticateNode provides a mock function with given fields: ctx, apiKeyHash
+func (_m *MockStore) AuthenticateNode(ctx context.Context, apiKeyHash string) (domain.Node, error) {
+	ret := _m.Called(ctx, apiKeyHash)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AuthenticateNode")
+	}
+
+	var r0 domain.Node
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (domain.Node, error)); ok {
+		return rf(ctx, apiKeyHash)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) domain.Node); ok {
+		r0 = rf(ctx, apiKeyHash)
+	} else {
+		r0 = ret.Get(0).(domain.Node)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, apiKeyHash)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CreateNodeAgent provides a mock function with given fields: ctx, principal, req
+func (_m *MockStore) CreateNodeAgent(ctx context.Context, principal domain.UserPrincipal, req domain.CreateAgentRequest) (domain.Agent, domain.MailboxMessage, error) {
+	ret := _m.Called(ctx, principal, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateNodeAgent")
+	}
+
+	var r0 domain.Agent
+	var r1 domain.MailboxMessage
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.CreateAgentRequest) (domain.Agent, domain.MailboxMessage, error)); ok {
+		return rf(ctx, principal, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.CreateAgentRequest) domain.Agent); ok {
+		r0 = rf(ctx, principal, req)
+	} else {
+		r0 = ret.Get(0).(domain.Agent)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.CreateAgentRequest) domain.MailboxMessage); ok {
+		r1 = rf(ctx, principal, req)
+	} else {
+		r1 = ret.Get(1).(domain.MailboxMessage)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, domain.UserPrincipal, domain.CreateAgentRequest) error); ok {
+		r2 = rf(ctx, principal, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // CreateNodeOutboundMessage provides a mock function with given fields: ctx, node, req
 func (_m *MockStore) CreateNodeOutboundMessage(ctx context.Context, node domain.Node, req domain.CreateOutboundMessageRequest) (domain.MailboxMessage, error) {
 	ret := _m.Called(ctx, node, req)

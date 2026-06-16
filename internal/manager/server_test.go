@@ -54,6 +54,9 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	if _, ok := doc.Paths["/api/v1/agent/tunnel"]; !ok {
 		t.Fatalf("missing /api/v1/agent/tunnel websocket path")
 	}
+	if _, ok := doc.Paths["/api/v1/node/agents/register"]; !ok {
+		t.Fatalf("missing /api/v1/node/agents/register path")
+	}
 	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/tunnel"]; !ok {
 		t.Fatalf("missing /api/v1/user/{user_id}/agents/{agent_id}/tunnel websocket path")
 	}
@@ -778,6 +781,104 @@ func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
 		t.Fatalf("dial agent tunnel with node key: %v", err)
 	}
 	defer agentWS.Close()
+}
+
+func TestRegisterNodeAgentWithRegistrationTokenCreatesNodeAndAgent(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	tokenReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/node-registration-tokens",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	tokenReq.Header.Set("X-User-Email", "todd@example.com")
+	setJSON(tokenReq)
+	tokenRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(tokenRec, tokenReq)
+	if tokenRec.Code != http.StatusOK {
+		t.Fatalf("node token code = %d, body = %s", tokenRec.Code, tokenRec.Body.String())
+	}
+	tokenResp := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/agents/register",
+		bytes.NewReader([]byte(`{
+			"node":{"name":"node-a","hostname":"node-a","machine_type":"linux_box","os":"linux","arch":"arm64"},
+			"agent":{"name":"codex-main","agent_type":"codex"}
+		}`)),
+	)
+	setJSON(req)
+	req.Header.Set("X-Registration-Token", tokenResp.Token)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("register node agent code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := decodeData[RegisterNodeAgentResponse](t, rec.Body.Bytes())
+	if got.NodeID == "" || got.APIKey == "" || got.AgentID == "" {
+		t.Fatalf("bad register node agent response: %+v", got)
+	}
+	if got.Agent.NodeID != got.NodeID || got.Agent.AgentID != got.AgentID {
+		t.Fatalf("agent not attached to node: %+v", got)
+	}
+}
+
+func TestRegisterNodeAgentWithNodeKeyAddsAgentWithoutReturningKey(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	userHeaders := func(req *http.Request) {
+		req.Header.Set("X-User-Email", "todd@example.com")
+		setJSON(req)
+	}
+
+	tokenReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/node-registration-tokens",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	userHeaders(tokenReq)
+	tokenRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(tokenRec, tokenReq)
+	if tokenRec.Code != http.StatusOK {
+		t.Fatalf("node token code = %d, body = %s", tokenRec.Code, tokenRec.Body.String())
+	}
+	tokenResp := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
+
+	registerReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/register",
+		bytes.NewReader([]byte(`{"name":"node-b","hostname":"node-b","os":"linux","arch":"amd64"}`)),
+	)
+	setJSON(registerReq)
+	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
+	registerRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(registerRec, registerReq)
+	if registerRec.Code != http.StatusOK {
+		t.Fatalf("node register code = %d, body = %s", registerRec.Code, registerRec.Body.String())
+	}
+	registeredNode := decodeData[RegisterNodeResponse](t, registerRec.Body.Bytes())
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/agents/register",
+		bytes.NewReader([]byte(`{"agent":{"name":"claude-main","agent_type":"claude-code"}}`)),
+	)
+	setJSON(req)
+	req.Header.Set("X-Pax-Key", registeredNode.APIKey)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("register node agent code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := decodeData[RegisterNodeAgentResponse](t, rec.Body.Bytes())
+	if got.NodeID != registeredNode.NodeID || got.AgentID == "" {
+		t.Fatalf("bad register node agent response: %+v", got)
+	}
+	if got.APIKey != "" {
+		t.Fatalf("node key should not be echoed for X-Pax-Key auth: %+v", got)
+	}
+	if got.Agent.NodeID != registeredNode.NodeID || got.Agent.AgentType != "claude-code" {
+		t.Fatalf("agent not attached to node: %+v", got)
+	}
 }
 
 func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {
