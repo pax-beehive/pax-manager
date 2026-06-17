@@ -117,6 +117,90 @@ type MailboxMessage struct {
 	TokenUsage      TokenUsage      `json:"token_usage,omitempty"`
 }
 
+const (
+	MessageSourceMailbox   = "mailbox"
+	MessageSourceACPTunnel = "acp_tunnel"
+
+	MessageDirectionUserToAgent = "user_to_agent"
+	MessageDirectionAgentToUser = "agent_to_user"
+
+	MessagePartText     = "text"
+	MessagePartRawJSON  = "raw_json"
+	MessagePartArtifact = "artifact"
+)
+
+// Message is durable business history. Unlike TransportFrame, it is intended
+// for user-visible replay and can aggregate many transport frames into one row.
+type Message struct {
+	ID              int64           `json:"id"`
+	MessageID       string          `json:"message_id"`
+	OwnerUserID     string          `json:"owner_user_id,omitempty"`
+	NodeID          string          `json:"node_id,omitempty"`
+	AgentID         string          `json:"agent_id"`
+	SessionID       string          `json:"session_id,omitempty"`
+	Source          string          `json:"source"`
+	Direction       string          `json:"direction"`
+	Role            string          `json:"role,omitempty"`
+	Status          string          `json:"status,omitempty"`
+	MessageType     string          `json:"message_type,omitempty"`
+	ParentMessageID string          `json:"parent_message_id,omitempty"`
+	TurnID          string          `json:"turn_id,omitempty"`
+	ResponseID      string          `json:"response_id,omitempty"`
+	LogicalKey      string          `json:"logical_key,omitempty"`
+	RawJSON         json.RawMessage `json:"raw_json,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+}
+
+// MessagePart stores message content or artifacts. Streaming text deltas append
+// to an existing text part instead of creating one row per token.
+type MessagePart struct {
+	ID          int64           `json:"id"`
+	MessageID   string          `json:"message_id"`
+	PartIndex   int             `json:"part_index"`
+	PartType    string          `json:"part_type"`
+	Text        string          `json:"text,omitempty"`
+	PayloadJSON json.RawMessage `json:"payload_json,omitempty"`
+	ArtifactURI string          `json:"artifact_uri,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
+const (
+	TransportStreamManagerToPaxd = "manager_to_paxd"
+	TransportStreamPaxdToManager = "paxd_to_manager"
+
+	TransportDirectionInbound  = "inbound"
+	TransportDirectionOutbound = "outbound"
+
+	TransportStatusPending  = "pending"
+	TransportStatusSent     = "sent"
+	TransportStatusAcked    = "acked"
+	TransportStatusReceived = "received"
+	TransportStatusApplied  = "applied"
+	TransportStatusFailed   = "failed"
+)
+
+// TransportFrame is one durable frame in the manager<->paxd reliable transport
+// journal. PayloadJSON is the raw ACP JSON-RPC payload, not the tunnel envelope.
+type TransportFrame struct {
+	ID             int64           `json:"id"`
+	AgentID        string          `json:"agent_id"`
+	Stream         string          `json:"stream"`
+	Seq            int64           `json:"seq"`
+	LocalDirection string          `json:"local_direction"`
+	PayloadJSON    json.RawMessage `json:"payload_json"`
+	Status         string          `json:"status"`
+	Error          string          `json:"error,omitempty"`
+	RetryCount     int             `json:"retry_count"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	SentAt         *time.Time      `json:"sent_at,omitempty"`
+	ReceivedAt     *time.Time      `json:"received_at,omitempty"`
+	AckedAt        *time.Time      `json:"acked_at,omitempty"`
+	AppliedAt      *time.Time      `json:"applied_at,omitempty"`
+}
+
 type FileChange struct {
 	Path       string `json:"path"`
 	Tool       string `json:"tool"`

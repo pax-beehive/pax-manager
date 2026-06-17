@@ -743,7 +743,14 @@ func (s *PostgresStore) CreateMailboxMessage(
 		VALUES ($1,$2,$3,NULLIF($4,''),$5,NULLIF($6,''),$7,$8,$9,'pending','user_to_node',$10,$11)
 		RETURNING `+mailboxReturningSQL+`
 	`, messageID, principal.User.UserID, ownerUserID, req.NodeID, req.AgentID, req.SessionID, req.Message, messageType, payload, now, expiresAt(now, messageType))
-	return scanMailbox(row)
+	msg, err := scanMailbox(row)
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	if err := s.saveMailboxHistory(ctx, msg); err != nil {
+		return MailboxMessage{}, err
+	}
+	return msg, nil
 }
 
 func (s *PostgresStore) ListMailbox(
@@ -1115,7 +1122,14 @@ func (s *PostgresStore) CreateNodeOutboundMessage(
 	if err != nil {
 		return MailboxMessage{}, err
 	}
-	return scanMailbox(s.db.QueryRowContext(ctx, mailboxSelectSQL+` WHERE id = $1`, msg.ID))
+	msg, err = scanMailbox(s.db.QueryRowContext(ctx, mailboxSelectSQL+` WHERE id = $1`, msg.ID))
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	if err := s.saveMailboxHistory(ctx, msg); err != nil {
+		return MailboxMessage{}, err
+	}
+	return msg, nil
 }
 
 func (s *PostgresStore) UpdateOffset(ctx context.Context, agentID string, offset int64) error {
@@ -1284,7 +1298,14 @@ func (s *PostgresStore) insertMailbox(
 		RETURNING `+mailboxReturningSQL+`
 	`, messageID, userID, ownerUserID, nodeID, agentID, sessionID, message, messageType, payload,
 		status, direction, createdAt, expiresAt(createdAt, messageType))
-	return scanMailbox(row)
+	msg, err := scanMailbox(row)
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	if err := s.saveMailboxHistory(ctx, msg); err != nil {
+		return MailboxMessage{}, err
+	}
+	return msg, nil
 }
 
 func jsonOrNil(v any) any {

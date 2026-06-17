@@ -36,6 +36,9 @@ type CreateAgentRequest = domain.CreateAgentRequest
 type CreateSessionRequest = domain.CreateSessionRequest
 type MailboxPull = domain.MailboxPull
 type MailboxFilter = domain.MailboxFilter
+type Message = domain.Message
+type MessagePart = domain.MessagePart
+type TransportFrame = domain.TransportFrame
 
 func newSecret(prefix string) (string, error) {
 	return auth.NewSecret(prefix)

@@ -118,6 +118,14 @@ Reset the local Postgres volume and rerun `db/init.sql`:
 make db-reset
 ```
 
+Start an isolated manager + Postgres + paxd integration stack:
+
+```bash
+make paxd-integration-up
+make paxd-integration-logs
+make paxd-integration-down
+```
+
 ## Cloud Build
 
 `cloudbuild.yaml` builds the main Dockerfile, pushes the image to Artifact

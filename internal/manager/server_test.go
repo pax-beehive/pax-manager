@@ -12,6 +12,8 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/common/adaptor"
 	"github.com/gorilla/websocket"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
@@ -625,13 +627,61 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read agent request: %v", err)
 	}
-	if messageType != websocket.TextMessage || string(gotRequest) != string(requestPayload) {
+	requestEnv := decodeACPTunnelEnvelope(t, gotRequest)
+	if messageType != websocket.TextMessage ||
+		requestEnv.Type != acpTunnelTypeData ||
+		requestEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		requestEnv.Seq != 1 ||
+		string(requestEnv.Payload) != string(requestPayload) {
 		t.Fatalf("agent got type=%d payload=%s", messageType, gotRequest)
 	}
+	waitTransportStatus(
+		t,
+		srv,
+		agentID,
+		domain.TransportStreamManagerToPaxd,
+		1,
+		domain.TransportDirectionOutbound,
+		domain.TransportStatusSent,
+	)
+	requestAck := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
+		Type:   acpTunnelTypeAck,
+		Stream: acpTunnelStreamManagerToPaxd,
+		Seq:    1,
+	})
+	if err := agentWS.WriteMessage(websocket.TextMessage, requestAck); err != nil {
+		t.Fatalf("write agent request ack: %v", err)
+	}
+	waitTransportStatus(
+		t,
+		srv,
+		agentID,
+		domain.TransportStreamManagerToPaxd,
+		1,
+		domain.TransportDirectionOutbound,
+		domain.TransportStatusAcked,
+	)
 
 	responsePayload := []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`)
-	if err := agentWS.WriteMessage(websocket.TextMessage, responsePayload); err != nil {
+	responseEnv := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
+		Type:    acpTunnelTypeData,
+		Stream:  acpTunnelStreamPaxdToManager,
+		Seq:     1,
+		Payload: json.RawMessage(responsePayload),
+	})
+	if err := agentWS.WriteMessage(websocket.TextMessage, responseEnv); err != nil {
 		t.Fatalf("write agent response: %v", err)
+	}
+	messageType, gotAck, err := agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent response ack: %v", err)
+	}
+	responseAck := decodeACPTunnelEnvelope(t, gotAck)
+	if messageType != websocket.TextMessage ||
+		responseAck.Type != acpTunnelTypeAck ||
+		responseAck.Stream != acpTunnelStreamPaxdToManager ||
+		responseAck.Seq != 1 {
+		t.Fatalf("agent got ack type=%d payload=%s", messageType, gotAck)
 	}
 	messageType, gotResponse, err := userWS.ReadMessage()
 	if err != nil {
@@ -640,6 +690,109 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	if messageType != websocket.TextMessage || string(gotResponse) != string(responsePayload) {
 		t.Fatalf("user got type=%d payload=%s", messageType, gotResponse)
 	}
+	waitTransportStatus(
+		t,
+		srv,
+		agentID,
+		domain.TransportStreamPaxdToManager,
+		1,
+		domain.TransportDirectionInbound,
+		domain.TransportStatusApplied,
+	)
+}
+
+func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleUserACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID,
+		agentHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial first agent tunnel: %v", err)
+	}
+
+	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
+	userWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel",
+		userHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial user tunnel: %v", err)
+	}
+	defer userWS.Close()
+
+	requestPayload := []byte(`{"jsonrpc":"2.0","id":7,"method":"session/new","params":{"cwd":"/tmp"}}`)
+	if err := userWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
+		t.Fatalf("write user request: %v", err)
+	}
+	_, gotRequest, err := agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read first agent request: %v", err)
+	}
+	firstEnv := decodeACPTunnelEnvelope(t, gotRequest)
+	if firstEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		firstEnv.Seq != 1 ||
+		string(firstEnv.Payload) != string(requestPayload) {
+		t.Fatalf("first agent payload = %s", gotRequest)
+	}
+	if err := agentWS.Close(); err != nil {
+		t.Fatalf("close first agent tunnel: %v", err)
+	}
+
+	var secondAgentWS *websocket.Conn
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		secondAgentWS, _, err = websocket.DefaultDialer.Dial(
+			baseWS+"/api/v1/agent/tunnel?agent_id="+agentID,
+			agentHeader,
+		)
+		if err == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("dial second agent tunnel: %v", err)
+	}
+	defer secondAgentWS.Close()
+
+	_, replayed, err := secondAgentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read replayed request: %v", err)
+	}
+	replayEnv := decodeACPTunnelEnvelope(t, replayed)
+	if replayEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		replayEnv.Seq != 1 ||
+		string(replayEnv.Payload) != string(requestPayload) {
+		t.Fatalf("replayed agent payload = %s", replayed)
+	}
+	replayAck := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
+		Type:   acpTunnelTypeAck,
+		Stream: acpTunnelStreamManagerToPaxd,
+		Seq:    replayEnv.Seq,
+	})
+	if err := secondAgentWS.WriteMessage(websocket.TextMessage, replayAck); err != nil {
+		t.Fatalf("write replay ack: %v", err)
+	}
+	waitTransportStatus(
+		t,
+		srv,
+		agentID,
+		domain.TransportStreamManagerToPaxd,
+		replayEnv.Seq,
+		domain.TransportDirectionOutbound,
+		domain.TransportStatusAcked,
+	)
 }
 
 func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
@@ -680,7 +833,10 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read first agent request: %v", err)
 	}
-	if string(gotRequest) != string(firstPayload) {
+	firstEnv := decodeACPTunnelEnvelope(t, gotRequest)
+	if firstEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		firstEnv.Seq != 1 ||
+		string(firstEnv.Payload) != string(firstPayload) {
 		t.Fatalf("first agent payload = %s", gotRequest)
 	}
 	if err := userWS.Close(); err != nil {
@@ -712,9 +868,64 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read second agent request: %v", err)
 	}
-	if string(gotRequest) != string(secondPayload) {
+	secondEnv := decodeACPTunnelEnvelope(t, gotRequest)
+	if secondEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		secondEnv.Seq != 2 ||
+		string(secondEnv.Payload) != string(secondPayload) {
 		t.Fatalf("second agent payload = %s", gotRequest)
 	}
+}
+
+func decodeACPTunnelEnvelope(t *testing.T, data []byte) acpTunnelEnvelope {
+	t.Helper()
+	var env acpTunnelEnvelope
+	if err := json.Unmarshal(data, &env); err != nil {
+		t.Fatalf("decode acp tunnel envelope %s: %v", data, err)
+	}
+	return env
+}
+
+func mustMarshalACPTunnelEnvelope(t *testing.T, env acpTunnelEnvelope) []byte {
+	t.Helper()
+	data, err := json.Marshal(env)
+	if err != nil {
+		t.Fatalf("marshal acp tunnel envelope: %v", err)
+	}
+	return data
+}
+
+func waitTransportStatus(
+	t *testing.T,
+	srv *Server,
+	agentID string,
+	stream string,
+	seq int64,
+	direction string,
+	status string,
+) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	var got string
+	for time.Now().Before(deadline) {
+		frame, err := srv.store.GetTransportFrame(
+			t.Context(),
+			agentID,
+			stream,
+			seq,
+			direction,
+		)
+		if err != nil {
+			t.Fatalf("get transport frame: %v", err)
+		}
+		if frame != nil {
+			got = frame.Status
+			if got == status {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("transport status = %q, want %q", got, status)
 }
 
 func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {

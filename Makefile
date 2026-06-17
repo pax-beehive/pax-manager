@@ -29,6 +29,9 @@ help:
 	@printf "  make test-race      Run Go tests with race detector\n"
 	@printf "  make integration-test Start Docker Compose and run integration tests\n"
 	@printf "  make integration-down Stop the integration Docker Compose stack\n"
+	@printf "  make paxd-integration-up Start manager + postgres + paxd integration stack\n"
+	@printf "  make paxd-integration-down Stop the paxd integration Docker Compose stack\n"
+	@printf "  make paxd-integration-logs Tail the paxd integration stack logs\n"
 	@printf "  make lint           Run golangci-lint\n"
 	@printf "  make fmt-check      Check gofmt, goimports, and golines formatting\n"
 	@printf "  make generate       Generate derived source files\n"
@@ -77,6 +80,18 @@ integration-test:
 .PHONY: integration-down
 integration-down:
 	INTEGRATION_PORT=$(INTEGRATION_PORT) docker compose -f docker-compose.integration.yml -p pax-manager-integration down -v --remove-orphans
+
+.PHONY: paxd-integration-up
+paxd-integration-up:
+	INTEGRATION_PORT=$(INTEGRATION_PORT) docker compose -f docker-compose.paxd-integration.yml -p pax-manager-paxd-integration up --build -d postgres manager paxd
+
+.PHONY: paxd-integration-down
+paxd-integration-down:
+	INTEGRATION_PORT=$(INTEGRATION_PORT) docker compose -f docker-compose.paxd-integration.yml -p pax-manager-paxd-integration down -v --remove-orphans
+
+.PHONY: paxd-integration-logs
+paxd-integration-logs:
+	INTEGRATION_PORT=$(INTEGRATION_PORT) docker compose -f docker-compose.paxd-integration.yml -p pax-manager-paxd-integration logs -f
 
 .PHONY: lint
 lint:

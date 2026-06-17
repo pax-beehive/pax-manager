@@ -24,6 +24,13 @@ type MemoryStore struct {
 	sessions         map[string]AgentSession
 	mailbox          map[int64]MailboxMessage
 	offsets          map[string]int64
+	nextTransportID  int64
+	transportJournal map[transportFrameKey]TransportFrame
+	nextMessageID    int64
+	nextPartID       int64
+	messages         map[string]Message
+	messageLogical   map[string]string
+	messageParts     map[messagePartKey]MessagePart
 }
 
 func NewMemoryStore(now func() time.Time) *MemoryStore {
@@ -41,7 +48,23 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		sessions:         make(map[string]AgentSession),
 		mailbox:          make(map[int64]MailboxMessage),
 		offsets:          make(map[string]int64),
+		transportJournal: make(map[transportFrameKey]TransportFrame),
+		messages:         make(map[string]Message),
+		messageLogical:   make(map[string]string),
+		messageParts:     make(map[messagePartKey]MessagePart),
 	}
+}
+
+type transportFrameKey struct {
+	AgentID        string
+	Stream         string
+	Seq            int64
+	LocalDirection string
+}
+
+type messagePartKey struct {
+	MessageID string
+	Index     int
 }
 
 type registrationToken struct {
@@ -663,6 +686,9 @@ func (s *MemoryStore) CreateMailboxMessage(
 		ExpiresAt:   expiresAt(now, messageType),
 	}
 	s.mailbox[msg.ID] = msg
+	if err := s.saveMailboxHistoryLocked(msg); err != nil {
+		return MailboxMessage{}, err
+	}
 	return msg, nil
 }
 
@@ -935,6 +961,9 @@ func (s *MemoryStore) CreateNodeOutboundMessage(
 	msg.FileChanges = append([]FileChange(nil), req.FileChanges...)
 	msg.TokenUsage = req.TokenUsage
 	s.mailbox[msg.ID] = msg
+	if err := s.saveMailboxHistoryLocked(msg); err != nil {
+		return MailboxMessage{}, err
+	}
 	return msg, nil
 }
 
@@ -1104,6 +1133,9 @@ func (s *MemoryStore) createMailboxLocked(
 		ExpiresAt:   expiresAt(createdAt, messageType),
 	}
 	s.mailbox[msg.ID] = msg
+	if err := s.saveMailboxHistoryLocked(msg); err != nil {
+		return MailboxMessage{}, err
+	}
 	return msg, nil
 }
 
