@@ -9,7 +9,7 @@ substitutions:
   _CLOUDFLARE_ACCESS_AUD: "1a59397a05310415570607d5dbfa973e1bcfb74a7a4617c9bc859112cfa0efca"
   _CLOUDFLARE_ACCESS_JWKS_URL: "https://billowing-dream-9314.cloudflareaccess.com/cdn-cgi/access/certs"
   _MAX_INSTANCES: "5"
-  _TIMEOUT: "30s"
+  _TIMEOUT: "300s"
 
 steps:
   - id: build
