@@ -8,14 +8,11 @@ import (
 func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/health", Health)
 	h.POST("/api/v1/node/register", RegisterNode)
+	h.POST("/api/v1/node/agents/register", RegisterNodeAgent)
 	h.POST("/api/v1/node/status", NodeAuth(), ReportNodeStatus)
 	h.GET("/api/v1/node/mailbox", NodeAuth(), PullNodeMailbox)
 	h.GET("/api/v1/node/agents/:agent_id/mailbox", NodeAuth(), PullNodeAgentMailbox)
-	h.GET(
-		"/api/v1/node/agents/:agent_id/sessions/:session_id/mailbox",
-		NodeAuth(),
-		PullNodeAgentSessionMailbox,
-	)
+	h.GET("/api/v1/node/agents/:agent_id/sessions/:session_id/mailbox", NodeAuth(), PullNodeAgentSessionMailbox)
 	h.POST("/api/v1/node/messages/offset", NodeAuth(), UpdateNodeMailboxOffset)
 	h.POST("/api/v1/node/messages/:message_id/result", NodeAuth(), ReportNodeMessageResult)
 	h.POST("/api/v1/node/messages/:message_id/delivered", NodeAuth(), MarkNodeMessageDelivered)
@@ -30,18 +27,9 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/messages", CreateNodeAgentMessage)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions", ListNodeAgentSessions)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions", CreateNodeAgentSession)
-	h.GET(
-		"/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id",
-		GetNodeAgentSession,
-	)
-	h.GET(
-		"/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages",
-		ListNodeAgentSessionMessages,
-	)
-	h.POST(
-		"/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages",
-		CreateNodeAgentSessionMessage,
-	)
+	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id", GetNodeAgentSession)
+	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages", ListNodeAgentSessionMessages)
+	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages", CreateNodeAgentSessionMessage)
 	h.GET("/api/v1/user/:user_id/api-keys", ListUserAPIKeys)
 	h.POST("/api/v1/user/:user_id/api-keys", CreateUserAPIKey)
 	h.DELETE("/api/v1/user/:user_id/api-keys/:key_id", RevokeUserAPIKey)

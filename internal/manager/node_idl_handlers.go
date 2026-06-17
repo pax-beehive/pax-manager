@@ -15,6 +15,13 @@ func RegisterNode(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func RegisterNodeAgent(c context.Context, ctx *app.RequestContext) {
+	var req RegisterNodeAgentRequest
+	decodeBody(ctx, &req)
+	status, data, err := serviceFromContext(ctx).paxd.RegisterNodeAgent(c, requestMetadata(ctx), req)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func ReportNodeStatus(c context.Context, ctx *app.RequestContext) {
 	var req NodeStatusReport
 	decodeBody(ctx, &req)

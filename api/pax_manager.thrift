@@ -32,6 +32,18 @@ struct RegisterNodeData {
   2: optional string api_key
 }
 
+struct RegisterNodeAgentRequest {
+  1: optional RegisterNodeRequest node
+  2: optional CreateNodeAgentRequest agent
+}
+
+struct RegisterNodeAgentData {
+  1: optional string node_id
+  2: optional string api_key
+  3: optional string agent_id
+  4: optional Agent agent
+}
+
 struct NodeStatusReportRequest {
   1: optional string node_id
   2: optional string hostname
@@ -435,6 +447,12 @@ struct RegisterNodeResponse {
   3: optional string message
 }
 
+struct RegisterNodeAgentResponse {
+  1: optional RegisterNodeAgentData data
+  2: optional i32 code
+  3: optional string message
+}
+
 struct PullMailboxResponse {
   1: optional MailboxPullData data
   2: optional i32 code
@@ -536,6 +554,18 @@ service PaxManagerAPI {
     openapi.summary = "Register node",
     openapi.description = "Registers a paxd node with an owner-bound registration token.",
     openapi.status = "200",
+    openapi.header.XRegistrationToken = "One-time registration token minted by a user."
+  )
+
+  RegisterNodeAgentResponse RegisterNodeAgent(
+    1: optional RegisterNodeAgentRequest request
+  ) (
+    api.post = "/api/v1/node/agents/register",
+    openapi.tag = "node",
+    openapi.summary = "Register node agent",
+    openapi.description = "Creates a node agent using either X-Pax-Key for an existing node or X-Registration-Token for first bootstrap.",
+    openapi.status = "200",
+    openapi.header.XPaxKey = "Existing node API key.",
     openapi.header.XRegistrationToken = "One-time registration token minted by a user."
   )
 

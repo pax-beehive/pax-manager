@@ -1051,6 +1051,49 @@
         },
         "type": "object"
       },
+      "RegisterNodeAgentData": {
+        "properties": {
+          "agent": {
+            "$ref": "#/components/schemas/Agent"
+          },
+          "agent_id": {
+            "type": "string"
+          },
+          "api_key": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RegisterNodeAgentRequest": {
+        "properties": {
+          "agent": {
+            "$ref": "#/components/schemas/CreateNodeAgentRequest"
+          },
+          "node": {
+            "$ref": "#/components/schemas/RegisterNodeRequest"
+          }
+        },
+        "type": "object"
+      },
+      "RegisterNodeAgentResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RegisterNodeAgentData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "RegisterNodeData": {
         "properties": {
           "api_key": {
@@ -1473,6 +1516,107 @@
         "summary": "Health check",
         "tags": [
           "system"
+        ]
+      }
+    },
+    "/api/v1/node/agents/register": {
+      "post": {
+        "description": "Creates a node agent using either X-Pax-Key for an existing node or X-Registration-Token for first bootstrap.",
+        "parameters": [
+          {
+            "description": "Existing node API key.",
+            "in": "header",
+            "name": "XPaxKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "One-time registration token minted by a user.",
+            "in": "header",
+            "name": "X-Registration-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterNodeAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterNodeAgentResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Register node agent",
+        "tags": [
+          "node"
         ]
       }
     },
