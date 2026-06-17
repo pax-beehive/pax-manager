@@ -605,7 +605,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
-	defer agentWS.Close()
+	defer func() { _ = agentWS.Close() }()
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -615,7 +615,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial user tunnel: %v", err)
 	}
-	defer userWS.Close()
+	defer func() { _ = userWS.Close() }()
 
 	requestPayload := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
 	if err := userWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
@@ -642,6 +642,140 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	}
 }
 
+func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleUserACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-approval",
+		http.Header{"X-Pax-Key": []string{paxKey}},
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer func() { _ = agentWS.Close() }()
+
+	userWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel",
+		http.Header{"X-User-Email": []string{"todd@example.com"}},
+	)
+	if err != nil {
+		t.Fatalf("dial user tunnel: %v", err)
+	}
+	defer func() { _ = userWS.Close() }()
+
+	requestPayload := []byte(`{
+		"jsonrpc":"2.0",
+		"id":11,
+		"method":"session/request_permission",
+		"params":{
+			"action_fingerprint":"perm:needs-user",
+			"options":[
+				{"optionId":"deny","label":"Deny"},
+				{"optionId":"allow_once","label":"Allow once"}
+			]
+		}
+	}`)
+	if err := agentWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
+		t.Fatalf("write agent permission request: %v", err)
+	}
+	if err := userWS.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set user read deadline: %v", err)
+	}
+	messageType, gotRequest, err := userWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read user permission request: %v", err)
+	}
+	if messageType != websocket.TextMessage {
+		t.Fatalf("message type = %d", messageType)
+	}
+
+	var frame struct {
+		Method string `json:"method"`
+		Params struct {
+			Options []map[string]any `json:"options"`
+		} `json:"params"`
+	}
+	if err := json.Unmarshal(gotRequest, &frame); err != nil {
+		t.Fatal(err)
+	}
+	if frame.Method != "session/request_permission" {
+		t.Fatalf("method = %q", frame.Method)
+	}
+	if !containsACPOption(frame.Params.Options, "allow_always_on_all_agents") {
+		t.Fatalf("allow always option missing from frame: %s", gotRequest)
+	}
+}
+
+func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+	approvalID := createTestApproval(t, srv, paxKey, agentID, "perm:already-approved")
+	decideTestApproval(t, srv, approvalID, "allow_always_on_all_agents")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-approval",
+		http.Header{"X-Pax-Key": []string{paxKey}},
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer func() { _ = agentWS.Close() }()
+
+	requestPayload := []byte(`{
+		"jsonrpc":"2.0",
+		"id":12,
+		"method":"session/request_permission",
+		"params":{
+			"action_fingerprint":"perm:already-approved",
+			"options":[
+				{"optionId":"deny","label":"Deny"},
+				{"optionId":"allow_once","label":"Allow once"}
+			]
+		}
+	}`)
+	if err := agentWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
+		t.Fatalf("write agent permission request: %v", err)
+	}
+	if err := agentWS.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set agent read deadline: %v", err)
+	}
+	messageType, gotResponse, err := agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent permission response: %v", err)
+	}
+	if messageType != websocket.TextMessage {
+		t.Fatalf("message type = %d", messageType)
+	}
+
+	var frame struct {
+		ID     int            `json:"id"`
+		Result map[string]any `json:"result"`
+	}
+	if err := json.Unmarshal(gotResponse, &frame); err != nil {
+		t.Fatal(err)
+	}
+	if frame.ID != 12 {
+		t.Fatalf("response id = %d", frame.ID)
+	}
+	if got := acpOptionID(frame.Result); got != "allow_once" {
+		t.Fatalf("selected option = %q, frame = %s", got, gotResponse)
+	}
+}
+
 func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
@@ -661,7 +795,7 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
-	defer agentWS.Close()
+	defer func() { _ = agentWS.Close() }()
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -672,7 +806,9 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 		t.Fatalf("dial first user tunnel: %v", err)
 	}
 
-	firstPayload := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`)
+	firstPayload := []byte(
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`,
+	)
 	if err := userWS.WriteMessage(websocket.TextMessage, firstPayload); err != nil {
 		t.Fatalf("write first user request: %v", err)
 	}
@@ -702,9 +838,11 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial second user tunnel: %v", err)
 	}
-	defer secondUserWS.Close()
+	defer func() { _ = secondUserWS.Close() }()
 
-	secondPayload := []byte(`{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/tmp"}}`)
+	secondPayload := []byte(
+		`{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/tmp"}}`,
+	)
 	if err := secondUserWS.WriteMessage(websocket.TextMessage, secondPayload); err != nil {
 		t.Fatalf("write second user request: %v", err)
 	}
@@ -740,7 +878,9 @@ func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
 	registerReq := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/node/register",
-		bytes.NewReader([]byte(`{"name":"node-a","hostname":"node-a","os":"linux","arch":"arm64"}`)),
+		bytes.NewReader(
+			[]byte(`{"name":"node-a","hostname":"node-a","os":"linux","arch":"arm64"}`),
+		),
 	)
 	setJSON(registerReq)
 	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
@@ -760,7 +900,11 @@ func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
 	createAgentRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(createAgentRec, createAgentReq)
 	if createAgentRec.Code != http.StatusOK {
-		t.Fatalf("create node agent code = %d, body = %s", createAgentRec.Code, createAgentRec.Body.String())
+		t.Fatalf(
+			"create node agent code = %d, body = %s",
+			createAgentRec.Code,
+			createAgentRec.Body.String(),
+		)
 	}
 	agentResp := decodeData[struct {
 		Agent Agent `json:"agent"`
@@ -780,7 +924,7 @@ func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial agent tunnel with node key: %v", err)
 	}
-	defer agentWS.Close()
+	defer func() { _ = agentWS.Close() }()
 }
 
 func TestRegisterNodeAgentWithRegistrationTokenCreatesNodeAndAgent(t *testing.T) {
@@ -846,7 +990,9 @@ func TestRegisterNodeAgentWithNodeKeyAddsAgentWithoutReturningKey(t *testing.T) 
 	registerReq := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/node/register",
-		bytes.NewReader([]byte(`{"name":"node-b","hostname":"node-b","os":"linux","arch":"amd64"}`)),
+		bytes.NewReader(
+			[]byte(`{"name":"node-b","hostname":"node-b","os":"linux","arch":"amd64"}`),
+		),
 	)
 	setJSON(registerReq)
 	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
@@ -1142,6 +1288,78 @@ func testAgentID(t *testing.T, srv *Server, userEmail string) string {
 		t.Fatalf("agents len = %d", len(got.Agents))
 	}
 	return got.Agents[0].AgentID
+}
+
+func createTestApproval(
+	t *testing.T,
+	srv *Server,
+	paxKey string,
+	agentID string,
+	fingerprint string,
+) string {
+	t.Helper()
+	body := []byte(`{
+		"domain":"agent_action",
+		"operation":"session/request_permission",
+		"resource_type":"acp_permission",
+		"resource_ref":"test",
+		"title":"Test permission",
+		"action_fingerprint":"` + fingerprint + `",
+		"options":[
+			{"option_id":"deny","label":"Deny","decision":"deny","scope":"once"},
+			{"option_id":"allow_once","label":"Allow once","decision":"allow","scope":"once"}
+		]
+	}`)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/agents/"+agentID+"/approvals",
+		bytes.NewReader(body),
+	)
+	setJSON(req)
+	req.Header.Set("X-Pax-Key", paxKey)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create approval code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := decodeData[struct {
+		Approval AgentApproval `json:"approval"`
+	}](t, rec.Body.Bytes())
+	if got.Approval.ApprovalID == "" {
+		t.Fatalf("empty approval response: %+v", got)
+	}
+	return got.Approval.ApprovalID
+}
+
+func decideTestApproval(t *testing.T, srv *Server, approvalID string, option string) {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/approvals/"+approvalID+"/decision",
+		bytes.NewReader([]byte(`{"decision_option":"`+option+`"}`)),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("decide approval code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := decodeData[struct {
+		Approval AgentApproval `json:"approval"`
+	}](t, rec.Body.Bytes())
+	if got.Approval.DecisionOption != option || got.Approval.Decision != "allow" {
+		t.Fatalf("bad approval decision: %+v", got.Approval)
+	}
+}
+
+func containsACPOption(options []map[string]any, optionID string) bool {
+	for _, option := range options {
+		if acpOptionID(option) == optionID {
+			return true
+		}
+	}
+	return false
 }
 
 func reportTestSession(t *testing.T, srv *Server, apiKey string, agentID string, sessionID string) {

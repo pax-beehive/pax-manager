@@ -117,6 +117,49 @@ type MailboxMessage struct {
 	TokenUsage      TokenUsage      `json:"token_usage,omitempty"`
 }
 
+type ApprovalOption struct {
+	OptionID string `json:"option_id"`
+	Label    string `json:"label"`
+	Decision string `json:"decision"`
+	Scope    string `json:"scope"`
+}
+
+type AgentApproval struct {
+	ApprovalID            string           `json:"approval_id"`
+	OwnerUserID           string           `json:"owner_user_id"`
+	RequestNodeID         string           `json:"request_node_id,omitempty"`
+	RequestAgentID        string           `json:"request_agent_id,omitempty"`
+	RequestSessionID      string           `json:"request_session_id,omitempty"`
+	SourceMessageID       string           `json:"source_message_id,omitempty"`
+	GrantNodeID           string           `json:"grant_node_id,omitempty"`
+	GrantAgentID          string           `json:"grant_agent_id,omitempty"`
+	GrantSessionID        string           `json:"grant_session_id,omitempty"`
+	Domain                string           `json:"domain"`
+	Operation             string           `json:"operation"`
+	ResourceType          string           `json:"resource_type"`
+	ResourceRef           string           `json:"resource_ref,omitempty"`
+	Title                 string           `json:"title,omitempty"`
+	Description           string           `json:"description,omitempty"`
+	RiskLevel             string           `json:"risk_level,omitempty"`
+	ActionFingerprint     string           `json:"action_fingerprint"`
+	RequestBody           json.RawMessage  `json:"request_body,omitempty"`
+	RequestedEffects      json.RawMessage  `json:"requested_effects,omitempty"`
+	Options               []ApprovalOption `json:"options,omitempty"`
+	Status                string           `json:"status"`
+	Decision              string           `json:"decision,omitempty"`
+	DecisionOption        string           `json:"decision_option,omitempty"`
+	DecisionScope         string           `json:"decision_scope,omitempty"`
+	GrantBody             json.RawMessage  `json:"grant_body,omitempty"`
+	DecidedByUserID       string           `json:"decided_by_user_id,omitempty"`
+	GrantRevokedAt        *time.Time       `json:"grant_revoked_at,omitempty"`
+	GrantRevokedByUserID  string           `json:"grant_revoked_by_user_id,omitempty"`
+	GrantRevocationReason string           `json:"grant_revocation_reason,omitempty"`
+	CreatedAt             time.Time        `json:"created_at"`
+	ExpiresAt             *time.Time       `json:"expires_at,omitempty"`
+	DecidedAt             *time.Time       `json:"decided_at,omitempty"`
+	RawPayload            json.RawMessage  `json:"raw_payload,omitempty"`
+}
+
 type FileChange struct {
 	Path       string `json:"path"`
 	Tool       string `json:"tool"`
@@ -198,6 +241,78 @@ type CreateUserAPIKeyRequest struct {
 type CreateUserAPIKeyResponse struct {
 	APIKey UserAPIKey `json:"api_key"`
 	Key    string     `json:"key"`
+}
+
+type CreateApprovalRequest struct {
+	AgentID           string           `json:"agent_id"`
+	SessionID         string           `json:"session_id"`
+	SourceMessageID   string           `json:"source_message_id"`
+	Domain            string           `json:"domain"`
+	Operation         string           `json:"operation"`
+	ResourceType      string           `json:"resource_type"`
+	ResourceRef       string           `json:"resource_ref"`
+	Title             string           `json:"title"`
+	Description       string           `json:"description"`
+	RiskLevel         string           `json:"risk_level"`
+	ActionFingerprint string           `json:"action_fingerprint"`
+	RequestBody       json.RawMessage  `json:"request_body"`
+	RequestedEffects  json.RawMessage  `json:"requested_effects"`
+	Options           []ApprovalOption `json:"options"`
+	ExpiresAt         *time.Time       `json:"expires_at"`
+	RawPayload        json.RawMessage  `json:"raw_payload"`
+}
+
+type ApprovalFilter struct {
+	Principal        UserPrincipal
+	Status           string
+	Decision         string
+	Domain           string
+	Operation        string
+	ResourceType     string
+	ResourceRef      string
+	RequestNodeID    string
+	RequestAgentID   string
+	RequestSessionID string
+	DecisionScope    string
+	IncludeRevoked   bool
+	Limit            int
+}
+
+type ApprovalGrantFilter struct {
+	Principal      UserPrincipal
+	Domain         string
+	Operation      string
+	ResourceType   string
+	ResourceRef    string
+	DecisionScope  string
+	GrantNodeID    string
+	GrantAgentID   string
+	GrantSessionID string
+	ActiveOnly     bool
+	Limit          int
+}
+
+type ApprovalDecisionRequest struct {
+	DecisionOption string          `json:"decision_option"`
+	Reason         string          `json:"reason"`
+	GrantNodeID    string          `json:"grant_node_id"`
+	GrantAgentID   string          `json:"grant_agent_id"`
+	GrantSessionID string          `json:"grant_session_id"`
+	GrantBody      json.RawMessage `json:"grant_body"`
+}
+
+type ApprovalGrantLookup struct {
+	OwnerUserID       string
+	RequestNodeID     string
+	RequestAgentID    string
+	RequestSessionID  string
+	Domain            string
+	Operation         string
+	ActionFingerprint string
+}
+
+type RevokeApprovalGrantRequest struct {
+	Reason string `json:"reason"`
 }
 
 type AgentStatusReport struct {

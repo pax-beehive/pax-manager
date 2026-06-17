@@ -191,6 +191,73 @@ func scanMailbox(row rowScanner) (MailboxMessage, error) {
 	return msg, nil
 }
 
+func scanApproval(row rowScanner) (AgentApproval, error) {
+	var approval AgentApproval
+	var requestBody []byte
+	var requestedEffects []byte
+	var options []byte
+	var grantBody []byte
+	var rawPayload []byte
+	if err := row.Scan(
+		&approval.ApprovalID,
+		&approval.OwnerUserID,
+		&approval.RequestNodeID,
+		&approval.RequestAgentID,
+		&approval.RequestSessionID,
+		&approval.SourceMessageID,
+		&approval.GrantNodeID,
+		&approval.GrantAgentID,
+		&approval.GrantSessionID,
+		&approval.Domain,
+		&approval.Operation,
+		&approval.ResourceType,
+		&approval.ResourceRef,
+		&approval.Title,
+		&approval.Description,
+		&approval.RiskLevel,
+		&approval.ActionFingerprint,
+		&requestBody,
+		&requestedEffects,
+		&options,
+		&approval.Status,
+		&approval.Decision,
+		&approval.DecisionOption,
+		&approval.DecisionScope,
+		&grantBody,
+		&approval.DecidedByUserID,
+		&approval.GrantRevokedAt,
+		&approval.GrantRevokedByUserID,
+		&approval.GrantRevocationReason,
+		&approval.CreatedAt,
+		&approval.ExpiresAt,
+		&approval.DecidedAt,
+		&rawPayload,
+	); err != nil {
+		return AgentApproval{}, mapSQLError(err)
+	}
+	approval.RequestBody = json.RawMessage(requestBody)
+	approval.RequestedEffects = json.RawMessage(requestedEffects)
+	_ = json.Unmarshal(options, &approval.Options)
+	approval.GrantBody = json.RawMessage(grantBody)
+	approval.RawPayload = json.RawMessage(rawPayload)
+	return approval, nil
+}
+
+func scanApprovals(rows *sql.Rows) ([]AgentApproval, error) {
+	out := make([]AgentApproval, 0)
+	for rows.Next() {
+		approval, err := scanApproval(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, approval)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func scanUser(row rowScanner) (User, error) {
 	var user User
 	if err := row.Scan(

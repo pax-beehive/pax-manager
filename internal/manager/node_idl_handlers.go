@@ -18,7 +18,13 @@ func RegisterNode(c context.Context, ctx *app.RequestContext) {
 func RegisterNodeAgent(c context.Context, ctx *app.RequestContext) {
 	var req RegisterNodeAgentRequest
 	decodeBody(ctx, &req)
-	status, data, err := serviceFromContext(ctx).paxd.RegisterNodeAgent(c, requestMetadata(ctx), req)
+	status, data, err := serviceFromContext(
+		ctx,
+	).paxd.RegisterNodeAgent(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
 	writeEndpointResult(ctx, status, data, err)
 }
 
@@ -109,6 +115,25 @@ func CreateNodeOutboundMessage(c context.Context, ctx *app.RequestContext) {
 		req,
 	)
 	writeEndpointResult(ctx, status, data, err)
+}
+
+func CreateNodeAgentApproval(c context.Context, ctx *app.RequestContext) {
+	var req CreateApprovalRequest
+	decodeBody(ctx, &req)
+	req.AgentID = firstString(req.AgentID, ctx.Param("agent_id"))
+	appendAllowAlwaysOnAllAgentsOption(&req.Options)
+	approval, err := serviceFromContext(ctx).store.CreateApproval(c, nodeFromContext(ctx), req)
+	writeEndpointResult(ctx, httpStatusOK(err), map[string]any{"approval": approval}, err)
+}
+
+func GetNodeAgentApproval(c context.Context, ctx *app.RequestContext) {
+	approval, err := serviceFromContext(ctx).store.GetNodeApproval(
+		c,
+		nodeFromContext(ctx),
+		ctx.Param("agent_id"),
+		ctx.Param("approval_id"),
+	)
+	writeEndpointResult(ctx, httpStatusOK(err), map[string]any{"approval": approval}, err)
 }
 
 func GetCurrentUser(c context.Context, ctx *app.RequestContext) {
@@ -260,6 +285,100 @@ func CreateNodeRegistrationToken(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func ListUserApprovals(c context.Context, ctx *app.RequestContext) {
+	principal, err := serviceFromContext(ctx).userPrincipal(c, ctx)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	approvals, err := serviceFromContext(ctx).store.ListApprovals(c, ApprovalFilter{
+		Principal:        principal,
+		Status:           string(ctx.QueryArgs().Peek("status")),
+		Decision:         string(ctx.QueryArgs().Peek("decision")),
+		Domain:           string(ctx.QueryArgs().Peek("domain")),
+		Operation:        string(ctx.QueryArgs().Peek("operation")),
+		ResourceType:     string(ctx.QueryArgs().Peek("resource_type")),
+		ResourceRef:      string(ctx.QueryArgs().Peek("resource_ref")),
+		RequestNodeID:    string(ctx.QueryArgs().Peek("request_node_id")),
+		RequestAgentID:   string(ctx.QueryArgs().Peek("request_agent_id")),
+		RequestSessionID: string(ctx.QueryArgs().Peek("request_session_id")),
+		DecisionScope:    string(ctx.QueryArgs().Peek("decision_scope")),
+		IncludeRevoked:   queryBool(ctx, "include_revoked"),
+		Limit:            queryInt(ctx, "limit"),
+	})
+	writeEndpointResult(ctx, httpStatusOK(err), map[string]any{"approvals": approvals}, err)
+}
+
+func GetUserApproval(c context.Context, ctx *app.RequestContext) {
+	principal, err := serviceFromContext(ctx).userPrincipal(c, ctx)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	approval, err := serviceFromContext(ctx).store.GetApproval(
+		c,
+		principal,
+		ctx.Param("approval_id"),
+	)
+	writeEndpointResult(ctx, httpStatusOK(err), map[string]any{"approval": approval}, err)
+}
+
+func DecideUserApproval(c context.Context, ctx *app.RequestContext) {
+	principal, err := serviceFromContext(ctx).userPrincipal(c, ctx)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	var req ApprovalDecisionRequest
+	decodeBody(ctx, &req)
+	approval, err := serviceFromContext(ctx).store.DecideApproval(
+		c,
+		principal,
+		ctx.Param("approval_id"),
+		req,
+	)
+	writeEndpointResult(ctx, httpStatusOK(err), map[string]any{"approval": approval}, err)
+}
+
+func ListUserApprovalGrants(c context.Context, ctx *app.RequestContext) {
+	principal, err := serviceFromContext(ctx).userPrincipal(c, ctx)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	grants, err := serviceFromContext(ctx).store.ListApprovalGrants(c, ApprovalGrantFilter{
+		Principal:      principal,
+		Domain:         string(ctx.QueryArgs().Peek("domain")),
+		Operation:      string(ctx.QueryArgs().Peek("operation")),
+		ResourceType:   string(ctx.QueryArgs().Peek("resource_type")),
+		ResourceRef:    string(ctx.QueryArgs().Peek("resource_ref")),
+		DecisionScope:  string(ctx.QueryArgs().Peek("decision_scope")),
+		GrantNodeID:    string(ctx.QueryArgs().Peek("grant_node_id")),
+		GrantAgentID:   string(ctx.QueryArgs().Peek("grant_agent_id")),
+		GrantSessionID: string(ctx.QueryArgs().Peek("grant_session_id")),
+		ActiveOnly:     queryBoolDefault(ctx, "active_only", true),
+		Limit:          queryInt(ctx, "limit"),
+	})
+	writeEndpointResult(ctx, httpStatusOK(err), map[string]any{"grants": grants}, err)
+}
+
+func RevokeUserApprovalGrant(c context.Context, ctx *app.RequestContext) {
+	principal, err := serviceFromContext(ctx).userPrincipal(c, ctx)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	var req RevokeApprovalGrantRequest
+	decodeBody(ctx, &req)
+	approval, err := serviceFromContext(ctx).store.RevokeApprovalGrant(
+		c,
+		principal,
+		ctx.Param("grant_id"),
+		req,
+	)
+	writeEndpointResult(ctx, httpStatusOK(err), map[string]any{"approval": approval}, err)
+}
+
 func decodeBody(ctx *app.RequestContext, v any) {
 	if len(ctx.Request.Body()) == 0 {
 		return
@@ -281,6 +400,39 @@ func queryInt(ctx *app.RequestContext, key string) int {
 		return 0
 	}
 	return value
+}
+
+func queryBool(ctx *app.RequestContext, key string) bool {
+	return queryBoolDefault(ctx, key, false)
+}
+
+func queryBoolDefault(ctx *app.RequestContext, key string, fallback bool) bool {
+	raw := string(ctx.QueryArgs().Peek(key))
+	if raw == "" {
+		return fallback
+	}
+	return raw == "1" || raw == "true" || raw == "yes" || raw == "on"
+}
+
+func httpStatusOK(err error) int {
+	if err != nil {
+		return 0
+	}
+	return 200
+}
+
+func appendAllowAlwaysOnAllAgentsOption(options *[]ApprovalOption) {
+	for _, option := range *options {
+		if option.OptionID == "allow_always_on_all_agents" {
+			return
+		}
+	}
+	*options = append(*options, ApprovalOption{
+		OptionID: "allow_always_on_all_agents",
+		Label:    "Allow always on all agents",
+		Decision: "allow",
+		Scope:    "across_all_agents",
+	})
 }
 
 func firstString(values ...string) string {
