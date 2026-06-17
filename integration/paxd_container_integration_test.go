@@ -153,6 +153,18 @@ func TestPaxdContainerMockHermesIntegration(t *testing.T) {
 				http.StatusOK,
 			)
 
+			fixture.postExpectError(
+				t,
+				"/api/v1/user/self/nodes/node_wrong/agents/"+
+					createdAgent.Agent.AgentID+"/sessions/"+sessionID+"/messages",
+				map[string]any{
+					"message":      "cross node",
+					"message_type": "chat",
+				},
+				fixture.userHeaders(),
+				http.StatusNotFound,
+			)
+
 			userMessage = postJSON[mailboxMessage](
 				t,
 				fixture,

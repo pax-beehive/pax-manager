@@ -248,6 +248,29 @@ func (s *Service) GetAgent(
 	return http.StatusOK, agent, nil
 }
 
+func (s *Service) GetNodeAgent(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+	agentID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if nodeID == "" || agentID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id and agent_id are required",
+		}
+	}
+	agent, err := s.nodeAgentTarget(c, principal, nodeID, agentID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, agent, nil
+}
+
 func (s *Service) ListAgentSessions(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -261,6 +284,33 @@ func (s *Service) ListAgentSessions(
 	if err != nil {
 		return 0, nil, err
 	}
+	return http.StatusOK, map[string]any{"sessions": sessions}, nil
+}
+
+func (s *Service) ListNodeAgentSessions(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+	agentID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if nodeID == "" || agentID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id and agent_id are required",
+		}
+	}
+	if _, err := s.nodeAgentTarget(c, principal, nodeID, agentID); err != nil {
+		return 0, nil, err
+	}
+	sessions, err := s.store.ListAgentSessions(c, principal, agentID)
+	if err != nil {
+		return 0, nil, err
+	}
+	sessions = filterNodeSessions(sessions, nodeID)
 	return http.StatusOK, map[string]any{"sessions": sessions}, nil
 }
 
@@ -281,6 +331,30 @@ func (s *Service) GetAgentSession(
 		}
 	}
 	session, err := s.sessionTarget(c, principal, agentID, sessionID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, session, nil
+}
+
+func (s *Service) GetNodeAgentSession(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+	agentID string,
+	sessionID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if nodeID == "" || agentID == "" || sessionID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id, agent_id, and session_id are required",
+		}
+	}
+	session, err := s.nodeSessionTarget(c, principal, nodeID, agentID, sessionID)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -313,6 +387,33 @@ func (s *Service) ListAgentSessionMessages(
 	return http.StatusOK, map[string]any{"messages": messages}, nil
 }
 
+func (s *Service) ListNodeAgentSessionMessages(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+	agentID string,
+	sessionID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if nodeID == "" || agentID == "" || sessionID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id, agent_id, and session_id are required",
+		}
+	}
+	if _, err := s.nodeSessionTarget(c, principal, nodeID, agentID, sessionID); err != nil {
+		return 0, nil, err
+	}
+	messages, err := s.store.ListSessionMessages(c, principal, sessionID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"messages": messages}, nil
+}
+
 func (s *Service) CreateMailboxMessage(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -334,7 +435,21 @@ func (s *Service) CreateMailboxMessage(
 			Message: "message_type must be chat, steer, or command",
 		}
 	}
-	if req.NodeID == "" && req.SessionID != "" {
+	if req.NodeID != "" {
+		if req.SessionID != "" {
+			if _, err := s.nodeSessionTarget(
+				c,
+				principal,
+				req.NodeID,
+				req.AgentID,
+				req.SessionID,
+			); err != nil {
+				return 0, nil, err
+			}
+		} else if _, err := s.nodeAgentTarget(c, principal, req.NodeID, req.AgentID); err != nil {
+			return 0, nil, err
+		}
+	} else if req.SessionID != "" {
 		if _, err := s.sessionTarget(c, principal, req.AgentID, req.SessionID); err != nil {
 			return 0, nil, err
 		}
@@ -345,6 +460,49 @@ func (s *Service) CreateMailboxMessage(
 		return 0, nil, err
 	}
 	return http.StatusOK, msg, nil
+}
+
+func (s *Service) ListNodeMailbox(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+	agentID string,
+	sessionID string,
+	status string,
+	limit int,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if nodeID == "" || agentID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id and agent_id are required",
+		}
+	}
+	if sessionID != "" {
+		if _, err := s.nodeSessionTarget(c, principal, nodeID, agentID, sessionID); err != nil {
+			return 0, nil, err
+		}
+	} else if _, err := s.nodeAgentTarget(c, principal, nodeID, agentID); err != nil {
+		return 0, nil, err
+	}
+	if limit == 0 {
+		limit = 50
+	}
+	messages, err := s.store.ListMailbox(c, domain.MailboxFilter{
+		Principal: principal,
+		NodeID:    nodeID,
+		AgentID:   agentID,
+		SessionID: sessionID,
+		Status:    status,
+		Limit:     limit,
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"messages": messages}, nil
 }
 
 func (s *Service) CreateSessionMessage(
@@ -361,6 +519,45 @@ func (s *Service) CreateSessionMessage(
 	return s.CreateMailboxMessage(c, meta, req)
 }
 
+func (s *Service) nodeAgentTarget(
+	c context.Context,
+	principal domain.UserPrincipal,
+	nodeID string,
+	agentID string,
+) (domain.Agent, error) {
+	if _, err := s.store.GetNode(c, principal, nodeID); err != nil {
+		return domain.Agent{}, err
+	}
+	agent, err := s.store.GetAgent(c, principal, agentID)
+	if err != nil {
+		return domain.Agent{}, err
+	}
+	if agent.NodeID != nodeID {
+		return domain.Agent{}, domain.ErrNotFound
+	}
+	return agent, nil
+}
+
+func (s *Service) nodeSessionTarget(
+	c context.Context,
+	principal domain.UserPrincipal,
+	nodeID string,
+	agentID string,
+	sessionID string,
+) (domain.AgentSession, error) {
+	if _, err := s.nodeAgentTarget(c, principal, nodeID, agentID); err != nil {
+		return domain.AgentSession{}, err
+	}
+	session, err := s.sessionTarget(c, principal, agentID, sessionID)
+	if err != nil {
+		return domain.AgentSession{}, err
+	}
+	if session.NodeID != "" && session.NodeID != nodeID {
+		return domain.AgentSession{}, domain.ErrNotFound
+	}
+	return session, nil
+}
+
 func (s *Service) sessionTarget(
 	c context.Context,
 	principal domain.UserPrincipal,
@@ -375,6 +572,16 @@ func (s *Service) sessionTarget(
 		return domain.AgentSession{}, domain.ErrNotFound
 	}
 	return session, nil
+}
+
+func filterNodeSessions(sessions []domain.AgentSession, nodeID string) []domain.AgentSession {
+	filtered := sessions[:0]
+	for _, session := range sessions {
+		if session.NodeID == "" || session.NodeID == nodeID {
+			filtered = append(filtered, session)
+		}
+	}
+	return filtered
 }
 
 func (s *Service) ListMailbox(

@@ -725,14 +725,34 @@ func (s *PostgresStore) CreateMailboxMessage(
 		return MailboxMessage{}, ErrConflict
 	}
 	var ownerUserID string
-	err = s.db.QueryRowContext(ctx, `
-		SELECT owner_user_id FROM agents WHERE agent_id = $1
-	`, req.AgentID).Scan(&ownerUserID)
+	var agentNodeID string
+	agentQuery := `SELECT owner_user_id, COALESCE(node_id, '') FROM agents WHERE agent_id = $1`
+	agentArgs := []any{req.AgentID}
+	if req.NodeID != "" {
+		agentQuery += ` AND node_id = $2`
+		agentArgs = append(agentArgs, req.NodeID)
+	}
+	err = s.db.QueryRowContext(ctx, agentQuery, agentArgs...).Scan(&ownerUserID, &agentNodeID)
 	if err != nil {
 		return MailboxMessage{}, mapSQLError(err)
 	}
 	if !canAccessOwner(principal, ownerUserID) {
 		return MailboxMessage{}, ErrNotFound
+	}
+	if req.SessionID != "" {
+		var sessionNodeID string
+		err = s.db.QueryRowContext(ctx, `
+			SELECT COALESCE(node_id, '') FROM agent_sessions
+			WHERE agent_id = $1 AND session_id = $2
+			ORDER BY updated_at DESC
+			LIMIT 1
+		`, req.AgentID, req.SessionID).Scan(&sessionNodeID)
+		if err != nil {
+			return MailboxMessage{}, mapSQLError(err)
+		}
+		if req.NodeID != "" && sessionNodeID != "" && sessionNodeID != agentNodeID {
+			return MailboxMessage{}, ErrNotFound
+		}
 	}
 	messageID, err := newSecret("msg")
 	if err != nil {
@@ -746,7 +766,7 @@ func (s *PostgresStore) CreateMailboxMessage(
 		)
 		VALUES ($1,$2,$3,NULLIF($4,''),$5,NULLIF($6,''),$7,$8,$9,'pending','user_to_node',$10,$11)
 		RETURNING `+mailboxReturningSQL+`
-	`, messageID, principal.User.UserID, ownerUserID, req.NodeID, req.AgentID, req.SessionID, req.Message, messageType, payload, now, expiresAt(now, messageType))
+	`, messageID, principal.User.UserID, ownerUserID, agentNodeID, req.AgentID, req.SessionID, req.Message, messageType, payload, now, expiresAt(now, messageType))
 	return scanMailbox(row)
 }
 

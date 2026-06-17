@@ -85,7 +85,7 @@ func UpdateNodeMailboxOffset(c context.Context, ctx *app.RequestContext) {
 func ReportNodeMessageResult(c context.Context, ctx *app.RequestContext) {
 	var req MessageResultRequest
 	decodeBody(ctx, &req)
-	req.MessageID = firstString(req.MessageID, ctx.Param("message_id"))
+	req.MessageID = ctx.Param("message_id")
 	status, data, err := serviceFromContext(ctx).paxd.ReportNodeMessageResult(
 		c,
 		nodeFromContext(ctx),
@@ -97,7 +97,7 @@ func ReportNodeMessageResult(c context.Context, ctx *app.RequestContext) {
 func MarkNodeMessageDelivered(c context.Context, ctx *app.RequestContext) {
 	var req MarkDeliveredRequest
 	decodeBody(ctx, &req)
-	req.MessageID = firstString(req.MessageID, ctx.Param("message_id"))
+	req.MessageID = ctx.Param("message_id")
 	status, data, err := serviceFromContext(ctx).paxd.MarkNodeMessageDelivered(
 		c,
 		nodeFromContext(ctx),
@@ -167,8 +167,8 @@ func ListNodeAgents(c context.Context, ctx *app.RequestContext) {
 func CreateNodeAgent(c context.Context, ctx *app.RequestContext) {
 	var req CreateAgentRequest
 	decodeBody(ctx, &req)
-	req.UserID = firstString(req.UserID, ctx.Param("user_id"))
-	req.NodeID = firstString(req.NodeID, ctx.Param("node_id"))
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
 	status, data, err := serviceFromContext(
 		ctx,
 	).userapi.CreateNodeAgent(
@@ -180,18 +180,20 @@ func CreateNodeAgent(c context.Context, ctx *app.RequestContext) {
 }
 
 func GetNodeAgent(c context.Context, ctx *app.RequestContext) {
-	status, data, err := serviceFromContext(ctx).userapi.GetAgent(
+	status, data, err := serviceFromContext(ctx).userapi.GetNodeAgent(
 		c,
 		requestMetadata(ctx),
+		ctx.Param("node_id"),
 		ctx.Param("agent_id"),
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
 
 func ListNodeAgentMessages(c context.Context, ctx *app.RequestContext) {
-	status, data, err := serviceFromContext(ctx).userapi.ListMailbox(
+	status, data, err := serviceFromContext(ctx).userapi.ListNodeMailbox(
 		c,
 		requestMetadata(ctx),
+		ctx.Param("node_id"),
 		ctx.Param("agent_id"),
 		string(ctx.QueryArgs().Peek("session_id")),
 		string(ctx.QueryArgs().Peek("status")),
@@ -203,8 +205,8 @@ func ListNodeAgentMessages(c context.Context, ctx *app.RequestContext) {
 func CreateNodeAgentMessage(c context.Context, ctx *app.RequestContext) {
 	var req CreateMailboxRequest
 	decodeBody(ctx, &req)
-	req.NodeID = firstString(req.NodeID, ctx.Param("node_id"))
-	req.AgentID = firstString(req.AgentID, ctx.Param("agent_id"))
+	req.NodeID = ctx.Param("node_id")
+	req.AgentID = ctx.Param("agent_id")
 	status, data, err := serviceFromContext(
 		ctx,
 	).userapi.CreateMailboxMessage(
@@ -216,9 +218,10 @@ func CreateNodeAgentMessage(c context.Context, ctx *app.RequestContext) {
 }
 
 func ListNodeAgentSessions(c context.Context, ctx *app.RequestContext) {
-	status, data, err := serviceFromContext(ctx).userapi.ListAgentSessions(
+	status, data, err := serviceFromContext(ctx).userapi.ListNodeAgentSessions(
 		c,
 		requestMetadata(ctx),
+		ctx.Param("node_id"),
 		ctx.Param("agent_id"),
 	)
 	writeEndpointResult(ctx, status, data, err)
@@ -227,9 +230,9 @@ func ListNodeAgentSessions(c context.Context, ctx *app.RequestContext) {
 func CreateNodeAgentSession(c context.Context, ctx *app.RequestContext) {
 	var req CreateSessionRequest
 	decodeBody(ctx, &req)
-	req.UserID = firstString(req.UserID, ctx.Param("user_id"))
-	req.NodeID = firstString(req.NodeID, ctx.Param("node_id"))
-	req.AgentID = firstString(req.AgentID, ctx.Param("agent_id"))
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	req.AgentID = ctx.Param("agent_id")
 	status, data, err := serviceFromContext(ctx).userapi.CreateNodeAgentSession(
 		c,
 		requestMetadata(ctx),
@@ -239,9 +242,10 @@ func CreateNodeAgentSession(c context.Context, ctx *app.RequestContext) {
 }
 
 func GetNodeAgentSession(c context.Context, ctx *app.RequestContext) {
-	status, data, err := serviceFromContext(ctx).userapi.GetAgentSession(
+	status, data, err := serviceFromContext(ctx).userapi.GetNodeAgentSession(
 		c,
 		requestMetadata(ctx),
+		ctx.Param("node_id"),
 		ctx.Param("agent_id"),
 		ctx.Param("session_id"),
 	)
@@ -249,9 +253,10 @@ func GetNodeAgentSession(c context.Context, ctx *app.RequestContext) {
 }
 
 func ListNodeAgentSessionMessages(c context.Context, ctx *app.RequestContext) {
-	status, data, err := serviceFromContext(ctx).userapi.ListAgentSessionMessages(
+	status, data, err := serviceFromContext(ctx).userapi.ListNodeAgentSessionMessages(
 		c,
 		requestMetadata(ctx),
+		ctx.Param("node_id"),
 		ctx.Param("agent_id"),
 		ctx.Param("session_id"),
 	)
@@ -261,9 +266,9 @@ func ListNodeAgentSessionMessages(c context.Context, ctx *app.RequestContext) {
 func CreateNodeAgentSessionMessage(c context.Context, ctx *app.RequestContext) {
 	var req CreateMailboxRequest
 	decodeBody(ctx, &req)
-	req.NodeID = firstString(req.NodeID, ctx.Param("node_id"))
-	req.AgentID = firstString(req.AgentID, ctx.Param("agent_id"))
-	req.SessionID = firstString(req.SessionID, ctx.Param("session_id"))
+	req.NodeID = ctx.Param("node_id")
+	req.AgentID = ctx.Param("agent_id")
+	req.SessionID = ctx.Param("session_id")
 	status, data, err := serviceFromContext(
 		ctx,
 	).userapi.CreateSessionMessage(
