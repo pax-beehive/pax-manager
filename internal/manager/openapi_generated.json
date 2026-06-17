@@ -221,9 +221,6 @@
           "name": {
             "type": "string"
           },
-          "native_id": {
-            "type": "string"
-          },
           "node_id": {
             "type": "string"
           },

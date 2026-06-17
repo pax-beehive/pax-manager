@@ -69,7 +69,7 @@ type AgentSession struct {
 	SessionID      string          `json:"session_id"`
 	SessionName    string          `json:"name,omitempty"`
 	AgentType      string          `json:"agent_type,omitempty"`
-	NativeID       string          `json:"native_id,omitempty"`
+	NativeID       string          `json:"-"`
 	ProjectID      string          `json:"project_id,omitempty"`
 	Preview        string          `json:"preview,omitempty"`
 	WorkspaceRoots []string        `json:"workspace_roots,omitempty"`
@@ -603,5 +603,5 @@ func NormalizeEmail(email string) string {
 }
 
 func CanAccessOwner(principal UserPrincipal, ownerUserID string) bool {
-	return principal.IsAdmin || principal.User.UserID == ownerUserID
+	return principal.User.UserID == ownerUserID
 }

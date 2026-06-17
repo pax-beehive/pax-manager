@@ -127,6 +127,8 @@ ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT N
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 CREATE INDEX IF NOT EXISTS idx_sessions_agent ON agent_sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_agent_native ON agent_sessions(agent_id, native_id)
+    WHERE native_id IS NOT NULL AND native_id <> '';
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON agent_sessions(status);
 
 CREATE TABLE IF NOT EXISTS mailbox (

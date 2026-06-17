@@ -196,8 +196,11 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 	if len(got.Sessions) != 1 {
 		t.Fatalf("sessions len = %d", len(got.Sessions))
 	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("native_id")) {
+		t.Fatalf("user session response leaked native_id: %s", rec.Body.String())
+	}
 	session := got.Sessions[0]
-	if session.SessionID != "sess-1" || session.AgentType != "hermes" || session.TokenTotal != 123 {
+	if session.SessionID == "" || session.SessionID == "sess-1" || session.AgentType != "hermes" || session.TokenTotal != 123 {
 		t.Fatalf("unexpected session: %+v", session)
 	}
 	if len(session.WorkspaceRoots) != 1 || session.WorkspaceRoots[0] != "/workspace/repo" {
@@ -206,7 +209,7 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 
 	req = httptest.NewRequest(
 		http.MethodGet,
-		"/api/user/agents/"+agentID+"/sessions/sess-1",
+		"/api/user/agents/"+agentID+"/sessions/"+session.SessionID,
 		nil,
 	)
 	req.Header.Set("X-User-Email", "todd@example.com")
@@ -216,7 +219,7 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 		t.Fatalf("session code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	gotSession := decodeData[AgentSession](t, rec.Body.Bytes())
-	if gotSession.SessionID != "sess-1" || gotSession.AgentID != agentID {
+	if gotSession.SessionID != session.SessionID || gotSession.AgentID != agentID {
 		t.Fatalf("unexpected session detail: %+v", gotSession)
 	}
 }
@@ -224,7 +227,7 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 func TestMailboxLifecycle(t *testing.T) {
 	srv, apiKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
-	reportTestSession(t, srv, apiKey, agentID, "sess-1")
+	sessionID := reportTestSession(t, srv, apiKey, "todd@example.com", agentID, "sess-1")
 
 	body := []byte(`{
 		"message":"run the tests",
@@ -232,7 +235,7 @@ func TestMailboxLifecycle(t *testing.T) {
 	}`)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/api/user/agents/"+agentID+"/sessions/sess-1/messages",
+		"/api/user/agents/"+agentID+"/sessions/"+sessionID+"/messages",
 		bytes.NewReader(body),
 	)
 	setJSON(req)
@@ -270,6 +273,10 @@ func TestMailboxLifecycle(t *testing.T) {
 	if pull.Messages[0].Status != "delivered" || pull.MaxOffset != pull.Messages[0].ID {
 		t.Fatalf("unexpected pull: %+v", pull)
 	}
+	if pull.Messages[0].SessionID != "sess-1" {
+		t.Fatalf("node pull did not translate session to native id: %+v", pull.Messages[0])
+	}
+	assertPayloadField(t, pull.Messages[0].Payload, "session_id", "sess-1")
 
 	resultBody := []byte(`{"status":"completed","result":"tests passed"}`)
 	req = httptest.NewRequest(
@@ -300,7 +307,7 @@ func TestMailboxLifecycle(t *testing.T) {
 
 	req = httptest.NewRequest(
 		http.MethodGet,
-		"/api/user/agents/"+agentID+"/sessions/sess-1/messages",
+		"/api/user/agents/"+agentID+"/sessions/"+sessionID+"/messages",
 		nil,
 	)
 	req.Header.Set("X-User-Email", "todd@example.com")
@@ -318,7 +325,7 @@ func TestMailboxLifecycle(t *testing.T) {
 	}
 }
 
-func TestTenantIsolationAndAdminBypass(t *testing.T) {
+func TestTenantIsolationAndAdminPrincipalDoesNotBypassOwnerScope(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
 
@@ -360,7 +367,7 @@ func TestTenantIsolationAndAdminBypass(t *testing.T) {
 	got = decodeData[struct {
 		Agents []Agent `json:"agents"`
 	}](t, rec.Body.Bytes())
-	if len(got.Agents) != 1 {
+	if len(got.Agents) != 0 {
 		t.Fatalf("admin agents len = %d", len(got.Agents))
 	}
 }
@@ -507,7 +514,7 @@ func TestUserAPIKeyCanBeCreatedListedAndRevoked(t *testing.T) {
 func TestAgentWebsocketAuthenticatesOwnerAndProcessesMailboxFrames(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
-	reportTestSession(t, srv, paxKey, agentID, "sess-1")
+	sessionID := reportTestSession(t, srv, paxKey, "todd@example.com", agentID, "sess-1")
 
 	body := []byte(`{
 		"message":"run the tests",
@@ -515,7 +522,7 @@ func TestAgentWebsocketAuthenticatesOwnerAndProcessesMailboxFrames(t *testing.T)
 	}`)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/api/user/agents/"+agentID+"/sessions/sess-1/messages",
+		"/api/user/agents/"+agentID+"/sessions/"+sessionID+"/messages",
 		bytes.NewReader(body),
 	)
 	setJSON(req)
@@ -1396,13 +1403,20 @@ func containsACPOption(options []map[string]any, optionID string) bool {
 	return false
 }
 
-func reportTestSession(t *testing.T, srv *Server, apiKey string, agentID string, sessionID string) {
+func reportTestSession(
+	t *testing.T,
+	srv *Server,
+	apiKey string,
+	userEmail string,
+	agentID string,
+	nativeSessionID string,
+) string {
 	t.Helper()
 	body := []byte(`{
 		"agent_id":"` + agentID + `",
 		"hostname":"workstation",
 		"sessions":[{
-			"session_id":"` + sessionID + `",
+			"session_id":"` + nativeSessionID + `",
 			"name":"test session",
 			"status":"running"
 		}]
@@ -1415,6 +1429,23 @@ func reportTestSession(t *testing.T, srv *Server, apiKey string, agentID string,
 	if rec.Code != http.StatusOK {
 		t.Fatalf("report session code = %d, body = %s", rec.Code, rec.Body.String())
 	}
+	req = httptest.NewRequest(http.MethodGet, "/api/user/agents/"+agentID+"/sessions", nil)
+	req.Header.Set("X-User-Email", userEmail)
+	rec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list sessions code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := decodeData[struct {
+		Sessions []AgentSession `json:"sessions"`
+	}](t, rec.Body.Bytes())
+	if len(got.Sessions) != 1 {
+		t.Fatalf("sessions len = %d", len(got.Sessions))
+	}
+	if got.Sessions[0].SessionID == "" || got.Sessions[0].SessionID == nativeSessionID {
+		t.Fatalf("session was not virtualized: %+v", got.Sessions[0])
+	}
+	return got.Sessions[0].SessionID
 }
 
 func assertPayloadField(t *testing.T, payload json.RawMessage, field string, want string) {

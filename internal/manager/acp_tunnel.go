@@ -233,11 +233,12 @@ func (s *Server) authenticateAgentACPTunnel(
 				Message: "agent_id does not match pax key",
 			}
 		}
+		sessionID := s.virtualACPSessionID(r.Context(), agent.OwnerUserID, agent.AgentID, websocketSessionID(r))
 		return agentWSInitialRequest{
 			AgentID:     agent.AgentID,
 			NodeID:      agent.NodeID,
 			OwnerUserID: agent.OwnerUserID,
-			SessionID:   websocketSessionID(r),
+			SessionID:   sessionID,
 		}, "agent_key", nil
 	}
 
@@ -269,12 +270,35 @@ func (s *Server) authenticateAgentACPTunnel(
 		return agentWSInitialRequest{}, "", err
 	}
 
+	sessionID := s.virtualACPSessionID(r.Context(), agent.OwnerUserID, agent.AgentID, websocketSessionID(r))
 	return agentWSInitialRequest{
 		AgentID:     agent.AgentID,
 		NodeID:      agent.NodeID,
 		OwnerUserID: agent.OwnerUserID,
-		SessionID:   websocketSessionID(r),
+		SessionID:   sessionID,
 	}, "node_key", nil
+}
+
+func (s *Server) virtualACPSessionID(
+	ctx context.Context,
+	ownerUserID string,
+	agentID string,
+	sessionID string,
+) string {
+	if sessionID == "" {
+		return ""
+	}
+	principal := UserPrincipal{User: User{UserID: ownerUserID}}
+	sessions, err := s.store.ListAgentSessions(ctx, principal, agentID)
+	if err != nil {
+		return sessionID
+	}
+	for _, session := range sessions {
+		if session.NativeID == sessionID || session.SessionID == sessionID {
+			return session.SessionID
+		}
+	}
+	return sessionID
 }
 
 func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {

@@ -152,7 +152,6 @@ struct AgentSession {
   4: optional string session_id
   5: optional string name
   6: optional string agent_type
-  7: optional string native_id
   8: optional string project_id
   9: optional string preview
   10: optional list<string> workspace_roots
