@@ -169,12 +169,9 @@ func (s *PostgresStore) ListUserAPIKeys(
 	query := `
 		SELECT key_id, owner_user_id, name, prefix, created_at, last_used_at, revoked_at
 		FROM user_api_keys
+		WHERE owner_user_id = $1
 	`
-	args := []any{}
-	if !principal.IsAdmin {
-		query += ` WHERE owner_user_id = $1`
-		args = append(args, principal.User.UserID)
-	}
+	args := []any{principal.User.UserID}
 	query += ` ORDER BY created_at DESC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -189,12 +186,8 @@ func (s *PostgresStore) RevokeUserAPIKey(
 	principal UserPrincipal,
 	keyID string,
 ) error {
-	query := `UPDATE user_api_keys SET revoked_at = $2 WHERE key_id = $1`
-	args := []any{keyID, s.now().UTC()}
-	if !principal.IsAdmin {
-		query += ` AND owner_user_id = $3`
-		args = append(args, principal.User.UserID)
-	}
+	query := `UPDATE user_api_keys SET revoked_at = $2 WHERE key_id = $1 AND owner_user_id = $3`
+	args := []any{keyID, s.now().UTC(), principal.User.UserID}
 	result, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
@@ -450,12 +443,9 @@ func (s *PostgresStore) ListNodes(ctx context.Context, principal UserPrincipal) 
 			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at,
 			COALESCE(metadata, '{}'::jsonb)
 		FROM nodes
+		WHERE owner_user_id = $1
 	`
-	args := []any{}
-	if !principal.IsAdmin {
-		query += ` WHERE owner_user_id = $1`
-		args = append(args, principal.User.UserID)
-	}
+	args := []any{principal.User.UserID}
 	query += ` ORDER BY registered_at ASC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -476,12 +466,9 @@ func (s *PostgresStore) GetNode(
 			COALESCE(metadata, '{}'::jsonb)
 		FROM nodes
 		WHERE node_id = $1
+			AND owner_user_id = $2
 	`
-	args := []any{nodeID}
-	if !principal.IsAdmin {
-		query += ` AND owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	args := []any{nodeID, principal.User.UserID}
 	return scanNode(s.db.QueryRowContext(ctx, query, args...))
 }
 
@@ -620,12 +607,9 @@ func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal)
 		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
 			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
+		WHERE owner_user_id = $1
 	`
-	args := []any{}
-	if !principal.IsAdmin {
-		query += ` WHERE owner_user_id = $1`
-		args = append(args, principal.User.UserID)
-	}
+	args := []any{principal.User.UserID}
 	query += ` ORDER BY registered_at ASC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -645,12 +629,9 @@ func (s *PostgresStore) GetAgent(
 			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
 		WHERE agent_id = $1
+			AND owner_user_id = $2
 	`
-	args := []any{agentID}
-	if !principal.IsAdmin {
-		query += ` AND owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	args := []any{agentID, principal.User.UserID}
 	row := s.db.QueryRowContext(ctx, query, args...)
 	return scanAgent(row)
 }
@@ -661,11 +642,8 @@ func (s *PostgresStore) ListAgentSessions(
 	agentID string,
 ) ([]AgentSession, error) {
 	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.agent_id = $1`
-	args := []any{agentID}
-	if !principal.IsAdmin {
-		query += ` AND a.owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	query += ` AND a.owner_user_id = $2`
+	args := []any{agentID, principal.User.UserID}
 	query += ` ORDER BY agent_sessions.updated_at DESC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -681,11 +659,8 @@ func (s *PostgresStore) GetSession(
 	sessionID string,
 ) (AgentSession, error) {
 	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.session_id = $1`
-	args := []any{sessionID}
-	if !principal.IsAdmin {
-		query += ` AND a.owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	query += ` AND a.owner_user_id = $2`
+	args := []any{sessionID, principal.User.UserID}
 	query += ` ORDER BY agent_sessions.updated_at DESC LIMIT 1`
 	row := s.db.QueryRowContext(ctx, query, args...)
 	return scanSession(row)
@@ -697,11 +672,8 @@ func (s *PostgresStore) ListSessionMessages(
 	sessionID string,
 ) ([]MailboxMessage, error) {
 	query := mailboxSelectSQL + ` WHERE session_id = $1`
-	args := []any{sessionID}
-	if !principal.IsAdmin {
-		query += ` AND owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	query += ` AND owner_user_id = $2`
+	args := []any{sessionID, principal.User.UserID}
 	query += ` ORDER BY id ASC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -815,11 +787,8 @@ func (s *PostgresStore) GetApproval(
 	approvalID string,
 ) (AgentApproval, error) {
 	query := approvalSelectSQL + ` WHERE approval_id = $1`
-	args := []any{approvalID}
-	if !principal.IsAdmin {
-		query += ` AND owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	query += ` AND owner_user_id = $2`
+	args := []any{approvalID, principal.User.UserID}
 	return scanApproval(s.db.QueryRowContext(ctx, query, args...))
 }
 
@@ -985,9 +954,7 @@ func (s *PostgresStore) ListMailbox(
 	if filter.Status != "" {
 		add("status =", filter.Status)
 	}
-	if !filter.Principal.IsAdmin {
-		add("owner_user_id =", filter.Principal.User.UserID)
-	}
+	add("owner_user_id =", filter.Principal.User.UserID)
 	args = append(args, limit)
 
 	rows, err := s.db.QueryContext(ctx, mailboxSelectSQL+`
@@ -1404,9 +1371,7 @@ func approvalListQuery(filter ApprovalFilter) (string, []any) {
 		args = append(args, value)
 		clauses = append(clauses, column+" = $"+strconvArg(len(args)))
 	}
-	if !filter.Principal.IsAdmin {
-		add("owner_user_id", filter.Principal.User.UserID)
-	}
+	add("owner_user_id", filter.Principal.User.UserID)
 	add("status", filter.Status)
 	add("decision", filter.Decision)
 	add("domain", filter.Domain)
@@ -1442,9 +1407,7 @@ func approvalGrantListQuery(filter ApprovalGrantFilter) (string, []any) {
 		args = append(args, value)
 		clauses = append(clauses, column+" = $"+strconvArg(len(args)))
 	}
-	if !filter.Principal.IsAdmin {
-		add("owner_user_id", filter.Principal.User.UserID)
-	}
+	add("owner_user_id", filter.Principal.User.UserID)
 	add("domain", filter.Domain)
 	add("operation", filter.Operation)
 	add("resource_type", filter.ResourceType)

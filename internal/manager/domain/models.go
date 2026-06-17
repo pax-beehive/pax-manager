@@ -603,5 +603,5 @@ func NormalizeEmail(email string) string {
 }
 
 func CanAccessOwner(principal UserPrincipal, ownerUserID string) bool {
-	return principal.IsAdmin || principal.User.UserID == ownerUserID
+	return principal.User.UserID == ownerUserID
 }

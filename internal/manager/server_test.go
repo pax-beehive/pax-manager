@@ -318,7 +318,7 @@ func TestMailboxLifecycle(t *testing.T) {
 	}
 }
 
-func TestTenantIsolationAndAdminBypass(t *testing.T) {
+func TestTenantIsolationAndAdminPrincipalDoesNotBypassOwnerScope(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
 
@@ -360,7 +360,7 @@ func TestTenantIsolationAndAdminBypass(t *testing.T) {
 	got = decodeData[struct {
 		Agents []Agent `json:"agents"`
 	}](t, rec.Body.Bytes())
-	if len(got.Agents) != 1 {
+	if len(got.Agents) != 0 {
 		t.Fatalf("admin agents len = %d", len(got.Agents))
 	}
 }
