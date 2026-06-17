@@ -676,11 +676,25 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 		"id":11,
 		"method":"session/request_permission",
 		"params":{
-			"action_fingerprint":"perm:needs-user",
 			"options":[
-				{"optionId":"deny","label":"Deny"},
-				{"optionId":"allow_once","label":"Allow once"}
-			]
+				{
+					"kind":"allow_always",
+					"name":"Always Allow Bash(curl -s https://api.example.com/v1/status)",
+					"optionId":"allow_always"
+				},
+				{"kind":"allow_once","name":"Allow","optionId":"allow"},
+				{"kind":"reject_once","name":"Reject","optionId":"reject"}
+			],
+			"sessionId":"b6a71307-2480-491d-adad-0fa5aa723ae4",
+			"toolCall":{
+				"toolCallId":"toolu_01first",
+				"rawInput":{
+					"command":"curl -s https://api.example.com/v1/status",
+					"description":"Fetch status from example API endpoint"
+				},
+				"title":"curl -s https://api.example.com/v1/status",
+				"kind":"execute"
+			}
 		}
 	}`)
 	if err := agentWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
@@ -717,7 +731,13 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
-	approvalID := createTestApproval(t, srv, paxKey, agentID, "perm:already-approved")
+	approvalID := createTestApproval(
+		t,
+		srv,
+		paxKey,
+		agentID,
+		"acp:tool_call:execute:curl -s https://api.example.com/v1/status",
+	)
 	decideTestApproval(t, srv, approvalID, "allow_always_on_all_agents")
 
 	mux := http.NewServeMux()
@@ -740,11 +760,25 @@ func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
 		"id":12,
 		"method":"session/request_permission",
 		"params":{
-			"action_fingerprint":"perm:already-approved",
 			"options":[
-				{"optionId":"deny","label":"Deny"},
-				{"optionId":"allow_once","label":"Allow once"}
-			]
+				{
+					"kind":"allow_always",
+					"name":"Always Allow Bash(curl -s https://api.example.com/v1/status)",
+					"optionId":"allow_always"
+				},
+				{"kind":"allow_once","name":"Allow","optionId":"allow"},
+				{"kind":"reject_once","name":"Reject","optionId":"reject"}
+			],
+			"sessionId":"b6a71307-2480-491d-adad-0fa5aa723ae4",
+			"toolCall":{
+				"toolCallId":"toolu_01second",
+				"rawInput":{
+					"command":"curl -s https://api.example.com/v1/status",
+					"description":"Fetch status from example API endpoint"
+				},
+				"title":"curl -s https://api.example.com/v1/status",
+				"kind":"execute"
+			}
 		}
 	}`)
 	if err := agentWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
@@ -771,8 +805,8 @@ func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
 	if frame.ID != 12 {
 		t.Fatalf("response id = %d", frame.ID)
 	}
-	if got := acpOptionID(frame.Result); got != "allow_once" {
-		t.Fatalf("selected option = %q, frame = %s", got, gotResponse)
+	if got := acpOptionKind(frame.Result); got != "allow_once" {
+		t.Fatalf("selected option kind = %q, frame = %s", got, gotResponse)
 	}
 }
 

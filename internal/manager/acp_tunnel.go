@@ -459,6 +459,9 @@ func acpPermissionFingerprint(params map[string]any) (string, error) {
 	if v := stringField(params, "actionFingerprint", ""); v != "" {
 		return v, nil
 	}
+	if fingerprint := acpToolCallFingerprint(params); fingerprint != "" {
+		return fingerprint, nil
+	}
 	canonical := map[string]any{}
 	for key, value := range params {
 		if key == "options" {
@@ -472,6 +475,29 @@ func acpPermissionFingerprint(params map[string]any) (string, error) {
 	}
 	sum := sha256.Sum256(data)
 	return "acp:" + hex.EncodeToString(sum[:]), nil
+}
+
+func acpToolCallFingerprint(params map[string]any) string {
+	toolCall, ok := params["toolCall"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	kind := stringField(toolCall, "kind", "tool_call")
+	rawInput, _ := toolCall["rawInput"].(map[string]any)
+	subject := stringField(rawInput, "command", "")
+	if subject == "" {
+		subject = stringField(rawInput, "path", "")
+	}
+	if subject == "" {
+		subject = stringField(rawInput, "url", "")
+	}
+	if subject == "" {
+		subject = stringField(toolCall, "title", "")
+	}
+	if subject == "" {
+		return ""
+	}
+	return "acp:tool_call:" + kind + ":" + subject
 }
 
 func appendACPAllowAlwaysOption(params map[string]any) bool {
@@ -503,6 +529,8 @@ func acpAllowAlwaysOption(existing []any) any {
 	default:
 		return map[string]any{
 			"optionId": "allow_always_on_all_agents",
+			"kind":     "allow_always_on_all_agents",
+			"name":     "Allow always on all agents",
 			"label":    "Allow always on all agents",
 		}
 	}
@@ -526,11 +554,20 @@ func acpAllowOnceResponse(msg acpJSONRPCMessage, params map[string]any) ([]byte,
 func acpFindOption(params map[string]any, optionID string) (any, bool) {
 	options, _ := params["options"].([]any)
 	for _, option := range options {
-		if acpOptionID(option) == optionID {
+		if acpOptionID(option) == optionID || acpOptionKind(option) == optionID {
 			return option, true
 		}
 	}
 	return nil, false
+}
+
+func acpOptionKind(option any) string {
+	optionMap, ok := option.(map[string]any)
+	if !ok {
+		return ""
+	}
+	kind, _ := optionMap["kind"].(string)
+	return kind
 }
 
 func acpOptionID(option any) string {
