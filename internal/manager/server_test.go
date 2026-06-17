@@ -1068,6 +1068,85 @@ func TestRegisterNodeAgentWithNodeKeyAddsAgentWithoutReturningKey(t *testing.T) 
 	}
 }
 
+func TestNodeStatusReportsAccumulateSessionBatches(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	userHeaders := func(req *http.Request) {
+		req.Header.Set("X-User-Email", "todd@example.com")
+		setJSON(req)
+	}
+
+	tokenReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/node-registration-tokens",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	userHeaders(tokenReq)
+	tokenRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(tokenRec, tokenReq)
+	if tokenRec.Code != http.StatusOK {
+		t.Fatalf("node token code = %d, body = %s", tokenRec.Code, tokenRec.Body.String())
+	}
+	tokenResp := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
+
+	registerReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/agents/register",
+		bytes.NewReader([]byte(`{
+			"node":{"name":"node-batch","hostname":"node-batch","os":"linux","arch":"arm64"},
+			"agent":{"name":"codex-main","agent_type":"codex"}
+		}`)),
+	)
+	setJSON(registerReq)
+	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
+	registerRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(registerRec, registerReq)
+	if registerRec.Code != http.StatusOK {
+		t.Fatalf("register node agent code = %d, body = %s", registerRec.Code, registerRec.Body.String())
+	}
+	registered := decodeData[RegisterNodeAgentResponse](t, registerRec.Body.Bytes())
+
+	for _, sessionID := range []string{"sess-batch-1", "sess-batch-2"} {
+		statusReq := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/node/status",
+			bytes.NewReader([]byte(`{
+				"agents":[{
+					"agent_id":"`+registered.AgentID+`",
+					"name":"codex-main",
+					"agent_type":"codex",
+					"online":true,
+					"sessions":[{"session_id":"`+sessionID+`","agent_type":"codex","status":"idle"}]
+				}]
+			}`)),
+		)
+		setJSON(statusReq)
+		statusReq.Header.Set("X-Pax-Key", registered.APIKey)
+		statusRec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(statusRec, statusReq)
+		if statusRec.Code != http.StatusOK {
+			t.Fatalf("status code = %d, body = %s", statusRec.Code, statusRec.Body.String())
+		}
+	}
+
+	listReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/nodes/"+registered.NodeID+"/agents/"+registered.AgentID+"/sessions",
+		nil,
+	)
+	userHeaders(listReq)
+	listRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list sessions code = %d, body = %s", listRec.Code, listRec.Body.String())
+	}
+	got := decodeData[struct {
+		Sessions []AgentSession `json:"sessions"`
+	}](t, listRec.Body.Bytes())
+	if len(got.Sessions) != 2 {
+		t.Fatalf("sessions = %+v, want 2 accumulated sessions", got.Sessions)
+	}
+}
+
 func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {
 	t.Run(
 		"Given a Cloudflare user and a registered node when messaging a session then the node can pull, acknowledge, complete, and publish an outbound response",
