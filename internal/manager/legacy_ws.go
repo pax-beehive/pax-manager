@@ -104,8 +104,10 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 }
 
 type agentWSInitialRequest struct {
-	AgentID   string
-	SessionID string
+	AgentID     string
+	NodeID      string
+	OwnerUserID string
+	SessionID   string
 }
 
 func (s *Server) authenticateAgentWS(r *http.Request) (User, Agent, agentWSInitialRequest, error) {

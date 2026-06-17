@@ -485,7 +485,11 @@ func (s *PostgresStore) GetNode(
 	return scanNode(s.db.QueryRowContext(ctx, query, args...))
 }
 
-func (s *PostgresStore) GetNodeAgent(ctx context.Context, nodeID string, agentID string) (Agent, error) {
+func (s *PostgresStore) GetNodeAgent(
+	ctx context.Context,
+	nodeID string,
+	agentID string,
+) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type,
 			machine_type, os, hermes_version, api_endpoint, computed_status(last_heartbeat),
@@ -744,6 +748,195 @@ func (s *PostgresStore) CreateMailboxMessage(
 		RETURNING `+mailboxReturningSQL+`
 	`, messageID, principal.User.UserID, ownerUserID, req.NodeID, req.AgentID, req.SessionID, req.Message, messageType, payload, now, expiresAt(now, messageType))
 	return scanMailbox(row)
+}
+
+func (s *PostgresStore) CreateApproval(
+	ctx context.Context,
+	node Node,
+	req CreateApprovalRequest,
+) (AgentApproval, error) {
+	var ownerUserID string
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT owner_user_id FROM agents WHERE agent_id = $1 AND node_id = $2
+	`, req.AgentID, node.NodeID).Scan(&ownerUserID); err != nil {
+		return AgentApproval{}, mapSQLError(err)
+	}
+	if ownerUserID != node.OwnerUserID {
+		return AgentApproval{}, ErrUnauthorized
+	}
+	approvalID, err := newSecret("appr")
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	now := s.now().UTC()
+	row := s.db.QueryRowContext(ctx, `
+		INSERT INTO agent_approvals (
+			approval_id, owner_user_id, request_node_id, request_agent_id, request_session_id,
+			source_message_id, domain, operation, resource_type, resource_ref, title, description,
+			risk_level, action_fingerprint, request_body, requested_effects, options, status,
+			created_at, expires_at, raw_payload
+		)
+		VALUES (
+			$1,$2,NULLIF($3,''),NULLIF($4,''),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
+			$15,$16,$17,'pending',$18,$19,$20
+		)
+		RETURNING `+approvalReturningSQL+`
+	`, approvalID, ownerUserID, node.NodeID, req.AgentID, req.SessionID, req.SourceMessageID,
+		defaultApprovalDomain(req.Domain), req.Operation, req.ResourceType, req.ResourceRef,
+		req.Title, req.Description, defaultApprovalRiskLevel(req.RiskLevel), req.ActionFingerprint,
+		jsonDefault(req.RequestBody, "{}"), jsonDefault(req.RequestedEffects, "[]"),
+		jsonOrDefault(req.Options, "[]"), now, req.ExpiresAt, jsonDefault(req.RawPayload, "{}"))
+	return scanApproval(row)
+}
+
+func (s *PostgresStore) GetApproval(
+	ctx context.Context,
+	principal UserPrincipal,
+	approvalID string,
+) (AgentApproval, error) {
+	query := approvalSelectSQL + ` WHERE approval_id = $1`
+	args := []any{approvalID}
+	if !principal.IsAdmin {
+		query += ` AND owner_user_id = $2`
+		args = append(args, principal.User.UserID)
+	}
+	return scanApproval(s.db.QueryRowContext(ctx, query, args...))
+}
+
+func (s *PostgresStore) GetNodeApproval(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	approvalID string,
+) (AgentApproval, error) {
+	return scanApproval(s.db.QueryRowContext(ctx, approvalSelectSQL+`
+		WHERE approval_id = $1
+			AND owner_user_id = $2
+			AND request_node_id = $3
+			AND request_agent_id = $4
+	`, approvalID, node.OwnerUserID, node.NodeID, agentID))
+}
+
+func (s *PostgresStore) ListApprovals(
+	ctx context.Context,
+	filter ApprovalFilter,
+) ([]AgentApproval, error) {
+	query, args := approvalListQuery(filter)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	return scanApprovals(rows)
+}
+
+func (s *PostgresStore) DecideApproval(
+	ctx context.Context,
+	principal UserPrincipal,
+	approvalID string,
+	req ApprovalDecisionRequest,
+) (AgentApproval, error) {
+	approval, err := s.GetApproval(ctx, principal, approvalID)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	if approval.Status != "pending" {
+		return AgentApproval{}, ErrConflict
+	}
+	decision, scope, grantNodeID, grantAgentID, grantSessionID, err := approvalDecisionGrant(
+		approval,
+		req,
+	)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	now := s.now().UTC()
+	row := s.db.QueryRowContext(ctx, `
+		UPDATE agent_approvals
+		SET status = 'decided',
+			decision = $2,
+			decision_option = $3,
+			decision_scope = $4,
+			grant_node_id = $5,
+			grant_agent_id = $6,
+			grant_session_id = $7,
+			grant_body = $8,
+			decided_by_user_id = $9,
+			decided_at = $10
+		WHERE approval_id = $1
+		RETURNING `+approvalReturningSQL+`
+	`, approvalID, decision, req.DecisionOption, scope, grantNodeID, grantAgentID, grantSessionID,
+		jsonDefault(req.GrantBody, "{}"), principal.User.UserID, now)
+	return scanApproval(row)
+}
+
+func (s *PostgresStore) ListApprovalGrants(
+	ctx context.Context,
+	filter ApprovalGrantFilter,
+) ([]AgentApproval, error) {
+	query, args := approvalGrantListQuery(filter)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	return scanApprovals(rows)
+}
+
+func (s *PostgresStore) FindReusableApprovalGrant(
+	ctx context.Context,
+	lookup ApprovalGrantLookup,
+) (AgentApproval, error) {
+	return scanApproval(s.db.QueryRowContext(ctx, approvalSelectSQL+`
+		WHERE owner_user_id = $1
+			AND domain = $2
+			AND operation = $3
+			AND action_fingerprint = $4
+			AND status = 'decided'
+			AND decision = 'allow'
+			AND decision_scope <> 'once'
+			AND grant_revoked_at IS NULL
+			AND (expires_at IS NULL OR expires_at > $8)
+			AND (grant_node_id = '*' OR grant_node_id = $5)
+			AND (grant_agent_id = '*' OR grant_agent_id = $6)
+			AND (grant_session_id = '*' OR grant_session_id = $7)
+		ORDER BY
+			CASE WHEN grant_session_id = '*' THEN 0 ELSE 1 END DESC,
+			CASE WHEN grant_agent_id = '*' THEN 0 ELSE 1 END DESC,
+			CASE WHEN grant_node_id = '*' THEN 0 ELSE 1 END DESC,
+			decided_at DESC
+		LIMIT 1
+	`, lookup.OwnerUserID, lookup.Domain, lookup.Operation, lookup.ActionFingerprint,
+		lookup.RequestNodeID, lookup.RequestAgentID, lookup.RequestSessionID, s.now().UTC()))
+}
+
+func (s *PostgresStore) RevokeApprovalGrant(
+	ctx context.Context,
+	principal UserPrincipal,
+	grantID string,
+	req RevokeApprovalGrantRequest,
+) (AgentApproval, error) {
+	approval, err := s.GetApproval(ctx, principal, grantID)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	if approval.Decision != "allow" || approval.DecisionScope == "" ||
+		approval.DecisionScope == "once" {
+		return AgentApproval{}, ErrConflict
+	}
+	if approval.GrantRevokedAt != nil {
+		return approval, nil
+	}
+	now := s.now().UTC()
+	row := s.db.QueryRowContext(ctx, `
+		UPDATE agent_approvals
+		SET grant_revoked_at = $2,
+			grant_revoked_by_user_id = $3,
+			grant_revocation_reason = $4
+		WHERE approval_id = $1
+		RETURNING `+approvalReturningSQL+`
+	`, grantID, now, principal.User.UserID, req.Reason)
+	return scanApproval(row)
 }
 
 func (s *PostgresStore) ListMailbox(
@@ -1162,6 +1355,94 @@ const mailboxReturningSQL = `
 		COALESCE(direction, ''), COALESCE(parent_message_id, ''), COALESCE(turn_id, ''), COALESCE(response_id, ''),
 		COALESCE(events, '{}'::jsonb), COALESCE(file_changes, '[]'::jsonb), COALESCE(token_usage, '{}'::jsonb)`
 
+const approvalSelectSQL = `
+	SELECT ` + approvalReturningSQL + `
+	FROM agent_approvals`
+
+const approvalReturningSQL = `
+	approval_id, owner_user_id, COALESCE(request_node_id, ''), COALESCE(request_agent_id, ''),
+		COALESCE(request_session_id, ''), COALESCE(source_message_id, ''), grant_node_id,
+		grant_agent_id, grant_session_id, domain, operation, resource_type, resource_ref,
+		title, description, risk_level, action_fingerprint, request_body, requested_effects,
+		options, status, decision, decision_option, decision_scope, grant_body,
+		COALESCE(decided_by_user_id, ''), grant_revoked_at,
+		COALESCE(grant_revoked_by_user_id, ''), grant_revocation_reason, created_at,
+		expires_at, decided_at, raw_payload`
+
+func approvalListQuery(filter ApprovalFilter) (string, []any) {
+	limit := filter.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	query := approvalSelectSQL
+	clauses := []string{"1=1"}
+	args := []any{}
+	add := func(column string, value string) {
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, column+" = $"+strconvArg(len(args)))
+	}
+	if !filter.Principal.IsAdmin {
+		add("owner_user_id", filter.Principal.User.UserID)
+	}
+	add("status", filter.Status)
+	add("decision", filter.Decision)
+	add("domain", filter.Domain)
+	add("operation", filter.Operation)
+	add("resource_type", filter.ResourceType)
+	add("resource_ref", filter.ResourceRef)
+	add("request_node_id", filter.RequestNodeID)
+	add("request_agent_id", filter.RequestAgentID)
+	add("request_session_id", filter.RequestSessionID)
+	add("decision_scope", filter.DecisionScope)
+	if !filter.IncludeRevoked {
+		clauses = append(clauses, "grant_revoked_at IS NULL")
+	}
+	args = append(args, limit)
+	return query + `
+		WHERE ` + strings.Join(clauses, " AND ") + `
+		ORDER BY created_at DESC
+		LIMIT $` + strconvArg(len(args)), args
+}
+
+func approvalGrantListQuery(filter ApprovalGrantFilter) (string, []any) {
+	limit := filter.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	query := approvalSelectSQL
+	clauses := []string{"status = 'decided'", "decision = 'allow'", "decision_scope <> 'once'"}
+	args := []any{}
+	add := func(column string, value string) {
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, column+" = $"+strconvArg(len(args)))
+	}
+	if !filter.Principal.IsAdmin {
+		add("owner_user_id", filter.Principal.User.UserID)
+	}
+	add("domain", filter.Domain)
+	add("operation", filter.Operation)
+	add("resource_type", filter.ResourceType)
+	add("resource_ref", filter.ResourceRef)
+	add("decision_scope", filter.DecisionScope)
+	add("grant_node_id", filter.GrantNodeID)
+	add("grant_agent_id", filter.GrantAgentID)
+	add("grant_session_id", filter.GrantSessionID)
+	if filter.ActiveOnly {
+		clauses = append(clauses, "grant_revoked_at IS NULL")
+	}
+	args = append(args, limit)
+	return query + `
+		WHERE ` + strings.Join(clauses, " AND ") + `
+		ORDER BY decided_at DESC
+		LIMIT $` + strconvArg(len(args)), args
+}
+
 type sqlExecer interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
@@ -1293,4 +1574,58 @@ func jsonOrNil(v any) any {
 		return nil
 	}
 	return data
+}
+
+func jsonDefault(raw json.RawMessage, fallback string) []byte {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return []byte(fallback)
+	}
+	return raw
+}
+
+func jsonOrDefault(v any, fallback string) []byte {
+	data, err := json.Marshal(v)
+	if err != nil || string(data) == "null" {
+		return []byte(fallback)
+	}
+	return data
+}
+
+func defaultApprovalDomain(v string) string {
+	if strings.TrimSpace(v) == "" {
+		return "agent_action"
+	}
+	return v
+}
+
+func defaultApprovalRiskLevel(v string) string {
+	if strings.TrimSpace(v) == "" {
+		return "unknown"
+	}
+	return v
+}
+
+func approvalDecisionGrant(
+	approval AgentApproval,
+	req ApprovalDecisionRequest,
+) (string, string, string, string, string, error) {
+	switch req.DecisionOption {
+	case "deny":
+		return "deny", "once", approval.RequestNodeID, approval.RequestAgentID,
+			approval.RequestSessionID, nil
+	case "allow_once":
+		return "allow", "once", approval.RequestNodeID, approval.RequestAgentID,
+			approval.RequestSessionID, nil
+	case "allow_for_this_agent":
+		return "allow", "agent", approval.RequestNodeID, approval.RequestAgentID, "*", nil
+	case "allow_for_this_node":
+		return "allow", "node", approval.RequestNodeID, "*", "*", nil
+	case "allow_always_on_all_agents":
+		return "allow", "across_all_agents", "*", "*", "*", nil
+	default:
+		if req.GrantNodeID == "" && req.GrantAgentID == "" && req.GrantSessionID == "" {
+			return "", "", "", "", "", ErrConflict
+		}
+		return "allow", "custom", req.GrantNodeID, req.GrantAgentID, req.GrantSessionID, nil
+	}
 }

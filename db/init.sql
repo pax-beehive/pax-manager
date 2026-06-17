@@ -205,3 +205,91 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_owner ON user_api_keys(owner_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_hash ON user_api_keys(key_hash);
+
+CREATE TABLE IF NOT EXISTS agent_approvals (
+    approval_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id),
+    request_node_id TEXT REFERENCES nodes(node_id),
+    request_agent_id TEXT REFERENCES agents(agent_id),
+    request_session_id TEXT NOT NULL DEFAULT '',
+    source_message_id TEXT NOT NULL DEFAULT '',
+    grant_node_id TEXT NOT NULL DEFAULT '',
+    grant_agent_id TEXT NOT NULL DEFAULT '',
+    grant_session_id TEXT NOT NULL DEFAULT '',
+    domain TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_ref TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    risk_level TEXT NOT NULL DEFAULT 'unknown',
+    action_fingerprint TEXT NOT NULL,
+    request_body JSONB NOT NULL DEFAULT '{}'::jsonb,
+    requested_effects JSONB NOT NULL DEFAULT '[]'::jsonb,
+    options JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status TEXT NOT NULL DEFAULT 'pending',
+    decision TEXT NOT NULL DEFAULT '',
+    decision_option TEXT NOT NULL DEFAULT '',
+    decision_scope TEXT NOT NULL DEFAULT '',
+    grant_body JSONB NOT NULL DEFAULT '{}'::jsonb,
+    decided_by_user_id TEXT REFERENCES users(user_id),
+    grant_revoked_at TIMESTAMPTZ,
+    grant_revoked_by_user_id TEXT REFERENCES users(user_id),
+    grant_revocation_reason TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    decided_at TIMESTAMPTZ,
+    raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS owner_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS request_node_id TEXT REFERENCES nodes(node_id);
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS request_agent_id TEXT REFERENCES agents(agent_id);
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS request_session_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS source_message_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS grant_node_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS grant_agent_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS grant_session_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS domain TEXT NOT NULL DEFAULT 'agent_action';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS operation TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS resource_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS resource_ref TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS risk_level TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS action_fingerprint TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS request_body JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS requested_effects JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS decision TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS decision_option TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS decision_scope TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS grant_body JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS decided_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS grant_revoked_at TIMESTAMPTZ;
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS grant_revoked_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS grant_revocation_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS decided_at TIMESTAMPTZ;
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE INDEX IF NOT EXISTS idx_agent_approvals_owner_status
+    ON agent_approvals(owner_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_approvals_request_origin
+    ON agent_approvals(owner_user_id, request_node_id, request_agent_id, request_session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_approvals_grant_lookup
+    ON agent_approvals(
+        owner_user_id,
+        domain,
+        operation,
+        action_fingerprint,
+        decision,
+        grant_node_id,
+        grant_agent_id,
+        grant_session_id,
+        decided_at DESC
+    );
+CREATE INDEX IF NOT EXISTS idx_agent_approvals_resource
+    ON agent_approvals(owner_user_id, resource_type, resource_ref, created_at DESC);

@@ -24,6 +24,7 @@ type MemoryStore struct {
 	sessions         map[string]AgentSession
 	mailbox          map[int64]MailboxMessage
 	offsets          map[string]int64
+	approvals        map[string]AgentApproval
 }
 
 func NewMemoryStore(now func() time.Time) *MemoryStore {
@@ -41,6 +42,7 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		sessions:         make(map[string]AgentSession),
 		mailbox:          make(map[int64]MailboxMessage),
 		offsets:          make(map[string]int64),
+		approvals:        make(map[string]AgentApproval),
 	}
 }
 
@@ -379,7 +381,11 @@ func (s *MemoryStore) GetNode(
 	return node, nil
 }
 
-func (s *MemoryStore) GetNodeAgent(ctx context.Context, nodeID string, agentID string) (Agent, error) {
+func (s *MemoryStore) GetNodeAgent(
+	ctx context.Context,
+	nodeID string,
+	agentID string,
+) (Agent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	agent, ok := s.agents[agentID]
@@ -664,6 +670,221 @@ func (s *MemoryStore) CreateMailboxMessage(
 	}
 	s.mailbox[msg.ID] = msg
 	return msg, nil
+}
+
+func (s *MemoryStore) CreateApproval(
+	ctx context.Context,
+	node Node,
+	req CreateApprovalRequest,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[req.AgentID]
+	if !ok || agent.NodeID != node.NodeID || agent.OwnerUserID != node.OwnerUserID {
+		return AgentApproval{}, ErrNotFound
+	}
+	approvalID, err := newSecret("appr")
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	approval := AgentApproval{
+		ApprovalID:        approvalID,
+		OwnerUserID:       node.OwnerUserID,
+		RequestNodeID:     node.NodeID,
+		RequestAgentID:    req.AgentID,
+		RequestSessionID:  req.SessionID,
+		SourceMessageID:   req.SourceMessageID,
+		Domain:            defaultApprovalDomain(req.Domain),
+		Operation:         req.Operation,
+		ResourceType:      req.ResourceType,
+		ResourceRef:       req.ResourceRef,
+		Title:             req.Title,
+		Description:       req.Description,
+		RiskLevel:         defaultApprovalRiskLevel(req.RiskLevel),
+		ActionFingerprint: req.ActionFingerprint,
+		RequestBody:       jsonDefault(req.RequestBody, "{}"),
+		RequestedEffects:  jsonDefault(req.RequestedEffects, "[]"),
+		Options:           append([]ApprovalOption(nil), req.Options...),
+		Status:            "pending",
+		CreatedAt:         s.now().UTC(),
+		ExpiresAt:         req.ExpiresAt,
+		RawPayload:        jsonDefault(req.RawPayload, "{}"),
+	}
+	s.approvals[approvalID] = approval
+	return approval, nil
+}
+
+func (s *MemoryStore) GetApproval(
+	ctx context.Context,
+	principal UserPrincipal,
+	approvalID string,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	approval, ok := s.approvals[approvalID]
+	if !ok || !canAccessOwner(principal, approval.OwnerUserID) {
+		return AgentApproval{}, ErrNotFound
+	}
+	return approval, nil
+}
+
+func (s *MemoryStore) GetNodeApproval(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	approvalID string,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	approval, ok := s.approvals[approvalID]
+	if !ok ||
+		approval.OwnerUserID != node.OwnerUserID ||
+		approval.RequestNodeID != node.NodeID ||
+		approval.RequestAgentID != agentID {
+		return AgentApproval{}, ErrNotFound
+	}
+	return approval, nil
+}
+
+func (s *MemoryStore) ListApprovals(
+	ctx context.Context,
+	filter ApprovalFilter,
+) ([]AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]AgentApproval, 0)
+	for _, approval := range s.approvals {
+		if !approvalMatchesFilter(approval, filter) {
+			continue
+		}
+		out = append(out, approval)
+	}
+	sortApprovals(out)
+	return limitApprovals(out, filter.Limit), nil
+}
+
+func (s *MemoryStore) DecideApproval(
+	ctx context.Context,
+	principal UserPrincipal,
+	approvalID string,
+	req ApprovalDecisionRequest,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	approval, ok := s.approvals[approvalID]
+	if !ok || !canAccessOwner(principal, approval.OwnerUserID) {
+		return AgentApproval{}, ErrNotFound
+	}
+	if approval.Status != "pending" {
+		return AgentApproval{}, ErrConflict
+	}
+	decision, scope, grantNodeID, grantAgentID, grantSessionID, err := approvalDecisionGrant(
+		approval,
+		req,
+	)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	now := s.now().UTC()
+	approval.Status = "decided"
+	approval.Decision = decision
+	approval.DecisionOption = req.DecisionOption
+	approval.DecisionScope = scope
+	approval.GrantNodeID = grantNodeID
+	approval.GrantAgentID = grantAgentID
+	approval.GrantSessionID = grantSessionID
+	approval.GrantBody = jsonDefault(req.GrantBody, "{}")
+	approval.DecidedByUserID = principal.User.UserID
+	approval.DecidedAt = &now
+	s.approvals[approvalID] = approval
+	return approval, nil
+}
+
+func (s *MemoryStore) ListApprovalGrants(
+	ctx context.Context,
+	filter ApprovalGrantFilter,
+) ([]AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]AgentApproval, 0)
+	for _, approval := range s.approvals {
+		if !approvalMatchesGrantFilter(approval, filter) {
+			continue
+		}
+		out = append(out, approval)
+	}
+	sortApprovals(out)
+	return limitApprovals(out, filter.Limit), nil
+}
+
+func (s *MemoryStore) FindReusableApprovalGrant(
+	ctx context.Context,
+	lookup ApprovalGrantLookup,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now().UTC()
+	matches := make([]AgentApproval, 0)
+	for _, approval := range s.approvals {
+		if approval.OwnerUserID != lookup.OwnerUserID ||
+			approval.Domain != lookup.Domain ||
+			approval.Operation != lookup.Operation ||
+			approval.ActionFingerprint != lookup.ActionFingerprint ||
+			approval.Status != "decided" ||
+			approval.Decision != "allow" ||
+			approval.DecisionScope == "once" ||
+			approval.GrantRevokedAt != nil {
+			continue
+		}
+		if approval.ExpiresAt != nil && !approval.ExpiresAt.After(now) {
+			continue
+		}
+		if !wildcardMatch(approval.GrantNodeID, lookup.RequestNodeID) ||
+			!wildcardMatch(approval.GrantAgentID, lookup.RequestAgentID) ||
+			!wildcardMatch(approval.GrantSessionID, lookup.RequestSessionID) {
+			continue
+		}
+		matches = append(matches, approval)
+	}
+	if len(matches) == 0 {
+		return AgentApproval{}, ErrNotFound
+	}
+	sort.Slice(matches, func(i, j int) bool {
+		left := approvalSpecificity(matches[i])
+		right := approvalSpecificity(matches[j])
+		if left != right {
+			return left > right
+		}
+		return timeAfter(matches[i].DecidedAt, matches[j].DecidedAt)
+	})
+	return matches[0], nil
+}
+
+func (s *MemoryStore) RevokeApprovalGrant(
+	ctx context.Context,
+	principal UserPrincipal,
+	grantID string,
+	req RevokeApprovalGrantRequest,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	approval, ok := s.approvals[grantID]
+	if !ok || !canAccessOwner(principal, approval.OwnerUserID) {
+		return AgentApproval{}, ErrNotFound
+	}
+	if approval.Decision != "allow" || approval.DecisionScope == "" ||
+		approval.DecisionScope == "once" {
+		return AgentApproval{}, ErrConflict
+	}
+	if approval.GrantRevokedAt != nil {
+		return approval, nil
+	}
+	now := s.now().UTC()
+	approval.GrantRevokedAt = &now
+	approval.GrantRevokedByUserID = principal.User.UserID
+	approval.GrantRevocationReason = req.Reason
+	s.approvals[grantID] = approval
+	return approval, nil
 }
 
 func (s *MemoryStore) ListMailbox(
@@ -1146,6 +1367,108 @@ func (s *MemoryStore) ensureUserLocked(
 	s.users[userID] = user
 	s.usersByEmail[email] = userID
 	return user, nil
+}
+
+func approvalMatchesFilter(approval AgentApproval, filter ApprovalFilter) bool {
+	if !canAccessOwner(filter.Principal, approval.OwnerUserID) {
+		return false
+	}
+	if !stringFiltersMatch([]stringFilter{
+		{filter.Status, approval.Status},
+		{filter.Decision, approval.Decision},
+		{filter.Domain, approval.Domain},
+		{filter.Operation, approval.Operation},
+		{filter.ResourceType, approval.ResourceType},
+		{filter.ResourceRef, approval.ResourceRef},
+		{filter.RequestNodeID, approval.RequestNodeID},
+		{filter.RequestAgentID, approval.RequestAgentID},
+		{filter.RequestSessionID, approval.RequestSessionID},
+		{filter.DecisionScope, approval.DecisionScope},
+	}) {
+		return false
+	}
+	return filter.IncludeRevoked || approval.GrantRevokedAt == nil
+}
+
+func approvalMatchesGrantFilter(approval AgentApproval, filter ApprovalGrantFilter) bool {
+	if !canAccessOwner(filter.Principal, approval.OwnerUserID) {
+		return false
+	}
+	if approval.Status != "decided" || approval.Decision != "allow" ||
+		approval.DecisionScope == "once" {
+		return false
+	}
+	if !stringFiltersMatch([]stringFilter{
+		{filter.Domain, approval.Domain},
+		{filter.Operation, approval.Operation},
+		{filter.ResourceType, approval.ResourceType},
+		{filter.ResourceRef, approval.ResourceRef},
+		{filter.DecisionScope, approval.DecisionScope},
+		{filter.GrantNodeID, approval.GrantNodeID},
+		{filter.GrantAgentID, approval.GrantAgentID},
+		{filter.GrantSessionID, approval.GrantSessionID},
+	}) {
+		return false
+	}
+	return !filter.ActiveOnly || approval.GrantRevokedAt == nil
+}
+
+type stringFilter struct {
+	want string
+	got  string
+}
+
+func stringFiltersMatch(filters []stringFilter) bool {
+	for _, filter := range filters {
+		if filter.want != "" && filter.got != filter.want {
+			return false
+		}
+	}
+	return true
+}
+
+func sortApprovals(approvals []AgentApproval) {
+	sort.Slice(approvals, func(i, j int) bool {
+		return approvals[i].CreatedAt.After(approvals[j].CreatedAt)
+	})
+}
+
+func limitApprovals(approvals []AgentApproval, limit int) []AgentApproval {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	if len(approvals) <= limit {
+		return approvals
+	}
+	return approvals[:limit]
+}
+
+func wildcardMatch(pattern string, value string) bool {
+	return pattern == "*" || pattern == value
+}
+
+func approvalSpecificity(approval AgentApproval) int {
+	score := 0
+	if approval.GrantNodeID != "*" {
+		score++
+	}
+	if approval.GrantAgentID != "*" {
+		score++
+	}
+	if approval.GrantSessionID != "*" {
+		score++
+	}
+	return score
+}
+
+func timeAfter(left *time.Time, right *time.Time) bool {
+	if left == nil {
+		return false
+	}
+	if right == nil {
+		return true
+	}
+	return left.After(*right)
 }
 
 func defaultAgentName(req RegisterAgentRequest) string {

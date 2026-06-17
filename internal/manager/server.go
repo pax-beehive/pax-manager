@@ -348,7 +348,11 @@ func AgentWSAuthPreflight() app.HandlerFunc {
 		path := string(ctx.Path())
 		token := paxKeyFromHertz(ctx)
 		if token == "" {
-			log.Printf("agent websocket auth rejected: path=%s query_agent_id=%q reason=missing_pax_key", path, requestAgentID)
+			log.Printf(
+				"agent websocket auth rejected: path=%s query_agent_id=%q reason=missing_pax_key",
+				path,
+				requestAgentID,
+			)
 			writeError(ctx, http.StatusUnauthorized, "missing pax key")
 			return
 		}

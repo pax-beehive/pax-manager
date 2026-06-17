@@ -74,6 +74,36 @@ type Store interface {
 		principal UserPrincipal,
 		req CreateMailboxRequest,
 	) (MailboxMessage, error)
+	CreateApproval(ctx context.Context, node Node, req CreateApprovalRequest) (AgentApproval, error)
+	GetNodeApproval(
+		ctx context.Context,
+		node Node,
+		agentID string,
+		approvalID string,
+	) (AgentApproval, error)
+	GetApproval(
+		ctx context.Context,
+		principal UserPrincipal,
+		approvalID string,
+	) (AgentApproval, error)
+	ListApprovals(ctx context.Context, filter ApprovalFilter) ([]AgentApproval, error)
+	DecideApproval(
+		ctx context.Context,
+		principal UserPrincipal,
+		approvalID string,
+		req ApprovalDecisionRequest,
+	) (AgentApproval, error)
+	ListApprovalGrants(ctx context.Context, filter ApprovalGrantFilter) ([]AgentApproval, error)
+	FindReusableApprovalGrant(
+		ctx context.Context,
+		lookup ApprovalGrantLookup,
+	) (AgentApproval, error)
+	RevokeApprovalGrant(
+		ctx context.Context,
+		principal UserPrincipal,
+		grantID string,
+		req RevokeApprovalGrantRequest,
+	) (AgentApproval, error)
 	ListMailbox(ctx context.Context, filter MailboxFilter) ([]MailboxMessage, error)
 	PullMailbox(
 		ctx context.Context,

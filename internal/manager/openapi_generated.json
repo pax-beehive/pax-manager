@@ -39,6 +39,113 @@
         },
         "type": "object"
       },
+      "AgentApproval": {
+        "properties": {
+          "action_fingerprint": {
+            "type": "string"
+          },
+          "approval_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "decided_at": {
+            "type": "string"
+          },
+          "decided_by_user_id": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "decision_option": {
+            "type": "string"
+          },
+          "decision_scope": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "grant_agent_id": {
+            "type": "string"
+          },
+          "grant_body": {
+            "type": "object"
+          },
+          "grant_node_id": {
+            "type": "string"
+          },
+          "grant_revocation_reason": {
+            "type": "string"
+          },
+          "grant_revoked_at": {
+            "type": "string"
+          },
+          "grant_revoked_by_user_id": {
+            "type": "string"
+          },
+          "grant_session_id": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOption"
+            },
+            "type": "array"
+          },
+          "owner_user_id": {
+            "type": "string"
+          },
+          "raw_payload": {
+            "type": "object"
+          },
+          "request_agent_id": {
+            "type": "string"
+          },
+          "request_body": {
+            "type": "object"
+          },
+          "request_node_id": {
+            "type": "string"
+          },
+          "request_session_id": {
+            "type": "string"
+          },
+          "requested_effects": {
+            "type": "object"
+          },
+          "resource_ref": {
+            "type": "string"
+          },
+          "resource_type": {
+            "type": "string"
+          },
+          "risk_level": {
+            "type": "string"
+          },
+          "source_message_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AgentListData": {
         "properties": {
           "agents": {
@@ -201,6 +308,154 @@
             "type": "array"
           },
           "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalData": {
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/AgentApproval"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalGrantListData": {
+        "properties": {
+          "grants": {
+            "items": {
+              "$ref": "#/components/schemas/AgentApproval"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalGrantListResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalGrantListData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalListData": {
+        "properties": {
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/AgentApproval"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalListResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalListData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOption": {
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "option_id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateNodeAgentApprovalRequest": {
+        "properties": {
+          "action_fingerprint": {
+            "type": "string"
+          },
+          "agent_id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOption"
+            },
+            "type": "array"
+          },
+          "raw_payload": {
+            "type": "object"
+          },
+          "request_body": {
+            "type": "object"
+          },
+          "requested_effects": {
+            "type": "object"
+          },
+          "resource_ref": {
+            "type": "string"
+          },
+          "resource_type": {
+            "type": "string"
+          },
+          "risk_level": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "source_message_id": {
+            "type": "string"
+          },
+          "title": {
             "type": "string"
           }
         },
@@ -502,6 +757,35 @@
         },
         "type": "object"
       },
+      "DecideUserApprovalRequest": {
+        "properties": {
+          "approval_id": {
+            "type": "string"
+          },
+          "decision_option": {
+            "type": "string"
+          },
+          "grant_agent_id": {
+            "type": "string"
+          },
+          "grant_body": {
+            "type": "object"
+          },
+          "grant_node_id": {
+            "type": "string"
+          },
+          "grant_session_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "EmptyRequest": {
         "properties": {},
         "type": "object"
@@ -550,6 +834,17 @@
         },
         "type": "object"
       },
+      "GetNodeAgentApprovalRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "approval_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "GetNodeAgentRequest": {
         "properties": {
           "agent_id": {
@@ -584,6 +879,17 @@
       "GetNodeRequest": {
         "properties": {
           "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetUserApprovalRequest": {
+        "properties": {
+          "approval_id": {
             "type": "string"
           },
           "user_id": {
@@ -691,6 +997,90 @@
       },
       "ListUserAPIKeysRequest": {
         "properties": {
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListUserApprovalGrantsRequest": {
+        "properties": {
+          "active_only": {
+            "type": "boolean"
+          },
+          "decision_scope": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "grant_agent_id": {
+            "type": "string"
+          },
+          "grant_node_id": {
+            "type": "string"
+          },
+          "grant_session_id": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "resource_ref": {
+            "type": "string"
+          },
+          "resource_type": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListUserApprovalsRequest": {
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "decision_scope": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "include_revoked": {
+            "type": "boolean"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "request_agent_id": {
+            "type": "string"
+          },
+          "request_node_id": {
+            "type": "string"
+          },
+          "request_session_id": {
+            "type": "string"
+          },
+          "resource_ref": {
+            "type": "string"
+          },
+          "resource_type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
           "user_id": {
             "type": "string"
           }
@@ -1201,6 +1591,20 @@
         },
         "type": "object"
       },
+      "RevokeUserApprovalGrantRequest": {
+        "properties": {
+          "grant_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SessionListData": {
         "properties": {
           "sessions": {
@@ -1615,6 +2019,209 @@
           }
         },
         "summary": "Register node agent",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/agents/{agent_id}/approvals": {
+      "post": {
+        "description": "Creates a normalized approval request for an agent action.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeAgentApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Create node agent approval",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/agents/{agent_id}/approvals/{approval_id}": {
+      "get": {
+        "description": "Returns an approval request created by an agent on the authenticated node.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Approval identifier.",
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetNodeAgentApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Get node agent approval",
         "tags": [
           "node"
         ]
@@ -2808,6 +3415,518 @@
           }
         ],
         "summary": "Revoke platform API key",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/approval-grants": {
+      "get": {
+        "description": "Lists reusable approval grants visible to the current user.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListUserApprovalGrantsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGrantListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List approval grants",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/approval-grants/{grant_id}/revoke": {
+      "post": {
+        "description": "Revokes a reusable approval grant without deleting the original approval record.",
+        "parameters": [
+          {
+            "description": "Approval grant identifier.",
+            "in": "path",
+            "name": "grant_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeUserApprovalGrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Revoke approval grant",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/approvals": {
+      "get": {
+        "description": "Lists normalized approval requests visible to the current user.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListUserApprovalsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List approvals",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/approvals/{approval_id}": {
+      "get": {
+        "description": "Returns a normalized approval request visible to the current user.",
+        "parameters": [
+          {
+            "description": "Approval identifier.",
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetUserApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get approval",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/approvals/{approval_id}/decision": {
+      "post": {
+        "description": "Records a user decision for a pending approval request.",
+        "parameters": [
+          {
+            "description": "Approval identifier.",
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideUserApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Decide approval",
         "tags": [
           "user"
         ]
