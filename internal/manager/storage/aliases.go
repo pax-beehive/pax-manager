@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
@@ -67,4 +68,40 @@ func normalizeEmail(email string) string {
 
 func canAccessOwner(principal UserPrincipal, ownerUserID string) bool {
 	return domain.CanAccessOwner(principal, ownerUserID)
+}
+
+func isManagerSessionID(sessionID string) bool {
+	return strings.HasPrefix(sessionID, "sess_")
+}
+
+func reportedNativeSessionID(input SessionStatusInput) string {
+	if input.NativeID != "" && isManagerSessionID(input.SessionID) {
+		return input.NativeID
+	}
+	return input.SessionID
+}
+
+func replacePayloadSessionID(raw json.RawMessage, sessionID string) json.RawMessage {
+	if sessionID == "" || len(raw) == 0 || !json.Valid(raw) {
+		return raw
+	}
+	var object map[string]any
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return raw
+	}
+	changed := false
+	for _, key := range []string{"session_id", "sessionId"} {
+		if _, ok := object[key]; ok {
+			object[key] = sessionID
+			changed = true
+		}
+	}
+	if !changed {
+		return raw
+	}
+	data, err := json.Marshal(object)
+	if err != nil {
+		return raw
+	}
+	return data
 }

@@ -4616,7 +4616,7 @@ type AgentSession struct {
 	SessionID      *string  `thrift:"session_id,3,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
 	Name           *string  `thrift:"name,4,optional" form:"name" json:"name,omitempty" query:"name"`
 	AgentType      *string  `thrift:"agent_type,5,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
-	NativeID       *string  `thrift:"native_id,6,optional" form:"native_id" json:"native_id,omitempty" query:"native_id"`
+	NativeID       *string  `thrift:"native_id,6,optional" form:"native_id" json:"-" query:"native_id"`
 	ProjectID      *string  `thrift:"project_id,7,optional" form:"project_id" json:"project_id,omitempty" query:"project_id"`
 	Preview        *string  `thrift:"preview,8,optional" form:"preview" json:"preview,omitempty" query:"preview"`
 	WorkspaceRoots []string `thrift:"workspace_roots,9,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`

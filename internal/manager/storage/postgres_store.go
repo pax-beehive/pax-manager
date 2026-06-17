@@ -393,6 +393,13 @@ func (s *PostgresStore) UpsertNodeStatus(
 			return err
 		}
 		for _, session := range input.Sessions {
+			if session.SessionID == "" {
+				continue
+			}
+			session, err = s.normalizeReportedSessionInput(ctx, tx, agentID, session)
+			if err != nil {
+				return err
+			}
 			if err := upsertSessionTx(ctx, tx, node.NodeID, agentID, session, now); err != nil {
 				return err
 			}
@@ -428,6 +435,10 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 	for _, input := range report.Sessions {
 		if input.SessionID == "" {
 			continue
+		}
+		input, err = s.normalizeReportedSessionInput(ctx, tx, report.AgentID, input)
+		if err != nil {
+			return err
 		}
 		if err := upsertSessionTx(ctx, tx, "", report.AgentID, input, now); err != nil {
 			return err
@@ -756,6 +767,14 @@ func (s *PostgresStore) CreateApproval(
 	if ownerUserID != node.OwnerUserID {
 		return AgentApproval{}, ErrUnauthorized
 	}
+	sessionID := req.SessionID
+	if sessionID != "" {
+		translated, err := s.virtualSessionID(ctx, s.db, req.AgentID, sessionID)
+		if err != nil {
+			return AgentApproval{}, err
+		}
+		sessionID = translated
+	}
 	approvalID, err := newSecret("appr")
 	if err != nil {
 		return AgentApproval{}, err
@@ -771,14 +790,18 @@ func (s *PostgresStore) CreateApproval(
 		VALUES (
 			$1,$2,NULLIF($3,''),NULLIF($4,''),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
 			$15,$16,$17,'pending',$18,$19,$20
-		)
-		RETURNING `+approvalReturningSQL+`
-	`, approvalID, ownerUserID, node.NodeID, req.AgentID, req.SessionID, req.SourceMessageID,
+			)
+			RETURNING `+approvalReturningSQL+`
+	`, approvalID, ownerUserID, node.NodeID, req.AgentID, sessionID, req.SourceMessageID,
 		defaultApprovalDomain(req.Domain), req.Operation, req.ResourceType, req.ResourceRef,
 		req.Title, req.Description, defaultApprovalRiskLevel(req.RiskLevel), req.ActionFingerprint,
 		jsonDefault(req.RequestBody, "{}"), jsonDefault(req.RequestedEffects, "[]"),
 		jsonOrDefault(req.Options, "[]"), now, req.ExpiresAt, jsonDefault(req.RawPayload, "{}"))
-	return scanApproval(row)
+	approval, err := scanApproval(row)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	return s.translateApprovalToNative(ctx, s.db, approval)
 }
 
 func (s *PostgresStore) GetApproval(
@@ -798,12 +821,16 @@ func (s *PostgresStore) GetNodeApproval(
 	agentID string,
 	approvalID string,
 ) (AgentApproval, error) {
-	return scanApproval(s.db.QueryRowContext(ctx, approvalSelectSQL+`
+	approval, err := scanApproval(s.db.QueryRowContext(ctx, approvalSelectSQL+`
 		WHERE approval_id = $1
 			AND owner_user_id = $2
 			AND request_node_id = $3
 			AND request_agent_id = $4
 	`, approvalID, node.OwnerUserID, node.NodeID, agentID))
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	return s.translateApprovalToNative(ctx, s.db, approval)
 }
 
 func (s *PostgresStore) ListApprovals(
@@ -986,7 +1013,14 @@ func (s *PostgresStore) PullMailbox(
 	defer func() { _ = tx.Rollback() }()
 
 	now := s.now().UTC()
-	rows, err := s.pullMailboxRows(ctx, tx, agentID, sessionID, offset, limit, now)
+	querySessionID := sessionID
+	if querySessionID != "" {
+		querySessionID, err = s.virtualSessionID(ctx, tx, agentID, querySessionID)
+		if err != nil {
+			return MailboxPull{}, err
+		}
+	}
+	rows, err := s.pullMailboxRows(ctx, tx, agentID, querySessionID, offset, limit, now)
 	if err != nil {
 		return MailboxPull{}, err
 	}
@@ -1002,6 +1036,9 @@ func (s *PostgresStore) PullMailbox(
 	hasMore := len(messages) > limit
 	if hasMore {
 		messages = messages[:limit]
+	}
+	if err := s.translateMailboxMessagesToNative(ctx, tx, messages); err != nil {
+		return MailboxPull{}, err
 	}
 
 	maxOffset := offset
@@ -1043,6 +1080,13 @@ func (s *PostgresStore) PullNodeMailbox(
 	}
 	defer func() { _ = tx.Rollback() }()
 	now := s.now().UTC()
+	querySessionID := sessionID
+	if agentID != "" && querySessionID != "" {
+		querySessionID, err = s.virtualSessionID(ctx, tx, agentID, querySessionID)
+		if err != nil {
+			return MailboxPull{}, err
+		}
+	}
 	clauses := []string{
 		"node_id = $1",
 		"id > $2",
@@ -1054,8 +1098,8 @@ func (s *PostgresStore) PullNodeMailbox(
 		args = append(args, agentID)
 		clauses = append(clauses, "agent_id = $"+strconvArg(len(args)))
 	}
-	if sessionID != "" {
-		args = append(args, sessionID)
+	if querySessionID != "" {
+		args = append(args, querySessionID)
 		clauses = append(clauses, "session_id = $"+strconvArg(len(args)))
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -1086,6 +1130,9 @@ func (s *PostgresStore) PullNodeMailbox(
 	hasMore := len(messages) > limit
 	if hasMore {
 		messages = messages[:limit]
+	}
+	if err := s.translateMailboxMessagesToNative(ctx, tx, messages); err != nil {
+		return MailboxPull{}, err
 	}
 	maxOffset := offset
 	for i := range messages {
@@ -1268,13 +1315,21 @@ func (s *PostgresStore) CreateNodeOutboundMessage(
 	if req.CreatedAt != nil {
 		createdAt = req.CreatedAt.UTC()
 	}
+	sessionID := req.SessionID
+	if sessionID != "" {
+		translated, err := s.virtualSessionID(ctx, s.db, req.AgentID, sessionID)
+		if err != nil {
+			return MailboxMessage{}, err
+		}
+		sessionID = translated
+	}
 	msg, err := s.insertMailbox(
 		ctx,
 		ownerUserID,
 		ownerUserID,
 		node.NodeID,
 		req.AgentID,
-		req.SessionID,
+		sessionID,
 		req.Content,
 		defaultOutboundMessageType(req.MessageType),
 		req.Payload,
@@ -1295,7 +1350,16 @@ func (s *PostgresStore) CreateNodeOutboundMessage(
 	if err != nil {
 		return MailboxMessage{}, err
 	}
-	return scanMailbox(s.db.QueryRowContext(ctx, mailboxSelectSQL+` WHERE id = $1`, msg.ID))
+	msg, err = scanMailbox(s.db.QueryRowContext(ctx, mailboxSelectSQL+` WHERE id = $1`, msg.ID))
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	msg.SessionID, err = s.nativeSessionID(ctx, s.db, msg.AgentID, msg.SessionID)
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	msg.Payload = replacePayloadSessionID(msg.Payload, msg.SessionID)
+	return msg, nil
 }
 
 func (s *PostgresStore) UpdateOffset(ctx context.Context, agentID string, offset int64) error {
@@ -1430,12 +1494,162 @@ type sqlExecer interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
 
+type sqlQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
 type dbExecer struct {
 	db *sql.DB
 }
 
 func (e dbExecer) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	return e.db.ExecContext(ctx, query, args...)
+}
+
+func (e dbExecer) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	return e.db.QueryRowContext(ctx, query, args...)
+}
+
+func (s *PostgresStore) normalizeReportedSessionInput(
+	ctx context.Context,
+	queryer sqlQueryer,
+	agentID string,
+	input SessionStatusInput,
+) (SessionStatusInput, error) {
+	nativeID := reportedNativeSessionID(input)
+	if nativeID == "" {
+		return input, nil
+	}
+	var sessionID string
+	err := queryer.QueryRowContext(ctx, `
+		SELECT session_id FROM agent_sessions
+		WHERE agent_id = $1 AND native_id = $2
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`, agentID, nativeID).Scan(&sessionID)
+	if err != nil && err != sql.ErrNoRows {
+		return input, err
+	}
+	if err == nil {
+		input.SessionID = sessionID
+	} else if input.NativeID == "" || input.SessionID == "" || !isManagerSessionID(input.SessionID) {
+		generated, genErr := newSecret("sess")
+		if genErr != nil {
+			return input, genErr
+		}
+		input.SessionID = generated
+	}
+	input.NativeID = nativeID
+	return input, nil
+}
+
+func (s *PostgresStore) virtualSessionID(
+	ctx context.Context,
+	queryer sqlQueryer,
+	agentID string,
+	sessionID string,
+) (string, error) {
+	if sessionID == "" {
+		return "", nil
+	}
+	var translated string
+	err := queryer.QueryRowContext(ctx, `
+		SELECT session_id FROM agent_sessions
+		WHERE agent_id = $1 AND native_id = $2
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`, agentID, sessionID).Scan(&translated)
+	if err == nil {
+		return translated, nil
+	}
+	if err != sql.ErrNoRows {
+		return "", err
+	}
+	err = queryer.QueryRowContext(ctx, `
+		SELECT session_id FROM agent_sessions
+		WHERE agent_id = $1 AND session_id = $2
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`, agentID, sessionID).Scan(&translated)
+	if err == nil {
+		return translated, nil
+	}
+	if err != sql.ErrNoRows {
+		return "", err
+	}
+	return sessionID, nil
+}
+
+func (s *PostgresStore) nativeSessionID(
+	ctx context.Context,
+	queryer sqlQueryer,
+	agentID string,
+	sessionID string,
+) (string, error) {
+	if sessionID == "" {
+		return "", nil
+	}
+	var nativeID string
+	err := queryer.QueryRowContext(ctx, `
+		SELECT COALESCE(native_id, '') FROM agent_sessions
+		WHERE agent_id = $1 AND session_id = $2
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`, agentID, sessionID).Scan(&nativeID)
+	if err == nil && nativeID != "" {
+		return nativeID, nil
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return "", err
+	}
+	return sessionID, nil
+}
+
+func (s *PostgresStore) translateMailboxMessagesToNative(
+	ctx context.Context,
+	queryer sqlQueryer,
+	messages []MailboxMessage,
+) error {
+	for i := range messages {
+		nativeID, err := s.nativeSessionID(ctx, queryer, messages[i].AgentID, messages[i].SessionID)
+		if err != nil {
+			return err
+		}
+		messages[i].SessionID = nativeID
+		messages[i].Payload = replacePayloadSessionID(messages[i].Payload, nativeID)
+	}
+	return nil
+}
+
+func (s *PostgresStore) translateApprovalToNative(
+	ctx context.Context,
+	queryer sqlQueryer,
+	approval AgentApproval,
+) (AgentApproval, error) {
+	var err error
+	if approval.RequestAgentID != "" && approval.RequestSessionID != "" {
+		approval.RequestSessionID, err = s.nativeSessionID(
+			ctx,
+			queryer,
+			approval.RequestAgentID,
+			approval.RequestSessionID,
+		)
+		if err != nil {
+			return AgentApproval{}, err
+		}
+	}
+	if approval.GrantAgentID != "" && approval.GrantSessionID != "" {
+		approval.GrantSessionID, err = s.nativeSessionID(
+			ctx,
+			queryer,
+			approval.GrantAgentID,
+			approval.GrantSessionID,
+		)
+		if err != nil {
+			return AgentApproval{}, err
+		}
+	}
+	return approval, nil
 }
 
 func upsertSessionTx(

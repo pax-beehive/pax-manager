@@ -346,6 +346,13 @@ func (s *MemoryStore) UpsertNodeStatus(
 			return err
 		}
 		for _, session := range input.Sessions {
+			if session.SessionID == "" {
+				continue
+			}
+			session, err = s.normalizeReportedSessionLocked(agent.AgentID, session)
+			if err != nil {
+				return err
+			}
 			s.upsertSessionLocked(current.NodeID, agent.AgentID, session, now)
 		}
 	}
@@ -521,6 +528,11 @@ func (s *MemoryStore) UpsertAgentStatus(ctx context.Context, report AgentStatusR
 			continue
 		}
 		nodeID := agent.NodeID
+		var err error
+		input, err = s.normalizeReportedSessionLocked(report.AgentID, input)
+		if err != nil {
+			return err
+		}
 		s.upsertSessionLocked(nodeID, report.AgentID, input, now)
 	}
 
@@ -695,6 +707,10 @@ func (s *MemoryStore) CreateApproval(
 	if !ok || agent.NodeID != node.NodeID || agent.OwnerUserID != node.OwnerUserID {
 		return AgentApproval{}, ErrNotFound
 	}
+	sessionID := req.SessionID
+	if sessionID != "" {
+		sessionID = s.virtualSessionIDLocked(req.AgentID, sessionID)
+	}
 	approvalID, err := newSecret("appr")
 	if err != nil {
 		return AgentApproval{}, err
@@ -704,7 +720,7 @@ func (s *MemoryStore) CreateApproval(
 		OwnerUserID:       node.OwnerUserID,
 		RequestNodeID:     node.NodeID,
 		RequestAgentID:    req.AgentID,
-		RequestSessionID:  req.SessionID,
+		RequestSessionID:  sessionID,
 		SourceMessageID:   req.SourceMessageID,
 		Domain:            defaultApprovalDomain(req.Domain),
 		Operation:         req.Operation,
@@ -737,7 +753,7 @@ func (s *MemoryStore) GetApproval(
 	if !ok || !canAccessOwner(principal, approval.OwnerUserID) {
 		return AgentApproval{}, ErrNotFound
 	}
-	return approval, nil
+	return s.translateApprovalToNativeLocked(approval), nil
 }
 
 func (s *MemoryStore) GetNodeApproval(
@@ -755,7 +771,7 @@ func (s *MemoryStore) GetNodeApproval(
 		approval.RequestAgentID != agentID {
 		return AgentApproval{}, ErrNotFound
 	}
-	return approval, nil
+	return s.translateApprovalToNativeLocked(approval), nil
 }
 
 func (s *MemoryStore) ListApprovals(
@@ -944,6 +960,10 @@ func (s *MemoryStore) PullMailbox(
 	if limit <= 0 || limit > 100 {
 		limit = 10
 	}
+	querySessionID := sessionID
+	if querySessionID != "" {
+		querySessionID = s.virtualSessionIDLocked(agentID, querySessionID)
+	}
 
 	now := s.now().UTC()
 	candidates := make([]MailboxMessage, 0)
@@ -951,7 +971,7 @@ func (s *MemoryStore) PullMailbox(
 		if msg.AgentID != agentID || msg.ID <= offset {
 			continue
 		}
-		if sessionID != "" && msg.SessionID != sessionID {
+		if querySessionID != "" && msg.SessionID != querySessionID {
 			continue
 		}
 		if msg.Status != "pending" {
@@ -983,6 +1003,7 @@ func (s *MemoryStore) PullMailbox(
 			maxOffset = candidates[i].ID
 		}
 	}
+	s.translateMailboxMessagesToNativeLocked(candidates)
 
 	return MailboxPull{Messages: candidates, MaxOffset: maxOffset, HasMore: hasMore}, nil
 }
@@ -1003,6 +1024,10 @@ func (s *MemoryStore) PullNodeMailbox(
 	if _, ok := s.nodes[nodeID]; !ok {
 		return MailboxPull{}, ErrNotFound
 	}
+	querySessionID := sessionID
+	if agentID != "" && querySessionID != "" {
+		querySessionID = s.virtualSessionIDLocked(agentID, querySessionID)
+	}
 	now := s.now().UTC()
 	candidates := make([]MailboxMessage, 0)
 	for _, msg := range s.mailbox {
@@ -1012,7 +1037,7 @@ func (s *MemoryStore) PullNodeMailbox(
 		if agentID != "" && msg.AgentID != agentID {
 			continue
 		}
-		if sessionID != "" && msg.SessionID != sessionID {
+		if querySessionID != "" && msg.SessionID != querySessionID {
 			continue
 		}
 		if msg.Direction == "node_to_user" || msg.Status != "pending" {
@@ -1042,6 +1067,7 @@ func (s *MemoryStore) PullNodeMailbox(
 			maxOffset = candidates[i].ID
 		}
 	}
+	s.translateMailboxMessagesToNativeLocked(candidates)
 	return MailboxPull{Messages: candidates, MaxOffset: maxOffset, HasMore: hasMore}, nil
 }
 
@@ -1141,6 +1167,10 @@ func (s *MemoryStore) CreateNodeOutboundMessage(
 	if !ok || agent.NodeID != node.NodeID {
 		return MailboxMessage{}, ErrNotFound
 	}
+	sessionID := req.SessionID
+	if sessionID != "" {
+		sessionID = s.virtualSessionIDLocked(req.AgentID, sessionID)
+	}
 	createdAt := s.now().UTC()
 	if req.CreatedAt != nil {
 		createdAt = req.CreatedAt.UTC()
@@ -1150,7 +1180,7 @@ func (s *MemoryStore) CreateNodeOutboundMessage(
 		node.OwnerUserID,
 		node.NodeID,
 		req.AgentID,
-		req.SessionID,
+		sessionID,
 		req.Content,
 		defaultOutboundMessageType(req.MessageType),
 		req.Payload,
@@ -1168,6 +1198,8 @@ func (s *MemoryStore) CreateNodeOutboundMessage(
 	msg.FileChanges = append([]FileChange(nil), req.FileChanges...)
 	msg.TokenUsage = req.TokenUsage
 	s.mailbox[msg.ID] = msg
+	msg.SessionID = s.nativeSessionIDLocked(msg.AgentID, msg.SessionID)
+	msg.Payload = replacePayloadSessionID(msg.Payload, msg.SessionID)
 	return msg, nil
 }
 
@@ -1302,6 +1334,73 @@ func (s *MemoryStore) upsertSessionLocked(
 	existing.UpdatedAt = now
 	s.sessions[sessionKey(agentID, input.SessionID)] = existing
 	return existing
+}
+
+func (s *MemoryStore) normalizeReportedSessionLocked(
+	agentID string,
+	input SessionStatusInput,
+) (SessionStatusInput, error) {
+	nativeID := reportedNativeSessionID(input)
+	if nativeID == "" {
+		return input, nil
+	}
+	for _, session := range s.sessions {
+		if session.AgentID == agentID && session.NativeID == nativeID {
+			input.SessionID = session.SessionID
+			input.NativeID = nativeID
+			return input, nil
+		}
+	}
+	if input.NativeID == "" || input.SessionID == "" || !isManagerSessionID(input.SessionID) {
+		generated, err := newSecret("sess")
+		if err != nil {
+			return input, err
+		}
+		input.SessionID = generated
+	}
+	input.NativeID = nativeID
+	return input, nil
+}
+
+func (s *MemoryStore) virtualSessionIDLocked(agentID string, sessionID string) string {
+	for _, session := range s.sessions {
+		if session.AgentID == agentID && session.NativeID == sessionID {
+			return session.SessionID
+		}
+	}
+	return sessionID
+}
+
+func (s *MemoryStore) nativeSessionIDLocked(agentID string, sessionID string) string {
+	session, ok := s.sessions[sessionKey(agentID, sessionID)]
+	if !ok || session.NativeID == "" {
+		return sessionID
+	}
+	return session.NativeID
+}
+
+func (s *MemoryStore) translateMailboxMessagesToNativeLocked(messages []MailboxMessage) {
+	for i := range messages {
+		nativeID := s.nativeSessionIDLocked(messages[i].AgentID, messages[i].SessionID)
+		messages[i].SessionID = nativeID
+		messages[i].Payload = replacePayloadSessionID(messages[i].Payload, nativeID)
+	}
+}
+
+func (s *MemoryStore) translateApprovalToNativeLocked(approval AgentApproval) AgentApproval {
+	if approval.RequestAgentID != "" && approval.RequestSessionID != "" {
+		approval.RequestSessionID = s.nativeSessionIDLocked(
+			approval.RequestAgentID,
+			approval.RequestSessionID,
+		)
+	}
+	if approval.GrantAgentID != "" && approval.GrantSessionID != "" {
+		approval.GrantSessionID = s.nativeSessionIDLocked(
+			approval.GrantAgentID,
+			approval.GrantSessionID,
+		)
+	}
+	return approval
 }
 
 func (s *MemoryStore) createMailboxLocked(
