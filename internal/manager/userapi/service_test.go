@@ -183,6 +183,41 @@ func TestAgents(t *testing.T) {
 	)
 
 	t.Run(
+		"Given a node-scoped agent request with a different node then it returns not found",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetNode(ctx, principal, "node_2").
+				Return(domain.Node{NodeID: "node_2", OwnerUserID: "usr_self"}, nil).
+				Once()
+			store.EXPECT().
+				GetAgent(ctx, principal, "agent_1").
+				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.GetNodeAgent(
+				ctx,
+				auth.RequestMetadata{},
+				"node_2",
+				"agent_1",
+			)
+
+			require.ErrorIs(t, err, domain.ErrNotFound)
+		},
+	)
+
+	t.Run(
 		"Given a visible session under an agent when getting that agent session then it returns the session",
 		func(t *testing.T) {
 			ctx := context.Background()
@@ -241,6 +276,137 @@ func TestAgents(t *testing.T) {
 			)
 
 			require.ErrorIs(t, err, domain.ErrNotFound)
+		},
+	)
+
+	t.Run(
+		"Given a legacy session without node ID under a matching node agent then it returns the session",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			session := domain.AgentSession{AgentID: "agent_1", SessionID: "sess_1"}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetNode(ctx, principal, "node_1").
+				Return(domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+				Once()
+			store.EXPECT().
+				GetAgent(ctx, principal, "agent_1").
+				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+				Once()
+			store.EXPECT().GetSession(ctx, principal, "sess_1").Return(session, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.GetNodeAgentSession(
+				ctx,
+				auth.RequestMetadata{},
+				"node_1",
+				"agent_1",
+				"sess_1",
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, session, data)
+		},
+	)
+
+	t.Run(
+		"Given a node-scoped session under a different node then it returns not found",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetNode(ctx, principal, "node_1").
+				Return(domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+				Once()
+			store.EXPECT().
+				GetAgent(ctx, principal, "agent_1").
+				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+				Once()
+			store.EXPECT().
+				GetSession(ctx, principal, "sess_1").
+				Return(domain.AgentSession{
+					NodeID:    "node_2",
+					AgentID:   "agent_1",
+					SessionID: "sess_1",
+				}, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.GetNodeAgentSession(
+				ctx,
+				auth.RequestMetadata{},
+				"node_1",
+				"agent_1",
+				"sess_1",
+			)
+
+			require.ErrorIs(t, err, domain.ErrNotFound)
+		},
+	)
+
+	t.Run(
+		"Given node-scoped sessions then it filters out sessions from other nodes",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			sessions := []domain.AgentSession{
+				{NodeID: "node_1", AgentID: "agent_1", SessionID: "sess_1"},
+				{AgentID: "agent_1", SessionID: "sess_legacy"},
+				{NodeID: "node_2", AgentID: "agent_1", SessionID: "sess_2"},
+			}
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetNode(ctx, principal, "node_1").
+				Return(domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+				Once()
+			store.EXPECT().
+				GetAgent(ctx, principal, "agent_1").
+				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+				Once()
+			store.EXPECT().ListAgentSessions(ctx, principal, "agent_1").Return(sessions, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.ListNodeAgentSessions(
+				ctx,
+				auth.RequestMetadata{},
+				"node_1",
+				"agent_1",
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(
+				t,
+				map[string]any{"sessions": []domain.AgentSession{sessions[0], sessions[1]}},
+				data,
+			)
 		},
 	)
 }
@@ -329,6 +495,92 @@ func TestMailbox(t *testing.T) {
 			principals := userapimocks.NewMockPrincipalResolver(t)
 
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetSession(ctx, principal, "sess_1").
+				Return(domain.AgentSession{AgentID: "agent_1", SessionID: "sess_1"}, nil).
+				Once()
+			store.EXPECT().CreateMailboxMessage(ctx, principal, req).Return(expected, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.CreateSessionMessage(ctx, auth.RequestMetadata{}, req)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, expected, data)
+		},
+	)
+
+	t.Run(
+		"Given a node-scoped mailbox message for a different node agent then it returns not found",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			req := domain.CreateMailboxRequest{
+				NodeID:      "node_2",
+				AgentID:     "agent_1",
+				Message:     "continue",
+				MessageType: "chat",
+			}
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetNode(ctx, principal, "node_2").
+				Return(domain.Node{NodeID: "node_2", OwnerUserID: "usr_self"}, nil).
+				Once()
+			store.EXPECT().
+				GetAgent(ctx, principal, "agent_1").
+				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.CreateMailboxMessage(ctx, auth.RequestMetadata{}, req)
+
+			require.ErrorIs(t, err, domain.ErrNotFound)
+		},
+	)
+
+	t.Run(
+		"Given a node-scoped mailbox message for a legacy session then it creates the message",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			req := domain.CreateMailboxRequest{
+				NodeID:      "node_1",
+				AgentID:     "agent_1",
+				SessionID:   "sess_1",
+				Message:     "continue",
+				MessageType: "chat",
+			}
+			expected := domain.MailboxMessage{
+				NodeID:    "node_1",
+				MessageID: "msg_1",
+				AgentID:   "agent_1",
+				SessionID: "sess_1",
+			}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetNode(ctx, principal, "node_1").
+				Return(domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+				Once()
+			store.EXPECT().
+				GetAgent(ctx, principal, "agent_1").
+				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+				Once()
 			store.EXPECT().
 				GetSession(ctx, principal, "sess_1").
 				Return(domain.AgentSession{AgentID: "agent_1", SessionID: "sess_1"}, nil).

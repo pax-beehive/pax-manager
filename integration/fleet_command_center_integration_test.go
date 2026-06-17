@@ -566,6 +566,20 @@ func (f *integrationFixture) postExpectError(
 	}
 }
 
+func (f *integrationFixture) getExpectError(
+	t *testing.T,
+	path string,
+	headers map[string]string,
+	wantStatus int,
+) {
+	t.Helper()
+	raw := f.getRaw(t, path, wantStatus, headers)
+	envelope := decodeEnvelope[json.RawMessage](t, raw)
+	if envelope.Code != wantStatus {
+		t.Fatalf("error envelope code = %d, want %d: %s", envelope.Code, wantStatus, raw)
+	}
+}
+
 func (f *integrationFixture) delete(
 	t *testing.T,
 	path string,

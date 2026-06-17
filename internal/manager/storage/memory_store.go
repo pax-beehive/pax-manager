@@ -638,6 +638,18 @@ func (s *MemoryStore) CreateMailboxMessage(
 	if !ok || !canAccessOwner(principal, agent.OwnerUserID) {
 		return MailboxMessage{}, ErrNotFound
 	}
+	if req.NodeID != "" && agent.NodeID != req.NodeID {
+		return MailboxMessage{}, ErrNotFound
+	}
+	if req.SessionID != "" {
+		session, ok := s.sessions[sessionKey(req.AgentID, req.SessionID)]
+		if !ok {
+			return MailboxMessage{}, ErrNotFound
+		}
+		if req.NodeID != "" && session.NodeID != "" && session.NodeID != agent.NodeID {
+			return MailboxMessage{}, ErrNotFound
+		}
+	}
 	messageType := defaultMessageType(req.MessageType)
 	if messageType == "" {
 		return MailboxMessage{}, ErrConflict
