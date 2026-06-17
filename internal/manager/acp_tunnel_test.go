@@ -8,8 +8,8 @@ import (
 func TestACPRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 	params := map[string]any{
 		"options": []any{
-			map[string]any{"optionId": "deny", "label": "Deny"},
-			map[string]any{"optionId": "allow_once", "label": "Allow once"},
+			map[string]any{"kind": "reject_once", "name": "Reject", "optionId": "reject"},
+			map[string]any{"kind": "allow_once", "name": "Allow", "optionId": "allow"},
 		},
 	}
 
@@ -36,8 +36,8 @@ func TestACPAllowOnceResponseUsesExistingAllowOnceOption(t *testing.T) {
 	}
 	params := map[string]any{
 		"options": []any{
-			map[string]any{"optionId": "deny", "label": "Deny"},
-			map[string]any{"optionId": "allow_once", "label": "Allow once"},
+			map[string]any{"kind": "reject_once", "name": "Reject", "optionId": "reject"},
+			map[string]any{"kind": "allow_once", "name": "Allow", "optionId": "allow"},
 		},
 	}
 
@@ -56,7 +56,51 @@ func TestACPAllowOnceResponseUsesExistingAllowOnceOption(t *testing.T) {
 	if response.JSONRPC != "2.0" || response.ID != 7 {
 		t.Fatalf("unexpected response frame: %s", raw)
 	}
-	if got := acpOptionID(response.Result); got != "allow_once" {
-		t.Fatalf("selected option = %q", got)
+	if got := acpOptionKind(response.Result); got != "allow_once" {
+		t.Fatalf("selected option kind = %q", got)
+	}
+}
+
+func TestACPPermissionFingerprintUsesStableToolCallFields(t *testing.T) {
+	first := map[string]any{
+		"sessionId": "session-a",
+		"options":   []any{map[string]any{"kind": "allow_once", "optionId": "allow"}},
+		"toolCall": map[string]any{
+			"toolCallId": "toolu_01first",
+			"kind":       "execute",
+			"title":      "curl -s https://api.example.com/v1/status",
+			"rawInput": map[string]any{
+				"command":     "curl -s https://api.example.com/v1/status",
+				"description": "Fetch status from example API endpoint",
+			},
+		},
+	}
+	second := map[string]any{
+		"sessionId": "session-b",
+		"options":   []any{map[string]any{"kind": "allow_once", "optionId": "allow"}},
+		"toolCall": map[string]any{
+			"toolCallId": "toolu_01second",
+			"kind":       "execute",
+			"title":      "curl -s https://api.example.com/v1/status",
+			"rawInput": map[string]any{
+				"command":     "curl -s https://api.example.com/v1/status",
+				"description": "Fetch status from example API endpoint",
+			},
+		},
+	}
+
+	firstFingerprint, err := acpPermissionFingerprint(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondFingerprint, err := acpPermissionFingerprint(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstFingerprint != "acp:tool_call:execute:curl -s https://api.example.com/v1/status" {
+		t.Fatalf("fingerprint = %q", firstFingerprint)
+	}
+	if firstFingerprint != secondFingerprint {
+		t.Fatalf("fingerprints differ: %q != %q", firstFingerprint, secondFingerprint)
 	}
 }
