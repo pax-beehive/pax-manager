@@ -152,14 +152,10 @@ func (m acpRuntimeStateMiddleware) HandleACPFrame(
 	frame *acpFrameContext,
 	next acpFrameHandler,
 ) error {
-	var observeErr error
 	if m.projector != nil {
-		observeErr = m.projector.Observe(ctx, frame)
+		_ = m.projector.Observe(ctx, frame)
 	}
-	if err := next(ctx, frame); err != nil {
-		return err
-	}
-	return observeErr
+	return next(ctx, frame)
 }
 
 type acpRuntimeProjector struct {
