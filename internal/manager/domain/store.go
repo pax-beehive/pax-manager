@@ -114,6 +114,8 @@ type Store interface {
 	) (MailboxMessage, error)
 	UpsertMessage(ctx context.Context, msg *Message) error
 	UpsertMessagePart(ctx context.Context, part *MessagePart) error
+	ListMessages(ctx context.Context, agentID string, sessionID string, limit int) ([]Message, error)
+	ListMessageParts(ctx context.Context, messageID string) ([]MessagePart, error)
 	AppendMessagePartText(
 		ctx context.Context,
 		messageID string,

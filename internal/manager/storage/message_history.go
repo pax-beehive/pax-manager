@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -108,6 +109,68 @@ func (s *PostgresStore) AppendMessagePartText(
 	return err
 }
 
+func (s *PostgresStore) ListMessages(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	limit int,
+) ([]Message, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	args := []any{agentID}
+	filter := "agent_id = $1"
+	if sessionID != "" {
+		args = append(args, sessionID)
+		filter += " AND session_id = $" + strconvArg(len(args))
+	}
+	args = append(args, limit)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+messageReturningSQL+`
+		FROM messages
+		WHERE `+filter+`
+		ORDER BY id ASC
+		LIMIT $`+strconvArg(len(args)), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	messages := make([]Message, 0)
+	for rows.Next() {
+		msg, err := scanMessage(rows)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, msg)
+	}
+	return messages, rows.Err()
+}
+
+func (s *PostgresStore) ListMessageParts(
+	ctx context.Context,
+	messageID string,
+) ([]MessagePart, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+messagePartReturningSQL+`
+		FROM message_parts
+		WHERE message_id = $1
+		ORDER BY part_index ASC
+	`, messageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	parts := make([]MessagePart, 0)
+	for rows.Next() {
+		part, err := scanMessagePart(rows)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, part)
+	}
+	return parts, rows.Err()
+}
+
 func (s *MemoryStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	if err := validateMessage(msg); err != nil {
 		return err
@@ -130,6 +193,54 @@ func (s *MemoryStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	}
 	s.messages[msg.MessageID] = cloneMessage(*msg)
 	return nil
+}
+
+func (s *MemoryStore) ListMessages(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	limit int,
+) ([]Message, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	messages := make([]Message, 0)
+	for _, msg := range s.messages {
+		if msg.AgentID != agentID {
+			continue
+		}
+		if sessionID != "" && msg.SessionID != sessionID {
+			continue
+		}
+		messages = append(messages, cloneMessage(msg))
+	}
+	sort.Slice(messages, func(i, j int) bool {
+		return messages[i].ID < messages[j].ID
+	})
+	if len(messages) > limit {
+		messages = messages[:limit]
+	}
+	return messages, nil
+}
+
+func (s *MemoryStore) ListMessageParts(
+	ctx context.Context,
+	messageID string,
+) ([]MessagePart, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	parts := make([]MessagePart, 0)
+	for key, part := range s.messageParts {
+		if key.MessageID == messageID {
+			parts = append(parts, cloneMessagePart(part))
+		}
+	}
+	sort.Slice(parts, func(i, j int) bool {
+		return parts[i].PartIndex < parts[j].PartIndex
+	})
+	return parts, nil
 }
 
 func (s *MemoryStore) UpsertMessagePart(ctx context.Context, part *MessagePart) error {
