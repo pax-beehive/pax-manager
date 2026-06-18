@@ -1084,7 +1084,14 @@ func (s *PostgresStore) CreateMailboxMessage(
 		VALUES ($1,$2,$3,NULLIF($4,''),$5,NULLIF($6,''),$7,$8,$9,'pending','user_to_node',$10,$11)
 		RETURNING `+mailboxReturningSQL+`
 	`, messageID, principal.User.UserID, ownerUserID, agentNodeID, req.AgentID, req.SessionID, req.Message, messageType, payload, now, expiresAt(now, messageType))
-	return scanMailbox(row)
+	msg, err := scanMailbox(row)
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	if err := s.saveMailboxHistory(ctx, msg); err != nil {
+		return MailboxMessage{}, err
+	}
+	return msg, nil
 }
 
 func (s *PostgresStore) CreateApproval(
@@ -1688,6 +1695,9 @@ func (s *PostgresStore) CreateNodeOutboundMessage(
 	if err != nil {
 		return MailboxMessage{}, err
 	}
+	if err := s.saveMailboxHistory(ctx, msg); err != nil {
+		return MailboxMessage{}, err
+	}
 	msg.SessionID, err = s.nativeSessionID(ctx, s.db, msg.AgentID, msg.SessionID)
 	if err != nil {
 		return MailboxMessage{}, err
@@ -2108,7 +2118,14 @@ func (s *PostgresStore) insertMailbox(
 		RETURNING `+mailboxReturningSQL+`
 	`, messageID, userID, ownerUserID, nodeID, agentID, sessionID, message, messageType, payload,
 		status, direction, createdAt, expiresAt(createdAt, messageType))
-	return scanMailbox(row)
+	msg, err := scanMailbox(row)
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	if err := s.saveMailboxHistory(ctx, msg); err != nil {
+		return MailboxMessage{}, err
+	}
+	return msg, nil
 }
 
 func jsonOrNil(v any) any {

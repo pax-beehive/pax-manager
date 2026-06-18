@@ -172,6 +172,46 @@ type Store interface {
 		node Node,
 		req CreateOutboundMessageRequest,
 	) (MailboxMessage, error)
+	UpsertMessage(ctx context.Context, msg *Message) error
+	UpsertMessagePart(ctx context.Context, part *MessagePart) error
+	ListMessages(ctx context.Context, agentID string, sessionID string, limit int) ([]Message, error)
+	ListMessageParts(ctx context.Context, messageID string) ([]MessagePart, error)
+	AppendMessagePartText(
+		ctx context.Context,
+		messageID string,
+		partIndex int,
+		delta string,
+		payloadJSON []byte,
+	) error
+	SaveTransportFrame(ctx context.Context, frame *TransportFrame) error
+	SaveTransportFrameIfAbsent(ctx context.Context, frame *TransportFrame) (bool, error)
+	NextTransportSeq(ctx context.Context, agentID string, stream string, direction string) (int64, error)
+	GetTransportFrame(
+		ctx context.Context,
+		agentID string,
+		stream string,
+		seq int64,
+		direction string,
+	) (*TransportFrame, error)
+	ListTransportFrames(
+		ctx context.Context,
+		agentID string,
+		stream string,
+		direction string,
+		statuses []string,
+		limit int,
+	) ([]TransportFrame, error)
+	UpdateTransportFrameStatus(
+		ctx context.Context,
+		agentID string,
+		stream string,
+		seq int64,
+		direction string,
+		status string,
+		errMsg string,
+	) error
+	AckOutboundTransportFrames(ctx context.Context, agentID string, stream string, throughSeq int64) error
+	DeleteCompletedTransportFrames(ctx context.Context, cutoff time.Time, limit int) (int64, error)
 	UpdateOffset(ctx context.Context, agentID string, offset int64) error
 	UpdateNodeOffset(ctx context.Context, nodeID string, offset int64) error
 }

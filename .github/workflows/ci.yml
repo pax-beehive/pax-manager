@@ -21,8 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      GOCACHE: ${{ runner.temp }}/go-build
-      GOLANGCI_LINT_CACHE: ${{ runner.temp }}/golangci-lint-cache
+      GOCACHE: /tmp/go-build
+      GOLANGCI_LINT_CACHE: /tmp/golangci-lint-cache
 
     steps:
       - name: Checkout
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      GOCACHE: ${{ runner.temp }}/go-build
+      GOCACHE: /tmp/go-build
 
     steps:
       - name: Checkout

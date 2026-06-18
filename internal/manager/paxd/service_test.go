@@ -255,6 +255,33 @@ func TestMailboxOperations(t *testing.T) {
 	)
 }
 
+func TestCreateNodeOutboundMessage(t *testing.T) {
+	t.Run(
+		"Given missing session ID when creating node outbound message then it returns bad request",
+		func(t *testing.T) {
+			svc := paxd.NewService(
+				paxdmocks.NewMockStore(t),
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+
+			_, _, err := svc.CreateNodeOutboundMessage(
+				context.Background(),
+				domain.Node{NodeID: "node_1"},
+				domain.CreateOutboundMessageRequest{
+					AgentID: "agent_1",
+					Content: "done",
+				},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+}
+
 func fixedClock() time.Time {
 	return fixedNow()
 }

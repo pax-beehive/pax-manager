@@ -513,10 +513,10 @@ func (s *Service) CreateMailboxMessage(
 	if err != nil {
 		return 0, nil, err
 	}
-	if req.AgentID == "" || req.Message == "" {
+	if req.AgentID == "" || req.SessionID == "" || req.Message == "" {
 		return 0, nil, apperr.Error{
 			Status:  http.StatusBadRequest,
-			Message: "agent_id and message are required",
+			Message: "agent_id, session_id, and message are required",
 		}
 	}
 	if domain.DefaultMessageType(req.MessageType) == "" {

@@ -172,6 +172,44 @@ CREATE INDEX IF NOT EXISTS idx_mailbox_node ON mailbox(node_id, status, id);
 CREATE INDEX IF NOT EXISTS idx_mailbox_created ON mailbox(created_at);
 CREATE INDEX IF NOT EXISTS idx_mailbox_session ON mailbox(session_id, id);
 
+CREATE TABLE IF NOT EXISTS messages (
+    id BIGSERIAL PRIMARY KEY,
+    message_id TEXT UNIQUE NOT NULL,
+    owner_user_id TEXT REFERENCES users(user_id),
+    node_id TEXT REFERENCES nodes(node_id),
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    session_id TEXT,
+    source TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    role TEXT,
+    status TEXT,
+    message_type TEXT,
+    parent_message_id TEXT,
+    turn_id TEXT,
+    response_id TEXT,
+    logical_key TEXT UNIQUE,
+    raw_json JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS message_parts (
+    id BIGSERIAL PRIMARY KEY,
+    message_id TEXT NOT NULL REFERENCES messages(message_id) ON DELETE CASCADE,
+    part_index INTEGER NOT NULL,
+    part_type TEXT NOT NULL,
+    text TEXT,
+    payload_json JSONB,
+    artifact_uri TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(message_id, part_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_agent_created ON messages(agent_id, created_at, id);
+CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_at, id);
+CREATE INDEX IF NOT EXISTS idx_message_parts_message ON message_parts(message_id, part_index);
+
 CREATE TABLE IF NOT EXISTS message_offsets (
     agent_id TEXT PRIMARY KEY REFERENCES agents(agent_id) ON DELETE CASCADE,
     last_offset BIGINT NOT NULL DEFAULT 0,
@@ -183,6 +221,30 @@ CREATE TABLE IF NOT EXISTS node_message_offsets (
     last_offset BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS transport_journal (
+    id BIGSERIAL PRIMARY KEY,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    stream TEXT NOT NULL,
+    seq BIGINT NOT NULL,
+    local_direction TEXT NOT NULL,
+    payload_json JSONB NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    sent_at TIMESTAMPTZ,
+    received_at TIMESTAMPTZ,
+    acked_at TIMESTAMPTZ,
+    applied_at TIMESTAMPTZ,
+    UNIQUE(agent_id, stream, seq, local_direction)
+);
+
+CREATE INDEX IF NOT EXISTS idx_transport_journal_pending
+    ON transport_journal(agent_id, stream, local_direction, status, seq);
+CREATE INDEX IF NOT EXISTS idx_transport_journal_cleanup
+    ON transport_journal(status, updated_at);
 
 CREATE TABLE IF NOT EXISTS agent_registration_tokens (
     token_hash TEXT PRIMARY KEY,

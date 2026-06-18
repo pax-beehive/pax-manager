@@ -125,7 +125,7 @@ func (m acpApprovalMiddleware) HandleACPFrame(
 		if buildErr != nil {
 			return buildErr
 		}
-		if writeErr := frame.agent.writeToAgent(websocket.TextMessage, response); writeErr != nil {
+		if writeErr := frame.agent.writeToAgent(ctx, websocket.TextMessage, response); writeErr != nil {
 			return writeErr
 		}
 		frame.handled = true
