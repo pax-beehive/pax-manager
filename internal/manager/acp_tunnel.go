@@ -233,7 +233,12 @@ func (s *Server) authenticateAgentACPTunnel(
 				Message: "agent_id does not match pax key",
 			}
 		}
-		sessionID := s.virtualACPSessionID(r.Context(), agent.OwnerUserID, agent.AgentID, websocketSessionID(r))
+		sessionID := s.virtualACPSessionID(
+			r.Context(),
+			agent.OwnerUserID,
+			agent.AgentID,
+			websocketSessionID(r),
+		)
 		return agentWSInitialRequest{
 			AgentID:     agent.AgentID,
 			NodeID:      agent.NodeID,
@@ -270,7 +275,12 @@ func (s *Server) authenticateAgentACPTunnel(
 		return agentWSInitialRequest{}, "", err
 	}
 
-	sessionID := s.virtualACPSessionID(r.Context(), agent.OwnerUserID, agent.AgentID, websocketSessionID(r))
+	sessionID := s.virtualACPSessionID(
+		r.Context(),
+		agent.OwnerUserID,
+		agent.AgentID,
+		websocketSessionID(r),
+	)
 	return agentWSInitialRequest{
 		AgentID:     agent.AgentID,
 		NodeID:      agent.NodeID,

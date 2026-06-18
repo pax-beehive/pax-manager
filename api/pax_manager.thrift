@@ -238,6 +238,42 @@ struct CreateUserAPIKeyData {
   2: optional string key
 }
 
+struct Secret {
+  1: optional string secret_id
+  2: optional string owner_user_id
+  3: optional string name
+  4: optional string kind
+  5: optional string description
+  6: optional JSON metadata
+  7: optional string current_version_id
+  8: optional i64 current_version
+  9: optional string created_at
+  10: optional string updated_at
+  11: optional string deleted_at
+}
+
+struct SecretVersion {
+  1: optional string version_id
+  2: optional string secret_id
+  3: optional i64 version_number
+  4: optional string key_id
+  5: optional string state
+  6: optional string created_at
+  7: optional string created_by_user_id
+  8: optional string created_by_node_id
+  9: optional string created_by_agent_id
+  10: optional string idempotency_key
+}
+
+struct CreateSecretData {
+  1: optional Secret secret
+  2: optional SecretVersion version
+}
+
+struct SecretListData {
+  1: optional list<Secret> secrets
+}
+
 struct PullNodeMailboxRequest {
   1: optional i64 offset (api.query = "offset")
   2: optional i32 limit (api.query = "limit")
@@ -412,6 +448,42 @@ struct RevokeUserAPIKeyRequest {
   2: optional string key_id (api.path = "key_id")
 }
 
+struct CreateUserSecretRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string name
+  3: optional string kind
+  4: optional string description
+  5: optional JSON metadata
+  6: optional string value
+}
+
+struct ListUserSecretsRequest {
+  1: optional string user_id (api.path = "user_id")
+}
+
+struct GetUserSecretRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string secret_id (api.path = "secret_id")
+}
+
+struct ResolveNodeSecretRequest {
+  1: optional string secret_id
+  2: optional string version
+  3: optional string agent_id
+  4: optional string session_id
+}
+
+struct WriteNodeSecretVersionRequest {
+  1: optional string secret_id (api.path = "secret_id")
+  2: optional string agent_id
+  3: optional string session_id
+  4: optional string value
+  5: optional bool make_current
+  6: optional string expected_current_version_id
+  7: optional string idempotency_key
+  8: optional string reason
+}
+
 struct UserAPIKey {
   1: optional string key_id
   2: optional string owner_user_id
@@ -475,6 +547,26 @@ struct ApprovalListData {
 
 struct ApprovalGrantListData {
   1: optional list<AgentApproval> grants
+}
+
+struct ResolveSecretData {
+  1: optional string status
+  2: optional string approval_id
+  3: optional string secret_id
+  4: optional string version_id
+  5: optional i64 version_number
+  6: optional string value
+  7: optional AgentApproval approval
+}
+
+struct WriteSecretVersionData {
+  1: optional string status
+  2: optional string approval_id
+  3: optional string secret_id
+  4: optional string version_id
+  5: optional i64 version_number
+  6: optional bool current
+  7: optional AgentApproval approval
 }
 
 struct CreateNodeAgentApprovalRequest {
@@ -671,6 +763,36 @@ struct UserAPIKeyListResponse {
   3: optional string message
 }
 
+struct CreateSecretResponse {
+  1: optional CreateSecretData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct SecretListResponse {
+  1: optional SecretListData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct SecretResponse {
+  1: optional Secret data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct ResolveSecretResponse {
+  1: optional ResolveSecretData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct WriteSecretVersionResponse {
+  1: optional WriteSecretVersionData data
+  2: optional i32 code
+  3: optional string message
+}
+
 struct ApprovalResponse {
   1: optional ApprovalData data
   2: optional i32 code
@@ -805,6 +927,29 @@ service PaxManagerAPI {
     openapi.description = "Stores a structured node-to-user response message for a processed mailbox item.",
     openapi.status = "200",
     openapi.security = "nodeBearer"
+  )
+
+  ResolveSecretResponse ResolveNodeSecret(
+    1: optional ResolveNodeSecretRequest request
+  ) (
+    api.post = "/api/v1/node/secrets/resolve",
+    openapi.tag = "node",
+    openapi.summary = "Resolve secret value",
+    openapi.description = "Returns a secret value to an authenticated node only after an approval grant exists.",
+    openapi.status = "200",
+    openapi.security = "nodeBearer"
+  )
+
+  WriteSecretVersionResponse WriteNodeSecretVersion(
+    1: optional WriteNodeSecretVersionRequest request
+  ) (
+    api.post = "/api/v1/node/secrets/:secret_id/versions",
+    openapi.tag = "node",
+    openapi.summary = "Write secret version",
+    openapi.description = "Creates a new encrypted secret version and optionally promotes it with an optimistic lock.",
+    openapi.status = "200",
+    openapi.security = "nodeBearer",
+    openapi.path.secret_id = "Secret identifier."
   )
 
   ApprovalResponse CreateNodeAgentApproval(
@@ -1042,6 +1187,41 @@ service PaxManagerAPI {
     openapi.status = "200",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier."
+  )
+
+  SecretListResponse ListUserSecrets(
+    1: optional ListUserSecretsRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/secrets",
+    openapi.tag = "user",
+    openapi.summary = "List secrets",
+    openapi.description = "Lists secret metadata visible to the current user without returning plaintext values.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier."
+  )
+
+  CreateSecretResponse CreateUserSecret(
+    1: optional CreateUserSecretRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/secrets",
+    openapi.tag = "user",
+    openapi.summary = "Create secret",
+    openapi.description = "Creates an encrypted secret with its first version. The plaintext value is not returned.",
+    openapi.status = "200",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier."
+  )
+
+  SecretResponse GetUserSecret(
+    1: optional GetUserSecretRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/secrets/:secret_id",
+    openapi.tag = "user",
+    openapi.summary = "Get secret",
+    openapi.description = "Returns secret metadata without returning plaintext values.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.secret_id = "Secret identifier."
   )
 
   ApprovalListResponse ListUserApprovals(

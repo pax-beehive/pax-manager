@@ -253,6 +253,72 @@ func (_c *MockStore_CreateRegistrationToken_Call) RunAndReturn(run func(context.
 	return _c
 }
 
+// CreateSecret provides a mock function with given fields: ctx, principal, req, encrypted
+func (_m *MockStore) CreateSecret(ctx context.Context, principal domain.UserPrincipal, req domain.CreateSecretRequest, encrypted domain.SecretVersion) (domain.Secret, domain.SecretVersion, error) {
+	ret := _m.Called(ctx, principal, req, encrypted)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateSecret")
+	}
+
+	var r0 domain.Secret
+	var r1 domain.SecretVersion
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.CreateSecretRequest, domain.SecretVersion) (domain.Secret, domain.SecretVersion, error)); ok {
+		return rf(ctx, principal, req, encrypted)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.CreateSecretRequest, domain.SecretVersion) domain.Secret); ok {
+		r0 = rf(ctx, principal, req, encrypted)
+	} else {
+		r0 = ret.Get(0).(domain.Secret)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.CreateSecretRequest, domain.SecretVersion) domain.SecretVersion); ok {
+		r1 = rf(ctx, principal, req, encrypted)
+	} else {
+		r1 = ret.Get(1).(domain.SecretVersion)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, domain.UserPrincipal, domain.CreateSecretRequest, domain.SecretVersion) error); ok {
+		r2 = rf(ctx, principal, req, encrypted)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockStore_CreateSecret_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSecret'
+type MockStore_CreateSecret_Call struct {
+	*mock.Call
+}
+
+// CreateSecret is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - req domain.CreateSecretRequest
+//   - encrypted domain.SecretVersion
+func (_e *MockStore_Expecter) CreateSecret(ctx interface{}, principal interface{}, req interface{}, encrypted interface{}) *MockStore_CreateSecret_Call {
+	return &MockStore_CreateSecret_Call{Call: _e.mock.On("CreateSecret", ctx, principal, req, encrypted)}
+}
+
+func (_c *MockStore_CreateSecret_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, req domain.CreateSecretRequest, encrypted domain.SecretVersion)) *MockStore_CreateSecret_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.CreateSecretRequest), args[3].(domain.SecretVersion))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateSecret_Call) Return(_a0 domain.Secret, _a1 domain.SecretVersion, _a2 error) *MockStore_CreateSecret_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockStore_CreateSecret_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.CreateSecretRequest, domain.SecretVersion) (domain.Secret, domain.SecretVersion, error)) *MockStore_CreateSecret_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateUserAPIKey provides a mock function with given fields: ctx, principal, name, keyHash, prefix
 func (_m *MockStore) CreateUserAPIKey(ctx context.Context, principal domain.UserPrincipal, name string, keyHash string, prefix string) (domain.UserAPIKey, error) {
 	ret := _m.Called(ctx, principal, name, keyHash, prefix)
@@ -425,6 +491,64 @@ func (_c *MockStore_GetNode_Call) Return(_a0 domain.Node, _a1 error) *MockStore_
 }
 
 func (_c *MockStore_GetNode_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Node, error)) *MockStore_GetNode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetSecret provides a mock function with given fields: ctx, principal, secretID
+func (_m *MockStore) GetSecret(ctx context.Context, principal domain.UserPrincipal, secretID string) (domain.Secret, error) {
+	ret := _m.Called(ctx, principal, secretID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSecret")
+	}
+
+	var r0 domain.Secret
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) (domain.Secret, error)); ok {
+		return rf(ctx, principal, secretID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) domain.Secret); ok {
+		r0 = rf(ctx, principal, secretID)
+	} else {
+		r0 = ret.Get(0).(domain.Secret)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, secretID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetSecret_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSecret'
+type MockStore_GetSecret_Call struct {
+	*mock.Call
+}
+
+// GetSecret is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - secretID string
+func (_e *MockStore_Expecter) GetSecret(ctx interface{}, principal interface{}, secretID interface{}) *MockStore_GetSecret_Call {
+	return &MockStore_GetSecret_Call{Call: _e.mock.On("GetSecret", ctx, principal, secretID)}
+}
+
+func (_c *MockStore_GetSecret_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, secretID string)) *MockStore_GetSecret_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetSecret_Call) Return(_a0 domain.Secret, _a1 error) *MockStore_GetSecret_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetSecret_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Secret, error)) *MockStore_GetSecret_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -894,6 +1018,65 @@ func (_c *MockStore_ListNodes_Call) Return(_a0 []domain.Node, _a1 error) *MockSt
 }
 
 func (_c *MockStore_ListNodes_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal) ([]domain.Node, error)) *MockStore_ListNodes_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListSecrets provides a mock function with given fields: ctx, principal
+func (_m *MockStore) ListSecrets(ctx context.Context, principal domain.UserPrincipal) ([]domain.Secret, error) {
+	ret := _m.Called(ctx, principal)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListSecrets")
+	}
+
+	var r0 []domain.Secret
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal) ([]domain.Secret, error)); ok {
+		return rf(ctx, principal)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal) []domain.Secret); ok {
+		r0 = rf(ctx, principal)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.Secret)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal) error); ok {
+		r1 = rf(ctx, principal)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListSecrets_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListSecrets'
+type MockStore_ListSecrets_Call struct {
+	*mock.Call
+}
+
+// ListSecrets is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+func (_e *MockStore_Expecter) ListSecrets(ctx interface{}, principal interface{}) *MockStore_ListSecrets_Call {
+	return &MockStore_ListSecrets_Call{Call: _e.mock.On("ListSecrets", ctx, principal)}
+}
+
+func (_c *MockStore_ListSecrets_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal)) *MockStore_ListSecrets_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListSecrets_Call) Return(_a0 []domain.Secret, _a1 error) *MockStore_ListSecrets_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListSecrets_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal) ([]domain.Secret, error)) *MockStore_ListSecrets_Call {
 	_c.Call.Return(run)
 	return _c
 }

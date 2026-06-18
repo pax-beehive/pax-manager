@@ -208,6 +208,73 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_owner ON user_api_keys(owner_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_hash ON user_api_keys(key_hash);
 
+CREATE TABLE IF NOT EXISTS secrets (
+    secret_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    current_version_id TEXT,
+    current_version BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_secrets_owner ON secrets(owner_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS secret_versions (
+    version_id TEXT PRIMARY KEY,
+    secret_id TEXT NOT NULL REFERENCES secrets(secret_id) ON DELETE CASCADE,
+    version_number BIGINT NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    nonce BYTEA NOT NULL,
+    key_id TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by_user_id TEXT REFERENCES users(user_id),
+    created_by_node_id TEXT REFERENCES nodes(node_id),
+    created_by_agent_id TEXT REFERENCES agents(agent_id),
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    UNIQUE(secret_id, version_number)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_secret_versions_idempotency
+    ON secret_versions(secret_id, created_by_node_id, created_by_agent_id, idempotency_key)
+    WHERE idempotency_key <> '';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'secrets_current_version_fk'
+    ) THEN
+        ALTER TABLE secrets ADD CONSTRAINT secrets_current_version_fk
+            FOREIGN KEY (current_version_id)
+            REFERENCES secret_versions(version_id)
+            DEFERRABLE INITIALLY DEFERRED;
+    END IF;
+END;
+$$;
+
+CREATE INDEX IF NOT EXISTS idx_secret_versions_secret_created
+    ON secret_versions(secret_id, version_number DESC);
+
+CREATE TABLE IF NOT EXISTS secret_access_events (
+    event_id BIGSERIAL PRIMARY KEY,
+    secret_id TEXT NOT NULL,
+    version_id TEXT NOT NULL DEFAULT '',
+    node_id TEXT NOT NULL DEFAULT '',
+    agent_id TEXT NOT NULL DEFAULT '',
+    session_id TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    result TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_secret_access_events_secret_created
+    ON secret_access_events(secret_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS agent_approvals (
     approval_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id),

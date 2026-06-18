@@ -304,6 +304,64 @@ func scanUserAPIKeys(rows *sql.Rows) ([]UserAPIKey, error) {
 	return out, nil
 }
 
+func scanSecret(row rowScanner) (Secret, error) {
+	var secret Secret
+	var metadata []byte
+	if err := row.Scan(
+		&secret.SecretID,
+		&secret.OwnerUserID,
+		&secret.Name,
+		&secret.Kind,
+		&secret.Description,
+		&metadata,
+		&secret.CurrentVersionID,
+		&secret.CurrentVersion,
+		&secret.CreatedAt,
+		&secret.UpdatedAt,
+		&secret.DeletedAt,
+	); err != nil {
+		return Secret{}, mapSQLError(err)
+	}
+	secret.Metadata = json.RawMessage(metadata)
+	return secret, nil
+}
+
+func scanSecrets(rows *sql.Rows) ([]Secret, error) {
+	out := make([]Secret, 0)
+	for rows.Next() {
+		secret, err := scanSecret(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, secret)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func scanSecretVersion(row rowScanner) (SecretVersion, error) {
+	var version SecretVersion
+	if err := row.Scan(
+		&version.VersionID,
+		&version.SecretID,
+		&version.VersionNumber,
+		&version.Ciphertext,
+		&version.Nonce,
+		&version.KeyID,
+		&version.State,
+		&version.CreatedAt,
+		&version.CreatedByUserID,
+		&version.CreatedByNodeID,
+		&version.CreatedByAgentID,
+		&version.IdempotencyKey,
+	); err != nil {
+		return SecretVersion{}, mapSQLError(err)
+	}
+	return version, nil
+}
+
 func scanMailboxRows(rows *sql.Rows) ([]MailboxMessage, error) {
 	out := make([]MailboxMessage, 0)
 	for rows.Next() {
