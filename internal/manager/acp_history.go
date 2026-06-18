@@ -73,12 +73,11 @@ func projectACPTransportMessage(
 		TurnID:      fields.TurnID,
 		ResponseID:  fields.ResponseID,
 		LogicalKey:  messageID,
-		RawJSON:     append(json.RawMessage(nil), payload...),
 	}
 	if err := store.UpsertMessage(ctx, &msg); err != nil {
 		return err
 	}
-	return store.AppendMessagePartText(ctx, msg.MessageID, 0, fields.Content, payload)
+	return store.AppendMessagePartText(ctx, msg.MessageID, 0, fields.Content, nil)
 }
 
 func acpHistoryMessageID(

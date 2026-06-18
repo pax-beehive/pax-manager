@@ -811,6 +811,7 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 			msg.Role != "assistant" ||
 			msg.OwnerUserID == "" ||
 			msg.NodeID == "" ||
+			len(msg.RawJSON) != 0 ||
 			strings.Contains(msg.MessageID, "rpc:") {
 			t.Fatalf("projected message = %+v", msg)
 		}
@@ -820,7 +821,8 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		}
 		if len(parts) != 1 ||
 			parts[0].PartIndex != 0 ||
-			parts[0].PartType != domain.MessagePartText {
+			parts[0].PartType != domain.MessagePartText ||
+			len(parts[0].PayloadJSON) != 0 {
 			t.Fatalf("parts for %s = %+v, want one text part", msg.MessageID, parts)
 		}
 		gotPartsByType[msg.MessageType] = parts[0].Text
