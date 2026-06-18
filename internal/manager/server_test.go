@@ -812,6 +812,8 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 			msg.OwnerUserID == "" ||
 			msg.NodeID == "" ||
 			len(msg.RawJSON) != 0 ||
+			!strings.HasPrefix(msg.MessageID, "msg_") ||
+			!strings.HasPrefix(msg.LogicalKey, "acp:") ||
 			strings.Contains(msg.MessageID, "rpc:") {
 			t.Fatalf("projected message = %+v", msg)
 		}

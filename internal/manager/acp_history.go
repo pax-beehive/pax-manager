@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -58,7 +59,8 @@ func projectACPTransportMessage(
 		rpc.Method,
 		"acp",
 	)
-	messageID := acpHistoryMessageID(agentID, stream, seq, fields)
+	logicalKey := acpHistoryLogicalKey(agentID, stream, seq, fields)
+	messageID := acpHistoryMessageID(logicalKey)
 	msg := domain.Message{
 		MessageID:   messageID,
 		OwnerUserID: ownerUserID,
@@ -72,7 +74,7 @@ func projectACPTransportMessage(
 		MessageType: messageType,
 		TurnID:      fields.TurnID,
 		ResponseID:  fields.ResponseID,
-		LogicalKey:  messageID,
+		LogicalKey:  logicalKey,
 	}
 	if err := store.UpsertMessage(ctx, &msg); err != nil {
 		return err
@@ -80,7 +82,7 @@ func projectACPTransportMessage(
 	return store.AppendMessagePartText(ctx, msg.MessageID, 0, fields.Content, nil)
 }
 
-func acpHistoryMessageID(
+func acpHistoryLogicalKey(
 	agentID string,
 	stream string,
 	seq int64,
@@ -108,6 +110,11 @@ func acpHistoryMessageID(
 		)
 	}
 	return fmt.Sprintf("acp:%s:%s:text:%d", agentID, stream, seq)
+}
+
+func acpHistoryMessageID(logicalKey string) string {
+	sum := sha256.Sum256([]byte(logicalKey))
+	return fmt.Sprintf("msg_%x", sum[:24])
 }
 
 func extractACPHistoryFields(payload json.RawMessage, rpc acpHistoryRPC) acpHistoryFields {
