@@ -766,8 +766,9 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("initialize response = %s", gotInitializeResponse)
 	}
 
-	firstDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","role":"assistant","delta":"h"}}`)
-	secondDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","role":"assistant","delta":"i"}}`)
+	firstDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"h"}}}}`)
+	secondDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"i"}}}}`)
+	thoughtDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"thinking"}}}}`)
 	writeAgentDataFrame(t, agentWS, 2, firstDelta)
 	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 2)
 	_, gotFirstDelta, err := userWS.ReadMessage()
@@ -786,32 +787,49 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 	if string(gotSecondDelta) != string(secondDelta) {
 		t.Fatalf("second user delta = %s", gotSecondDelta)
 	}
+	writeAgentDataFrame(t, agentWS, 4, thoughtDelta)
+	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 4)
+	_, gotThoughtDelta, err := userWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read thought user delta: %v", err)
+	}
+	if string(gotThoughtDelta) != string(thoughtDelta) {
+		t.Fatalf("thought user delta = %s", gotThoughtDelta)
+	}
 
 	messages, err := srv.store.ListMessages(t.Context(), agentID, "sess-1", 100)
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
-	if len(messages) != 1 {
-		t.Fatalf("messages = %+v, want exactly one aggregated text message", messages)
+	if len(messages) != 2 {
+		t.Fatalf("messages = %+v, want message and thought aggregates", messages)
 	}
-	msg := messages[0]
-	if msg.Source != domain.MessageSourceACPTunnel ||
-		msg.Direction != domain.MessageDirectionAgentToUser ||
-		msg.Role != "assistant" ||
-		msg.OwnerUserID == "" ||
-		msg.NodeID == "" ||
-		strings.Contains(msg.MessageID, "rpc:") {
-		t.Fatalf("projected message = %+v", msg)
+	gotPartsByType := make(map[string]string)
+	for _, msg := range messages {
+		if msg.Source != domain.MessageSourceACPTunnel ||
+			msg.Direction != domain.MessageDirectionAgentToUser ||
+			msg.Role != "assistant" ||
+			msg.OwnerUserID == "" ||
+			msg.NodeID == "" ||
+			strings.Contains(msg.MessageID, "rpc:") {
+			t.Fatalf("projected message = %+v", msg)
+		}
+		parts, err := srv.store.ListMessageParts(t.Context(), msg.MessageID)
+		if err != nil {
+			t.Fatalf("list message parts: %v", err)
+		}
+		if len(parts) != 1 ||
+			parts[0].PartIndex != 0 ||
+			parts[0].PartType != domain.MessagePartText {
+			t.Fatalf("parts for %s = %+v, want one text part", msg.MessageID, parts)
+		}
+		gotPartsByType[msg.MessageType] = parts[0].Text
 	}
-	parts, err := srv.store.ListMessageParts(t.Context(), msg.MessageID)
-	if err != nil {
-		t.Fatalf("list message parts: %v", err)
+	if gotPartsByType["agent_message_chunk"] != "hi" {
+		t.Fatalf("agent_message_chunk text = %q, want hi", gotPartsByType["agent_message_chunk"])
 	}
-	if len(parts) != 1 ||
-		parts[0].PartIndex != 0 ||
-		parts[0].PartType != domain.MessagePartText ||
-		parts[0].Text != "hi" {
-		t.Fatalf("parts = %+v, want one aggregated text part", parts)
+	if gotPartsByType["agent_thought_chunk"] != "thinking" {
+		t.Fatalf("agent_thought_chunk text = %q, want thinking", gotPartsByType["agent_thought_chunk"])
 	}
 	allMessages, err := srv.store.ListMessages(t.Context(), agentID, "", 100)
 	if err != nil {
