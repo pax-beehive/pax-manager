@@ -20,6 +20,7 @@ type UserPrincipal = domain.UserPrincipal
 type Node = domain.Node
 type Agent = domain.Agent
 type AgentSession = domain.AgentSession
+type SessionRuntimeState = domain.SessionRuntimeState
 type MailboxMessage = domain.MailboxMessage
 type ApprovalOption = domain.ApprovalOption
 type AgentApproval = domain.AgentApproval
@@ -107,6 +108,19 @@ func replacePayloadSessionID(raw json.RawMessage, sessionID string) json.RawMess
 	if !changed {
 		return raw
 	}
+	data, err := json.Marshal(object)
+	if err != nil {
+		return raw
+	}
+	return data
+}
+
+func runtimeMetadata(raw json.RawMessage, state SessionRuntimeState) json.RawMessage {
+	object := map[string]any{}
+	if len(raw) > 0 && json.Valid(raw) {
+		_ = json.Unmarshal(raw, &object)
+	}
+	object["runtime_state"] = state
 	data, err := json.Marshal(object)
 	if err != nil {
 		return raw

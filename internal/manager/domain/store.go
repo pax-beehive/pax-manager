@@ -93,6 +93,7 @@ type Store interface {
 		agentID string,
 	) ([]AgentSession, error)
 	GetSession(ctx context.Context, principal UserPrincipal, sessionID string) (AgentSession, error)
+	UpdateSessionRuntimeState(ctx context.Context, state SessionRuntimeState) error
 	ListSessionMessages(
 		ctx context.Context,
 		principal UserPrincipal,

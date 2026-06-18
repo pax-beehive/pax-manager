@@ -970,6 +970,47 @@ func (s *PostgresStore) GetSession(
 	return scanSession(row)
 }
 
+func (s *PostgresStore) UpdateSessionRuntimeState(
+	ctx context.Context,
+	state SessionRuntimeState,
+) error {
+	if state.AgentID == "" || state.SessionID == "" {
+		return ErrNotFound
+	}
+	if state.UpdatedAt.IsZero() {
+		state.UpdatedAt = s.now().UTC()
+	}
+	status, currentTask, runID, runStatus := state.StatusSummary()
+	stateJSON, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO agent_sessions (
+			node_id, agent_id, session_id, status, current_task, run_id, run_status,
+			metadata, created_at, updated_at
+		)
+		VALUES (
+			NULLIF($1,''), $2, $3, $4, $5, $6, $7,
+			jsonb_build_object('runtime_state', $8::jsonb), $9, $9
+		)
+		ON CONFLICT (agent_id, session_id) DO UPDATE SET
+			node_id = COALESCE(EXCLUDED.node_id, agent_sessions.node_id),
+			status = EXCLUDED.status,
+			current_task = EXCLUDED.current_task,
+			run_id = EXCLUDED.run_id,
+			run_status = EXCLUDED.run_status,
+			metadata = jsonb_set(
+				COALESCE(agent_sessions.metadata, '{}'::jsonb),
+				'{runtime_state}',
+				$8::jsonb,
+				true
+			),
+			updated_at = EXCLUDED.updated_at
+	`, state.NodeID, state.AgentID, state.SessionID, status, currentTask, runID, runStatus, stateJSON, state.UpdatedAt)
+	return err
+}
+
 func (s *PostgresStore) ListSessionMessages(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -1685,7 +1726,8 @@ const sessionSelectSQL = `
 		COALESCE(current_task, ''), last_message_at, message_count, token_input,
 		token_output, token_total, cache_read_tokens, cache_write_tokens, cache_creation_tokens,
 		reasoning_tokens, estimated_cost_usd, actual_cost_usd, cost_usd, COALESCE(model, ''), COALESCE(run_id, ''),
-		COALESCE(run_status, ''), agent_sessions.created_at, agent_sessions.updated_at
+		COALESCE(run_status, ''), agent_sessions.created_at, agent_sessions.updated_at,
+		COALESCE(agent_sessions.metadata, '{}'::jsonb)
 	FROM agent_sessions`
 
 const mailboxSelectSQL = `

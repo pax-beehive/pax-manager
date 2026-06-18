@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -42,7 +42,7 @@ func main() {
 	hostname, _ := os.Hostname()
 	token := createRegistrationToken(client, baseURL, userEmail)
 	registered := register(client, baseURL, hostname, token)
-	log.Printf("registered mock agent %s", registered.AgentID)
+	slog.Info("registered mock agent", "agent_id", registered.AgentID)
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt)
@@ -54,16 +54,19 @@ func main() {
 	for {
 		select {
 		case <-done:
-			log.Printf("shutting down")
+			slog.Info("shutting down")
 			return
 		case <-ticker.C:
 			postStatus(client, baseURL, registered)
 			pull := getMailbox(client, baseURL, registered, offset)
 			for _, msg := range pull.Messages {
-				log.Printf(
-					"received %s message %s for session %s",
+				slog.Info(
+					"received mailbox message",
+					"message_type",
 					msg.MessageType,
+					"message_id",
 					msg.MessageID,
+					"session_id",
 					msg.SessionID,
 				)
 				result := fmt.Sprintf("mock agent processed: %s", msg.Message)
@@ -189,13 +192,13 @@ func doJSONWithHeaders(
 	if body != nil {
 		raw, err := json.Marshal(body)
 		if err != nil {
-			log.Fatalf("marshal: %v", err)
+			fatal("marshal body", "error", err)
 		}
 		reader = bytes.NewReader(raw)
 	}
 	req, err := http.NewRequest(method, url, reader)
 	if err != nil {
-		log.Fatalf("request: %v", err)
+		fatal("create request", "error", err)
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -208,24 +211,39 @@ func doJSONWithHeaders(
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("%s %s: %v", method, url, err)
+		fatal("request failed", "method", method, "url", url, "error", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		log.Fatalf("%s %s: HTTP %d: %s", method, url, resp.StatusCode, string(raw))
+		fatal(
+			"request returned non-2xx",
+			"method",
+			method,
+			"url",
+			url,
+			"status",
+			resp.StatusCode,
+			"body",
+			string(raw),
+		)
 	}
 	if out != nil {
 		var envelope struct {
 			Data json.RawMessage `json:"data"`
 		}
 		if err := json.Unmarshal(raw, &envelope); err != nil {
-			log.Fatalf("decode envelope: %v: %s", err, string(raw))
+			fatal("decode envelope", "error", err, "body", string(raw))
 		}
 		if err := json.Unmarshal(envelope.Data, out); err != nil {
-			log.Fatalf("decode data: %v: %s", err, string(raw))
+			fatal("decode data", "error", err, "body", string(raw))
 		}
 	}
+}
+
+func fatal(msg string, args ...any) {
+	slog.Error(msg, args...)
+	os.Exit(1)
 }
 
 func envDefault(key, fallback string) string {

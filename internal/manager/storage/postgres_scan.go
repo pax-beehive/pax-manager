@@ -94,6 +94,7 @@ func scanAgents(rows *sql.Rows) ([]Agent, error) {
 func scanSession(row rowScanner) (AgentSession, error) {
 	var session AgentSession
 	var roots []byte
+	var metadata []byte
 	if err := row.Scan(
 		&session.ID,
 		&session.NodeID,
@@ -125,6 +126,7 @@ func scanSession(row rowScanner) (AgentSession, error) {
 		&session.RunStatus,
 		&session.CreatedAt,
 		&session.UpdatedAt,
+		&metadata,
 	); err != nil {
 		return AgentSession{}, mapSQLError(err)
 	}
@@ -132,7 +134,22 @@ func scanSession(row rowScanner) (AgentSession, error) {
 	session.TokenOutput = session.TokenUsage.Output
 	session.TokenTotal = session.TokenUsage.Total
 	_ = json.Unmarshal(roots, &session.WorkspaceRoots)
+	session.Metadata = json.RawMessage(metadata)
+	session.RuntimeState = runtimeStateFromMetadata(metadata)
 	return session, nil
+}
+
+func runtimeStateFromMetadata(metadata []byte) *SessionRuntimeState {
+	if len(metadata) == 0 || !json.Valid(metadata) {
+		return nil
+	}
+	var object struct {
+		RuntimeState *SessionRuntimeState `json:"runtime_state"`
+	}
+	if err := json.Unmarshal(metadata, &object); err != nil {
+		return nil
+	}
+	return object.RuntimeState
 }
 
 func scanSessions(rows *sql.Rows) ([]AgentSession, error) {

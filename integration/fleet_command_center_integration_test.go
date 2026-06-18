@@ -48,15 +48,34 @@ type agentListResponse struct {
 }
 
 type session struct {
-	AgentID        string   `json:"agent_id"`
-	SessionID      string   `json:"session_id"`
-	SessionName    string   `json:"name"`
-	AgentType      string   `json:"agent_type"`
-	Status         string   `json:"status"`
-	CurrentTask    string   `json:"current_task"`
-	MessageCount   int      `json:"message_count"`
-	TokenTotal     int64    `json:"token_total"`
-	WorkspaceRoots []string `json:"workspace_roots"`
+	AgentID        string        `json:"agent_id"`
+	SessionID      string        `json:"session_id"`
+	SessionName    string        `json:"name"`
+	AgentType      string        `json:"agent_type"`
+	Status         string        `json:"status"`
+	CurrentTask    string        `json:"current_task"`
+	RunID          string        `json:"run_id"`
+	RunStatus      string        `json:"run_status"`
+	MessageCount   int           `json:"message_count"`
+	TokenTotal     int64         `json:"token_total"`
+	WorkspaceRoots []string      `json:"workspace_roots"`
+	RuntimeState   *runtimeState `json:"runtime_state"`
+}
+
+type runtimeState struct {
+	Lifecycle             string            `json:"lifecycle"`
+	ActivePromptRequestID string            `json:"active_prompt_request_id"`
+	BlockedReason         string            `json:"blocked_reason"`
+	PendingApprovalID     string            `json:"pending_approval_id"`
+	LastStopReason        string            `json:"last_stop_reason"`
+	ActiveToolCalls       []runtimeToolCall `json:"active_tool_calls"`
+}
+
+type runtimeToolCall struct {
+	ToolCallID string `json:"tool_call_id"`
+	Kind       string `json:"kind"`
+	Title      string `json:"title"`
+	Status     string `json:"status"`
 }
 
 type sessionListResponse struct {

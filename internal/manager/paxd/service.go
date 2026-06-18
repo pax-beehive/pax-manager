@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +14,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 	vaultsecrets "github.com/pax-beehive/pax-manager/internal/manager/secrets"
 )
 
@@ -177,7 +178,12 @@ func (s *Service) RegisterAgent(
 		return 0, nil, err
 	}
 
-	log.Printf("agent registered: %s", agent.AgentID)
+	logging.Info(
+		c,
+		"agent registered",
+		slog.String("agent_id", agent.AgentID),
+		slog.String("owner_user_id", owner.UserID),
+	)
 	return http.StatusOK, domain.RegisterAgentResponse{
 		AgentID: agent.AgentID,
 		APIKey:  apiKey,
@@ -210,7 +216,12 @@ func (s *Service) RegisterNode(
 	if err != nil {
 		return 0, nil, err
 	}
-	log.Printf("node registered: %s", node.NodeID)
+	logging.Info(
+		c,
+		"node registered",
+		slog.String("node_id", node.NodeID),
+		slog.String("owner_user_id", owner.UserID),
+	)
 	return http.StatusOK, domain.RegisterNodeResponse{NodeID: node.NodeID, APIKey: apiKey}, nil
 }
 

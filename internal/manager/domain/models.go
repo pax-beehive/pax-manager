@@ -63,31 +63,32 @@ type Node struct {
 }
 
 type AgentSession struct {
-	ID             int64           `json:"id"`
-	NodeID         string          `json:"node_id,omitempty"`
-	AgentID        string          `json:"agent_id"`
-	SessionID      string          `json:"session_id"`
-	SessionName    string          `json:"name,omitempty"`
-	AgentType      string          `json:"agent_type,omitempty"`
-	NativeID       string          `json:"-"`
-	ProjectID      string          `json:"project_id,omitempty"`
-	Preview        string          `json:"preview,omitempty"`
-	WorkspaceRoots []string        `json:"workspace_roots,omitempty"`
-	Source         string          `json:"source,omitempty"`
-	Status         string          `json:"status"`
-	CurrentTask    string          `json:"current_task,omitempty"`
-	LastMessageAt  *time.Time      `json:"last_message_at,omitempty"`
-	MessageCount   int             `json:"message_count"`
-	TokenInput     int64           `json:"token_input"`
-	TokenOutput    int64           `json:"token_output"`
-	TokenTotal     int64           `json:"token_total"`
-	TokenUsage     TokenUsage      `json:"token_usage"`
-	Model          string          `json:"model,omitempty"`
-	RunID          string          `json:"run_id,omitempty"`
-	RunStatus      string          `json:"run_status,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	ID             int64                `json:"id"`
+	NodeID         string               `json:"node_id,omitempty"`
+	AgentID        string               `json:"agent_id"`
+	SessionID      string               `json:"session_id"`
+	SessionName    string               `json:"name,omitempty"`
+	AgentType      string               `json:"agent_type,omitempty"`
+	NativeID       string               `json:"-"`
+	ProjectID      string               `json:"project_id,omitempty"`
+	Preview        string               `json:"preview,omitempty"`
+	WorkspaceRoots []string             `json:"workspace_roots,omitempty"`
+	Source         string               `json:"source,omitempty"`
+	Status         string               `json:"status"`
+	CurrentTask    string               `json:"current_task,omitempty"`
+	LastMessageAt  *time.Time           `json:"last_message_at,omitempty"`
+	MessageCount   int                  `json:"message_count"`
+	TokenInput     int64                `json:"token_input"`
+	TokenOutput    int64                `json:"token_output"`
+	TokenTotal     int64                `json:"token_total"`
+	TokenUsage     TokenUsage           `json:"token_usage"`
+	Model          string               `json:"model,omitempty"`
+	RunID          string               `json:"run_id,omitempty"`
+	RunStatus      string               `json:"run_status,omitempty"`
+	CreatedAt      time.Time            `json:"created_at"`
+	UpdatedAt      time.Time            `json:"updated_at"`
+	Metadata       json.RawMessage      `json:"metadata,omitempty"`
+	RuntimeState   *SessionRuntimeState `json:"runtime_state,omitempty"`
 }
 
 type MailboxMessage struct {
