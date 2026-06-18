@@ -43,10 +43,6 @@ type approval struct {
 	ActionFingerprint string `json:"action_fingerprint"`
 }
 
-type approvalListResponse struct {
-	Approvals []approval `json:"approvals"`
-}
-
 type approvalResponse struct {
 	Approval approval `json:"approval"`
 }
