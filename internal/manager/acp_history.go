@@ -192,12 +192,3 @@ func normalizeACPTextUpdate(rpc acpHistoryRPC, fields acpHistoryFields) (acpHist
 	}
 	return fields, rpc.Method == "session/update" && fields.SessionUpdate != ""
 }
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}

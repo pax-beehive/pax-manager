@@ -4,27 +4,33 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 type Config struct {
-	Port                     string
-	DatabaseURL              string
-	RegistrationToken        string
-	RegistrationOwnerEmail   string
-	LocalUserID              string
-	AllowLocalUserHeader     bool
-	CloudflareAccessDisabled bool
-	CloudflareAccessIssuer   string
-	CloudflareAccessAud      string
-	CloudflareAccessJWKS     string
-	AdminEmails              map[string]bool
-	MaxBodyBytes             int64
-	APIRateLimitPerMinute    int
-	APIRateLimitBurst        int
-	RegisterLimitPerMinute   int
-	RegisterLimitBurst       int
+	Port                              string
+	DatabaseURL                       string
+	RegistrationToken                 string
+	RegistrationOwnerEmail            string
+	LocalUserID                       string
+	AllowLocalUserHeader              bool
+	CloudflareAccessDisabled          bool
+	CloudflareAccessIssuer            string
+	CloudflareAccessAud               string
+	CloudflareAccessJWKS              string
+	AdminEmails                       map[string]bool
+	MaxBodyBytes                      int64
+	APIRateLimitPerMinute             int
+	APIRateLimitBurst                 int
+	RegisterLimitPerMinute            int
+	RegisterLimitBurst                int
+	PaxdArtifactDownloadTTL           time.Duration
+	PaxdArtifactUploadAudience        string
+	PaxdArtifactUploadPrincipals      map[string]bool
+	PaxdArtifactSigningServiceAccount string
+	PaxdArtifactGCSMock               bool
 }
 
 func Load() Config {
@@ -45,6 +51,16 @@ func Load() Config {
 		APIRateLimitBurst:        parseIntEnv("API_RATE_LIMIT_BURST", 60),
 		RegisterLimitPerMinute:   parseIntEnv("REGISTER_RATE_LIMIT_PER_MINUTE", 30),
 		RegisterLimitBurst:       parseIntEnv("REGISTER_RATE_LIMIT_BURST", 10),
+		PaxdArtifactDownloadTTL: time.Duration(parseIntEnv(
+			"PAXD_ARTIFACT_DOWNLOAD_URL_TTL_SECONDS",
+			15*60,
+		)) * time.Second,
+		PaxdArtifactUploadAudience: os.Getenv("PAXD_ARTIFACT_UPLOAD_AUDIENCE"),
+		PaxdArtifactUploadPrincipals: parseStringSet(
+			os.Getenv("PAXD_ARTIFACT_UPLOAD_PRINCIPALS"),
+		),
+		PaxdArtifactSigningServiceAccount: os.Getenv("PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT"),
+		PaxdArtifactGCSMock:               parseBool(os.Getenv("PAXD_ARTIFACT_GCS_MOCK")),
 	}
 }
 
@@ -86,6 +102,17 @@ func ParseEmailSet(raw string) map[string]bool {
 
 func parseEmailSet(raw string) map[string]bool {
 	return ParseEmailSet(raw)
+}
+
+func parseStringSet(raw string) map[string]bool {
+	out := map[string]bool{}
+	for _, part := range strings.Split(raw, ",") {
+		value := strings.TrimSpace(part)
+		if value != "" {
+			out[value] = true
+		}
+	}
+	return out
 }
 
 func parseBool(raw string) bool {

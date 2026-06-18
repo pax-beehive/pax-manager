@@ -61,6 +61,7 @@ func openAPIDocument(serverURL string) ([]byte, error) {
 	}
 	doc["servers"] = []map[string]string{{"url": serverURL}}
 	addACPWebSocketPaths(doc)
+	addPaxdArtifactPaths(doc)
 	return json.MarshalIndent(doc, "", "  ")
 }
 
@@ -93,6 +94,13 @@ func addACPWebSocketPaths(doc map[string]any) {
 					"schema":      map[string]string{"type": "string"},
 					"description": "Local runtime instance ID. Defaults to default.",
 				},
+				{
+					"name":        "session_id",
+					"in":          "query",
+					"required":    false,
+					"schema":      map[string]string{"type": "string"},
+					"description": "ACP session ID served by this tunnel.",
+				},
 			},
 			"responses": map[string]any{
 				"101": map[string]string{"description": "WebSocket tunnel established."},
@@ -124,6 +132,13 @@ func addACPWebSocketPaths(doc map[string]any) {
 					"schema":      map[string]string{"type": "string"},
 					"description": "Agent ID to connect to.",
 				},
+				{
+					"name":        "session_id",
+					"in":          "query",
+					"required":    false,
+					"schema":      map[string]string{"type": "string"},
+					"description": "ACP session ID to connect to. Omit only for tunnels registered without a session ID.",
+				},
 			},
 			"responses": map[string]any{
 				"101": map[string]string{"description": "WebSocket tunnel established."},
@@ -133,6 +148,131 @@ func addACPWebSocketPaths(doc map[string]any) {
 		},
 	}
 	paths["/api/v1/user/{user_id}/agents/{agent_id}/tunnel"] = v1UserTunnelGET
+
+	v1UserSessionTunnelGET := map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"ACP"},
+			"summary":     "Connect ACP user tunnel for a session",
+			"description": "Upgrades to a WebSocket used by an ACP client to exchange JSON-RPC frames with a connected paxd agent tunnel for one ACP session.",
+			"x-websocket": true,
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters": []map[string]any{
+				{
+					"name":        "user_id",
+					"in":          "path",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "User ID or self.",
+				},
+				{
+					"name":        "agent_id",
+					"in":          "path",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "Agent ID to connect to.",
+				},
+				{
+					"name":        "session_id",
+					"in":          "path",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "ACP session ID to connect to.",
+				},
+			},
+			"responses": map[string]any{
+				"101": map[string]string{"description": "WebSocket tunnel established."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent tunnel is not connected."},
+			},
+		},
+	}
+	paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel"] = v1UserSessionTunnelGET
+}
+
+func addPaxdArtifactPaths(doc map[string]any) {
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		paths = map[string]any{}
+		doc["paths"] = paths
+	}
+	ensureSecurityScheme(doc, "googleIam", map[string]any{
+		"type":         "http",
+		"scheme":       "bearer",
+		"bearerFormat": "Google ID token",
+		"description":  "Google-signed identity token for an allowed IAM principal.",
+	})
+	paths["/api/v1/public/paxd/download"] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"paxd"},
+			"summary":     "Get signed paxd download URL",
+			"description": "Returns a short-lived signed GCS URL for the newest paxd binary matching the requested platform and tags.",
+			"parameters": []map[string]any{
+				{
+					"name":        "platform",
+					"in":          "query",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "Platform such as linux/amd64 or darwin/arm64.",
+				},
+				{
+					"name":     "tags",
+					"in":       "query",
+					"required": false,
+					"schema": map[string]any{
+						"type":  "array",
+						"items": map[string]string{"type": "string"},
+					},
+					"description": "Required tags. Multiple values use AND semantics.",
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Signed download URL."},
+				"404": map[string]string{"description": "No matching paxd artifact."},
+			},
+		},
+	}
+	paths["/api/v1/admin/paxd/artifacts"] = map[string]any{
+		"post": map[string]any{
+			"tags":        []string{"paxd"},
+			"summary":     "Publish paxd artifact metadata",
+			"description": "Records metadata for a paxd binary already uploaded to GCS. The caller must present a Google-signed identity token for an allowed IAM principal.",
+			"security":    []map[string][]string{{"googleIam": {}}},
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{
+							"type": "object",
+							"required": []string{
+								"platform", "version", "bucket", "object", "sha256",
+							},
+						},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Artifact metadata recorded."},
+				"401": map[string]string{
+					"description": "Missing or invalid Google identity token.",
+				},
+				"403": map[string]string{"description": "IAM principal is not allowed."},
+			},
+		},
+	}
+}
+
+func ensureSecurityScheme(doc map[string]any, name string, scheme map[string]any) {
+	components, ok := doc["components"].(map[string]any)
+	if !ok {
+		components = map[string]any{}
+		doc["components"] = components
+	}
+	securitySchemes, ok := components["securitySchemes"].(map[string]any)
+	if !ok {
+		securitySchemes = map[string]any{}
+		components["securitySchemes"] = securitySchemes
+	}
+	securitySchemes[name] = scheme
 }
 
 const openAPIHTML = `<!doctype html>

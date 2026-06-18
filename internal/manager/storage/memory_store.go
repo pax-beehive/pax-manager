@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,6 +33,13 @@ type MemoryStore struct {
 	messages         map[string]Message
 	messageLogical   map[string]string
 	messageParts     map[messagePartKey]MessagePart
+	approvals        map[string]AgentApproval
+	secrets          map[string]Secret
+	secretVersions   map[string]SecretVersion
+	secretVersionIDs map[string][]string
+	secretAccess     []SecretAccessEvent
+	paxdArtifacts    map[string]PaxdArtifact
+	paxdArtifactKeys map[string]string
 }
 
 func NewMemoryStore(now func() time.Time) *MemoryStore {
@@ -52,6 +61,12 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		messages:         make(map[string]Message),
 		messageLogical:   make(map[string]string),
 		messageParts:     make(map[messagePartKey]MessagePart),
+		approvals:        make(map[string]AgentApproval),
+		secrets:          make(map[string]Secret),
+		secretVersions:   make(map[string]SecretVersion),
+		secretVersionIDs: make(map[string][]string),
+		paxdArtifacts:    make(map[string]PaxdArtifact),
+		paxdArtifactKeys: make(map[string]string),
 	}
 }
 
@@ -227,6 +242,264 @@ func (s *MemoryStore) AuthenticateUserAPIKey(ctx context.Context, keyHash string
 	return user, nil
 }
 
+func (s *MemoryStore) CreateSecret(
+	ctx context.Context,
+	principal UserPrincipal,
+	req CreateSecretRequest,
+	encrypted SecretVersion,
+) (Secret, SecretVersion, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	secretID, err := newSecret("sec")
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	versionID, err := newSecret("secver")
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	now := s.now().UTC()
+	secret := Secret{
+		SecretID:         secretID,
+		OwnerUserID:      principal.User.UserID,
+		Name:             req.Name,
+		Kind:             req.Kind,
+		Description:      req.Description,
+		Metadata:         jsonDefault(req.Metadata, "{}"),
+		CurrentVersionID: versionID,
+		CurrentVersion:   1,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	version := encrypted
+	version.VersionID = versionID
+	version.SecretID = secretID
+	version.VersionNumber = 1
+	version.State = "active"
+	version.CreatedAt = now
+	version.CreatedByUserID = principal.User.UserID
+	s.secrets[secretID] = secret
+	s.secretVersions[versionID] = version
+	s.secretVersionIDs[secretID] = append(s.secretVersionIDs[secretID], versionID)
+	return secret, version, nil
+}
+
+func (s *MemoryStore) ListSecrets(ctx context.Context, principal UserPrincipal) ([]Secret, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Secret, 0)
+	for _, secret := range s.secrets {
+		if secret.DeletedAt != nil || !canAccessOwner(principal, secret.OwnerUserID) {
+			continue
+		}
+		out = append(out, secret)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) GetSecret(
+	ctx context.Context,
+	principal UserPrincipal,
+	secretID string,
+) (Secret, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	secret, ok := s.secrets[secretID]
+	if !ok || secret.DeletedAt != nil || !canAccessOwner(principal, secret.OwnerUserID) {
+		return Secret{}, ErrNotFound
+	}
+	return secret, nil
+}
+
+func (s *MemoryStore) GetSecretVersionForNode(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	secretID string,
+	versionSelector string,
+) (Secret, SecretVersion, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[agentID]
+	if !ok || agent.NodeID != node.NodeID || agent.OwnerUserID != node.OwnerUserID {
+		return Secret{}, SecretVersion{}, ErrNotFound
+	}
+	secret, ok := s.secrets[secretID]
+	if !ok || secret.DeletedAt != nil || secret.OwnerUserID != node.OwnerUserID {
+		return Secret{}, SecretVersion{}, ErrNotFound
+	}
+	versionID := secret.CurrentVersionID
+	if selector := strings.TrimSpace(versionSelector); selector != "" && selector != "latest" {
+		selector = strings.TrimPrefix(selector, "version:")
+		versionID = ""
+		for _, candidateID := range s.secretVersionIDs[secretID] {
+			candidate := s.secretVersions[candidateID]
+			if strconv.FormatInt(candidate.VersionNumber, 10) == selector {
+				versionID = candidateID
+				break
+			}
+		}
+	}
+	version, ok := s.secretVersions[versionID]
+	if !ok || version.State != "active" {
+		return Secret{}, SecretVersion{}, ErrNotFound
+	}
+	return secret, version, nil
+}
+
+func (s *MemoryStore) CreateSecretVersion(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	req WriteSecretVersionRequest,
+	encrypted SecretVersion,
+) (SecretVersion, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[agentID]
+	if !ok || agent.NodeID != node.NodeID || agent.OwnerUserID != node.OwnerUserID {
+		return SecretVersion{}, false, ErrNotFound
+	}
+	secret, ok := s.secrets[req.SecretID]
+	if !ok || secret.DeletedAt != nil || secret.OwnerUserID != node.OwnerUserID {
+		return SecretVersion{}, false, ErrNotFound
+	}
+	if req.IdempotencyKey != "" {
+		for _, version := range s.secretVersions {
+			if version.SecretID == req.SecretID &&
+				version.CreatedByNodeID == node.NodeID &&
+				version.CreatedByAgentID == agentID &&
+				version.IdempotencyKey == req.IdempotencyKey {
+				return version, secret.CurrentVersionID == version.VersionID, nil
+			}
+		}
+	}
+	versionID, err := newSecret("secver")
+	if err != nil {
+		return SecretVersion{}, false, err
+	}
+	version := encrypted
+	version.VersionID = versionID
+	version.SecretID = req.SecretID
+	version.VersionNumber = secret.CurrentVersion + 1
+	version.State = "active"
+	version.CreatedAt = s.now().UTC()
+	version.CreatedByNodeID = node.NodeID
+	version.CreatedByAgentID = agentID
+	version.IdempotencyKey = req.IdempotencyKey
+	if req.MakeCurrent {
+		if req.ExpectedCurrentVersionID == "" ||
+			req.ExpectedCurrentVersionID != secret.CurrentVersionID {
+			return SecretVersion{}, false, ErrConflict
+		}
+		secret.CurrentVersionID = versionID
+		secret.CurrentVersion = version.VersionNumber
+		secret.UpdatedAt = version.CreatedAt
+		s.secrets[req.SecretID] = secret
+	}
+	s.secretVersions[versionID] = version
+	s.secretVersionIDs[req.SecretID] = append(s.secretVersionIDs[req.SecretID], versionID)
+	return version, req.MakeCurrent, nil
+}
+
+func (s *MemoryStore) RecordSecretAccess(ctx context.Context, event SecretAccessEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.secretAccess = append(s.secretAccess, event)
+	return nil
+}
+
+func (s *MemoryStore) CreatePaxdArtifact(
+	ctx context.Context,
+	req CreatePaxdArtifactRequest,
+	createdBy string,
+) (PaxdArtifact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := s.now().UTC()
+	key := paxdArtifactObjectKey(req.Bucket, req.Object, req.Generation)
+	artifactID := s.paxdArtifactKeys[key]
+	if artifactID == "" {
+		var err error
+		artifactID, err = newSecret("paxdart")
+		if err != nil {
+			return PaxdArtifact{}, err
+		}
+	}
+	artifact := PaxdArtifact{
+		ArtifactID:  artifactID,
+		Platform:    req.Platform,
+		Tags:        append([]string(nil), req.Tags...),
+		Version:     req.Version,
+		BuildID:     req.BuildID,
+		Bucket:      req.Bucket,
+		Object:      req.Object,
+		Generation:  req.Generation,
+		SHA256:      req.SHA256,
+		SizeBytes:   req.SizeBytes,
+		ContentType: req.ContentType,
+		CreatedBy:   createdBy,
+		CreatedAt:   now,
+	}
+	if existing, ok := s.paxdArtifacts[artifactID]; ok {
+		artifact.CreatedAt = existing.CreatedAt
+	}
+	s.paxdArtifacts[artifactID] = artifact
+	s.paxdArtifactKeys[key] = artifactID
+	return artifact, nil
+}
+
+func (s *MemoryStore) FindPaxdArtifact(
+	ctx context.Context,
+	req FindPaxdArtifactRequest,
+) (PaxdArtifact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var found PaxdArtifact
+	for _, artifact := range s.paxdArtifacts {
+		if artifact.DeletedAt != nil ||
+			artifact.Platform != req.Platform ||
+			!paxdArtifactHasTags(artifact.Tags, req.Tags) {
+			continue
+		}
+		if found.ArtifactID == "" ||
+			artifact.CreatedAt.After(found.CreatedAt) ||
+			(artifact.CreatedAt.Equal(found.CreatedAt) && artifact.ArtifactID > found.ArtifactID) {
+			found = artifact
+		}
+	}
+	if found.ArtifactID == "" {
+		return PaxdArtifact{}, ErrNotFound
+	}
+	found.Tags = append([]string(nil), found.Tags...)
+	return found, nil
+}
+
+func paxdArtifactObjectKey(bucket string, object string, generation int64) string {
+	return bucket + "\x00" + object + "\x00" + strconv.FormatInt(generation, 10)
+}
+
+func paxdArtifactHasTags(artifactTags []string, requiredTags []string) bool {
+	if len(requiredTags) == 0 {
+		return true
+	}
+	seen := make(map[string]bool, len(artifactTags))
+	for _, tag := range artifactTags {
+		seen[tag] = true
+	}
+	for _, tag := range requiredTags {
+		if !seen[tag] {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *MemoryStore) RegisterAgent(
 	ctx context.Context,
 	owner User,
@@ -367,6 +640,13 @@ func (s *MemoryStore) UpsertNodeStatus(
 			return err
 		}
 		for _, session := range input.Sessions {
+			if session.SessionID == "" {
+				continue
+			}
+			session, err = s.normalizeReportedSessionLocked(agent.AgentID, session)
+			if err != nil {
+				return err
+			}
 			s.upsertSessionLocked(current.NodeID, agent.AgentID, session, now)
 		}
 	}
@@ -402,7 +682,11 @@ func (s *MemoryStore) GetNode(
 	return node, nil
 }
 
-func (s *MemoryStore) GetNodeAgent(ctx context.Context, nodeID string, agentID string) (Agent, error) {
+func (s *MemoryStore) GetNodeAgent(
+	ctx context.Context,
+	nodeID string,
+	agentID string,
+) (Agent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	agent, ok := s.agents[agentID]
@@ -538,6 +822,11 @@ func (s *MemoryStore) UpsertAgentStatus(ctx context.Context, report AgentStatusR
 			continue
 		}
 		nodeID := agent.NodeID
+		var err error
+		input, err = s.normalizeReportedSessionLocked(report.AgentID, input)
+		if err != nil {
+			return err
+		}
 		s.upsertSessionLocked(nodeID, report.AgentID, input, now)
 	}
 
@@ -620,6 +909,52 @@ func (s *MemoryStore) GetSession(
 	return AgentSession{}, ErrNotFound
 }
 
+func (s *MemoryStore) UpdateSessionRuntimeState(
+	ctx context.Context,
+	state SessionRuntimeState,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if state.AgentID == "" || state.SessionID == "" {
+		return ErrNotFound
+	}
+	agent, ok := s.agents[state.AgentID]
+	if !ok {
+		return ErrNotFound
+	}
+	if state.NodeID == "" {
+		state.NodeID = agent.NodeID
+	}
+	if state.OwnerUserID == "" {
+		state.OwnerUserID = agent.OwnerUserID
+	}
+	if state.UpdatedAt.IsZero() {
+		state.UpdatedAt = s.now().UTC()
+	}
+	status, currentTask, runID, runStatus := state.StatusSummary()
+	session, ok := s.sessions[sessionKey(state.AgentID, state.SessionID)]
+	if !ok {
+		session = AgentSession{
+			ID:        int64(len(s.sessions) + 1),
+			NodeID:    state.NodeID,
+			AgentID:   state.AgentID,
+			SessionID: state.SessionID,
+			Status:    status,
+			CreatedAt: state.UpdatedAt,
+		}
+	}
+	session.NodeID = firstNonEmpty(state.NodeID, session.NodeID)
+	session.Status = status
+	session.CurrentTask = currentTask
+	session.RunID = runID
+	session.RunStatus = runStatus
+	session.UpdatedAt = state.UpdatedAt
+	session.RuntimeState = &state
+	session.Metadata = runtimeMetadata(session.Metadata, state)
+	s.sessions[sessionKey(state.AgentID, state.SessionID)] = session
+	return nil
+}
+
 func (s *MemoryStore) ListSessionMessages(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -654,6 +989,18 @@ func (s *MemoryStore) CreateMailboxMessage(
 	agent, ok := s.agents[req.AgentID]
 	if !ok || !canAccessOwner(principal, agent.OwnerUserID) {
 		return MailboxMessage{}, ErrNotFound
+	}
+	if req.NodeID != "" && agent.NodeID != req.NodeID {
+		return MailboxMessage{}, ErrNotFound
+	}
+	if req.SessionID != "" {
+		session, ok := s.sessions[sessionKey(req.AgentID, req.SessionID)]
+		if !ok {
+			return MailboxMessage{}, ErrNotFound
+		}
+		if req.NodeID != "" && session.NodeID != "" && session.NodeID != agent.NodeID {
+			return MailboxMessage{}, ErrNotFound
+		}
 	}
 	messageType := defaultMessageType(req.MessageType)
 	if messageType == "" {
@@ -690,6 +1037,225 @@ func (s *MemoryStore) CreateMailboxMessage(
 		return MailboxMessage{}, err
 	}
 	return msg, nil
+}
+
+func (s *MemoryStore) CreateApproval(
+	ctx context.Context,
+	node Node,
+	req CreateApprovalRequest,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[req.AgentID]
+	if !ok || agent.NodeID != node.NodeID || agent.OwnerUserID != node.OwnerUserID {
+		return AgentApproval{}, ErrNotFound
+	}
+	sessionID := req.SessionID
+	if sessionID != "" {
+		sessionID = s.virtualSessionIDLocked(req.AgentID, sessionID)
+	}
+	approvalID, err := newSecret("appr")
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	approval := AgentApproval{
+		ApprovalID:        approvalID,
+		OwnerUserID:       node.OwnerUserID,
+		RequestNodeID:     node.NodeID,
+		RequestAgentID:    req.AgentID,
+		RequestSessionID:  sessionID,
+		SourceMessageID:   req.SourceMessageID,
+		Domain:            defaultApprovalDomain(req.Domain),
+		Operation:         req.Operation,
+		ResourceType:      req.ResourceType,
+		ResourceRef:       req.ResourceRef,
+		Title:             req.Title,
+		Description:       req.Description,
+		RiskLevel:         defaultApprovalRiskLevel(req.RiskLevel),
+		ActionFingerprint: req.ActionFingerprint,
+		RequestBody:       jsonDefault(req.RequestBody, "{}"),
+		RequestedEffects:  jsonDefault(req.RequestedEffects, "[]"),
+		Options:           append([]ApprovalOption(nil), req.Options...),
+		Status:            "pending",
+		CreatedAt:         s.now().UTC(),
+		ExpiresAt:         req.ExpiresAt,
+		RawPayload:        jsonDefault(req.RawPayload, "{}"),
+	}
+	s.approvals[approvalID] = approval
+	return approval, nil
+}
+
+func (s *MemoryStore) GetApproval(
+	ctx context.Context,
+	principal UserPrincipal,
+	approvalID string,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	approval, ok := s.approvals[approvalID]
+	if !ok || !canAccessOwner(principal, approval.OwnerUserID) {
+		return AgentApproval{}, ErrNotFound
+	}
+	return s.translateApprovalToNativeLocked(approval), nil
+}
+
+func (s *MemoryStore) GetNodeApproval(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	approvalID string,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	approval, ok := s.approvals[approvalID]
+	if !ok ||
+		approval.OwnerUserID != node.OwnerUserID ||
+		approval.RequestNodeID != node.NodeID ||
+		approval.RequestAgentID != agentID {
+		return AgentApproval{}, ErrNotFound
+	}
+	return s.translateApprovalToNativeLocked(approval), nil
+}
+
+func (s *MemoryStore) ListApprovals(
+	ctx context.Context,
+	filter ApprovalFilter,
+) ([]AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]AgentApproval, 0)
+	for _, approval := range s.approvals {
+		if !approvalMatchesFilter(approval, filter) {
+			continue
+		}
+		out = append(out, approval)
+	}
+	sortApprovals(out)
+	return limitApprovals(out, filter.Limit), nil
+}
+
+func (s *MemoryStore) DecideApproval(
+	ctx context.Context,
+	principal UserPrincipal,
+	approvalID string,
+	req ApprovalDecisionRequest,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	approval, ok := s.approvals[approvalID]
+	if !ok || !canAccessOwner(principal, approval.OwnerUserID) {
+		return AgentApproval{}, ErrNotFound
+	}
+	if approval.Status != "pending" {
+		return AgentApproval{}, ErrConflict
+	}
+	decision, scope, grantNodeID, grantAgentID, grantSessionID, err := approvalDecisionGrant(
+		approval,
+		req,
+	)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	now := s.now().UTC()
+	approval.Status = "decided"
+	approval.Decision = decision
+	approval.DecisionOption = req.DecisionOption
+	approval.DecisionScope = scope
+	approval.GrantNodeID = grantNodeID
+	approval.GrantAgentID = grantAgentID
+	approval.GrantSessionID = grantSessionID
+	approval.GrantBody = jsonDefault(req.GrantBody, "{}")
+	approval.DecidedByUserID = principal.User.UserID
+	approval.DecidedAt = &now
+	s.approvals[approvalID] = approval
+	return approval, nil
+}
+
+func (s *MemoryStore) ListApprovalGrants(
+	ctx context.Context,
+	filter ApprovalGrantFilter,
+) ([]AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]AgentApproval, 0)
+	for _, approval := range s.approvals {
+		if !approvalMatchesGrantFilter(approval, filter) {
+			continue
+		}
+		out = append(out, approval)
+	}
+	sortApprovals(out)
+	return limitApprovals(out, filter.Limit), nil
+}
+
+func (s *MemoryStore) FindReusableApprovalGrant(
+	ctx context.Context,
+	lookup ApprovalGrantLookup,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now().UTC()
+	matches := make([]AgentApproval, 0)
+	for _, approval := range s.approvals {
+		if approval.OwnerUserID != lookup.OwnerUserID ||
+			approval.Domain != lookup.Domain ||
+			approval.Operation != lookup.Operation ||
+			approval.ActionFingerprint != lookup.ActionFingerprint ||
+			approval.Status != "decided" ||
+			approval.Decision != "allow" ||
+			approval.DecisionScope == "once" ||
+			approval.GrantRevokedAt != nil {
+			continue
+		}
+		if approval.ExpiresAt != nil && !approval.ExpiresAt.After(now) {
+			continue
+		}
+		if !wildcardMatch(approval.GrantNodeID, lookup.RequestNodeID) ||
+			!wildcardMatch(approval.GrantAgentID, lookup.RequestAgentID) ||
+			!wildcardMatch(approval.GrantSessionID, lookup.RequestSessionID) {
+			continue
+		}
+		matches = append(matches, approval)
+	}
+	if len(matches) == 0 {
+		return AgentApproval{}, ErrNotFound
+	}
+	sort.Slice(matches, func(i, j int) bool {
+		left := approvalSpecificity(matches[i])
+		right := approvalSpecificity(matches[j])
+		if left != right {
+			return left > right
+		}
+		return timeAfter(matches[i].DecidedAt, matches[j].DecidedAt)
+	})
+	return matches[0], nil
+}
+
+func (s *MemoryStore) RevokeApprovalGrant(
+	ctx context.Context,
+	principal UserPrincipal,
+	grantID string,
+	req RevokeApprovalGrantRequest,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	approval, ok := s.approvals[grantID]
+	if !ok || !canAccessOwner(principal, approval.OwnerUserID) {
+		return AgentApproval{}, ErrNotFound
+	}
+	if approval.Decision != "allow" || approval.DecisionScope == "" ||
+		approval.DecisionScope == "once" {
+		return AgentApproval{}, ErrConflict
+	}
+	if approval.GrantRevokedAt != nil {
+		return approval, nil
+	}
+	now := s.now().UTC()
+	approval.GrantRevokedAt = &now
+	approval.GrantRevokedByUserID = principal.User.UserID
+	approval.GrantRevocationReason = req.Reason
+	s.approvals[grantID] = approval
+	return approval, nil
 }
 
 func (s *MemoryStore) ListMailbox(
@@ -737,6 +1303,10 @@ func (s *MemoryStore) PullMailbox(
 	if limit <= 0 || limit > 100 {
 		limit = 10
 	}
+	querySessionID := sessionID
+	if querySessionID != "" {
+		querySessionID = s.virtualSessionIDLocked(agentID, querySessionID)
+	}
 
 	now := s.now().UTC()
 	candidates := make([]MailboxMessage, 0)
@@ -744,7 +1314,7 @@ func (s *MemoryStore) PullMailbox(
 		if msg.AgentID != agentID || msg.ID <= offset {
 			continue
 		}
-		if sessionID != "" && msg.SessionID != sessionID {
+		if querySessionID != "" && msg.SessionID != querySessionID {
 			continue
 		}
 		if msg.Status != "pending" {
@@ -776,6 +1346,7 @@ func (s *MemoryStore) PullMailbox(
 			maxOffset = candidates[i].ID
 		}
 	}
+	s.translateMailboxMessagesToNativeLocked(candidates)
 
 	return MailboxPull{Messages: candidates, MaxOffset: maxOffset, HasMore: hasMore}, nil
 }
@@ -796,6 +1367,10 @@ func (s *MemoryStore) PullNodeMailbox(
 	if _, ok := s.nodes[nodeID]; !ok {
 		return MailboxPull{}, ErrNotFound
 	}
+	querySessionID := sessionID
+	if agentID != "" && querySessionID != "" {
+		querySessionID = s.virtualSessionIDLocked(agentID, querySessionID)
+	}
 	now := s.now().UTC()
 	candidates := make([]MailboxMessage, 0)
 	for _, msg := range s.mailbox {
@@ -805,7 +1380,7 @@ func (s *MemoryStore) PullNodeMailbox(
 		if agentID != "" && msg.AgentID != agentID {
 			continue
 		}
-		if sessionID != "" && msg.SessionID != sessionID {
+		if querySessionID != "" && msg.SessionID != querySessionID {
 			continue
 		}
 		if msg.Direction == "node_to_user" || msg.Status != "pending" {
@@ -835,6 +1410,7 @@ func (s *MemoryStore) PullNodeMailbox(
 			maxOffset = candidates[i].ID
 		}
 	}
+	s.translateMailboxMessagesToNativeLocked(candidates)
 	return MailboxPull{Messages: candidates, MaxOffset: maxOffset, HasMore: hasMore}, nil
 }
 
@@ -934,6 +1510,10 @@ func (s *MemoryStore) CreateNodeOutboundMessage(
 	if !ok || agent.NodeID != node.NodeID {
 		return MailboxMessage{}, ErrNotFound
 	}
+	sessionID := req.SessionID
+	if sessionID != "" {
+		sessionID = s.virtualSessionIDLocked(req.AgentID, sessionID)
+	}
 	createdAt := s.now().UTC()
 	if req.CreatedAt != nil {
 		createdAt = req.CreatedAt.UTC()
@@ -943,7 +1523,7 @@ func (s *MemoryStore) CreateNodeOutboundMessage(
 		node.OwnerUserID,
 		node.NodeID,
 		req.AgentID,
-		req.SessionID,
+		sessionID,
 		req.Content,
 		defaultOutboundMessageType(req.MessageType),
 		req.Payload,
@@ -964,6 +1544,8 @@ func (s *MemoryStore) CreateNodeOutboundMessage(
 	if err := s.saveMailboxHistoryLocked(msg); err != nil {
 		return MailboxMessage{}, err
 	}
+	msg.SessionID = s.nativeSessionIDLocked(msg.AgentID, msg.SessionID)
+	msg.Payload = replacePayloadSessionID(msg.Payload, msg.SessionID)
 	return msg, nil
 }
 
@@ -1100,6 +1682,73 @@ func (s *MemoryStore) upsertSessionLocked(
 	return existing
 }
 
+func (s *MemoryStore) normalizeReportedSessionLocked(
+	agentID string,
+	input SessionStatusInput,
+) (SessionStatusInput, error) {
+	nativeID := reportedNativeSessionID(input)
+	if nativeID == "" {
+		return input, nil
+	}
+	for _, session := range s.sessions {
+		if session.AgentID == agentID && session.NativeID == nativeID {
+			input.SessionID = session.SessionID
+			input.NativeID = nativeID
+			return input, nil
+		}
+	}
+	if input.NativeID == "" || input.SessionID == "" || !isManagerSessionID(input.SessionID) {
+		generated, err := newSecret("sess")
+		if err != nil {
+			return input, err
+		}
+		input.SessionID = generated
+	}
+	input.NativeID = nativeID
+	return input, nil
+}
+
+func (s *MemoryStore) virtualSessionIDLocked(agentID string, sessionID string) string {
+	for _, session := range s.sessions {
+		if session.AgentID == agentID && session.NativeID == sessionID {
+			return session.SessionID
+		}
+	}
+	return sessionID
+}
+
+func (s *MemoryStore) nativeSessionIDLocked(agentID string, sessionID string) string {
+	session, ok := s.sessions[sessionKey(agentID, sessionID)]
+	if !ok || session.NativeID == "" {
+		return sessionID
+	}
+	return session.NativeID
+}
+
+func (s *MemoryStore) translateMailboxMessagesToNativeLocked(messages []MailboxMessage) {
+	for i := range messages {
+		nativeID := s.nativeSessionIDLocked(messages[i].AgentID, messages[i].SessionID)
+		messages[i].SessionID = nativeID
+		messages[i].Payload = replacePayloadSessionID(messages[i].Payload, nativeID)
+	}
+}
+
+func (s *MemoryStore) translateApprovalToNativeLocked(approval AgentApproval) AgentApproval {
+	if approval.RequestAgentID != "" && approval.RequestSessionID != "" {
+		approval.RequestSessionID = s.nativeSessionIDLocked(
+			approval.RequestAgentID,
+			approval.RequestSessionID,
+		)
+	}
+	if approval.GrantAgentID != "" && approval.GrantSessionID != "" {
+		approval.GrantSessionID = s.nativeSessionIDLocked(
+			approval.GrantAgentID,
+			approval.GrantSessionID,
+		)
+	}
+	return approval
+}
+
 func (s *MemoryStore) createMailboxLocked(
 	userID string,
 	ownerUserID string,
@@ -1178,6 +1827,108 @@ func (s *MemoryStore) ensureUserLocked(
 	s.users[userID] = user
 	s.usersByEmail[email] = userID
 	return user, nil
+}
+
+func approvalMatchesFilter(approval AgentApproval, filter ApprovalFilter) bool {
+	if !canAccessOwner(filter.Principal, approval.OwnerUserID) {
+		return false
+	}
+	if !stringFiltersMatch([]stringFilter{
+		{filter.Status, approval.Status},
+		{filter.Decision, approval.Decision},
+		{filter.Domain, approval.Domain},
+		{filter.Operation, approval.Operation},
+		{filter.ResourceType, approval.ResourceType},
+		{filter.ResourceRef, approval.ResourceRef},
+		{filter.RequestNodeID, approval.RequestNodeID},
+		{filter.RequestAgentID, approval.RequestAgentID},
+		{filter.RequestSessionID, approval.RequestSessionID},
+		{filter.DecisionScope, approval.DecisionScope},
+	}) {
+		return false
+	}
+	return filter.IncludeRevoked || approval.GrantRevokedAt == nil
+}
+
+func approvalMatchesGrantFilter(approval AgentApproval, filter ApprovalGrantFilter) bool {
+	if !canAccessOwner(filter.Principal, approval.OwnerUserID) {
+		return false
+	}
+	if approval.Status != "decided" || approval.Decision != "allow" ||
+		approval.DecisionScope == "once" {
+		return false
+	}
+	if !stringFiltersMatch([]stringFilter{
+		{filter.Domain, approval.Domain},
+		{filter.Operation, approval.Operation},
+		{filter.ResourceType, approval.ResourceType},
+		{filter.ResourceRef, approval.ResourceRef},
+		{filter.DecisionScope, approval.DecisionScope},
+		{filter.GrantNodeID, approval.GrantNodeID},
+		{filter.GrantAgentID, approval.GrantAgentID},
+		{filter.GrantSessionID, approval.GrantSessionID},
+	}) {
+		return false
+	}
+	return !filter.ActiveOnly || approval.GrantRevokedAt == nil
+}
+
+type stringFilter struct {
+	want string
+	got  string
+}
+
+func stringFiltersMatch(filters []stringFilter) bool {
+	for _, filter := range filters {
+		if filter.want != "" && filter.got != filter.want {
+			return false
+		}
+	}
+	return true
+}
+
+func sortApprovals(approvals []AgentApproval) {
+	sort.Slice(approvals, func(i, j int) bool {
+		return approvals[i].CreatedAt.After(approvals[j].CreatedAt)
+	})
+}
+
+func limitApprovals(approvals []AgentApproval, limit int) []AgentApproval {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	if len(approvals) <= limit {
+		return approvals
+	}
+	return approvals[:limit]
+}
+
+func wildcardMatch(pattern string, value string) bool {
+	return pattern == "*" || pattern == value
+}
+
+func approvalSpecificity(approval AgentApproval) int {
+	score := 0
+	if approval.GrantNodeID != "*" {
+		score++
+	}
+	if approval.GrantAgentID != "*" {
+		score++
+	}
+	if approval.GrantSessionID != "*" {
+		score++
+	}
+	return score
+}
+
+func timeAfter(left *time.Time, right *time.Time) bool {
+	if left == nil {
+		return false
+	}
+	if right == nil {
+		return true
+	}
+	return left.After(*right)
 }
 
 func defaultAgentName(req RegisterAgentRequest) string {

@@ -94,6 +94,7 @@ func scanAgents(rows *sql.Rows) ([]Agent, error) {
 func scanSession(row rowScanner) (AgentSession, error) {
 	var session AgentSession
 	var roots []byte
+	var metadata []byte
 	if err := row.Scan(
 		&session.ID,
 		&session.NodeID,
@@ -125,6 +126,7 @@ func scanSession(row rowScanner) (AgentSession, error) {
 		&session.RunStatus,
 		&session.CreatedAt,
 		&session.UpdatedAt,
+		&metadata,
 	); err != nil {
 		return AgentSession{}, mapSQLError(err)
 	}
@@ -132,7 +134,22 @@ func scanSession(row rowScanner) (AgentSession, error) {
 	session.TokenOutput = session.TokenUsage.Output
 	session.TokenTotal = session.TokenUsage.Total
 	_ = json.Unmarshal(roots, &session.WorkspaceRoots)
+	session.Metadata = json.RawMessage(metadata)
+	session.RuntimeState = runtimeStateFromMetadata(metadata)
 	return session, nil
+}
+
+func runtimeStateFromMetadata(metadata []byte) *SessionRuntimeState {
+	if len(metadata) == 0 || !json.Valid(metadata) {
+		return nil
+	}
+	var object struct {
+		RuntimeState *SessionRuntimeState `json:"runtime_state"`
+	}
+	if err := json.Unmarshal(metadata, &object); err != nil {
+		return nil
+	}
+	return object.RuntimeState
 }
 
 func scanSessions(rows *sql.Rows) ([]AgentSession, error) {
@@ -191,6 +208,73 @@ func scanMailbox(row rowScanner) (MailboxMessage, error) {
 	return msg, nil
 }
 
+func scanApproval(row rowScanner) (AgentApproval, error) {
+	var approval AgentApproval
+	var requestBody []byte
+	var requestedEffects []byte
+	var options []byte
+	var grantBody []byte
+	var rawPayload []byte
+	if err := row.Scan(
+		&approval.ApprovalID,
+		&approval.OwnerUserID,
+		&approval.RequestNodeID,
+		&approval.RequestAgentID,
+		&approval.RequestSessionID,
+		&approval.SourceMessageID,
+		&approval.GrantNodeID,
+		&approval.GrantAgentID,
+		&approval.GrantSessionID,
+		&approval.Domain,
+		&approval.Operation,
+		&approval.ResourceType,
+		&approval.ResourceRef,
+		&approval.Title,
+		&approval.Description,
+		&approval.RiskLevel,
+		&approval.ActionFingerprint,
+		&requestBody,
+		&requestedEffects,
+		&options,
+		&approval.Status,
+		&approval.Decision,
+		&approval.DecisionOption,
+		&approval.DecisionScope,
+		&grantBody,
+		&approval.DecidedByUserID,
+		&approval.GrantRevokedAt,
+		&approval.GrantRevokedByUserID,
+		&approval.GrantRevocationReason,
+		&approval.CreatedAt,
+		&approval.ExpiresAt,
+		&approval.DecidedAt,
+		&rawPayload,
+	); err != nil {
+		return AgentApproval{}, mapSQLError(err)
+	}
+	approval.RequestBody = json.RawMessage(requestBody)
+	approval.RequestedEffects = json.RawMessage(requestedEffects)
+	_ = json.Unmarshal(options, &approval.Options)
+	approval.GrantBody = json.RawMessage(grantBody)
+	approval.RawPayload = json.RawMessage(rawPayload)
+	return approval, nil
+}
+
+func scanApprovals(rows *sql.Rows) ([]AgentApproval, error) {
+	out := make([]AgentApproval, 0)
+	for rows.Next() {
+		approval, err := scanApproval(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, approval)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func scanUser(row rowScanner) (User, error) {
 	var user User
 	if err := row.Scan(
@@ -235,6 +319,93 @@ func scanUserAPIKeys(rows *sql.Rows) ([]UserAPIKey, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+func scanSecret(row rowScanner) (Secret, error) {
+	var secret Secret
+	var metadata []byte
+	if err := row.Scan(
+		&secret.SecretID,
+		&secret.OwnerUserID,
+		&secret.Name,
+		&secret.Kind,
+		&secret.Description,
+		&metadata,
+		&secret.CurrentVersionID,
+		&secret.CurrentVersion,
+		&secret.CreatedAt,
+		&secret.UpdatedAt,
+		&secret.DeletedAt,
+	); err != nil {
+		return Secret{}, mapSQLError(err)
+	}
+	secret.Metadata = json.RawMessage(metadata)
+	return secret, nil
+}
+
+func scanSecrets(rows *sql.Rows) ([]Secret, error) {
+	out := make([]Secret, 0)
+	for rows.Next() {
+		secret, err := scanSecret(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, secret)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func scanSecretVersion(row rowScanner) (SecretVersion, error) {
+	var version SecretVersion
+	if err := row.Scan(
+		&version.VersionID,
+		&version.SecretID,
+		&version.VersionNumber,
+		&version.Ciphertext,
+		&version.Nonce,
+		&version.KeyID,
+		&version.State,
+		&version.CreatedAt,
+		&version.CreatedByUserID,
+		&version.CreatedByNodeID,
+		&version.CreatedByAgentID,
+		&version.IdempotencyKey,
+	); err != nil {
+		return SecretVersion{}, mapSQLError(err)
+	}
+	return version, nil
+}
+
+func scanPaxdArtifact(row rowScanner) (PaxdArtifact, error) {
+	var artifact PaxdArtifact
+	var tags []byte
+	if err := row.Scan(
+		&artifact.ArtifactID,
+		&artifact.Platform,
+		&tags,
+		&artifact.Version,
+		&artifact.BuildID,
+		&artifact.Bucket,
+		&artifact.Object,
+		&artifact.Generation,
+		&artifact.SHA256,
+		&artifact.SizeBytes,
+		&artifact.ContentType,
+		&artifact.CreatedBy,
+		&artifact.CreatedAt,
+		&artifact.DeletedAt,
+	); err != nil {
+		return PaxdArtifact{}, mapSQLError(err)
+	}
+	if len(tags) > 0 {
+		if err := json.Unmarshal(tags, &artifact.Tags); err != nil {
+			return PaxdArtifact{}, err
+		}
+	}
+	return artifact, nil
 }
 
 func scanMailboxRows(rows *sql.Rows) ([]MailboxMessage, error) {

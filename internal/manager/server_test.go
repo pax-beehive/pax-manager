@@ -2,6 +2,7 @@ package manager
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,39 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
+
+func TestRequestLogIDHeaderIsPropagated(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/echo", strings.NewReader(`{}`))
+	req.Header.Set(logging.HeaderRequestID, "req_test_123")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("echo code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get(logging.HeaderLogID); got != "req_test_123" {
+		t.Fatalf("log id header = %q, want request id", got)
+	}
+}
+
+func TestRequestLogIDHeaderIsGenerated(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/echo", strings.NewReader(`{}`))
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("echo code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get(logging.HeaderLogID); !strings.HasPrefix(got, "log_") {
+		t.Fatalf("log id header = %q, want generated log id", got)
+	}
+}
 
 func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
@@ -62,6 +95,15 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/tunnel"]; !ok {
 		t.Fatalf("missing /api/v1/user/{user_id}/agents/{agent_id}/tunnel websocket path")
 	}
+	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel"]; !ok {
+		t.Fatalf("missing /api/v1/user session ACP tunnel websocket path")
+	}
+	if _, ok := doc.Paths["/api/v1/public/paxd/download"]; !ok {
+		t.Fatalf("missing /api/v1/public/paxd/download path")
+	}
+	if _, ok := doc.Paths["/api/v1/admin/paxd/artifacts"]; !ok {
+		t.Fatalf("missing /api/v1/admin/paxd/artifacts path")
+	}
 	for _, removed := range []string{
 		"/api/user/sessions/{sessionId}",
 		"/api/user/sessions/{sessionId}/messages",
@@ -91,6 +133,101 @@ func TestOpenAPIUI(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Fatalf("openapi ui missing %q", want)
 		}
+	}
+}
+
+func TestPaxdArtifactPublishAndDownload(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	srv.cfg.PaxdArtifactUploadAudience = "https://manager.example.com"
+	srv.cfg.PaxdArtifactUploadPrincipals = map[string]bool{
+		"release-bot@example.iam.gserviceaccount.com": true,
+	}
+	srv.cfg.PaxdArtifactDownloadTTL = time.Minute
+	fakeBackend := &fakePaxdArtifactBackend{
+		principal: "release-bot@example.iam.gserviceaccount.com",
+		attrs: paxdArtifactObjectAttrs{
+			Generation:  12345,
+			SizeBytes:   4096,
+			ContentType: "application/octet-stream",
+		},
+	}
+	srv.paxdArtifacts = fakeBackend
+
+	publishReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/admin/paxd/artifacts",
+		bytes.NewReader([]byte(`{
+			"platform":"Linux/AMD64",
+			"tags":["stable","latest"],
+			"version":"v0.1.2",
+			"build_id":"build-123",
+			"bucket":"paxd-releases",
+			"object":"paxd/v0.1.2/linux-amd64/paxd",
+			"sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+		}`)),
+	)
+	setJSON(publishReq)
+	publishReq.Header.Set("Authorization", "Bearer valid-token")
+	publishRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(publishRec, publishReq)
+	if publishRec.Code != http.StatusOK {
+		t.Fatalf("publish code = %d, body = %s", publishRec.Code, publishRec.Body.String())
+	}
+	published := decodeData[struct {
+		Artifact PaxdArtifact `json:"artifact"`
+	}](t, publishRec.Body.Bytes())
+	if published.Artifact.Platform != "linux/amd64" {
+		t.Fatalf("platform = %q", published.Artifact.Platform)
+	}
+	if published.Artifact.Generation != 12345 || published.Artifact.SizeBytes != 4096 {
+		t.Fatalf("artifact attrs = %+v", published.Artifact)
+	}
+	if got := strings.Join(published.Artifact.Tags, ","); got != "latest,stable" {
+		t.Fatalf("tags = %q", got)
+	}
+
+	downloadReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/public/paxd/download?platform=linux/amd64&tags=stable",
+		nil,
+	)
+	downloadRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(downloadRec, downloadReq)
+	if downloadRec.Code != http.StatusOK {
+		t.Fatalf("download code = %d, body = %s", downloadRec.Code, downloadRec.Body.String())
+	}
+	download := decodeData[PaxdArtifactDownloadResponse](t, downloadRec.Body.Bytes())
+	if download.URL != "https://signed.example/paxd/v0.1.2/linux-amd64/paxd" {
+		t.Fatalf("signed url = %q", download.URL)
+	}
+	if !download.ExpiresAt.Equal(srv.clock().UTC().Add(time.Minute)) {
+		t.Fatalf("expires_at = %s", download.ExpiresAt)
+	}
+	if fakeBackend.signedArtifact.ArtifactID != published.Artifact.ArtifactID {
+		t.Fatalf("signed artifact = %+v", fakeBackend.signedArtifact)
+	}
+}
+
+func TestPaxdArtifactPublishRequiresBearerToken(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	srv.cfg.PaxdArtifactUploadAudience = "https://manager.example.com"
+	srv.cfg.PaxdArtifactUploadPrincipals = map[string]bool{
+		"release-bot@example.iam.gserviceaccount.com": true,
+	}
+	srv.paxdArtifacts = &fakePaxdArtifactBackend{
+		principal: "release-bot@example.iam.gserviceaccount.com",
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/admin/paxd/artifacts",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	setJSON(req)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("missing auth code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -198,8 +335,12 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 	if len(got.Sessions) != 1 {
 		t.Fatalf("sessions len = %d", len(got.Sessions))
 	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("native_id")) {
+		t.Fatalf("user session response leaked native_id: %s", rec.Body.String())
+	}
 	session := got.Sessions[0]
-	if session.SessionID != "sess-1" || session.AgentType != "hermes" || session.TokenTotal != 123 {
+	if session.SessionID == "" || session.SessionID == "sess-1" || session.AgentType != "hermes" ||
+		session.TokenTotal != 123 {
 		t.Fatalf("unexpected session: %+v", session)
 	}
 	if len(session.WorkspaceRoots) != 1 || session.WorkspaceRoots[0] != "/workspace/repo" {
@@ -208,7 +349,7 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 
 	req = httptest.NewRequest(
 		http.MethodGet,
-		"/api/user/agents/"+agentID+"/sessions/sess-1",
+		"/api/user/agents/"+agentID+"/sessions/"+session.SessionID,
 		nil,
 	)
 	req.Header.Set("X-User-Email", "todd@example.com")
@@ -218,7 +359,7 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 		t.Fatalf("session code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	gotSession := decodeData[AgentSession](t, rec.Body.Bytes())
-	if gotSession.SessionID != "sess-1" || gotSession.AgentID != agentID {
+	if gotSession.SessionID != session.SessionID || gotSession.AgentID != agentID {
 		t.Fatalf("unexpected session detail: %+v", gotSession)
 	}
 }
@@ -226,7 +367,7 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 func TestMailboxLifecycle(t *testing.T) {
 	srv, apiKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
-	reportTestSession(t, srv, apiKey, agentID, "sess-1")
+	sessionID := reportTestSession(t, srv, apiKey, "todd@example.com", agentID, "sess-1")
 
 	body := []byte(`{
 		"message":"run the tests",
@@ -234,7 +375,7 @@ func TestMailboxLifecycle(t *testing.T) {
 	}`)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/api/user/agents/"+agentID+"/sessions/sess-1/messages",
+		"/api/user/agents/"+agentID+"/sessions/"+sessionID+"/messages",
 		bytes.NewReader(body),
 	)
 	setJSON(req)
@@ -272,6 +413,10 @@ func TestMailboxLifecycle(t *testing.T) {
 	if pull.Messages[0].Status != "delivered" || pull.MaxOffset != pull.Messages[0].ID {
 		t.Fatalf("unexpected pull: %+v", pull)
 	}
+	if pull.Messages[0].SessionID != "sess-1" {
+		t.Fatalf("node pull did not translate session to native id: %+v", pull.Messages[0])
+	}
+	assertPayloadField(t, pull.Messages[0].Payload, "session_id", "sess-1")
 
 	resultBody := []byte(`{"status":"completed","result":"tests passed"}`)
 	req = httptest.NewRequest(
@@ -302,7 +447,7 @@ func TestMailboxLifecycle(t *testing.T) {
 
 	req = httptest.NewRequest(
 		http.MethodGet,
-		"/api/user/agents/"+agentID+"/sessions/sess-1/messages",
+		"/api/user/agents/"+agentID+"/sessions/"+sessionID+"/messages",
 		nil,
 	)
 	req.Header.Set("X-User-Email", "todd@example.com")
@@ -320,7 +465,7 @@ func TestMailboxLifecycle(t *testing.T) {
 	}
 }
 
-func TestTenantIsolationAndAdminBypass(t *testing.T) {
+func TestTenantIsolationAndAdminPrincipalDoesNotBypassOwnerScope(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
 
@@ -362,7 +507,7 @@ func TestTenantIsolationAndAdminBypass(t *testing.T) {
 	got = decodeData[struct {
 		Agents []Agent `json:"agents"`
 	}](t, rec.Body.Bytes())
-	if len(got.Agents) != 1 {
+	if len(got.Agents) != 0 {
 		t.Fatalf("admin agents len = %d", len(got.Agents))
 	}
 }
@@ -509,7 +654,7 @@ func TestUserAPIKeyCanBeCreatedListedAndRevoked(t *testing.T) {
 func TestAgentWebsocketAuthenticatesOwnerAndProcessesMailboxFrames(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
-	reportTestSession(t, srv, paxKey, agentID, "sess-1")
+	sessionID := reportTestSession(t, srv, paxKey, "todd@example.com", agentID, "sess-1")
 
 	body := []byte(`{
 		"message":"run the tests",
@@ -517,7 +662,7 @@ func TestAgentWebsocketAuthenticatesOwnerAndProcessesMailboxFrames(t *testing.T)
 	}`)
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/api/user/agents/"+agentID+"/sessions/sess-1/messages",
+		"/api/user/agents/"+agentID+"/sessions/"+sessionID+"/messages",
 		bytes.NewReader(body),
 	)
 	setJSON(req)
@@ -607,7 +752,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
-	defer agentWS.Close()
+	defer func() { _ = agentWS.Close() }()
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -617,7 +762,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial user tunnel: %v", err)
 	}
-	defer userWS.Close()
+	defer func() { _ = userWS.Close() }()
 
 	requestPayload := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
 	if err := userWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
@@ -940,6 +1085,260 @@ func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	)
 }
 
+func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleUserACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
+	agentWSA, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-a",
+		agentHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel a: %v", err)
+	}
+	defer func() { _ = agentWSA.Close() }()
+	agentWSB, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-b",
+		agentHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel b: %v", err)
+	}
+	defer func() { _ = agentWSB.Close() }()
+
+	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
+	userWSA, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/sessions/sess-a/tunnel",
+		userHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial user tunnel a: %v", err)
+	}
+	defer func() { _ = userWSA.Close() }()
+	userWSB, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/sessions/sess-b/tunnel",
+		userHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial user tunnel b: %v", err)
+	}
+	defer func() { _ = userWSB.Close() }()
+
+	requestA := []byte(`{"jsonrpc":"2.0","id":"a","method":"initialize","params":{}}`)
+	if err := userWSA.WriteMessage(websocket.TextMessage, requestA); err != nil {
+		t.Fatalf("write user request a: %v", err)
+	}
+	if err := agentWSA.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set agent a read deadline: %v", err)
+	}
+	messageType, gotRequestA, err := agentWSA.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent request a: %v", err)
+	}
+	requestEnvA := decodeACPTunnelEnvelope(t, gotRequestA)
+	if messageType != websocket.TextMessage ||
+		requestEnvA.Type != acpTunnelTypeData ||
+		requestEnvA.Stream != acpTunnelStreamManagerToPaxd ||
+		string(requestEnvA.Payload) != string(requestA) {
+		t.Fatalf("agent a got type=%d payload=%s", messageType, gotRequestA)
+	}
+
+	requestB := []byte(`{"jsonrpc":"2.0","id":"b","method":"initialize","params":{}}`)
+	if err := userWSB.WriteMessage(websocket.TextMessage, requestB); err != nil {
+		t.Fatalf("write user request b: %v", err)
+	}
+	if err := agentWSB.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set agent b read deadline: %v", err)
+	}
+	messageType, gotRequestB, err := agentWSB.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent request b: %v", err)
+	}
+	requestEnvB := decodeACPTunnelEnvelope(t, gotRequestB)
+	if messageType != websocket.TextMessage ||
+		requestEnvB.Type != acpTunnelTypeData ||
+		requestEnvB.Stream != acpTunnelStreamManagerToPaxd ||
+		string(requestEnvB.Payload) != string(requestB) {
+		t.Fatalf("agent b got type=%d payload=%s", messageType, gotRequestB)
+	}
+}
+
+func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleUserACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-approval",
+		http.Header{"X-Pax-Key": []string{paxKey}},
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer func() { _ = agentWS.Close() }()
+
+	userWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel?session_id=sess-approval",
+		http.Header{"X-User-Email": []string{"todd@example.com"}},
+	)
+	if err != nil {
+		t.Fatalf("dial user tunnel: %v", err)
+	}
+	defer func() { _ = userWS.Close() }()
+
+	requestPayload := []byte(`{
+		"jsonrpc":"2.0",
+		"id":11,
+		"method":"session/request_permission",
+		"params":{
+			"options":[
+				{
+					"kind":"allow_always",
+					"name":"Always Allow Bash(curl -s https://api.example.com/v1/status)",
+					"optionId":"allow_always"
+				},
+				{"kind":"allow_once","name":"Allow","optionId":"allow"},
+				{"kind":"reject_once","name":"Reject","optionId":"reject"}
+			],
+			"sessionId":"b6a71307-2480-491d-adad-0fa5aa723ae4",
+			"toolCall":{
+				"toolCallId":"toolu_01first",
+				"rawInput":{
+					"command":"curl -s https://api.example.com/v1/status",
+					"description":"Fetch status from example API endpoint"
+				},
+				"title":"curl -s https://api.example.com/v1/status",
+				"kind":"execute"
+			}
+		}
+	}`)
+	writeAgentDataFrame(t, agentWS, 1, requestPayload)
+	if err := userWS.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set user read deadline: %v", err)
+	}
+	messageType, gotRequest, err := userWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read user permission request: %v", err)
+	}
+	if messageType != websocket.TextMessage {
+		t.Fatalf("message type = %d", messageType)
+	}
+
+	var frame struct {
+		Method string `json:"method"`
+		Params struct {
+			Options []map[string]any `json:"options"`
+		} `json:"params"`
+	}
+	if err := json.Unmarshal(gotRequest, &frame); err != nil {
+		t.Fatal(err)
+	}
+	if frame.Method != "session/request_permission" {
+		t.Fatalf("method = %q", frame.Method)
+	}
+	if !containsACPOption(frame.Params.Options, "allow_always_on_all_agents") {
+		t.Fatalf("allow always option missing from frame: %s", gotRequest)
+	}
+}
+
+func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+	approvalID := createTestApproval(
+		t,
+		srv,
+		paxKey,
+		agentID,
+		"acp:tool_call:execute:curl -s https://api.example.com/v1/status",
+	)
+	decideTestApproval(t, srv, approvalID, "allow_always_on_all_agents")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-approval",
+		http.Header{"X-Pax-Key": []string{paxKey}},
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer func() { _ = agentWS.Close() }()
+
+	requestPayload := []byte(`{
+		"jsonrpc":"2.0",
+		"id":12,
+		"method":"session/request_permission",
+		"params":{
+			"options":[
+				{
+					"kind":"allow_always",
+					"name":"Always Allow Bash(curl -s https://api.example.com/v1/status)",
+					"optionId":"allow_always"
+				},
+				{"kind":"allow_once","name":"Allow","optionId":"allow"},
+				{"kind":"reject_once","name":"Reject","optionId":"reject"}
+			],
+			"sessionId":"b6a71307-2480-491d-adad-0fa5aa723ae4",
+			"toolCall":{
+				"toolCallId":"toolu_01second",
+				"rawInput":{
+					"command":"curl -s https://api.example.com/v1/status",
+					"description":"Fetch status from example API endpoint"
+				},
+				"title":"curl -s https://api.example.com/v1/status",
+				"kind":"execute"
+			}
+		}
+	}`)
+	writeAgentDataFrame(t, agentWS, 1, requestPayload)
+	if err := agentWS.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set agent read deadline: %v", err)
+	}
+	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 1)
+	messageType, gotResponseFrame, err := agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent permission response: %v", err)
+	}
+	gotResponse := decodeACPTunnelEnvelope(t, gotResponseFrame)
+	if messageType != websocket.TextMessage ||
+		gotResponse.Type != acpTunnelTypeData ||
+		gotResponse.Stream != acpTunnelStreamManagerToPaxd {
+		t.Fatalf("response envelope type=%d payload=%s", messageType, gotResponseFrame)
+	}
+
+	var frame struct {
+		ID     int            `json:"id"`
+		Result map[string]any `json:"result"`
+	}
+	if err := json.Unmarshal(gotResponse.Payload, &frame); err != nil {
+		t.Fatal(err)
+	}
+	if frame.ID != 12 {
+		t.Fatalf("response id = %d", frame.ID)
+	}
+	if got := acpOptionKind(frame.Result); got != "allow_once" {
+		t.Fatalf("selected option kind = %q, frame = %s", got, gotResponse.Payload)
+	}
+}
+
 func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
@@ -959,7 +1358,7 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
-	defer agentWS.Close()
+	defer func() { _ = agentWS.Close() }()
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -970,7 +1369,9 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 		t.Fatalf("dial first user tunnel: %v", err)
 	}
 
-	firstPayload := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`)
+	firstPayload := []byte(
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`,
+	)
 	if err := userWS.WriteMessage(websocket.TextMessage, firstPayload); err != nil {
 		t.Fatalf("write first user request: %v", err)
 	}
@@ -1003,9 +1404,11 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial second user tunnel: %v", err)
 	}
-	defer secondUserWS.Close()
+	defer func() { _ = secondUserWS.Close() }()
 
-	secondPayload := []byte(`{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/tmp"}}`)
+	secondPayload := []byte(
+		`{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/tmp"}}`,
+	)
 	if err := secondUserWS.WriteMessage(websocket.TextMessage, secondPayload); err != nil {
 		t.Fatalf("write second user request: %v", err)
 	}
@@ -1124,7 +1527,9 @@ func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
 	registerReq := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/node/register",
-		bytes.NewReader([]byte(`{"name":"node-a","hostname":"node-a","os":"linux","arch":"arm64"}`)),
+		bytes.NewReader(
+			[]byte(`{"name":"node-a","hostname":"node-a","os":"linux","arch":"arm64"}`),
+		),
 	)
 	setJSON(registerReq)
 	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
@@ -1144,7 +1549,11 @@ func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
 	createAgentRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(createAgentRec, createAgentReq)
 	if createAgentRec.Code != http.StatusOK {
-		t.Fatalf("create node agent code = %d, body = %s", createAgentRec.Code, createAgentRec.Body.String())
+		t.Fatalf(
+			"create node agent code = %d, body = %s",
+			createAgentRec.Code,
+			createAgentRec.Body.String(),
+		)
 	}
 	agentResp := decodeData[struct {
 		Agent Agent `json:"agent"`
@@ -1164,7 +1573,7 @@ func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial agent tunnel with node key: %v", err)
 	}
-	defer agentWS.Close()
+	defer func() { _ = agentWS.Close() }()
 }
 
 func TestRegisterNodeAgentWithRegistrationTokenCreatesNodeAndAgent(t *testing.T) {
@@ -1230,7 +1639,9 @@ func TestRegisterNodeAgentWithNodeKeyAddsAgentWithoutReturningKey(t *testing.T) 
 	registerReq := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/node/register",
-		bytes.NewReader([]byte(`{"name":"node-b","hostname":"node-b","os":"linux","arch":"amd64"}`)),
+		bytes.NewReader(
+			[]byte(`{"name":"node-b","hostname":"node-b","os":"linux","arch":"amd64"}`),
+		),
 	)
 	setJSON(registerReq)
 	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
@@ -1298,7 +1709,11 @@ func TestNodeStatusReportsAccumulateSessionBatches(t *testing.T) {
 	registerRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(registerRec, registerReq)
 	if registerRec.Code != http.StatusOK {
-		t.Fatalf("register node agent code = %d, body = %s", registerRec.Code, registerRec.Body.String())
+		t.Fatalf(
+			"register node agent code = %d, body = %s",
+			registerRec.Code,
+			registerRec.Body.String(),
+		)
 	}
 	registered := decodeData[RegisterNodeAgentResponse](t, registerRec.Body.Bytes())
 
@@ -1576,6 +1991,43 @@ func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 	return srv, registered.APIKey
 }
 
+type fakePaxdArtifactBackend struct {
+	principal      string
+	attrs          paxdArtifactObjectAttrs
+	signedArtifact PaxdArtifact
+	expiresAt      time.Time
+}
+
+func (b *fakePaxdArtifactBackend) SignDownloadURL(
+	ctx context.Context,
+	artifact PaxdArtifact,
+	expiresAt time.Time,
+) (string, error) {
+	b.signedArtifact = artifact
+	b.expiresAt = expiresAt
+	return "https://signed.example/" + artifact.Object, nil
+}
+
+func (b *fakePaxdArtifactBackend) VerifyUploader(
+	ctx context.Context,
+	token string,
+	audience string,
+) (string, error) {
+	if token != "valid-token" {
+		return "", ErrUnauthorized
+	}
+	return b.principal, nil
+}
+
+func (b *fakePaxdArtifactBackend) ObjectAttrs(
+	ctx context.Context,
+	bucket string,
+	object string,
+	generation int64,
+) (paxdArtifactObjectAttrs, error) {
+	return b.attrs, nil
+}
+
 func userPrincipalFromHTTPRequest(
 	t *testing.T,
 	srv *Server,
@@ -1607,13 +2059,92 @@ func testAgentID(t *testing.T, srv *Server, userEmail string) string {
 	return got.Agents[0].AgentID
 }
 
-func reportTestSession(t *testing.T, srv *Server, apiKey string, agentID string, sessionID string) {
+func createTestApproval(
+	t *testing.T,
+	srv *Server,
+	paxKey string,
+	agentID string,
+	fingerprint string,
+) string {
+	t.Helper()
+	body := []byte(`{
+		"domain":"agent_action",
+		"operation":"session/request_permission",
+		"resource_type":"acp_permission",
+		"resource_ref":"test",
+		"title":"Test permission",
+		"action_fingerprint":"` + fingerprint + `",
+		"options":[
+			{"option_id":"deny","label":"Deny","decision":"deny","scope":"once"},
+			{"option_id":"allow_once","label":"Allow once","decision":"allow","scope":"once"}
+		]
+	}`)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/agents/"+agentID+"/approvals",
+		bytes.NewReader(body),
+	)
+	setJSON(req)
+	req.Header.Set("X-Pax-Key", paxKey)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create approval code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := decodeData[struct {
+		Approval AgentApproval `json:"approval"`
+	}](t, rec.Body.Bytes())
+	if got.Approval.ApprovalID == "" {
+		t.Fatalf("empty approval response: %+v", got)
+	}
+	return got.Approval.ApprovalID
+}
+
+func decideTestApproval(t *testing.T, srv *Server, approvalID string, option string) {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/approvals/"+approvalID+"/decision",
+		bytes.NewReader([]byte(`{"decision_option":"`+option+`"}`)),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("decide approval code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := decodeData[struct {
+		Approval AgentApproval `json:"approval"`
+	}](t, rec.Body.Bytes())
+	if got.Approval.DecisionOption != option || got.Approval.Decision != "allow" {
+		t.Fatalf("bad approval decision: %+v", got.Approval)
+	}
+}
+
+func containsACPOption(options []map[string]any, optionID string) bool {
+	for _, option := range options {
+		if acpOptionID(option) == optionID {
+			return true
+		}
+	}
+	return false
+}
+
+func reportTestSession(
+	t *testing.T,
+	srv *Server,
+	apiKey string,
+	userEmail string,
+	agentID string,
+	nativeSessionID string,
+) string {
 	t.Helper()
 	body := []byte(`{
 		"agent_id":"` + agentID + `",
 		"hostname":"workstation",
 		"sessions":[{
-			"session_id":"` + sessionID + `",
+			"session_id":"` + nativeSessionID + `",
 			"name":"test session",
 			"status":"running"
 		}]
@@ -1626,6 +2157,23 @@ func reportTestSession(t *testing.T, srv *Server, apiKey string, agentID string,
 	if rec.Code != http.StatusOK {
 		t.Fatalf("report session code = %d, body = %s", rec.Code, rec.Body.String())
 	}
+	req = httptest.NewRequest(http.MethodGet, "/api/user/agents/"+agentID+"/sessions", nil)
+	req.Header.Set("X-User-Email", userEmail)
+	rec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list sessions code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := decodeData[struct {
+		Sessions []AgentSession `json:"sessions"`
+	}](t, rec.Body.Bytes())
+	if len(got.Sessions) != 1 {
+		t.Fatalf("sessions len = %d", len(got.Sessions))
+	}
+	if got.Sessions[0].SessionID == "" || got.Sessions[0].SessionID == nativeSessionID {
+		t.Fatalf("session was not virtualized: %+v", got.Sessions[0])
+	}
+	return got.Sessions[0].SessionID
 }
 
 func assertPayloadField(t *testing.T, payload json.RawMessage, field string, want string) {

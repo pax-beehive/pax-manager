@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: fmt, lint, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOCACHE: ${{ runner.temp }}/go-build
+      GOLANGCI_LINT_CACHE: ${{ runner.temp }}/golangci-lint-cache
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Check go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Check formatting
+        run: make fmt-check
+
+      - name: Lint
+        run: make lint
+
+      - name: Unit tests with coverage
+        run: make test-coverage
+
+      - name: Upload unit coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-coverage
+          path: coverage.out
+          if-no-files-found: error
+
+  integration:
+    name: integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOCACHE: ${{ runner.temp }}/go-build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run integration tests
+        run: make integration-test
+
+      - name: Clean integration stack
+        if: always()
+        run: make integration-down

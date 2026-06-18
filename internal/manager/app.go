@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	managerconfig "github.com/pax-beehive/pax-manager/internal/manager/config"
+	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 	"github.com/pax-beehive/pax-manager/internal/manager/storage"
 )
 
@@ -27,16 +28,16 @@ func Run(ctx context.Context) error {
 	srv := newServer(cfg, store)
 	addr := ":" + cfg.Port
 
-	log.Printf("pax-manager listening on http://localhost%s", addr)
-	log.Printf("agent api: http://localhost%s/api/agent/*", addr)
-	log.Printf("user api:  http://localhost%s/api/user/*", addr)
+	logging.Info(ctx, "pax-manager listening", slog.String("addr", "http://localhost"+addr))
+	logging.Info(ctx, "agent api ready", slog.String("url", "http://localhost"+addr+"/api/agent/*"))
+	logging.Info(ctx, "user api ready", slog.String("url", "http://localhost"+addr+"/api/user/*"))
 
 	return srv.engine(addr).Run()
 }
 
 func openStore(ctx context.Context, databaseURL string) (Store, func(), error) {
 	if databaseURL == "" {
-		log.Printf("DATABASE_URL is empty; using in-memory storage")
+		logging.Warn(ctx, "DATABASE_URL is empty; using in-memory storage")
 		return storage.NewMemoryStore(time.Now), func() {}, nil
 	}
 

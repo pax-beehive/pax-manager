@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -169,12 +171,9 @@ func (s *PostgresStore) ListUserAPIKeys(
 	query := `
 		SELECT key_id, owner_user_id, name, prefix, created_at, last_used_at, revoked_at
 		FROM user_api_keys
+		WHERE owner_user_id = $1
 	`
-	args := []any{}
-	if !principal.IsAdmin {
-		query += ` WHERE owner_user_id = $1`
-		args = append(args, principal.User.UserID)
-	}
+	args := []any{principal.User.UserID}
 	query += ` ORDER BY created_at DESC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -189,12 +188,8 @@ func (s *PostgresStore) RevokeUserAPIKey(
 	principal UserPrincipal,
 	keyID string,
 ) error {
-	query := `UPDATE user_api_keys SET revoked_at = $2 WHERE key_id = $1`
-	args := []any{keyID, s.now().UTC()}
-	if !principal.IsAdmin {
-		query += ` AND owner_user_id = $3`
-		args = append(args, principal.User.UserID)
-	}
+	query := `UPDATE user_api_keys SET revoked_at = $2 WHERE key_id = $1 AND owner_user_id = $3`
+	args := []any{keyID, s.now().UTC(), principal.User.UserID}
 	result, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
@@ -247,6 +242,297 @@ func (s *PostgresStore) AuthenticateUserAPIKey(ctx context.Context, keyHash stri
 		return User{}, err
 	}
 	return user, nil
+}
+
+func (s *PostgresStore) CreateSecret(
+	ctx context.Context,
+	principal UserPrincipal,
+	req CreateSecretRequest,
+	encrypted SecretVersion,
+) (Secret, SecretVersion, error) {
+	secretID, err := newSecret("sec")
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	versionID, err := newSecret("secver")
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := s.now().UTC()
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO secrets (
+			secret_id, owner_user_id, name, kind, description, metadata, created_at, updated_at
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$7)
+	`, secretID, principal.User.UserID, req.Name, req.Kind, req.Description,
+		jsonDefault(req.Metadata, "{}"), now); err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO secret_versions (
+			version_id, secret_id, version_number, ciphertext, nonce, key_id, state,
+			created_at, created_by_user_id
+		)
+		VALUES ($1,$2,1,$3,$4,$5,'active',$6,$7)
+	`, versionID, secretID, encrypted.Ciphertext, encrypted.Nonce, encrypted.KeyID, now,
+		principal.User.UserID); err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE secrets
+		SET current_version_id = $2, current_version = 1, updated_at = $3
+		WHERE secret_id = $1
+	`, secretID, versionID, now); err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	secret, err := scanSecret(tx.QueryRowContext(ctx, secretSelectSQL+`
+		WHERE secret_id = $1
+	`, secretID))
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	version, err := scanSecretVersion(tx.QueryRowContext(ctx, secretVersionSelectSQL+`
+		WHERE version_id = $1
+	`, versionID))
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	return secret, version, nil
+}
+
+func (s *PostgresStore) ListSecrets(
+	ctx context.Context,
+	principal UserPrincipal,
+) ([]Secret, error) {
+	rows, err := s.db.QueryContext(ctx, secretSelectSQL+`
+		WHERE owner_user_id = $1 AND deleted_at IS NULL
+		ORDER BY created_at DESC
+	`, principal.User.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	return scanSecrets(rows)
+}
+
+func (s *PostgresStore) GetSecret(
+	ctx context.Context,
+	principal UserPrincipal,
+	secretID string,
+) (Secret, error) {
+	return scanSecret(s.db.QueryRowContext(ctx, secretSelectSQL+`
+		WHERE secret_id = $1 AND owner_user_id = $2 AND deleted_at IS NULL
+	`, secretID, principal.User.UserID))
+}
+
+func (s *PostgresStore) GetSecretVersionForNode(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	secretID string,
+	versionSelector string,
+) (Secret, SecretVersion, error) {
+	if _, err := s.GetNodeAgent(ctx, node.NodeID, agentID); err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	secret, err := scanSecret(s.db.QueryRowContext(ctx, secretSelectSQL+`
+		WHERE secret_id = $1 AND owner_user_id = $2 AND deleted_at IS NULL
+	`, secretID, node.OwnerUserID))
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	versionQuery, args, err := secretVersionLookup(secret, versionSelector)
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	version, err := scanSecretVersion(s.db.QueryRowContext(ctx, versionQuery, args...))
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	if version.State != "active" {
+		return Secret{}, SecretVersion{}, ErrUnauthorized
+	}
+	return secret, version, nil
+}
+
+func (s *PostgresStore) CreateSecretVersion(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	req WriteSecretVersionRequest,
+	encrypted SecretVersion,
+) (SecretVersion, bool, error) {
+	if _, err := s.GetNodeAgent(ctx, node.NodeID, agentID); err != nil {
+		return SecretVersion{}, false, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return SecretVersion{}, false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if req.IdempotencyKey != "" {
+		existing, current, err := s.findIdempotentSecretVersion(
+			ctx,
+			tx,
+			req.SecretID,
+			node.NodeID,
+			agentID,
+			req.IdempotencyKey,
+		)
+		if err == nil {
+			return existing, current, tx.Commit()
+		}
+		if !errors.Is(err, ErrNotFound) {
+			return SecretVersion{}, false, err
+		}
+	}
+	var currentVersionID string
+	var ownerUserID string
+	var nextVersionNumber int64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT owner_user_id, COALESCE(current_version_id, ''), current_version + 1
+		FROM secrets
+		WHERE secret_id = $1 AND deleted_at IS NULL
+		FOR UPDATE
+	`, req.SecretID).Scan(&ownerUserID, &currentVersionID, &nextVersionNumber); err != nil {
+		return SecretVersion{}, false, mapSQLError(err)
+	}
+	if ownerUserID != node.OwnerUserID {
+		return SecretVersion{}, false, ErrNotFound
+	}
+	versionID, err := newSecret("secver")
+	if err != nil {
+		return SecretVersion{}, false, err
+	}
+	now := s.now().UTC()
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO secret_versions (
+			version_id, secret_id, version_number, ciphertext, nonce, key_id, state,
+			created_at, created_by_node_id, created_by_agent_id, idempotency_key
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,'active',$7,$8,$9,$10)
+	`, versionID, req.SecretID, nextVersionNumber, encrypted.Ciphertext, encrypted.Nonce,
+		encrypted.KeyID, now, node.NodeID, agentID, req.IdempotencyKey); err != nil {
+		return SecretVersion{}, false, err
+	}
+	current := false
+	if req.MakeCurrent {
+		if req.ExpectedCurrentVersionID == "" || req.ExpectedCurrentVersionID != currentVersionID {
+			return SecretVersion{}, false, ErrConflict
+		}
+		result, err := tx.ExecContext(ctx, `
+			UPDATE secrets
+			SET current_version_id = $3, current_version = $4, updated_at = $5
+			WHERE secret_id = $1 AND current_version_id = $2
+		`, req.SecretID, req.ExpectedCurrentVersionID, versionID, nextVersionNumber, now)
+		if err != nil {
+			return SecretVersion{}, false, err
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return SecretVersion{}, false, err
+		}
+		if affected == 0 {
+			return SecretVersion{}, false, ErrConflict
+		}
+		current = true
+	}
+	version, err := scanSecretVersion(tx.QueryRowContext(ctx, secretVersionSelectSQL+`
+		WHERE version_id = $1
+	`, versionID))
+	if err != nil {
+		return SecretVersion{}, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return SecretVersion{}, false, err
+	}
+	return version, current, nil
+}
+
+func (s *PostgresStore) RecordSecretAccess(
+	ctx context.Context,
+	event SecretAccessEvent,
+) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO secret_access_events (
+			secret_id, version_id, node_id, agent_id, session_id, action, result, created_at
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+	`, event.SecretID, event.VersionID, event.NodeID, event.AgentID, event.SessionID,
+		event.Action, event.Result, s.now().UTC())
+	return err
+}
+
+const paxdArtifactSelectSQL = `
+	SELECT artifact_id, platform, array_to_json(tags), version, build_id, bucket, object,
+		generation, sha256, size_bytes, content_type, created_by, created_at, deleted_at
+	FROM paxd_artifacts
+`
+
+func (s *PostgresStore) CreatePaxdArtifact(
+	ctx context.Context,
+	req CreatePaxdArtifactRequest,
+	createdBy string,
+) (PaxdArtifact, error) {
+	artifactID, err := newSecret("paxdart")
+	if err != nil {
+		return PaxdArtifact{}, err
+	}
+	row := s.db.QueryRowContext(ctx, `
+		INSERT INTO paxd_artifacts (
+			artifact_id, platform, tags, version, build_id, bucket, object, generation,
+			sha256, size_bytes, content_type, created_by, created_at
+		)
+		VALUES (
+			$1, $2,
+			CASE WHEN $3 = '' THEN '{}'::text[] ELSE string_to_array($3, ',')::text[] END,
+			$4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+		)
+		ON CONFLICT (bucket, object, generation) DO UPDATE SET
+			platform = EXCLUDED.platform,
+			tags = EXCLUDED.tags,
+			version = EXCLUDED.version,
+			build_id = EXCLUDED.build_id,
+			sha256 = EXCLUDED.sha256,
+			size_bytes = EXCLUDED.size_bytes,
+			content_type = EXCLUDED.content_type,
+			created_by = EXCLUDED.created_by,
+			deleted_at = NULL
+		RETURNING artifact_id, platform, array_to_json(tags), version, build_id, bucket, object,
+			generation, sha256, size_bytes, content_type, created_by, created_at, deleted_at
+	`, artifactID, req.Platform, paxdArtifactTagList(req.Tags), req.Version, req.BuildID,
+		req.Bucket, req.Object, req.Generation, req.SHA256, req.SizeBytes, req.ContentType,
+		createdBy, s.now().UTC())
+	return scanPaxdArtifact(row)
+}
+
+func (s *PostgresStore) FindPaxdArtifact(
+	ctx context.Context,
+	req FindPaxdArtifactRequest,
+) (PaxdArtifact, error) {
+	row := s.db.QueryRowContext(ctx, paxdArtifactSelectSQL+`
+		WHERE platform = $1
+			AND tags @> CASE
+				WHEN $2 = '' THEN '{}'::text[]
+				ELSE string_to_array($2, ',')::text[]
+			END
+			AND deleted_at IS NULL
+		ORDER BY created_at DESC, artifact_id DESC
+		LIMIT 1
+	`, req.Platform, paxdArtifactTagList(req.Tags))
+	return scanPaxdArtifact(row)
+}
+
+func paxdArtifactTagList(tags []string) string {
+	return strings.Join(tags, ",")
 }
 
 func (s *PostgresStore) RegisterAgent(
@@ -400,6 +686,13 @@ func (s *PostgresStore) UpsertNodeStatus(
 			return err
 		}
 		for _, session := range input.Sessions {
+			if session.SessionID == "" {
+				continue
+			}
+			session, err = s.normalizeReportedSessionInput(ctx, tx, agentID, session)
+			if err != nil {
+				return err
+			}
 			if err := upsertSessionTx(ctx, tx, node.NodeID, agentID, session, now); err != nil {
 				return err
 			}
@@ -436,6 +729,10 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 		if input.SessionID == "" {
 			continue
 		}
+		input, err = s.normalizeReportedSessionInput(ctx, tx, report.AgentID, input)
+		if err != nil {
+			return err
+		}
 		if err := upsertSessionTx(ctx, tx, "", report.AgentID, input, now); err != nil {
 			return err
 		}
@@ -450,12 +747,9 @@ func (s *PostgresStore) ListNodes(ctx context.Context, principal UserPrincipal) 
 			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at,
 			COALESCE(metadata, '{}'::jsonb)
 		FROM nodes
+		WHERE owner_user_id = $1
 	`
-	args := []any{}
-	if !principal.IsAdmin {
-		query += ` WHERE owner_user_id = $1`
-		args = append(args, principal.User.UserID)
-	}
+	args := []any{principal.User.UserID}
 	query += ` ORDER BY registered_at ASC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -476,16 +770,17 @@ func (s *PostgresStore) GetNode(
 			COALESCE(metadata, '{}'::jsonb)
 		FROM nodes
 		WHERE node_id = $1
+			AND owner_user_id = $2
 	`
-	args := []any{nodeID}
-	if !principal.IsAdmin {
-		query += ` AND owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	args := []any{nodeID, principal.User.UserID}
 	return scanNode(s.db.QueryRowContext(ctx, query, args...))
 }
 
-func (s *PostgresStore) GetNodeAgent(ctx context.Context, nodeID string, agentID string) (Agent, error) {
+func (s *PostgresStore) GetNodeAgent(
+	ctx context.Context,
+	nodeID string,
+	agentID string,
+) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type,
 			machine_type, os, hermes_version, api_endpoint, computed_status(last_heartbeat),
@@ -616,12 +911,9 @@ func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal)
 		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
 			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
+		WHERE owner_user_id = $1
 	`
-	args := []any{}
-	if !principal.IsAdmin {
-		query += ` WHERE owner_user_id = $1`
-		args = append(args, principal.User.UserID)
-	}
+	args := []any{principal.User.UserID}
 	query += ` ORDER BY registered_at ASC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -641,12 +933,9 @@ func (s *PostgresStore) GetAgent(
 			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
 		WHERE agent_id = $1
+			AND owner_user_id = $2
 	`
-	args := []any{agentID}
-	if !principal.IsAdmin {
-		query += ` AND owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	args := []any{agentID, principal.User.UserID}
 	row := s.db.QueryRowContext(ctx, query, args...)
 	return scanAgent(row)
 }
@@ -657,11 +946,8 @@ func (s *PostgresStore) ListAgentSessions(
 	agentID string,
 ) ([]AgentSession, error) {
 	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.agent_id = $1`
-	args := []any{agentID}
-	if !principal.IsAdmin {
-		query += ` AND a.owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	query += ` AND a.owner_user_id = $2`
+	args := []any{agentID, principal.User.UserID}
 	query += ` ORDER BY agent_sessions.updated_at DESC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -677,14 +963,52 @@ func (s *PostgresStore) GetSession(
 	sessionID string,
 ) (AgentSession, error) {
 	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.session_id = $1`
-	args := []any{sessionID}
-	if !principal.IsAdmin {
-		query += ` AND a.owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	query += ` AND a.owner_user_id = $2`
+	args := []any{sessionID, principal.User.UserID}
 	query += ` ORDER BY agent_sessions.updated_at DESC LIMIT 1`
 	row := s.db.QueryRowContext(ctx, query, args...)
 	return scanSession(row)
+}
+
+func (s *PostgresStore) UpdateSessionRuntimeState(
+	ctx context.Context,
+	state SessionRuntimeState,
+) error {
+	if state.AgentID == "" || state.SessionID == "" {
+		return ErrNotFound
+	}
+	if state.UpdatedAt.IsZero() {
+		state.UpdatedAt = s.now().UTC()
+	}
+	status, currentTask, runID, runStatus := state.StatusSummary()
+	stateJSON, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO agent_sessions (
+			node_id, agent_id, session_id, status, current_task, run_id, run_status,
+			metadata, created_at, updated_at
+		)
+		VALUES (
+			NULLIF($1,''), $2, $3, $4, $5, $6, $7,
+			jsonb_build_object('runtime_state', $8::jsonb), $9, $9
+		)
+		ON CONFLICT (agent_id, session_id) DO UPDATE SET
+			node_id = COALESCE(EXCLUDED.node_id, agent_sessions.node_id),
+			status = EXCLUDED.status,
+			current_task = EXCLUDED.current_task,
+			run_id = EXCLUDED.run_id,
+			run_status = EXCLUDED.run_status,
+			metadata = jsonb_set(
+				COALESCE(agent_sessions.metadata, '{}'::jsonb),
+				'{runtime_state}',
+				$8::jsonb,
+				true
+			),
+			updated_at = EXCLUDED.updated_at
+	`, state.NodeID, state.AgentID, state.SessionID, status, currentTask, runID, runStatus, stateJSON, state.UpdatedAt)
+	return err
 }
 
 func (s *PostgresStore) ListSessionMessages(
@@ -693,11 +1017,8 @@ func (s *PostgresStore) ListSessionMessages(
 	sessionID string,
 ) ([]MailboxMessage, error) {
 	query := mailboxSelectSQL + ` WHERE session_id = $1`
-	args := []any{sessionID}
-	if !principal.IsAdmin {
-		query += ` AND owner_user_id = $2`
-		args = append(args, principal.User.UserID)
-	}
+	query += ` AND owner_user_id = $2`
+	args := []any{sessionID, principal.User.UserID}
 	query += ` ORDER BY id ASC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -721,14 +1042,34 @@ func (s *PostgresStore) CreateMailboxMessage(
 		return MailboxMessage{}, ErrConflict
 	}
 	var ownerUserID string
-	err = s.db.QueryRowContext(ctx, `
-		SELECT owner_user_id FROM agents WHERE agent_id = $1
-	`, req.AgentID).Scan(&ownerUserID)
+	var agentNodeID string
+	agentQuery := `SELECT owner_user_id, COALESCE(node_id, '') FROM agents WHERE agent_id = $1`
+	agentArgs := []any{req.AgentID}
+	if req.NodeID != "" {
+		agentQuery += ` AND node_id = $2`
+		agentArgs = append(agentArgs, req.NodeID)
+	}
+	err = s.db.QueryRowContext(ctx, agentQuery, agentArgs...).Scan(&ownerUserID, &agentNodeID)
 	if err != nil {
 		return MailboxMessage{}, mapSQLError(err)
 	}
 	if !canAccessOwner(principal, ownerUserID) {
 		return MailboxMessage{}, ErrNotFound
+	}
+	if req.SessionID != "" {
+		var sessionNodeID string
+		err = s.db.QueryRowContext(ctx, `
+			SELECT COALESCE(node_id, '') FROM agent_sessions
+			WHERE agent_id = $1 AND session_id = $2
+			ORDER BY updated_at DESC
+			LIMIT 1
+		`, req.AgentID, req.SessionID).Scan(&sessionNodeID)
+		if err != nil {
+			return MailboxMessage{}, mapSQLError(err)
+		}
+		if req.NodeID != "" && sessionNodeID != "" && sessionNodeID != agentNodeID {
+			return MailboxMessage{}, ErrNotFound
+		}
 	}
 	messageID, err := newSecret("msg")
 	if err != nil {
@@ -742,7 +1083,7 @@ func (s *PostgresStore) CreateMailboxMessage(
 		)
 		VALUES ($1,$2,$3,NULLIF($4,''),$5,NULLIF($6,''),$7,$8,$9,'pending','user_to_node',$10,$11)
 		RETURNING `+mailboxReturningSQL+`
-	`, messageID, principal.User.UserID, ownerUserID, req.NodeID, req.AgentID, req.SessionID, req.Message, messageType, payload, now, expiresAt(now, messageType))
+	`, messageID, principal.User.UserID, ownerUserID, agentNodeID, req.AgentID, req.SessionID, req.Message, messageType, payload, now, expiresAt(now, messageType))
 	msg, err := scanMailbox(row)
 	if err != nil {
 		return MailboxMessage{}, err
@@ -751,6 +1092,208 @@ func (s *PostgresStore) CreateMailboxMessage(
 		return MailboxMessage{}, err
 	}
 	return msg, nil
+}
+
+func (s *PostgresStore) CreateApproval(
+	ctx context.Context,
+	node Node,
+	req CreateApprovalRequest,
+) (AgentApproval, error) {
+	var ownerUserID string
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT owner_user_id FROM agents WHERE agent_id = $1 AND node_id = $2
+	`, req.AgentID, node.NodeID).Scan(&ownerUserID); err != nil {
+		return AgentApproval{}, mapSQLError(err)
+	}
+	if ownerUserID != node.OwnerUserID {
+		return AgentApproval{}, ErrUnauthorized
+	}
+	sessionID := req.SessionID
+	if sessionID != "" {
+		translated, err := s.virtualSessionID(ctx, s.db, req.AgentID, sessionID)
+		if err != nil {
+			return AgentApproval{}, err
+		}
+		sessionID = translated
+	}
+	approvalID, err := newSecret("appr")
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	now := s.now().UTC()
+	row := s.db.QueryRowContext(ctx, `
+		INSERT INTO agent_approvals (
+			approval_id, owner_user_id, request_node_id, request_agent_id, request_session_id,
+			source_message_id, domain, operation, resource_type, resource_ref, title, description,
+			risk_level, action_fingerprint, request_body, requested_effects, options, status,
+			created_at, expires_at, raw_payload
+		)
+		VALUES (
+			$1,$2,NULLIF($3,''),NULLIF($4,''),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
+			$15,$16,$17,'pending',$18,$19,$20
+			)
+			RETURNING `+approvalReturningSQL+`
+	`, approvalID, ownerUserID, node.NodeID, req.AgentID, sessionID, req.SourceMessageID,
+		defaultApprovalDomain(req.Domain), req.Operation, req.ResourceType, req.ResourceRef,
+		req.Title, req.Description, defaultApprovalRiskLevel(req.RiskLevel), req.ActionFingerprint,
+		jsonDefault(req.RequestBody, "{}"), jsonDefault(req.RequestedEffects, "[]"),
+		jsonOrDefault(req.Options, "[]"), now, req.ExpiresAt, jsonDefault(req.RawPayload, "{}"))
+	approval, err := scanApproval(row)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	return s.translateApprovalToNative(ctx, s.db, approval)
+}
+
+func (s *PostgresStore) GetApproval(
+	ctx context.Context,
+	principal UserPrincipal,
+	approvalID string,
+) (AgentApproval, error) {
+	query := approvalSelectSQL + ` WHERE approval_id = $1`
+	query += ` AND owner_user_id = $2`
+	args := []any{approvalID, principal.User.UserID}
+	return scanApproval(s.db.QueryRowContext(ctx, query, args...))
+}
+
+func (s *PostgresStore) GetNodeApproval(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	approvalID string,
+) (AgentApproval, error) {
+	approval, err := scanApproval(s.db.QueryRowContext(ctx, approvalSelectSQL+`
+		WHERE approval_id = $1
+			AND owner_user_id = $2
+			AND request_node_id = $3
+			AND request_agent_id = $4
+	`, approvalID, node.OwnerUserID, node.NodeID, agentID))
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	return s.translateApprovalToNative(ctx, s.db, approval)
+}
+
+func (s *PostgresStore) ListApprovals(
+	ctx context.Context,
+	filter ApprovalFilter,
+) ([]AgentApproval, error) {
+	query, args := approvalListQuery(filter)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	return scanApprovals(rows)
+}
+
+func (s *PostgresStore) DecideApproval(
+	ctx context.Context,
+	principal UserPrincipal,
+	approvalID string,
+	req ApprovalDecisionRequest,
+) (AgentApproval, error) {
+	approval, err := s.GetApproval(ctx, principal, approvalID)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	if approval.Status != "pending" {
+		return AgentApproval{}, ErrConflict
+	}
+	decision, scope, grantNodeID, grantAgentID, grantSessionID, err := approvalDecisionGrant(
+		approval,
+		req,
+	)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	now := s.now().UTC()
+	row := s.db.QueryRowContext(ctx, `
+		UPDATE agent_approvals
+		SET status = 'decided',
+			decision = $2,
+			decision_option = $3,
+			decision_scope = $4,
+			grant_node_id = $5,
+			grant_agent_id = $6,
+			grant_session_id = $7,
+			grant_body = $8,
+			decided_by_user_id = $9,
+			decided_at = $10
+		WHERE approval_id = $1
+		RETURNING `+approvalReturningSQL+`
+	`, approvalID, decision, req.DecisionOption, scope, grantNodeID, grantAgentID, grantSessionID,
+		jsonDefault(req.GrantBody, "{}"), principal.User.UserID, now)
+	return scanApproval(row)
+}
+
+func (s *PostgresStore) ListApprovalGrants(
+	ctx context.Context,
+	filter ApprovalGrantFilter,
+) ([]AgentApproval, error) {
+	query, args := approvalGrantListQuery(filter)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	return scanApprovals(rows)
+}
+
+func (s *PostgresStore) FindReusableApprovalGrant(
+	ctx context.Context,
+	lookup ApprovalGrantLookup,
+) (AgentApproval, error) {
+	return scanApproval(s.db.QueryRowContext(ctx, approvalSelectSQL+`
+		WHERE owner_user_id = $1
+			AND domain = $2
+			AND operation = $3
+			AND action_fingerprint = $4
+			AND status = 'decided'
+			AND decision = 'allow'
+			AND decision_scope <> 'once'
+			AND grant_revoked_at IS NULL
+			AND (expires_at IS NULL OR expires_at > $8)
+			AND (grant_node_id = '*' OR grant_node_id = $5)
+			AND (grant_agent_id = '*' OR grant_agent_id = $6)
+			AND (grant_session_id = '*' OR grant_session_id = $7)
+		ORDER BY
+			CASE WHEN grant_session_id = '*' THEN 0 ELSE 1 END DESC,
+			CASE WHEN grant_agent_id = '*' THEN 0 ELSE 1 END DESC,
+			CASE WHEN grant_node_id = '*' THEN 0 ELSE 1 END DESC,
+			decided_at DESC
+		LIMIT 1
+	`, lookup.OwnerUserID, lookup.Domain, lookup.Operation, lookup.ActionFingerprint,
+		lookup.RequestNodeID, lookup.RequestAgentID, lookup.RequestSessionID, s.now().UTC()))
+}
+
+func (s *PostgresStore) RevokeApprovalGrant(
+	ctx context.Context,
+	principal UserPrincipal,
+	grantID string,
+	req RevokeApprovalGrantRequest,
+) (AgentApproval, error) {
+	approval, err := s.GetApproval(ctx, principal, grantID)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	if approval.Decision != "allow" || approval.DecisionScope == "" ||
+		approval.DecisionScope == "once" {
+		return AgentApproval{}, ErrConflict
+	}
+	if approval.GrantRevokedAt != nil {
+		return approval, nil
+	}
+	now := s.now().UTC()
+	row := s.db.QueryRowContext(ctx, `
+		UPDATE agent_approvals
+		SET grant_revoked_at = $2,
+			grant_revoked_by_user_id = $3,
+			grant_revocation_reason = $4
+		WHERE approval_id = $1
+		RETURNING `+approvalReturningSQL+`
+	`, grantID, now, principal.User.UserID, req.Reason)
+	return scanApproval(row)
 }
 
 func (s *PostgresStore) ListMailbox(
@@ -779,9 +1322,7 @@ func (s *PostgresStore) ListMailbox(
 	if filter.Status != "" {
 		add("status =", filter.Status)
 	}
-	if !filter.Principal.IsAdmin {
-		add("owner_user_id =", filter.Principal.User.UserID)
-	}
+	add("owner_user_id =", filter.Principal.User.UserID)
 	args = append(args, limit)
 
 	rows, err := s.db.QueryContext(ctx, mailboxSelectSQL+`
@@ -813,7 +1354,14 @@ func (s *PostgresStore) PullMailbox(
 	defer func() { _ = tx.Rollback() }()
 
 	now := s.now().UTC()
-	rows, err := s.pullMailboxRows(ctx, tx, agentID, sessionID, offset, limit, now)
+	querySessionID := sessionID
+	if querySessionID != "" {
+		querySessionID, err = s.virtualSessionID(ctx, tx, agentID, querySessionID)
+		if err != nil {
+			return MailboxPull{}, err
+		}
+	}
+	rows, err := s.pullMailboxRows(ctx, tx, agentID, querySessionID, offset, limit, now)
 	if err != nil {
 		return MailboxPull{}, err
 	}
@@ -829,6 +1377,9 @@ func (s *PostgresStore) PullMailbox(
 	hasMore := len(messages) > limit
 	if hasMore {
 		messages = messages[:limit]
+	}
+	if err := s.translateMailboxMessagesToNative(ctx, tx, messages); err != nil {
+		return MailboxPull{}, err
 	}
 
 	maxOffset := offset
@@ -870,6 +1421,13 @@ func (s *PostgresStore) PullNodeMailbox(
 	}
 	defer func() { _ = tx.Rollback() }()
 	now := s.now().UTC()
+	querySessionID := sessionID
+	if agentID != "" && querySessionID != "" {
+		querySessionID, err = s.virtualSessionID(ctx, tx, agentID, querySessionID)
+		if err != nil {
+			return MailboxPull{}, err
+		}
+	}
 	clauses := []string{
 		"node_id = $1",
 		"id > $2",
@@ -881,8 +1439,8 @@ func (s *PostgresStore) PullNodeMailbox(
 		args = append(args, agentID)
 		clauses = append(clauses, "agent_id = $"+strconvArg(len(args)))
 	}
-	if sessionID != "" {
-		args = append(args, sessionID)
+	if querySessionID != "" {
+		args = append(args, querySessionID)
 		clauses = append(clauses, "session_id = $"+strconvArg(len(args)))
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -913,6 +1471,9 @@ func (s *PostgresStore) PullNodeMailbox(
 	hasMore := len(messages) > limit
 	if hasMore {
 		messages = messages[:limit]
+	}
+	if err := s.translateMailboxMessagesToNative(ctx, tx, messages); err != nil {
+		return MailboxPull{}, err
 	}
 	maxOffset := offset
 	for i := range messages {
@@ -1095,13 +1656,21 @@ func (s *PostgresStore) CreateNodeOutboundMessage(
 	if req.CreatedAt != nil {
 		createdAt = req.CreatedAt.UTC()
 	}
+	sessionID := req.SessionID
+	if sessionID != "" {
+		translated, err := s.virtualSessionID(ctx, s.db, req.AgentID, sessionID)
+		if err != nil {
+			return MailboxMessage{}, err
+		}
+		sessionID = translated
+	}
 	msg, err := s.insertMailbox(
 		ctx,
 		ownerUserID,
 		ownerUserID,
 		node.NodeID,
 		req.AgentID,
-		req.SessionID,
+		sessionID,
 		req.Content,
 		defaultOutboundMessageType(req.MessageType),
 		req.Payload,
@@ -1129,6 +1698,11 @@ func (s *PostgresStore) CreateNodeOutboundMessage(
 	if err := s.saveMailboxHistory(ctx, msg); err != nil {
 		return MailboxMessage{}, err
 	}
+	msg.SessionID, err = s.nativeSessionID(ctx, s.db, msg.AgentID, msg.SessionID)
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	msg.Payload = replacePayloadSessionID(msg.Payload, msg.SessionID)
 	return msg, nil
 }
 
@@ -1162,7 +1736,8 @@ const sessionSelectSQL = `
 		COALESCE(current_task, ''), last_message_at, message_count, token_input,
 		token_output, token_total, cache_read_tokens, cache_write_tokens, cache_creation_tokens,
 		reasoning_tokens, estimated_cost_usd, actual_cost_usd, cost_usd, COALESCE(model, ''), COALESCE(run_id, ''),
-		COALESCE(run_status, ''), agent_sessions.created_at, agent_sessions.updated_at
+		COALESCE(run_status, ''), agent_sessions.created_at, agent_sessions.updated_at,
+		COALESCE(agent_sessions.metadata, '{}'::jsonb)
 	FROM agent_sessions`
 
 const mailboxSelectSQL = `
@@ -1176,8 +1751,107 @@ const mailboxReturningSQL = `
 		COALESCE(direction, ''), COALESCE(parent_message_id, ''), COALESCE(turn_id, ''), COALESCE(response_id, ''),
 		COALESCE(events, '{}'::jsonb), COALESCE(file_changes, '[]'::jsonb), COALESCE(token_usage, '{}'::jsonb)`
 
+const approvalSelectSQL = `
+	SELECT ` + approvalReturningSQL + `
+	FROM agent_approvals`
+
+const approvalReturningSQL = `
+	approval_id, owner_user_id, COALESCE(request_node_id, ''), COALESCE(request_agent_id, ''),
+		COALESCE(request_session_id, ''), COALESCE(source_message_id, ''), grant_node_id,
+		grant_agent_id, grant_session_id, domain, operation, resource_type, resource_ref,
+		title, description, risk_level, action_fingerprint, request_body, requested_effects,
+		options, status, decision, decision_option, decision_scope, grant_body,
+		COALESCE(decided_by_user_id, ''), grant_revoked_at,
+		COALESCE(grant_revoked_by_user_id, ''), grant_revocation_reason, created_at,
+		expires_at, decided_at, raw_payload`
+
+const secretSelectSQL = `
+	SELECT secret_id, owner_user_id, name, kind, description, metadata,
+		COALESCE(current_version_id, ''), current_version, created_at, updated_at, deleted_at
+	FROM secrets`
+
+const secretVersionSelectSQL = `
+	SELECT version_id, secret_id, version_number, ciphertext, nonce, key_id, state, created_at,
+		COALESCE(created_by_user_id, ''), COALESCE(created_by_node_id, ''),
+		COALESCE(created_by_agent_id, ''), idempotency_key
+	FROM secret_versions`
+
+func approvalListQuery(filter ApprovalFilter) (string, []any) {
+	limit := filter.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	query := approvalSelectSQL
+	clauses := []string{"1=1"}
+	args := []any{}
+	add := func(column string, value string) {
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, column+" = $"+strconvArg(len(args)))
+	}
+	add("owner_user_id", filter.Principal.User.UserID)
+	add("status", filter.Status)
+	add("decision", filter.Decision)
+	add("domain", filter.Domain)
+	add("operation", filter.Operation)
+	add("resource_type", filter.ResourceType)
+	add("resource_ref", filter.ResourceRef)
+	add("request_node_id", filter.RequestNodeID)
+	add("request_agent_id", filter.RequestAgentID)
+	add("request_session_id", filter.RequestSessionID)
+	add("decision_scope", filter.DecisionScope)
+	if !filter.IncludeRevoked {
+		clauses = append(clauses, "grant_revoked_at IS NULL")
+	}
+	args = append(args, limit)
+	return query + `
+		WHERE ` + strings.Join(clauses, " AND ") + `
+		ORDER BY created_at DESC
+		LIMIT $` + strconvArg(len(args)), args
+}
+
+func approvalGrantListQuery(filter ApprovalGrantFilter) (string, []any) {
+	limit := filter.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	query := approvalSelectSQL
+	clauses := []string{"status = 'decided'", "decision = 'allow'", "decision_scope <> 'once'"}
+	args := []any{}
+	add := func(column string, value string) {
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, column+" = $"+strconvArg(len(args)))
+	}
+	add("owner_user_id", filter.Principal.User.UserID)
+	add("domain", filter.Domain)
+	add("operation", filter.Operation)
+	add("resource_type", filter.ResourceType)
+	add("resource_ref", filter.ResourceRef)
+	add("decision_scope", filter.DecisionScope)
+	add("grant_node_id", filter.GrantNodeID)
+	add("grant_agent_id", filter.GrantAgentID)
+	add("grant_session_id", filter.GrantSessionID)
+	if filter.ActiveOnly {
+		clauses = append(clauses, "grant_revoked_at IS NULL")
+	}
+	args = append(args, limit)
+	return query + `
+		WHERE ` + strings.Join(clauses, " AND ") + `
+		ORDER BY decided_at DESC
+		LIMIT $` + strconvArg(len(args)), args
+}
+
 type sqlExecer interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+type sqlQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
 type dbExecer struct {
@@ -1186,6 +1860,152 @@ type dbExecer struct {
 
 func (e dbExecer) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	return e.db.ExecContext(ctx, query, args...)
+}
+
+func (e dbExecer) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	return e.db.QueryRowContext(ctx, query, args...)
+}
+
+func (s *PostgresStore) normalizeReportedSessionInput(
+	ctx context.Context,
+	queryer sqlQueryer,
+	agentID string,
+	input SessionStatusInput,
+) (SessionStatusInput, error) {
+	nativeID := reportedNativeSessionID(input)
+	if nativeID == "" {
+		return input, nil
+	}
+	var sessionID string
+	err := queryer.QueryRowContext(ctx, `
+		SELECT session_id FROM agent_sessions
+		WHERE agent_id = $1 AND native_id = $2
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`, agentID, nativeID).Scan(&sessionID)
+	if err != nil && err != sql.ErrNoRows {
+		return input, err
+	}
+	if err == nil {
+		input.SessionID = sessionID
+	} else if input.NativeID == "" || input.SessionID == "" || !isManagerSessionID(input.SessionID) {
+		generated, genErr := newSecret("sess")
+		if genErr != nil {
+			return input, genErr
+		}
+		input.SessionID = generated
+	}
+	input.NativeID = nativeID
+	return input, nil
+}
+
+func (s *PostgresStore) virtualSessionID(
+	ctx context.Context,
+	queryer sqlQueryer,
+	agentID string,
+	sessionID string,
+) (string, error) {
+	if sessionID == "" {
+		return "", nil
+	}
+	var translated string
+	err := queryer.QueryRowContext(ctx, `
+		SELECT session_id FROM agent_sessions
+		WHERE agent_id = $1 AND native_id = $2
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`, agentID, sessionID).Scan(&translated)
+	if err == nil {
+		return translated, nil
+	}
+	if err != sql.ErrNoRows {
+		return "", err
+	}
+	err = queryer.QueryRowContext(ctx, `
+		SELECT session_id FROM agent_sessions
+		WHERE agent_id = $1 AND session_id = $2
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`, agentID, sessionID).Scan(&translated)
+	if err == nil {
+		return translated, nil
+	}
+	if err != sql.ErrNoRows {
+		return "", err
+	}
+	return sessionID, nil
+}
+
+func (s *PostgresStore) nativeSessionID(
+	ctx context.Context,
+	queryer sqlQueryer,
+	agentID string,
+	sessionID string,
+) (string, error) {
+	if sessionID == "" {
+		return "", nil
+	}
+	var nativeID string
+	err := queryer.QueryRowContext(ctx, `
+		SELECT COALESCE(native_id, '') FROM agent_sessions
+		WHERE agent_id = $1 AND session_id = $2
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`, agentID, sessionID).Scan(&nativeID)
+	if err == nil && nativeID != "" {
+		return nativeID, nil
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return "", err
+	}
+	return sessionID, nil
+}
+
+func (s *PostgresStore) translateMailboxMessagesToNative(
+	ctx context.Context,
+	queryer sqlQueryer,
+	messages []MailboxMessage,
+) error {
+	for i := range messages {
+		nativeID, err := s.nativeSessionID(ctx, queryer, messages[i].AgentID, messages[i].SessionID)
+		if err != nil {
+			return err
+		}
+		messages[i].SessionID = nativeID
+		messages[i].Payload = replacePayloadSessionID(messages[i].Payload, nativeID)
+	}
+	return nil
+}
+
+func (s *PostgresStore) translateApprovalToNative(
+	ctx context.Context,
+	queryer sqlQueryer,
+	approval AgentApproval,
+) (AgentApproval, error) {
+	var err error
+	if approval.RequestAgentID != "" && approval.RequestSessionID != "" {
+		approval.RequestSessionID, err = s.nativeSessionID(
+			ctx,
+			queryer,
+			approval.RequestAgentID,
+			approval.RequestSessionID,
+		)
+		if err != nil {
+			return AgentApproval{}, err
+		}
+	}
+	if approval.GrantAgentID != "" && approval.GrantSessionID != "" {
+		approval.GrantSessionID, err = s.nativeSessionID(
+			ctx,
+			queryer,
+			approval.GrantAgentID,
+			approval.GrantSessionID,
+		)
+		if err != nil {
+			return AgentApproval{}, err
+		}
+	}
+	return approval, nil
 }
 
 func upsertSessionTx(
@@ -1314,4 +2134,107 @@ func jsonOrNil(v any) any {
 		return nil
 	}
 	return data
+}
+
+func jsonDefault(raw json.RawMessage, fallback string) []byte {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return []byte(fallback)
+	}
+	return raw
+}
+
+func jsonOrDefault(v any, fallback string) []byte {
+	data, err := json.Marshal(v)
+	if err != nil || string(data) == "null" {
+		return []byte(fallback)
+	}
+	return data
+}
+
+func secretVersionLookup(
+	secret Secret,
+	versionSelector string,
+) (string, []any, error) {
+	selector := strings.TrimSpace(versionSelector)
+	if selector == "" || selector == "latest" {
+		if secret.CurrentVersionID == "" {
+			return "", nil, ErrNotFound
+		}
+		return secretVersionSelectSQL + `
+			WHERE version_id = $1 AND secret_id = $2
+		`, []any{secret.CurrentVersionID, secret.SecretID}, nil
+	}
+	selector = strings.TrimPrefix(selector, "version:")
+	versionNumber, err := strconv.ParseInt(selector, 10, 64)
+	if err != nil || versionNumber <= 0 {
+		return "", nil, ErrNotFound
+	}
+	return secretVersionSelectSQL + `
+		WHERE secret_id = $1 AND version_number = $2
+	`, []any{secret.SecretID, versionNumber}, nil
+}
+
+func (s *PostgresStore) findIdempotentSecretVersion(
+	ctx context.Context,
+	tx *sql.Tx,
+	secretID string,
+	nodeID string,
+	agentID string,
+	idempotencyKey string,
+) (SecretVersion, bool, error) {
+	version, err := scanSecretVersion(tx.QueryRowContext(ctx, secretVersionSelectSQL+`
+		WHERE secret_id = $1
+			AND created_by_node_id = $2
+			AND created_by_agent_id = $3
+			AND idempotency_key = $4
+	`, secretID, nodeID, agentID, idempotencyKey))
+	if err != nil {
+		return SecretVersion{}, false, err
+	}
+	var currentVersionID string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(current_version_id, '') FROM secrets WHERE secret_id = $1
+	`, secretID).Scan(&currentVersionID); err != nil {
+		return SecretVersion{}, false, mapSQLError(err)
+	}
+	return version, currentVersionID == version.VersionID, nil
+}
+
+func defaultApprovalDomain(v string) string {
+	if strings.TrimSpace(v) == "" {
+		return "agent_action"
+	}
+	return v
+}
+
+func defaultApprovalRiskLevel(v string) string {
+	if strings.TrimSpace(v) == "" {
+		return "unknown"
+	}
+	return v
+}
+
+func approvalDecisionGrant(
+	approval AgentApproval,
+	req ApprovalDecisionRequest,
+) (string, string, string, string, string, error) {
+	switch req.DecisionOption {
+	case "deny":
+		return "deny", "once", approval.RequestNodeID, approval.RequestAgentID,
+			approval.RequestSessionID, nil
+	case "allow_once":
+		return "allow", "once", approval.RequestNodeID, approval.RequestAgentID,
+			approval.RequestSessionID, nil
+	case "allow_for_this_agent":
+		return "allow", "agent", approval.RequestNodeID, approval.RequestAgentID, "*", nil
+	case "allow_for_this_node":
+		return "allow", "node", approval.RequestNodeID, "*", "*", nil
+	case "allow_always_on_all_agents":
+		return "allow", "across_all_agents", "*", "*", "*", nil
+	default:
+		if req.GrantNodeID == "" && req.GrantAgentID == "" && req.GrantSessionID == "" {
+			return "", "", "", "", "", ErrConflict
+		}
+		return "allow", "custom", req.GrantNodeID, req.GrantAgentID, req.GrantSessionID, nil
+	}
 }

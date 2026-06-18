@@ -1,5 +1,7 @@
 # pax-manager
 
+[![CI](https://github.com/pax-beehive/pax-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/pax-beehive/pax-manager/actions/workflows/ci.yml)
+
 pax-manager is the Fleet Control Plane API for paxd agents. It stores agent state,
 session snapshots, and user-to-agent mailbox messages in PostgreSQL.
 

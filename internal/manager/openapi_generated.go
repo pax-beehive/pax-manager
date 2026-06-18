@@ -12,11 +12,19 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/node/status", NodeAuth(), ReportNodeStatus)
 	h.GET("/api/v1/node/mailbox", NodeAuth(), PullNodeMailbox)
 	h.GET("/api/v1/node/agents/:agent_id/mailbox", NodeAuth(), PullNodeAgentMailbox)
-	h.GET("/api/v1/node/agents/:agent_id/sessions/:session_id/mailbox", NodeAuth(), PullNodeAgentSessionMailbox)
+	h.GET(
+		"/api/v1/node/agents/:agent_id/sessions/:session_id/mailbox",
+		NodeAuth(),
+		PullNodeAgentSessionMailbox,
+	)
 	h.POST("/api/v1/node/messages/offset", NodeAuth(), UpdateNodeMailboxOffset)
 	h.POST("/api/v1/node/messages/:message_id/result", NodeAuth(), ReportNodeMessageResult)
 	h.POST("/api/v1/node/messages/:message_id/delivered", NodeAuth(), MarkNodeMessageDelivered)
 	h.POST("/api/v1/node/messages/outbound", NodeAuth(), CreateNodeOutboundMessage)
+	h.POST("/api/v1/node/secrets/resolve", NodeAuth(), ResolveNodeSecret)
+	h.POST("/api/v1/node/secrets/:secret_id/versions", NodeAuth(), WriteNodeSecretVersion)
+	h.POST("/api/v1/node/agents/:agent_id/approvals", NodeAuth(), CreateNodeAgentApproval)
+	h.GET("/api/v1/node/agents/:agent_id/approvals/:approval_id", NodeAuth(), GetNodeAgentApproval)
 	h.GET("/api/v1/user/:user_id/me", GetCurrentUser)
 	h.GET("/api/v1/user/:user_id/nodes", ListNodes)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id", GetNode)
@@ -27,11 +35,28 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/messages", CreateNodeAgentMessage)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions", ListNodeAgentSessions)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions", CreateNodeAgentSession)
-	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id", GetNodeAgentSession)
-	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages", ListNodeAgentSessionMessages)
-	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages", CreateNodeAgentSessionMessage)
+	h.GET(
+		"/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id",
+		GetNodeAgentSession,
+	)
+	h.GET(
+		"/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages",
+		ListNodeAgentSessionMessages,
+	)
+	h.POST(
+		"/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages",
+		CreateNodeAgentSessionMessage,
+	)
 	h.GET("/api/v1/user/:user_id/api-keys", ListUserAPIKeys)
 	h.POST("/api/v1/user/:user_id/api-keys", CreateUserAPIKey)
 	h.DELETE("/api/v1/user/:user_id/api-keys/:key_id", RevokeUserAPIKey)
 	h.POST("/api/v1/user/:user_id/node-registration-tokens", CreateNodeRegistrationToken)
+	h.GET("/api/v1/user/:user_id/secrets", ListUserSecrets)
+	h.POST("/api/v1/user/:user_id/secrets", CreateUserSecret)
+	h.GET("/api/v1/user/:user_id/secrets/:secret_id", GetUserSecret)
+	h.GET("/api/v1/user/:user_id/approvals", ListUserApprovals)
+	h.GET("/api/v1/user/:user_id/approvals/:approval_id", GetUserApproval)
+	h.POST("/api/v1/user/:user_id/approvals/:approval_id/decision", DecideUserApproval)
+	h.GET("/api/v1/user/:user_id/approval-grants", ListUserApprovalGrants)
+	h.POST("/api/v1/user/:user_id/approval-grants/:grant_id/revoke", RevokeUserApprovalGrant)
 }

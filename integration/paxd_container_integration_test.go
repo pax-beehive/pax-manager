@@ -116,21 +116,27 @@ func TestPaxdContainerMockHermesIntegration(t *testing.T) {
 				createdAgent.Agent.AgentID,
 			)
 
-			waitFor(t, 60*time.Second, 500*time.Millisecond, "paxd to report agent online", func() bool {
-				agents := getJSON[nodeAgentListResponse](
-					t,
-					fixture,
-					"/api/v1/user/self/nodes/"+node.NodeID+"/agents",
-					fixture.userHeaders(),
-					http.StatusOK,
-				)
-				for _, got := range agents.Agents {
-					if got.AgentID == createdAgent.Agent.AgentID && got.Status == "online" {
-						return true
+			waitFor(
+				t,
+				60*time.Second,
+				500*time.Millisecond,
+				"paxd to report agent online",
+				func() bool {
+					agents := getJSON[nodeAgentListResponse](
+						t,
+						fixture,
+						"/api/v1/user/self/nodes/"+node.NodeID+"/agents",
+						fixture.userHeaders(),
+						http.StatusOK,
+					)
+					for _, got := range agents.Agents {
+						if got.AgentID == createdAgent.Agent.AgentID && got.Status == "online" {
+							return true
+						}
 					}
-				}
-				return false
-			})
+					return false
+				},
+			)
 		},
 	)
 
@@ -145,6 +151,18 @@ func TestPaxdContainerMockHermesIntegration(t *testing.T) {
 				map[string]any{"session_id": sessionID, "name": "paxd container session"},
 				fixture.userHeaders(),
 				http.StatusOK,
+			)
+
+			fixture.postExpectError(
+				t,
+				"/api/v1/user/self/nodes/node_wrong/agents/"+
+					createdAgent.Agent.AgentID+"/sessions/"+sessionID+"/messages",
+				map[string]any{
+					"message":      "cross node",
+					"message_type": "chat",
+				},
+				fixture.userHeaders(),
+				http.StatusNotFound,
 			)
 
 			userMessage = postJSON[mailboxMessage](
@@ -163,21 +181,27 @@ func TestPaxdContainerMockHermesIntegration(t *testing.T) {
 				t.Fatalf("bad message response: %+v", userMessage)
 			}
 
-			waitFor(t, 60*time.Second, 500*time.Millisecond, "paxd to complete chat message", func() bool {
-				messages := listNodeSessionMessages(
-					t,
-					fixture,
-					node.NodeID,
-					createdAgent.Agent.AgentID,
-					sessionID,
-				).Messages
-				original, outbound := findRoundTripMessages(messages, userMessage.MessageID)
-				return original != nil &&
-					original.Status == "completed" &&
-					outbound != nil &&
-					outbound.Status == "completed" &&
-					strings.Contains(outbound.Message, "mock")
-			})
+			waitFor(
+				t,
+				60*time.Second,
+				500*time.Millisecond,
+				"paxd to complete chat message",
+				func() bool {
+					messages := listNodeSessionMessages(
+						t,
+						fixture,
+						node.NodeID,
+						createdAgent.Agent.AgentID,
+						sessionID,
+					).Messages
+					original, outbound := findRoundTripMessages(messages, userMessage.MessageID)
+					return original != nil &&
+						original.Status == "completed" &&
+						outbound != nil &&
+						outbound.Status == "completed" &&
+						strings.Contains(outbound.Message, "mock")
+				},
+			)
 		},
 	)
 }

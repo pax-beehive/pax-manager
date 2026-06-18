@@ -152,7 +152,6 @@ struct AgentSession {
   4: optional string session_id
   5: optional string name
   6: optional string agent_type
-  7: optional string native_id
   8: optional string project_id
   9: optional string preview
   10: optional list<string> workspace_roots
@@ -237,6 +236,42 @@ struct CreateNodeRegistrationTokenData {
 struct CreateUserAPIKeyData {
   1: optional UserAPIKey api_key
   2: optional string key
+}
+
+struct Secret {
+  1: optional string secret_id
+  2: optional string owner_user_id
+  3: optional string name
+  4: optional string kind
+  5: optional string description
+  6: optional JSON metadata
+  7: optional string current_version_id
+  8: optional i64 current_version
+  9: optional string created_at
+  10: optional string updated_at
+  11: optional string deleted_at
+}
+
+struct SecretVersion {
+  1: optional string version_id
+  2: optional string secret_id
+  3: optional i64 version_number
+  4: optional string key_id
+  5: optional string state
+  6: optional string created_at
+  7: optional string created_by_user_id
+  8: optional string created_by_node_id
+  9: optional string created_by_agent_id
+  10: optional string idempotency_key
+}
+
+struct CreateSecretData {
+  1: optional Secret secret
+  2: optional SecretVersion version
+}
+
+struct SecretListData {
+  1: optional list<Secret> secrets
 }
 
 struct PullNodeMailboxRequest {
@@ -413,6 +448,42 @@ struct RevokeUserAPIKeyRequest {
   2: optional string key_id (api.path = "key_id")
 }
 
+struct CreateUserSecretRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string name
+  3: optional string kind
+  4: optional string description
+  5: optional JSON metadata
+  6: optional string value
+}
+
+struct ListUserSecretsRequest {
+  1: optional string user_id (api.path = "user_id")
+}
+
+struct GetUserSecretRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string secret_id (api.path = "secret_id")
+}
+
+struct ResolveNodeSecretRequest {
+  1: optional string secret_id
+  2: optional string version
+  3: optional string agent_id
+  4: optional string session_id
+}
+
+struct WriteNodeSecretVersionRequest {
+  1: optional string secret_id (api.path = "secret_id")
+  2: optional string agent_id
+  3: optional string session_id
+  4: optional string value
+  5: optional bool make_current
+  6: optional string expected_current_version_id
+  7: optional string idempotency_key
+  8: optional string reason
+}
+
 struct UserAPIKey {
   1: optional string key_id
   2: optional string owner_user_id
@@ -421,6 +492,157 @@ struct UserAPIKey {
   5: optional string created_at
   6: optional string last_used_at
   7: optional string revoked_at
+}
+
+struct ApprovalOption {
+  1: optional string option_id
+  2: optional string label
+  3: optional string decision
+  4: optional string scope
+}
+
+struct AgentApproval {
+  1: optional string approval_id
+  2: optional string owner_user_id
+  3: optional string request_node_id
+  4: optional string request_agent_id
+  5: optional string request_session_id
+  6: optional string source_message_id
+  7: optional string grant_node_id
+  8: optional string grant_agent_id
+  9: optional string grant_session_id
+  10: optional string domain
+  11: optional string operation
+  12: optional string resource_type
+  13: optional string resource_ref
+  14: optional string title
+  15: optional string description
+  16: optional string risk_level
+  17: optional string action_fingerprint
+  18: optional JSON request_body
+  19: optional JSON requested_effects
+  20: optional list<ApprovalOption> options
+  21: optional string status
+  22: optional string decision
+  23: optional string decision_option
+  24: optional string decision_scope
+  25: optional JSON grant_body
+  26: optional string decided_by_user_id
+  27: optional string grant_revoked_at
+  28: optional string grant_revoked_by_user_id
+  29: optional string grant_revocation_reason
+  30: optional string created_at
+  31: optional string expires_at
+  32: optional string decided_at
+  33: optional JSON raw_payload
+}
+
+struct ApprovalData {
+  1: optional AgentApproval approval
+}
+
+struct ApprovalListData {
+  1: optional list<AgentApproval> approvals
+}
+
+struct ApprovalGrantListData {
+  1: optional list<AgentApproval> grants
+}
+
+struct ResolveSecretData {
+  1: optional string status
+  2: optional string approval_id
+  3: optional string secret_id
+  4: optional string version_id
+  5: optional i64 version_number
+  6: optional string value
+  7: optional AgentApproval approval
+}
+
+struct WriteSecretVersionData {
+  1: optional string status
+  2: optional string approval_id
+  3: optional string secret_id
+  4: optional string version_id
+  5: optional i64 version_number
+  6: optional bool current
+  7: optional AgentApproval approval
+}
+
+struct CreateNodeAgentApprovalRequest {
+  1: optional string agent_id (api.path = "agent_id")
+  2: optional string session_id
+  3: optional string source_message_id
+  4: optional string domain
+  5: optional string operation
+  6: optional string resource_type
+  7: optional string resource_ref
+  8: optional string title
+  9: optional string description
+  10: optional string risk_level
+  11: optional string action_fingerprint
+  12: optional JSON request_body
+  13: optional JSON requested_effects
+  14: optional list<ApprovalOption> options
+  15: optional string expires_at
+  16: optional JSON raw_payload
+}
+
+struct GetNodeAgentApprovalRequest {
+  1: optional string agent_id (api.path = "agent_id")
+  2: optional string approval_id (api.path = "approval_id")
+}
+
+struct ListUserApprovalsRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string status (api.query = "status")
+  3: optional string decision (api.query = "decision")
+  4: optional string domain (api.query = "domain")
+  5: optional string operation (api.query = "operation")
+  6: optional string resource_type (api.query = "resource_type")
+  7: optional string resource_ref (api.query = "resource_ref")
+  8: optional string request_node_id (api.query = "request_node_id")
+  9: optional string request_agent_id (api.query = "request_agent_id")
+  10: optional string request_session_id (api.query = "request_session_id")
+  11: optional string decision_scope (api.query = "decision_scope")
+  12: optional bool include_revoked (api.query = "include_revoked")
+  13: optional i32 limit (api.query = "limit")
+}
+
+struct GetUserApprovalRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string approval_id (api.path = "approval_id")
+}
+
+struct DecideUserApprovalRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string approval_id (api.path = "approval_id")
+  3: optional string decision_option
+  4: optional string reason
+  5: optional string grant_node_id
+  6: optional string grant_agent_id
+  7: optional string grant_session_id
+  8: optional JSON grant_body
+}
+
+struct ListUserApprovalGrantsRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string domain (api.query = "domain")
+  3: optional string operation (api.query = "operation")
+  4: optional string resource_type (api.query = "resource_type")
+  5: optional string resource_ref (api.query = "resource_ref")
+  6: optional string decision_scope (api.query = "decision_scope")
+  7: optional string grant_node_id (api.query = "grant_node_id")
+  8: optional string grant_agent_id (api.query = "grant_agent_id")
+  9: optional string grant_session_id (api.query = "grant_session_id")
+  10: optional bool active_only (api.query = "active_only")
+  11: optional i32 limit (api.query = "limit")
+}
+
+struct RevokeUserApprovalGrantRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string grant_id (api.path = "grant_id")
+  3: optional string reason
 }
 
 struct HealthResponse {
@@ -541,6 +763,54 @@ struct UserAPIKeyListResponse {
   3: optional string message
 }
 
+struct CreateSecretResponse {
+  1: optional CreateSecretData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct SecretListResponse {
+  1: optional SecretListData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct SecretResponse {
+  1: optional Secret data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct ResolveSecretResponse {
+  1: optional ResolveSecretData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct WriteSecretVersionResponse {
+  1: optional WriteSecretVersionData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct ApprovalResponse {
+  1: optional ApprovalData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct ApprovalListResponse {
+  1: optional ApprovalListData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct ApprovalGrantListResponse {
+  1: optional ApprovalGrantListData data
+  2: optional i32 code
+  3: optional string message
+}
+
 service PaxManagerAPI {
   HealthResponse Health(1: optional EmptyRequest request) (
     api.get = "/api/v1/health",
@@ -657,6 +927,53 @@ service PaxManagerAPI {
     openapi.description = "Stores a structured node-to-user response message for a processed mailbox item.",
     openapi.status = "200",
     openapi.security = "nodeBearer"
+  )
+
+  ResolveSecretResponse ResolveNodeSecret(
+    1: optional ResolveNodeSecretRequest request
+  ) (
+    api.post = "/api/v1/node/secrets/resolve",
+    openapi.tag = "node",
+    openapi.summary = "Resolve secret value",
+    openapi.description = "Returns a secret value to an authenticated node only after an approval grant exists.",
+    openapi.status = "200",
+    openapi.security = "nodeBearer"
+  )
+
+  WriteSecretVersionResponse WriteNodeSecretVersion(
+    1: optional WriteNodeSecretVersionRequest request
+  ) (
+    api.post = "/api/v1/node/secrets/:secret_id/versions",
+    openapi.tag = "node",
+    openapi.summary = "Write secret version",
+    openapi.description = "Creates a new encrypted secret version and optionally promotes it with an optimistic lock.",
+    openapi.status = "200",
+    openapi.security = "nodeBearer",
+    openapi.path.secret_id = "Secret identifier."
+  )
+
+  ApprovalResponse CreateNodeAgentApproval(
+    1: optional CreateNodeAgentApprovalRequest request
+  ) (
+    api.post = "/api/v1/node/agents/:agent_id/approvals",
+    openapi.tag = "node",
+    openapi.summary = "Create node agent approval",
+    openapi.description = "Creates a normalized approval request for an agent action.",
+    openapi.status = "200",
+    openapi.security = "nodeBearer",
+    openapi.path.agent_id = "Agent identifier."
+  )
+
+  ApprovalResponse GetNodeAgentApproval(
+    1: optional GetNodeAgentApprovalRequest request
+  ) (
+    api.get = "/api/v1/node/agents/:agent_id/approvals/:approval_id",
+    openapi.tag = "node",
+    openapi.summary = "Get node agent approval",
+    openapi.description = "Returns an approval request created by an agent on the authenticated node.",
+    openapi.security = "nodeBearer",
+    openapi.path.agent_id = "Agent identifier.",
+    openapi.path.approval_id = "Approval identifier."
   )
 
   CurrentUserResponse GetCurrentUser(
@@ -870,5 +1187,100 @@ service PaxManagerAPI {
     openapi.status = "200",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier."
+  )
+
+  SecretListResponse ListUserSecrets(
+    1: optional ListUserSecretsRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/secrets",
+    openapi.tag = "user",
+    openapi.summary = "List secrets",
+    openapi.description = "Lists secret metadata visible to the current user without returning plaintext values.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier."
+  )
+
+  CreateSecretResponse CreateUserSecret(
+    1: optional CreateUserSecretRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/secrets",
+    openapi.tag = "user",
+    openapi.summary = "Create secret",
+    openapi.description = "Creates an encrypted secret with its first version. The plaintext value is not returned.",
+    openapi.status = "200",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier."
+  )
+
+  SecretResponse GetUserSecret(
+    1: optional GetUserSecretRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/secrets/:secret_id",
+    openapi.tag = "user",
+    openapi.summary = "Get secret",
+    openapi.description = "Returns secret metadata without returning plaintext values.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.secret_id = "Secret identifier."
+  )
+
+  ApprovalListResponse ListUserApprovals(
+    1: optional ListUserApprovalsRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/approvals",
+    openapi.tag = "user",
+    openapi.summary = "List approvals",
+    openapi.description = "Lists normalized approval requests visible to the current user.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier."
+  )
+
+  ApprovalResponse GetUserApproval(
+    1: optional GetUserApprovalRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/approvals/:approval_id",
+    openapi.tag = "user",
+    openapi.summary = "Get approval",
+    openapi.description = "Returns a normalized approval request visible to the current user.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.approval_id = "Approval identifier."
+  )
+
+  ApprovalResponse DecideUserApproval(
+    1: optional DecideUserApprovalRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/approvals/:approval_id/decision",
+    openapi.tag = "user",
+    openapi.summary = "Decide approval",
+    openapi.description = "Records a user decision for a pending approval request.",
+    openapi.status = "200",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.approval_id = "Approval identifier."
+  )
+
+  ApprovalGrantListResponse ListUserApprovalGrants(
+    1: optional ListUserApprovalGrantsRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/approval-grants",
+    openapi.tag = "user",
+    openapi.summary = "List approval grants",
+    openapi.description = "Lists reusable approval grants visible to the current user.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier."
+  )
+
+  ApprovalResponse RevokeUserApprovalGrant(
+    1: optional RevokeUserApprovalGrantRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/approval-grants/:grant_id/revoke",
+    openapi.tag = "user",
+    openapi.summary = "Revoke approval grant",
+    openapi.description = "Revokes a reusable approval grant without deleting the original approval record.",
+    openapi.status = "200",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.grant_id = "Approval grant identifier."
   )
 }

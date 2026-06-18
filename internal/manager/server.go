@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -15,6 +15,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	managerconfig "github.com/pax-beehive/pax-manager/internal/manager/config"
+	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 	"github.com/pax-beehive/pax-manager/internal/manager/paxd"
 	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
 	httprouter "github.com/pax-beehive/pax-manager/internal/transport/http/router"
@@ -26,6 +27,7 @@ type Service struct {
 	clock           func() time.Time
 	agentWS         *AgentWSHub
 	acpTunnels      *ACPTunnelHub
+	acpRuntime      *acpRuntimeProjector
 	maxBodyBytes    int64
 	apiLimiter      *rateLimiter
 	registerLimiter *rateLimiter
@@ -33,6 +35,7 @@ type Service struct {
 	secrets         auth.Secrets
 	paxd            *paxd.Service
 	userapi         *userapi.Service
+	paxdArtifacts   paxdArtifactBackend
 }
 
 type Server = Service
@@ -55,6 +58,7 @@ func newServer(cfg Config, store Store) *Service {
 		),
 		secrets: secrets,
 	}
+	s.acpRuntime = newACPRuntimeProjector(store, func() time.Time { return s.clock() })
 	authService := auth.NewService(store, store, serviceAdminPolicy{s: s}, secrets, auth.Config{
 		RegistrationToken:      cfg.RegistrationToken,
 		RegistrationOwnerEmail: cfg.RegistrationOwnerEmail,
@@ -70,6 +74,7 @@ func newServer(cfg Config, store Store) *Service {
 		authService,
 		secrets,
 	)
+	s.paxdArtifacts = newGCPPaxdArtifactBackend(cfg)
 	return s
 }
 
@@ -121,6 +126,12 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		"/api/v1/user/:userID/agents/:agentID/tunnel",
 		adaptor.HertzHandler(http.HandlerFunc(s.handleUserACPTunnel)),
 	)
+	h.GET(
+		"/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/tunnel",
+		adaptor.HertzHandler(http.HandlerFunc(s.handleUserACPTunnel)),
+	)
+	h.GET("/api/v1/public/paxd/download", s.handleDownloadPaxdArtifact)
+	h.POST("/api/v1/admin/paxd/artifacts", s.handlePublishPaxdArtifact)
 
 	h.Static("/", "static")
 }
@@ -233,7 +244,6 @@ func endpointErrorStatus(err error) (int, string) {
 	case errors.Is(err, ErrConflict):
 		return http.StatusConflict, "conflict"
 	default:
-		log.Printf("store error: %v", err)
 		return http.StatusInternalServerError, "internal server error"
 	}
 }
@@ -241,9 +251,7 @@ func endpointErrorStatus(err error) (int, string) {
 func writeHTTPError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
-		log.Printf("write response: %v", err)
-	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 
 func serviceFromContext(ctx *app.RequestContext) *Service {
@@ -278,10 +286,49 @@ func nodeFromContext(ctx *app.RequestContext) Node {
 
 func injectService(s *Service) app.HandlerFunc {
 	return func(c context.Context, ctx *app.RequestContext) {
+		c, logID := hertzRequestLogContext(c, ctx)
+		ctx.Response.Header.Set(logging.HeaderLogID, logID)
 		ctx.Set("requestContext", c)
 		ctx.Set("service", s)
 		ctx.Next(c)
 	}
+}
+
+func hertzRequestLogContext(c context.Context, ctx *app.RequestContext) (context.Context, string) {
+	c, logID := logging.EnsureLogID(
+		c,
+		string(ctx.GetHeader(logging.HeaderLogID)),
+		string(ctx.GetHeader(logging.HeaderRequestID)),
+	)
+	c = logging.With(
+		c,
+		slog.String("http_method", string(ctx.Method())),
+		slog.String("http_path", string(ctx.Path())),
+		slog.String("remote_addr", ctx.RemoteAddr().String()),
+	)
+	return c, logID
+}
+
+func httpRequestLogContext(c context.Context, r *http.Request) (context.Context, string) {
+	c, logID := logging.EnsureLogID(
+		c,
+		r.Header.Get(logging.HeaderLogID),
+		r.Header.Get(logging.HeaderRequestID),
+	)
+	c = logging.With(
+		c,
+		slog.String("http_method", r.Method),
+		slog.String("http_path", r.URL.Path),
+		slog.String("remote_addr", r.RemoteAddr),
+	)
+	return c, logID
+}
+
+func websocketResponseHeader(ctx context.Context) http.Header {
+	if logID := logging.LogID(ctx); logID != "" {
+		return http.Header{logging.HeaderLogID: []string{logID}}
+	}
+	return nil
 }
 
 func AgentAuth() app.HandlerFunc {
@@ -348,41 +395,51 @@ func AgentWSAuthPreflight() app.HandlerFunc {
 		path := string(ctx.Path())
 		token := paxKeyFromHertz(ctx)
 		if token == "" {
-			log.Printf("agent websocket auth rejected: path=%s query_agent_id=%q reason=missing_pax_key", path, requestAgentID)
+			logging.Warn(
+				c,
+				"agent websocket auth rejected",
+				slog.String("path", path),
+				slog.String("query_agent_id", requestAgentID),
+				slog.String("reason", "missing_pax_key"),
+			)
 			writeError(ctx, http.StatusUnauthorized, "missing pax key")
 			return
 		}
 		agent, err := s.store.AuthenticateAgent(c, s.secrets.Hash(token))
 		if err != nil {
 			status, message := endpointErrorStatus(err)
-			log.Printf(
-				"agent websocket auth rejected: path=%s query_agent_id=%q key_prefix=%q status=%d reason=%s err=%v",
-				path,
-				requestAgentID,
-				s.secrets.Prefix(token),
-				status,
-				message,
-				err,
+			logging.Warn(
+				c,
+				"agent websocket auth rejected",
+				slog.String("path", path),
+				slog.String("query_agent_id", requestAgentID),
+				slog.String("key_prefix", s.secrets.Prefix(token)),
+				slog.Int("status", status),
+				slog.String("reason", message),
+				logging.Err(err),
 			)
 			writeEndpointError(ctx, err)
 			return
 		}
 		if requestAgentID != "" && requestAgentID != agent.AgentID {
-			log.Printf(
-				"agent websocket auth rejected: path=%s query_agent_id=%q authenticated_agent_id=%s reason=agent_id_mismatch",
-				path,
-				requestAgentID,
-				agent.AgentID,
+			logging.Warn(
+				c,
+				"agent websocket auth rejected",
+				slog.String("path", path),
+				slog.String("query_agent_id", requestAgentID),
+				slog.String("authenticated_agent_id", agent.AgentID),
+				slog.String("reason", "agent_id_mismatch"),
 			)
 			writeError(ctx, http.StatusForbidden, "agent_id does not match pax key")
 			return
 		}
-		log.Printf(
-			"agent websocket auth accepted: path=%s query_agent_id=%q authenticated_agent_id=%s key_prefix=%q",
-			path,
-			requestAgentID,
-			agent.AgentID,
-			s.secrets.Prefix(token),
+		logging.Info(
+			c,
+			"agent websocket auth accepted",
+			slog.String("path", path),
+			slog.String("query_agent_id", requestAgentID),
+			slog.String("authenticated_agent_id", agent.AgentID),
+			slog.String("key_prefix", s.secrets.Prefix(token)),
 		)
 		ctx.Next(c)
 	}

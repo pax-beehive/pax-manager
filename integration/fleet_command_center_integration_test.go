@@ -48,15 +48,34 @@ type agentListResponse struct {
 }
 
 type session struct {
-	AgentID        string   `json:"agent_id"`
-	SessionID      string   `json:"session_id"`
-	SessionName    string   `json:"name"`
-	AgentType      string   `json:"agent_type"`
-	Status         string   `json:"status"`
-	CurrentTask    string   `json:"current_task"`
-	MessageCount   int      `json:"message_count"`
-	TokenTotal     int64    `json:"token_total"`
-	WorkspaceRoots []string `json:"workspace_roots"`
+	AgentID        string        `json:"agent_id"`
+	SessionID      string        `json:"session_id"`
+	SessionName    string        `json:"name"`
+	AgentType      string        `json:"agent_type"`
+	Status         string        `json:"status"`
+	CurrentTask    string        `json:"current_task"`
+	RunID          string        `json:"run_id"`
+	RunStatus      string        `json:"run_status"`
+	MessageCount   int           `json:"message_count"`
+	TokenTotal     int64         `json:"token_total"`
+	WorkspaceRoots []string      `json:"workspace_roots"`
+	RuntimeState   *runtimeState `json:"runtime_state"`
+}
+
+type runtimeState struct {
+	Lifecycle             string            `json:"lifecycle"`
+	ActivePromptRequestID string            `json:"active_prompt_request_id"`
+	BlockedReason         string            `json:"blocked_reason"`
+	PendingApprovalID     string            `json:"pending_approval_id"`
+	LastStopReason        string            `json:"last_stop_reason"`
+	ActiveToolCalls       []runtimeToolCall `json:"active_tool_calls"`
+}
+
+type runtimeToolCall struct {
+	ToolCallID string `json:"tool_call_id"`
+	Kind       string `json:"kind"`
+	Title      string `json:"title"`
+	Status     string `json:"status"`
 }
 
 type sessionListResponse struct {
@@ -120,6 +139,8 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 	var registered registerAgentResponse
 	httpSessionID := "sess-http"
 	wsSessionID := "sess-ws"
+	var httpUserSessionID string
+	var wsUserSessionID string
 	var httpMessage mailboxMessage
 	var wsMessage mailboxMessage
 	var httpMaxOffset int64
@@ -248,16 +269,17 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 				fixture.userHeaders(),
 				http.StatusOK,
 			)
-			assertSession(t, sessions.Sessions, httpSessionID, "running")
+			httpUserSession := assertSingleSession(t, sessions.Sessions, "running")
+			httpUserSessionID = httpUserSession.SessionID
 
 			gotSession := getJSON[session](
 				t,
 				fixture,
-				"/api/user/agents/"+registered.AgentID+"/sessions/"+httpSessionID,
+				"/api/user/agents/"+registered.AgentID+"/sessions/"+httpUserSessionID,
 				fixture.userHeaders(),
 				http.StatusOK,
 			)
-			if gotSession.SessionID != httpSessionID || gotSession.TokenTotal != 321 {
+			if gotSession.SessionID != httpUserSessionID || gotSession.TokenTotal != 321 {
 				t.Fatalf("unexpected session: %+v", gotSession)
 			}
 		},
@@ -269,10 +291,10 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 			httpMessage = fixture.createMailboxMessage(
 				t,
 				registered.AgentID,
-				httpSessionID,
+				httpUserSessionID,
 				"run http tests",
 			)
-			sessionMessages := fixture.listSessionMessages(t, registered.AgentID, httpSessionID)
+			sessionMessages := fixture.listSessionMessages(t, registered.AgentID, httpUserSessionID)
 			assertMailboxMessage(t, sessionMessages.Messages, httpMessage.MessageID, "pending", "")
 
 			pull := getJSON[mailboxPullResponse](
@@ -302,7 +324,7 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 				http.StatusOK,
 			)
 
-			completed := fixture.listSessionMessages(t, registered.AgentID, httpSessionID)
+			completed := fixture.listSessionMessages(t, registered.AgentID, httpUserSessionID)
 			assertMailboxMessage(
 				t,
 				completed.Messages,
@@ -326,11 +348,19 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 
 			writeWS(t, ws, "status", "status-1", statusReport(registered.AgentID, wsSessionID))
 			assertWSResult(t, readWS(t, ws), "status_result", "status-1")
+			wsSessions := getJSON[sessionListResponse](
+				t,
+				fixture,
+				"/api/user/agents/"+registered.AgentID+"/sessions",
+				fixture.userHeaders(),
+				http.StatusOK,
+			)
+			wsUserSessionID = newestSessionID(t, wsSessions.Sessions, httpUserSessionID)
 
 			wsMessage = fixture.createMailboxMessage(
 				t,
 				registered.AgentID,
-				wsSessionID,
+				wsUserSessionID,
 				"run websocket tests",
 			)
 			writeWS(t, ws, "pull_mailbox", "pull-1", map[string]any{"offset": 0, "limit": 10})
@@ -359,7 +389,7 @@ func TestFleetCommandCenterIntegration(t *testing.T) {
 			writeWS(t, ws, "update_offset", "offset-1", map[string]any{"offset": wsMaxOffset})
 			assertWSResult(t, readWS(t, ws), "update_offset_result", "offset-1")
 
-			completed := fixture.listSessionMessages(t, registered.AgentID, wsSessionID)
+			completed := fixture.listSessionMessages(t, registered.AgentID, wsUserSessionID)
 			assertMailboxMessage(
 				t,
 				completed.Messages,
@@ -566,6 +596,20 @@ func (f *integrationFixture) postExpectError(
 	}
 }
 
+func (f *integrationFixture) getExpectError(
+	t *testing.T,
+	path string,
+	headers map[string]string,
+	wantStatus int,
+) {
+	t.Helper()
+	raw := f.getRaw(t, path, wantStatus, headers)
+	envelope := decodeEnvelope[json.RawMessage](t, raw)
+	if envelope.Code != wantStatus {
+		t.Fatalf("error envelope code = %d, want %d: %s", envelope.Code, wantStatus, raw)
+	}
+}
+
 func (f *integrationFixture) delete(
 	t *testing.T,
 	path string,
@@ -688,17 +732,27 @@ func statusReport(agentID string, sessionID string) map[string]any {
 	}
 }
 
-func assertSession(t *testing.T, sessions []session, sessionID string, status string) {
+func assertSingleSession(t *testing.T, sessions []session, status string) session {
+	t.Helper()
+	if len(sessions) != 1 {
+		t.Fatalf("expected one session, got %+v", sessions)
+	}
+	got := sessions[0]
+	if got.Status != status || got.TokenTotal != 321 {
+		t.Fatalf("unexpected session: %+v", got)
+	}
+	return got
+}
+
+func newestSessionID(t *testing.T, sessions []session, existingSessionID string) string {
 	t.Helper()
 	for _, got := range sessions {
-		if got.SessionID == sessionID {
-			if got.Status != status || got.TokenTotal != 321 {
-				t.Fatalf("unexpected session: %+v", got)
-			}
-			return
+		if got.SessionID != existingSessionID {
+			return got.SessionID
 		}
 	}
-	t.Fatalf("session %s not found in %+v", sessionID, sessions)
+	t.Fatalf("new session not found in %+v", sessions)
+	return ""
 }
 
 func assertMailboxMessage(
