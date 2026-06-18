@@ -26,6 +26,29 @@ type Store interface {
 	ListUserAPIKeys(ctx context.Context, principal UserPrincipal) ([]UserAPIKey, error)
 	RevokeUserAPIKey(ctx context.Context, principal UserPrincipal, keyID string) error
 	AuthenticateUserAPIKey(ctx context.Context, keyHash string) (User, error)
+	CreateSecret(
+		ctx context.Context,
+		principal UserPrincipal,
+		req CreateSecretRequest,
+		encrypted SecretVersion,
+	) (Secret, SecretVersion, error)
+	ListSecrets(ctx context.Context, principal UserPrincipal) ([]Secret, error)
+	GetSecret(ctx context.Context, principal UserPrincipal, secretID string) (Secret, error)
+	GetSecretVersionForNode(
+		ctx context.Context,
+		node Node,
+		agentID string,
+		secretID string,
+		versionSelector string,
+	) (Secret, SecretVersion, error)
+	CreateSecretVersion(
+		ctx context.Context,
+		node Node,
+		agentID string,
+		req WriteSecretVersionRequest,
+		encrypted SecretVersion,
+	) (SecretVersion, bool, error)
+	RecordSecretAccess(ctx context.Context, event SecretAccessEvent) error
 	RegisterAgent(
 		ctx context.Context,
 		owner User,

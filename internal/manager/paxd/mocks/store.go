@@ -50,6 +50,93 @@ func (_m *MockStore) AuthenticateNode(ctx context.Context, apiKeyHash string) (d
 	return r0, r1
 }
 
+// MockStore_AuthenticateNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AuthenticateNode'
+type MockStore_AuthenticateNode_Call struct {
+	*mock.Call
+}
+
+// AuthenticateNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - apiKeyHash string
+func (_e *MockStore_Expecter) AuthenticateNode(ctx interface{}, apiKeyHash interface{}) *MockStore_AuthenticateNode_Call {
+	return &MockStore_AuthenticateNode_Call{Call: _e.mock.On("AuthenticateNode", ctx, apiKeyHash)}
+}
+
+func (_c *MockStore_AuthenticateNode_Call) Run(run func(ctx context.Context, apiKeyHash string)) *MockStore_AuthenticateNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_AuthenticateNode_Call) Return(_a0 domain.Node, _a1 error) *MockStore_AuthenticateNode_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_AuthenticateNode_Call) RunAndReturn(run func(context.Context, string) (domain.Node, error)) *MockStore_AuthenticateNode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateApproval provides a mock function with given fields: ctx, node, req
+func (_m *MockStore) CreateApproval(ctx context.Context, node domain.Node, req domain.CreateApprovalRequest) (domain.AgentApproval, error) {
+	ret := _m.Called(ctx, node, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateApproval")
+	}
+
+	var r0 domain.AgentApproval
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Node, domain.CreateApprovalRequest) (domain.AgentApproval, error)); ok {
+		return rf(ctx, node, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Node, domain.CreateApprovalRequest) domain.AgentApproval); ok {
+		r0 = rf(ctx, node, req)
+	} else {
+		r0 = ret.Get(0).(domain.AgentApproval)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.Node, domain.CreateApprovalRequest) error); ok {
+		r1 = rf(ctx, node, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateApproval_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateApproval'
+type MockStore_CreateApproval_Call struct {
+	*mock.Call
+}
+
+// CreateApproval is a helper method to define mock.On call
+//   - ctx context.Context
+//   - node domain.Node
+//   - req domain.CreateApprovalRequest
+func (_e *MockStore_Expecter) CreateApproval(ctx interface{}, node interface{}, req interface{}) *MockStore_CreateApproval_Call {
+	return &MockStore_CreateApproval_Call{Call: _e.mock.On("CreateApproval", ctx, node, req)}
+}
+
+func (_c *MockStore_CreateApproval_Call) Run(run func(ctx context.Context, node domain.Node, req domain.CreateApprovalRequest)) *MockStore_CreateApproval_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.Node), args[2].(domain.CreateApprovalRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateApproval_Call) Return(_a0 domain.AgentApproval, _a1 error) *MockStore_CreateApproval_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateApproval_Call) RunAndReturn(run func(context.Context, domain.Node, domain.CreateApprovalRequest) (domain.AgentApproval, error)) *MockStore_CreateApproval_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateNodeAgent provides a mock function with given fields: ctx, principal, req
 func (_m *MockStore) CreateNodeAgent(ctx context.Context, principal domain.UserPrincipal, req domain.CreateAgentRequest) (domain.Agent, domain.MailboxMessage, error) {
 	ret := _m.Called(ctx, principal, req)
@@ -83,6 +170,36 @@ func (_m *MockStore) CreateNodeAgent(ctx context.Context, principal domain.UserP
 	}
 
 	return r0, r1, r2
+}
+
+// MockStore_CreateNodeAgent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateNodeAgent'
+type MockStore_CreateNodeAgent_Call struct {
+	*mock.Call
+}
+
+// CreateNodeAgent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - req domain.CreateAgentRequest
+func (_e *MockStore_Expecter) CreateNodeAgent(ctx interface{}, principal interface{}, req interface{}) *MockStore_CreateNodeAgent_Call {
+	return &MockStore_CreateNodeAgent_Call{Call: _e.mock.On("CreateNodeAgent", ctx, principal, req)}
+}
+
+func (_c *MockStore_CreateNodeAgent_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, req domain.CreateAgentRequest)) *MockStore_CreateNodeAgent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.CreateAgentRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateNodeAgent_Call) Return(_a0 domain.Agent, _a1 domain.MailboxMessage, _a2 error) *MockStore_CreateNodeAgent_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockStore_CreateNodeAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.CreateAgentRequest) (domain.Agent, domain.MailboxMessage, error)) *MockStore_CreateNodeAgent_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // CreateNodeOutboundMessage provides a mock function with given fields: ctx, node, req
@@ -139,6 +256,197 @@ func (_c *MockStore_CreateNodeOutboundMessage_Call) Return(_a0 domain.MailboxMes
 }
 
 func (_c *MockStore_CreateNodeOutboundMessage_Call) RunAndReturn(run func(context.Context, domain.Node, domain.CreateOutboundMessageRequest) (domain.MailboxMessage, error)) *MockStore_CreateNodeOutboundMessage_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateSecretVersion provides a mock function with given fields: ctx, node, agentID, req, encrypted
+func (_m *MockStore) CreateSecretVersion(ctx context.Context, node domain.Node, agentID string, req domain.WriteSecretVersionRequest, encrypted domain.SecretVersion) (domain.SecretVersion, bool, error) {
+	ret := _m.Called(ctx, node, agentID, req, encrypted)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateSecretVersion")
+	}
+
+	var r0 domain.SecretVersion
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Node, string, domain.WriteSecretVersionRequest, domain.SecretVersion) (domain.SecretVersion, bool, error)); ok {
+		return rf(ctx, node, agentID, req, encrypted)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Node, string, domain.WriteSecretVersionRequest, domain.SecretVersion) domain.SecretVersion); ok {
+		r0 = rf(ctx, node, agentID, req, encrypted)
+	} else {
+		r0 = ret.Get(0).(domain.SecretVersion)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.Node, string, domain.WriteSecretVersionRequest, domain.SecretVersion) bool); ok {
+		r1 = rf(ctx, node, agentID, req, encrypted)
+	} else {
+		r1 = ret.Get(1).(bool)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, domain.Node, string, domain.WriteSecretVersionRequest, domain.SecretVersion) error); ok {
+		r2 = rf(ctx, node, agentID, req, encrypted)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockStore_CreateSecretVersion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateSecretVersion'
+type MockStore_CreateSecretVersion_Call struct {
+	*mock.Call
+}
+
+// CreateSecretVersion is a helper method to define mock.On call
+//   - ctx context.Context
+//   - node domain.Node
+//   - agentID string
+//   - req domain.WriteSecretVersionRequest
+//   - encrypted domain.SecretVersion
+func (_e *MockStore_Expecter) CreateSecretVersion(ctx interface{}, node interface{}, agentID interface{}, req interface{}, encrypted interface{}) *MockStore_CreateSecretVersion_Call {
+	return &MockStore_CreateSecretVersion_Call{Call: _e.mock.On("CreateSecretVersion", ctx, node, agentID, req, encrypted)}
+}
+
+func (_c *MockStore_CreateSecretVersion_Call) Run(run func(ctx context.Context, node domain.Node, agentID string, req domain.WriteSecretVersionRequest, encrypted domain.SecretVersion)) *MockStore_CreateSecretVersion_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.Node), args[2].(string), args[3].(domain.WriteSecretVersionRequest), args[4].(domain.SecretVersion))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateSecretVersion_Call) Return(_a0 domain.SecretVersion, _a1 bool, _a2 error) *MockStore_CreateSecretVersion_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockStore_CreateSecretVersion_Call) RunAndReturn(run func(context.Context, domain.Node, string, domain.WriteSecretVersionRequest, domain.SecretVersion) (domain.SecretVersion, bool, error)) *MockStore_CreateSecretVersion_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// FindReusableApprovalGrant provides a mock function with given fields: ctx, lookup
+func (_m *MockStore) FindReusableApprovalGrant(ctx context.Context, lookup domain.ApprovalGrantLookup) (domain.AgentApproval, error) {
+	ret := _m.Called(ctx, lookup)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindReusableApprovalGrant")
+	}
+
+	var r0 domain.AgentApproval
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.ApprovalGrantLookup) (domain.AgentApproval, error)); ok {
+		return rf(ctx, lookup)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.ApprovalGrantLookup) domain.AgentApproval); ok {
+		r0 = rf(ctx, lookup)
+	} else {
+		r0 = ret.Get(0).(domain.AgentApproval)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.ApprovalGrantLookup) error); ok {
+		r1 = rf(ctx, lookup)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_FindReusableApprovalGrant_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindReusableApprovalGrant'
+type MockStore_FindReusableApprovalGrant_Call struct {
+	*mock.Call
+}
+
+// FindReusableApprovalGrant is a helper method to define mock.On call
+//   - ctx context.Context
+//   - lookup domain.ApprovalGrantLookup
+func (_e *MockStore_Expecter) FindReusableApprovalGrant(ctx interface{}, lookup interface{}) *MockStore_FindReusableApprovalGrant_Call {
+	return &MockStore_FindReusableApprovalGrant_Call{Call: _e.mock.On("FindReusableApprovalGrant", ctx, lookup)}
+}
+
+func (_c *MockStore_FindReusableApprovalGrant_Call) Run(run func(ctx context.Context, lookup domain.ApprovalGrantLookup)) *MockStore_FindReusableApprovalGrant_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.ApprovalGrantLookup))
+	})
+	return _c
+}
+
+func (_c *MockStore_FindReusableApprovalGrant_Call) Return(_a0 domain.AgentApproval, _a1 error) *MockStore_FindReusableApprovalGrant_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_FindReusableApprovalGrant_Call) RunAndReturn(run func(context.Context, domain.ApprovalGrantLookup) (domain.AgentApproval, error)) *MockStore_FindReusableApprovalGrant_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetSecretVersionForNode provides a mock function with given fields: ctx, node, agentID, secretID, versionSelector
+func (_m *MockStore) GetSecretVersionForNode(ctx context.Context, node domain.Node, agentID string, secretID string, versionSelector string) (domain.Secret, domain.SecretVersion, error) {
+	ret := _m.Called(ctx, node, agentID, secretID, versionSelector)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSecretVersionForNode")
+	}
+
+	var r0 domain.Secret
+	var r1 domain.SecretVersion
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Node, string, string, string) (domain.Secret, domain.SecretVersion, error)); ok {
+		return rf(ctx, node, agentID, secretID, versionSelector)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Node, string, string, string) domain.Secret); ok {
+		r0 = rf(ctx, node, agentID, secretID, versionSelector)
+	} else {
+		r0 = ret.Get(0).(domain.Secret)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.Node, string, string, string) domain.SecretVersion); ok {
+		r1 = rf(ctx, node, agentID, secretID, versionSelector)
+	} else {
+		r1 = ret.Get(1).(domain.SecretVersion)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, domain.Node, string, string, string) error); ok {
+		r2 = rf(ctx, node, agentID, secretID, versionSelector)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockStore_GetSecretVersionForNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSecretVersionForNode'
+type MockStore_GetSecretVersionForNode_Call struct {
+	*mock.Call
+}
+
+// GetSecretVersionForNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - node domain.Node
+//   - agentID string
+//   - secretID string
+//   - versionSelector string
+func (_e *MockStore_Expecter) GetSecretVersionForNode(ctx interface{}, node interface{}, agentID interface{}, secretID interface{}, versionSelector interface{}) *MockStore_GetSecretVersionForNode_Call {
+	return &MockStore_GetSecretVersionForNode_Call{Call: _e.mock.On("GetSecretVersionForNode", ctx, node, agentID, secretID, versionSelector)}
+}
+
+func (_c *MockStore_GetSecretVersionForNode_Call) Run(run func(ctx context.Context, node domain.Node, agentID string, secretID string, versionSelector string)) *MockStore_GetSecretVersionForNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.Node), args[2].(string), args[3].(string), args[4].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetSecretVersionForNode_Call) Return(_a0 domain.Secret, _a1 domain.SecretVersion, _a2 error) *MockStore_GetSecretVersionForNode_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockStore_GetSecretVersionForNode_Call) RunAndReturn(run func(context.Context, domain.Node, string, string, string) (domain.Secret, domain.SecretVersion, error)) *MockStore_GetSecretVersionForNode_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -406,6 +714,53 @@ func (_c *MockStore_PullNodeMailbox_Call) Return(_a0 domain.MailboxPull, _a1 err
 }
 
 func (_c *MockStore_PullNodeMailbox_Call) RunAndReturn(run func(context.Context, string, string, string, int64, int) (domain.MailboxPull, error)) *MockStore_PullNodeMailbox_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RecordSecretAccess provides a mock function with given fields: ctx, event
+func (_m *MockStore) RecordSecretAccess(ctx context.Context, event domain.SecretAccessEvent) error {
+	ret := _m.Called(ctx, event)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RecordSecretAccess")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.SecretAccessEvent) error); ok {
+		r0 = rf(ctx, event)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStore_RecordSecretAccess_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecordSecretAccess'
+type MockStore_RecordSecretAccess_Call struct {
+	*mock.Call
+}
+
+// RecordSecretAccess is a helper method to define mock.On call
+//   - ctx context.Context
+//   - event domain.SecretAccessEvent
+func (_e *MockStore_Expecter) RecordSecretAccess(ctx interface{}, event interface{}) *MockStore_RecordSecretAccess_Call {
+	return &MockStore_RecordSecretAccess_Call{Call: _e.mock.On("RecordSecretAccess", ctx, event)}
+}
+
+func (_c *MockStore_RecordSecretAccess_Call) Run(run func(ctx context.Context, event domain.SecretAccessEvent)) *MockStore_RecordSecretAccess_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.SecretAccessEvent))
+	})
+	return _c
+}
+
+func (_c *MockStore_RecordSecretAccess_Call) Return(_a0 error) *MockStore_RecordSecretAccess_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStore_RecordSecretAccess_Call) RunAndReturn(run func(context.Context, domain.SecretAccessEvent) error) *MockStore_RecordSecretAccess_Call {
 	_c.Call.Return(run)
 	return _c
 }

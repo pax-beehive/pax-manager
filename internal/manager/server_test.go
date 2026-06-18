@@ -200,7 +200,8 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 		t.Fatalf("user session response leaked native_id: %s", rec.Body.String())
 	}
 	session := got.Sessions[0]
-	if session.SessionID == "" || session.SessionID == "sess-1" || session.AgentType != "hermes" || session.TokenTotal != 123 {
+	if session.SessionID == "" || session.SessionID == "sess-1" || session.AgentType != "hermes" ||
+		session.TokenTotal != 123 {
 		t.Fatalf("unexpected session: %+v", session)
 	}
 	if len(session.WorkspaceRoots) != 1 || session.WorkspaceRoots[0] != "/workspace/repo" {

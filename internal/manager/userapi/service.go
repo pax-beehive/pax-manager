@@ -3,11 +3,13 @@ package userapi
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+	vaultsecrets "github.com/pax-beehive/pax-manager/internal/manager/secrets"
 )
 
 type Store interface {
@@ -31,6 +33,18 @@ type Store interface {
 		principal domain.UserPrincipal,
 	) ([]domain.UserAPIKey, error)
 	RevokeUserAPIKey(ctx context.Context, principal domain.UserPrincipal, keyID string) error
+	CreateSecret(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.CreateSecretRequest,
+		encrypted domain.SecretVersion,
+	) (domain.Secret, domain.SecretVersion, error)
+	ListSecrets(ctx context.Context, principal domain.UserPrincipal) ([]domain.Secret, error)
+	GetSecret(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		secretID string,
+	) (domain.Secret, error)
 	ListAgents(ctx context.Context, principal domain.UserPrincipal) ([]domain.Agent, error)
 	ListNodes(ctx context.Context, principal domain.UserPrincipal) ([]domain.Node, error)
 	GetNode(ctx context.Context, principal domain.UserPrincipal, nodeID string) (domain.Node, error)
@@ -92,6 +106,7 @@ type Service struct {
 	clock     func() time.Time
 	principal PrincipalResolver
 	secrets   SecretIssuer
+	vault     *vaultsecrets.Cipher
 }
 
 func NewService(
@@ -99,13 +114,88 @@ func NewService(
 	clock func() time.Time,
 	principal PrincipalResolver,
 	secrets SecretIssuer,
+	vault ...*vaultsecrets.Cipher,
 ) *Service {
+	cipher := firstVaultCipher(vault)
 	return &Service{
 		store:     store,
 		clock:     clock,
 		principal: principal,
 		secrets:   secrets,
+		vault:     cipher,
 	}
+}
+
+func firstVaultCipher(values []*vaultsecrets.Cipher) *vaultsecrets.Cipher {
+	if len(values) > 0 && values[0] != nil {
+		return values[0]
+	}
+	cipher, err := vaultsecrets.NewCipherFromEnv()
+	if err != nil {
+		panic(err)
+	}
+	return cipher
+}
+
+func (s *Service) CreateSecret(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.CreateSecretRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "name is required"}
+	}
+	if req.Value == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "value is required"}
+	}
+	encrypted, err := s.vault.Encrypt(req.Value, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	secret, version, err := s.store.CreateSecret(c, principal, req, domain.SecretVersion{
+		Ciphertext: encrypted.Ciphertext,
+		Nonce:      encrypted.Nonce,
+		KeyID:      encrypted.KeyID,
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"secret": secret, "version": version}, nil
+}
+
+func (s *Service) ListSecrets(
+	c context.Context,
+	meta auth.RequestMetadata,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	secrets, err := s.store.ListSecrets(c, principal)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"secrets": secrets}, nil
+}
+
+func (s *Service) GetSecret(
+	c context.Context,
+	meta auth.RequestMetadata,
+	secretID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	secret, err := s.store.GetSecret(c, principal, secretID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"secret": secret}, nil
 }
 
 func (s *Service) ListAgents(c context.Context, meta auth.RequestMetadata) (int, any, error) {

@@ -117,6 +117,27 @@ func CreateNodeOutboundMessage(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func ResolveNodeSecret(c context.Context, ctx *app.RequestContext) {
+	var req ResolveSecretRequest
+	decodeBody(ctx, &req)
+	status, data, err := serviceFromContext(ctx).paxd.ResolveSecret(c, nodeFromContext(ctx), req)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func WriteNodeSecretVersion(c context.Context, ctx *app.RequestContext) {
+	var req WriteSecretVersionRequest
+	decodeBody(ctx, &req)
+	req.SecretID = ctx.Param("secret_id")
+	status, data, err := serviceFromContext(
+		ctx,
+	).paxd.WriteSecretVersion(
+		c,
+		nodeFromContext(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func CreateNodeAgentApproval(c context.Context, ctx *app.RequestContext) {
 	var req CreateApprovalRequest
 	decodeBody(ctx, &req)
@@ -286,6 +307,27 @@ func CreateNodeRegistrationToken(c context.Context, ctx *app.RequestContext) {
 		c,
 		requestMetadata(ctx),
 		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func CreateUserSecret(c context.Context, ctx *app.RequestContext) {
+	var req CreateSecretRequest
+	decodeBody(ctx, &req)
+	status, data, err := serviceFromContext(ctx).userapi.CreateSecret(c, requestMetadata(ctx), req)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func ListUserSecrets(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.ListSecrets(c, requestMetadata(ctx))
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func GetUserSecret(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.GetSecret(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("secret_id"),
 	)
 	writeEndpointResult(ctx, status, data, err)
 }

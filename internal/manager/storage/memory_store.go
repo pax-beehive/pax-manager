@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,6 +27,10 @@ type MemoryStore struct {
 	mailbox          map[int64]MailboxMessage
 	offsets          map[string]int64
 	approvals        map[string]AgentApproval
+	secrets          map[string]Secret
+	secretVersions   map[string]SecretVersion
+	secretVersionIDs map[string][]string
+	secretAccess     []SecretAccessEvent
 }
 
 func NewMemoryStore(now func() time.Time) *MemoryStore {
@@ -43,6 +49,9 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		mailbox:          make(map[int64]MailboxMessage),
 		offsets:          make(map[string]int64),
 		approvals:        make(map[string]AgentApproval),
+		secrets:          make(map[string]Secret),
+		secretVersions:   make(map[string]SecretVersion),
+		secretVersionIDs: make(map[string][]string),
 	}
 }
 
@@ -204,6 +213,176 @@ func (s *MemoryStore) AuthenticateUserAPIKey(ctx context.Context, keyHash string
 	key.LastUsedAt = &now
 	s.userAPIKeys[keyID] = key
 	return user, nil
+}
+
+func (s *MemoryStore) CreateSecret(
+	ctx context.Context,
+	principal UserPrincipal,
+	req CreateSecretRequest,
+	encrypted SecretVersion,
+) (Secret, SecretVersion, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	secretID, err := newSecret("sec")
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	versionID, err := newSecret("secver")
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	now := s.now().UTC()
+	secret := Secret{
+		SecretID:         secretID,
+		OwnerUserID:      principal.User.UserID,
+		Name:             req.Name,
+		Kind:             req.Kind,
+		Description:      req.Description,
+		Metadata:         jsonDefault(req.Metadata, "{}"),
+		CurrentVersionID: versionID,
+		CurrentVersion:   1,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	version := encrypted
+	version.VersionID = versionID
+	version.SecretID = secretID
+	version.VersionNumber = 1
+	version.State = "active"
+	version.CreatedAt = now
+	version.CreatedByUserID = principal.User.UserID
+	s.secrets[secretID] = secret
+	s.secretVersions[versionID] = version
+	s.secretVersionIDs[secretID] = append(s.secretVersionIDs[secretID], versionID)
+	return secret, version, nil
+}
+
+func (s *MemoryStore) ListSecrets(ctx context.Context, principal UserPrincipal) ([]Secret, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Secret, 0)
+	for _, secret := range s.secrets {
+		if secret.DeletedAt != nil || !canAccessOwner(principal, secret.OwnerUserID) {
+			continue
+		}
+		out = append(out, secret)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) GetSecret(
+	ctx context.Context,
+	principal UserPrincipal,
+	secretID string,
+) (Secret, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	secret, ok := s.secrets[secretID]
+	if !ok || secret.DeletedAt != nil || !canAccessOwner(principal, secret.OwnerUserID) {
+		return Secret{}, ErrNotFound
+	}
+	return secret, nil
+}
+
+func (s *MemoryStore) GetSecretVersionForNode(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	secretID string,
+	versionSelector string,
+) (Secret, SecretVersion, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[agentID]
+	if !ok || agent.NodeID != node.NodeID || agent.OwnerUserID != node.OwnerUserID {
+		return Secret{}, SecretVersion{}, ErrNotFound
+	}
+	secret, ok := s.secrets[secretID]
+	if !ok || secret.DeletedAt != nil || secret.OwnerUserID != node.OwnerUserID {
+		return Secret{}, SecretVersion{}, ErrNotFound
+	}
+	versionID := secret.CurrentVersionID
+	if selector := strings.TrimSpace(versionSelector); selector != "" && selector != "latest" {
+		selector = strings.TrimPrefix(selector, "version:")
+		versionID = ""
+		for _, candidateID := range s.secretVersionIDs[secretID] {
+			candidate := s.secretVersions[candidateID]
+			if strconv.FormatInt(candidate.VersionNumber, 10) == selector {
+				versionID = candidateID
+				break
+			}
+		}
+	}
+	version, ok := s.secretVersions[versionID]
+	if !ok || version.State != "active" {
+		return Secret{}, SecretVersion{}, ErrNotFound
+	}
+	return secret, version, nil
+}
+
+func (s *MemoryStore) CreateSecretVersion(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	req WriteSecretVersionRequest,
+	encrypted SecretVersion,
+) (SecretVersion, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[agentID]
+	if !ok || agent.NodeID != node.NodeID || agent.OwnerUserID != node.OwnerUserID {
+		return SecretVersion{}, false, ErrNotFound
+	}
+	secret, ok := s.secrets[req.SecretID]
+	if !ok || secret.DeletedAt != nil || secret.OwnerUserID != node.OwnerUserID {
+		return SecretVersion{}, false, ErrNotFound
+	}
+	if req.IdempotencyKey != "" {
+		for _, version := range s.secretVersions {
+			if version.SecretID == req.SecretID &&
+				version.CreatedByNodeID == node.NodeID &&
+				version.CreatedByAgentID == agentID &&
+				version.IdempotencyKey == req.IdempotencyKey {
+				return version, secret.CurrentVersionID == version.VersionID, nil
+			}
+		}
+	}
+	versionID, err := newSecret("secver")
+	if err != nil {
+		return SecretVersion{}, false, err
+	}
+	version := encrypted
+	version.VersionID = versionID
+	version.SecretID = req.SecretID
+	version.VersionNumber = secret.CurrentVersion + 1
+	version.State = "active"
+	version.CreatedAt = s.now().UTC()
+	version.CreatedByNodeID = node.NodeID
+	version.CreatedByAgentID = agentID
+	version.IdempotencyKey = req.IdempotencyKey
+	if req.MakeCurrent {
+		if req.ExpectedCurrentVersionID == "" ||
+			req.ExpectedCurrentVersionID != secret.CurrentVersionID {
+			return SecretVersion{}, false, ErrConflict
+		}
+		secret.CurrentVersionID = versionID
+		secret.CurrentVersion = version.VersionNumber
+		secret.UpdatedAt = version.CreatedAt
+		s.secrets[req.SecretID] = secret
+	}
+	s.secretVersions[versionID] = version
+	s.secretVersionIDs[req.SecretID] = append(s.secretVersionIDs[req.SecretID], versionID)
+	return version, req.MakeCurrent, nil
+}
+
+func (s *MemoryStore) RecordSecretAccess(ctx context.Context, event SecretAccessEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.secretAccess = append(s.secretAccess, event)
+	return nil
 }
 
 func (s *MemoryStore) RegisterAgent(

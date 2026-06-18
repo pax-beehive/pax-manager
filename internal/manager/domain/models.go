@@ -238,6 +238,99 @@ type CreateUserAPIKeyRequest struct {
 	Name string `json:"name"`
 }
 
+type Secret struct {
+	SecretID         string          `json:"secret_id"`
+	OwnerUserID      string          `json:"owner_user_id"`
+	Name             string          `json:"name"`
+	Kind             string          `json:"kind,omitempty"`
+	Description      string          `json:"description,omitempty"`
+	Metadata         json.RawMessage `json:"metadata,omitempty"`
+	CurrentVersionID string          `json:"current_version_id,omitempty"`
+	CurrentVersion   int64           `json:"current_version,omitempty"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
+	DeletedAt        *time.Time      `json:"deleted_at,omitempty"`
+}
+
+type SecretVersion struct {
+	VersionID        string    `json:"version_id"`
+	SecretID         string    `json:"secret_id"`
+	VersionNumber    int64     `json:"version_number"`
+	Ciphertext       []byte    `json:"-"`
+	Nonce            []byte    `json:"-"`
+	KeyID            string    `json:"key_id"`
+	State            string    `json:"state"`
+	CreatedAt        time.Time `json:"created_at"`
+	CreatedByUserID  string    `json:"created_by_user_id,omitempty"`
+	CreatedByNodeID  string    `json:"created_by_node_id,omitempty"`
+	CreatedByAgentID string    `json:"created_by_agent_id,omitempty"`
+	IdempotencyKey   string    `json:"idempotency_key,omitempty"`
+}
+
+type CreateSecretRequest struct {
+	Name        string          `json:"name"`
+	Kind        string          `json:"kind"`
+	Description string          `json:"description"`
+	Metadata    json.RawMessage `json:"metadata"`
+	Value       string          `json:"value"`
+}
+
+type UpdateSecretValueRequest struct {
+	Value                    string `json:"value"`
+	MakeCurrent              bool   `json:"make_current"`
+	ExpectedCurrentVersionID string `json:"expected_current_version_id"`
+	IdempotencyKey           string `json:"idempotency_key"`
+	Reason                   string `json:"reason"`
+}
+
+type ResolveSecretRequest struct {
+	SecretID  string `json:"secret_id"`
+	Version   string `json:"version"`
+	AgentID   string `json:"agent_id"`
+	SessionID string `json:"session_id"`
+}
+
+type ResolveSecretResponse struct {
+	Status        string        `json:"status"`
+	ApprovalID    string        `json:"approval_id,omitempty"`
+	SecretID      string        `json:"secret_id,omitempty"`
+	VersionID     string        `json:"version_id,omitempty"`
+	VersionNumber int64         `json:"version_number,omitempty"`
+	Value         string        `json:"value,omitempty"`
+	Approval      AgentApproval `json:"approval,omitempty"`
+}
+
+type WriteSecretVersionRequest struct {
+	SecretID                 string `json:"secret_id"`
+	AgentID                  string `json:"agent_id"`
+	SessionID                string `json:"session_id"`
+	Value                    string `json:"value"`
+	MakeCurrent              bool   `json:"make_current"`
+	ExpectedCurrentVersionID string `json:"expected_current_version_id"`
+	IdempotencyKey           string `json:"idempotency_key"`
+	Reason                   string `json:"reason"`
+}
+
+type WriteSecretVersionResponse struct {
+	Status        string        `json:"status"`
+	ApprovalID    string        `json:"approval_id,omitempty"`
+	SecretID      string        `json:"secret_id,omitempty"`
+	VersionID     string        `json:"version_id,omitempty"`
+	VersionNumber int64         `json:"version_number,omitempty"`
+	Current       bool          `json:"current,omitempty"`
+	Approval      AgentApproval `json:"approval,omitempty"`
+}
+
+type SecretAccessEvent struct {
+	SecretID  string
+	VersionID string
+	NodeID    string
+	AgentID   string
+	SessionID string
+	Action    string
+	Result    string
+}
+
 type CreateUserAPIKeyResponse struct {
 	APIKey UserAPIKey `json:"api_key"`
 	Key    string     `json:"key"`

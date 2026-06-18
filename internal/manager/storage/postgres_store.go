@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -240,6 +242,233 @@ func (s *PostgresStore) AuthenticateUserAPIKey(ctx context.Context, keyHash stri
 		return User{}, err
 	}
 	return user, nil
+}
+
+func (s *PostgresStore) CreateSecret(
+	ctx context.Context,
+	principal UserPrincipal,
+	req CreateSecretRequest,
+	encrypted SecretVersion,
+) (Secret, SecretVersion, error) {
+	secretID, err := newSecret("sec")
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	versionID, err := newSecret("secver")
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := s.now().UTC()
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO secrets (
+			secret_id, owner_user_id, name, kind, description, metadata, created_at, updated_at
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$7)
+	`, secretID, principal.User.UserID, req.Name, req.Kind, req.Description,
+		jsonDefault(req.Metadata, "{}"), now); err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO secret_versions (
+			version_id, secret_id, version_number, ciphertext, nonce, key_id, state,
+			created_at, created_by_user_id
+		)
+		VALUES ($1,$2,1,$3,$4,$5,'active',$6,$7)
+	`, versionID, secretID, encrypted.Ciphertext, encrypted.Nonce, encrypted.KeyID, now,
+		principal.User.UserID); err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE secrets
+		SET current_version_id = $2, current_version = 1, updated_at = $3
+		WHERE secret_id = $1
+	`, secretID, versionID, now); err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	secret, err := scanSecret(tx.QueryRowContext(ctx, secretSelectSQL+`
+		WHERE secret_id = $1
+	`, secretID))
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	version, err := scanSecretVersion(tx.QueryRowContext(ctx, secretVersionSelectSQL+`
+		WHERE version_id = $1
+	`, versionID))
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	return secret, version, nil
+}
+
+func (s *PostgresStore) ListSecrets(
+	ctx context.Context,
+	principal UserPrincipal,
+) ([]Secret, error) {
+	rows, err := s.db.QueryContext(ctx, secretSelectSQL+`
+		WHERE owner_user_id = $1 AND deleted_at IS NULL
+		ORDER BY created_at DESC
+	`, principal.User.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	return scanSecrets(rows)
+}
+
+func (s *PostgresStore) GetSecret(
+	ctx context.Context,
+	principal UserPrincipal,
+	secretID string,
+) (Secret, error) {
+	return scanSecret(s.db.QueryRowContext(ctx, secretSelectSQL+`
+		WHERE secret_id = $1 AND owner_user_id = $2 AND deleted_at IS NULL
+	`, secretID, principal.User.UserID))
+}
+
+func (s *PostgresStore) GetSecretVersionForNode(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	secretID string,
+	versionSelector string,
+) (Secret, SecretVersion, error) {
+	if _, err := s.GetNodeAgent(ctx, node.NodeID, agentID); err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	secret, err := scanSecret(s.db.QueryRowContext(ctx, secretSelectSQL+`
+		WHERE secret_id = $1 AND owner_user_id = $2 AND deleted_at IS NULL
+	`, secretID, node.OwnerUserID))
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	versionQuery, args, err := secretVersionLookup(secret, versionSelector)
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	version, err := scanSecretVersion(s.db.QueryRowContext(ctx, versionQuery, args...))
+	if err != nil {
+		return Secret{}, SecretVersion{}, err
+	}
+	if version.State != "active" {
+		return Secret{}, SecretVersion{}, ErrUnauthorized
+	}
+	return secret, version, nil
+}
+
+func (s *PostgresStore) CreateSecretVersion(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	req WriteSecretVersionRequest,
+	encrypted SecretVersion,
+) (SecretVersion, bool, error) {
+	if _, err := s.GetNodeAgent(ctx, node.NodeID, agentID); err != nil {
+		return SecretVersion{}, false, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return SecretVersion{}, false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if req.IdempotencyKey != "" {
+		existing, current, err := s.findIdempotentSecretVersion(
+			ctx,
+			tx,
+			req.SecretID,
+			node.NodeID,
+			agentID,
+			req.IdempotencyKey,
+		)
+		if err == nil {
+			return existing, current, tx.Commit()
+		}
+		if !errors.Is(err, ErrNotFound) {
+			return SecretVersion{}, false, err
+		}
+	}
+	var currentVersionID string
+	var ownerUserID string
+	var nextVersionNumber int64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT owner_user_id, COALESCE(current_version_id, ''), current_version + 1
+		FROM secrets
+		WHERE secret_id = $1 AND deleted_at IS NULL
+		FOR UPDATE
+	`, req.SecretID).Scan(&ownerUserID, &currentVersionID, &nextVersionNumber); err != nil {
+		return SecretVersion{}, false, mapSQLError(err)
+	}
+	if ownerUserID != node.OwnerUserID {
+		return SecretVersion{}, false, ErrNotFound
+	}
+	versionID, err := newSecret("secver")
+	if err != nil {
+		return SecretVersion{}, false, err
+	}
+	now := s.now().UTC()
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO secret_versions (
+			version_id, secret_id, version_number, ciphertext, nonce, key_id, state,
+			created_at, created_by_node_id, created_by_agent_id, idempotency_key
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,'active',$7,$8,$9,$10)
+	`, versionID, req.SecretID, nextVersionNumber, encrypted.Ciphertext, encrypted.Nonce,
+		encrypted.KeyID, now, node.NodeID, agentID, req.IdempotencyKey); err != nil {
+		return SecretVersion{}, false, err
+	}
+	current := false
+	if req.MakeCurrent {
+		if req.ExpectedCurrentVersionID == "" || req.ExpectedCurrentVersionID != currentVersionID {
+			return SecretVersion{}, false, ErrConflict
+		}
+		result, err := tx.ExecContext(ctx, `
+			UPDATE secrets
+			SET current_version_id = $3, current_version = $4, updated_at = $5
+			WHERE secret_id = $1 AND current_version_id = $2
+		`, req.SecretID, req.ExpectedCurrentVersionID, versionID, nextVersionNumber, now)
+		if err != nil {
+			return SecretVersion{}, false, err
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return SecretVersion{}, false, err
+		}
+		if affected == 0 {
+			return SecretVersion{}, false, ErrConflict
+		}
+		current = true
+	}
+	version, err := scanSecretVersion(tx.QueryRowContext(ctx, secretVersionSelectSQL+`
+		WHERE version_id = $1
+	`, versionID))
+	if err != nil {
+		return SecretVersion{}, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return SecretVersion{}, false, err
+	}
+	return version, current, nil
+}
+
+func (s *PostgresStore) RecordSecretAccess(
+	ctx context.Context,
+	event SecretAccessEvent,
+) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO secret_access_events (
+			secret_id, version_id, node_id, agent_id, session_id, action, result, created_at
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+	`, event.SecretID, event.VersionID, event.NodeID, event.AgentID, event.SessionID,
+		event.Action, event.Result, s.now().UTC())
+	return err
 }
 
 func (s *PostgresStore) RegisterAgent(
@@ -1420,6 +1649,17 @@ const approvalReturningSQL = `
 		COALESCE(grant_revoked_by_user_id, ''), grant_revocation_reason, created_at,
 		expires_at, decided_at, raw_payload`
 
+const secretSelectSQL = `
+	SELECT secret_id, owner_user_id, name, kind, description, metadata,
+		COALESCE(current_version_id, ''), current_version, created_at, updated_at, deleted_at
+	FROM secrets`
+
+const secretVersionSelectSQL = `
+	SELECT version_id, secret_id, version_number, ciphertext, nonce, key_id, state, created_at,
+		COALESCE(created_by_user_id, ''), COALESCE(created_by_node_id, ''),
+		COALESCE(created_by_agent_id, ''), idempotency_key
+	FROM secret_versions`
+
 func approvalListQuery(filter ApprovalFilter) (string, []any) {
 	limit := filter.Limit
 	if limit <= 0 || limit > 100 {
@@ -1786,6 +2026,55 @@ func jsonOrDefault(v any, fallback string) []byte {
 		return []byte(fallback)
 	}
 	return data
+}
+
+func secretVersionLookup(
+	secret Secret,
+	versionSelector string,
+) (string, []any, error) {
+	selector := strings.TrimSpace(versionSelector)
+	if selector == "" || selector == "latest" {
+		if secret.CurrentVersionID == "" {
+			return "", nil, ErrNotFound
+		}
+		return secretVersionSelectSQL + `
+			WHERE version_id = $1 AND secret_id = $2
+		`, []any{secret.CurrentVersionID, secret.SecretID}, nil
+	}
+	selector = strings.TrimPrefix(selector, "version:")
+	versionNumber, err := strconv.ParseInt(selector, 10, 64)
+	if err != nil || versionNumber <= 0 {
+		return "", nil, ErrNotFound
+	}
+	return secretVersionSelectSQL + `
+		WHERE secret_id = $1 AND version_number = $2
+	`, []any{secret.SecretID, versionNumber}, nil
+}
+
+func (s *PostgresStore) findIdempotentSecretVersion(
+	ctx context.Context,
+	tx *sql.Tx,
+	secretID string,
+	nodeID string,
+	agentID string,
+	idempotencyKey string,
+) (SecretVersion, bool, error) {
+	version, err := scanSecretVersion(tx.QueryRowContext(ctx, secretVersionSelectSQL+`
+		WHERE secret_id = $1
+			AND created_by_node_id = $2
+			AND created_by_agent_id = $3
+			AND idempotency_key = $4
+	`, secretID, nodeID, agentID, idempotencyKey))
+	if err != nil {
+		return SecretVersion{}, false, err
+	}
+	var currentVersionID string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(current_version_id, '') FROM secrets WHERE secret_id = $1
+	`, secretID).Scan(&currentVersionID); err != nil {
+		return SecretVersion{}, false, mapSQLError(err)
+	}
+	return version, currentVersionID == version.VersionID, nil
 }
 
 func defaultApprovalDomain(v string) string {
