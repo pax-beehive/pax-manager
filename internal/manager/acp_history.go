@@ -36,6 +36,7 @@ func projectACPTransportMessage(
 	nodeID string,
 	stream string,
 	seq int64,
+	historyGroupID string,
 	payload json.RawMessage,
 ) error {
 	if stream != domain.TransportStreamPaxdToManager {
@@ -59,7 +60,7 @@ func projectACPTransportMessage(
 		rpc.Method,
 		"acp",
 	)
-	logicalKey := acpHistoryLogicalKey(agentID, stream, seq, fields)
+	logicalKey := acpHistoryLogicalKey(agentID, stream, seq, historyGroupID, fields)
 	messageID := acpHistoryMessageID(logicalKey)
 	msg := domain.Message{
 		MessageID:   messageID,
@@ -86,6 +87,7 @@ func acpHistoryLogicalKey(
 	agentID string,
 	stream string,
 	seq int64,
+	historyGroupID string,
 	fields acpHistoryFields,
 ) string {
 	if fields.SessionID != "" && fields.TurnID != "" {
@@ -95,6 +97,17 @@ func acpHistoryLogicalKey(
 			stream,
 			firstNonEmpty(fields.SessionID, "_"),
 			fields.TurnID,
+			firstNonEmpty(fields.SessionUpdate, "_"),
+			firstNonEmpty(fields.Role, "_"),
+		)
+	}
+	if fields.SessionID != "" && historyGroupID != "" {
+		return fmt.Sprintf(
+			"acp:%s:%s:%s:%s:%s:%s",
+			agentID,
+			stream,
+			fields.SessionID,
+			historyGroupID,
 			firstNonEmpty(fields.SessionUpdate, "_"),
 			firstNonEmpty(fields.Role, "_"),
 		)
@@ -160,6 +173,9 @@ func findString(v any, keys ...string) string {
 		for _, key := range keys {
 			if val, ok := typed[key]; ok {
 				if str, ok := val.(string); ok {
+					return str
+				}
+				if str := findString(val, keys...); str != "" {
 					return str
 				}
 			}

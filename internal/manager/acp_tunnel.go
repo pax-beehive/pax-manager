@@ -31,17 +31,18 @@ type acpTunnelKey struct {
 }
 
 type ACPTunnelAgent struct {
-	agentID      string
-	nodeID       string
-	ownerUserID  string
-	sessionID    string
-	ws           *websocket.Conn
-	mu           sync.Mutex
-	agentWriteMu sync.Mutex
-	userWriteMu  sync.Mutex
-	paired       bool
-	userWS       *websocket.Conn
-	store        domain.Store
+	agentID       string
+	nodeID        string
+	ownerUserID   string
+	sessionID     string
+	ws            *websocket.Conn
+	mu            sync.Mutex
+	agentWriteMu  sync.Mutex
+	userWriteMu   sync.Mutex
+	paired        bool
+	userWS        *websocket.Conn
+	store         domain.Store
+	historyGroups map[string]string
 }
 
 type acpTunnelEnvelope struct {
@@ -225,6 +226,12 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 		if err != nil {
 			return err
 		}
+		if !inserted {
+			if err := a.writeAckToAgent(messageType, domain.TransportStreamPaxdToManager, env.Seq); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := projectACPTransportMessage(
 			ctx,
 			a.store,
@@ -233,15 +240,13 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 			a.nodeID,
 			domain.TransportStreamPaxdToManager,
 			env.Seq,
+			a.historyGroupID(env.Seq, env.Payload),
 			env.Payload,
 		); err != nil {
 			return err
 		}
 		if err := a.writeAckToAgent(messageType, domain.TransportStreamPaxdToManager, env.Seq); err != nil {
 			return err
-		}
-		if !inserted {
-			continue
 		}
 
 		frame := newACPFrameContext(a, acpAgentToUser, messageType, []byte(env.Payload))
@@ -291,6 +296,7 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 		); err != nil {
 			return err
 		}
+		a.observeHistoryBoundary(env.Payload)
 	}
 }
 
@@ -884,6 +890,43 @@ func (a *ACPTunnelAgent) wrapManagerToPaxd(ctx context.Context, payload []byte) 
 	}
 	enveloped, err := marshalACPTunnelData(domain.TransportStreamManagerToPaxd, seq, raw)
 	return enveloped, seq, err
+}
+
+func (a *ACPTunnelAgent) historyGroupID(seq int64, payload json.RawMessage) string {
+	var rpc acpHistoryRPC
+	_ = json.Unmarshal(payload, &rpc)
+	fields := extractACPHistoryFields(payload, rpc)
+	fields, ok := normalizeACPTextUpdate(rpc, fields)
+	if !ok {
+		return ""
+	}
+	key := firstNonEmpty(fields.SessionID, a.sessionID) + "\x00" +
+		firstNonEmpty(fields.SessionUpdate, "_") + "\x00" +
+		firstNonEmpty(fields.Role, "_")
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.historyGroups == nil {
+		a.historyGroups = make(map[string]string)
+	}
+	if groupID, ok := a.historyGroups[key]; ok {
+		return groupID
+	}
+	groupID := fmt.Sprintf("seq:%d", seq)
+	a.historyGroups[key] = groupID
+	return groupID
+}
+
+func (a *ACPTunnelAgent) observeHistoryBoundary(payload json.RawMessage) {
+	var rpc acpJSONRPCMessage
+	if err := json.Unmarshal(payload, &rpc); err != nil {
+		return
+	}
+	if len(rpc.Result) == 0 && len(rpc.Error) == 0 {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.historyGroups = nil
 }
 
 func (a *ACPTunnelAgent) replayUnackedToAgent(ctx context.Context) error {
