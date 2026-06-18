@@ -24,6 +24,8 @@ type ACPTunnelHub struct {
 
 type ACPTunnelAgent struct {
 	agentID      string
+	nodeID       string
+	ownerUserID  string
 	ws           *websocket.Conn
 	mu           sync.Mutex
 	agentWriteMu sync.Mutex
@@ -184,6 +186,8 @@ func (a *ACPTunnelAgent) forwardAgentFrames() error {
 			context.Background(),
 			a.store,
 			a.agentID,
+			a.ownerUserID,
+			a.nodeID,
 			domain.TransportStreamPaxdToManager,
 			env.Seq,
 			env.Payload,
@@ -255,7 +259,13 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn := &ACPTunnelAgent{agentID: initial.AgentID, ws: ws, store: s.store}
+	conn := &ACPTunnelAgent{
+		agentID:     initial.AgentID,
+		nodeID:      initial.NodeID,
+		ownerUserID: initial.OwnerUserID,
+		ws:          ws,
+		store:       s.store,
+	}
 	s.acpTunnels.add(initial.AgentID, conn)
 	log.Printf("agent acp tunnel connected: agent_id=%s auth_mode=%s", initial.AgentID, authMode)
 	defer func() {
@@ -297,8 +307,10 @@ func (s *Server) authenticateAgentACPTunnel(
 			}
 		}
 		return agentWSInitialRequest{
-			AgentID:   agent.AgentID,
-			SessionID: websocketSessionID(r),
+			AgentID:     agent.AgentID,
+			NodeID:      agent.NodeID,
+			OwnerUserID: agent.OwnerUserID,
+			SessionID:   websocketSessionID(r),
 		}, "agent_key", nil
 	}
 
@@ -331,8 +343,10 @@ func (s *Server) authenticateAgentACPTunnel(
 	}
 
 	return agentWSInitialRequest{
-		AgentID:   agent.AgentID,
-		SessionID: websocketSessionID(r),
+		AgentID:     agent.AgentID,
+		NodeID:      agent.NodeID,
+		OwnerUserID: agent.OwnerUserID,
+		SessionID:   websocketSessionID(r),
 	}, "node_key", nil
 }
 
@@ -450,16 +464,6 @@ func (a *ACPTunnelAgent) wrapManagerToPaxd(ctx context.Context, payload []byte) 
 		Status:         domain.TransportStatusPending,
 	}
 	if err := a.store.SaveTransportFrame(ctx, frame); err != nil {
-		return nil, 0, err
-	}
-	if err := projectACPTransportMessage(
-		ctx,
-		a.store,
-		a.agentID,
-		domain.TransportStreamManagerToPaxd,
-		seq,
-		raw,
-	); err != nil {
 		return nil, 0, err
 	}
 	enveloped, err := marshalACPTunnelData(domain.TransportStreamManagerToPaxd, seq, raw)
