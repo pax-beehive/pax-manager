@@ -30,6 +30,10 @@ services:
       CLOUDFLARE_ACCESS_DISABLED: "true"
       ALLOW_LOCAL_USER_HEADER: "true"
       ADMIN_EMAILS: local@example.local
+      PAXD_ARTIFACT_GCS_MOCK: "true"
+      PAXD_ARTIFACT_UPLOAD_AUDIENCE: "pax-manager-integration"
+      PAXD_ARTIFACT_UPLOAD_PRINCIPALS: "release-bot@example.iam.gserviceaccount.com"
+      PAXD_ARTIFACT_DOWNLOAD_URL_TTL_SECONDS: "60"
     ports:
       - "${INTEGRATION_PORT:-19879}:9879"
 

@@ -31,6 +31,8 @@ type MemoryStore struct {
 	secretVersions   map[string]SecretVersion
 	secretVersionIDs map[string][]string
 	secretAccess     []SecretAccessEvent
+	paxdArtifacts    map[string]PaxdArtifact
+	paxdArtifactKeys map[string]string
 }
 
 func NewMemoryStore(now func() time.Time) *MemoryStore {
@@ -52,6 +54,8 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		secrets:          make(map[string]Secret),
 		secretVersions:   make(map[string]SecretVersion),
 		secretVersionIDs: make(map[string][]string),
+		paxdArtifacts:    make(map[string]PaxdArtifact),
+		paxdArtifactKeys: make(map[string]string),
 	}
 }
 
@@ -383,6 +387,94 @@ func (s *MemoryStore) RecordSecretAccess(ctx context.Context, event SecretAccess
 	defer s.mu.Unlock()
 	s.secretAccess = append(s.secretAccess, event)
 	return nil
+}
+
+func (s *MemoryStore) CreatePaxdArtifact(
+	ctx context.Context,
+	req CreatePaxdArtifactRequest,
+	createdBy string,
+) (PaxdArtifact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := s.now().UTC()
+	key := paxdArtifactObjectKey(req.Bucket, req.Object, req.Generation)
+	artifactID := s.paxdArtifactKeys[key]
+	if artifactID == "" {
+		var err error
+		artifactID, err = newSecret("paxdart")
+		if err != nil {
+			return PaxdArtifact{}, err
+		}
+	}
+	artifact := PaxdArtifact{
+		ArtifactID:  artifactID,
+		Platform:    req.Platform,
+		Tags:        append([]string(nil), req.Tags...),
+		Version:     req.Version,
+		BuildID:     req.BuildID,
+		Bucket:      req.Bucket,
+		Object:      req.Object,
+		Generation:  req.Generation,
+		SHA256:      req.SHA256,
+		SizeBytes:   req.SizeBytes,
+		ContentType: req.ContentType,
+		CreatedBy:   createdBy,
+		CreatedAt:   now,
+	}
+	if existing, ok := s.paxdArtifacts[artifactID]; ok {
+		artifact.CreatedAt = existing.CreatedAt
+	}
+	s.paxdArtifacts[artifactID] = artifact
+	s.paxdArtifactKeys[key] = artifactID
+	return artifact, nil
+}
+
+func (s *MemoryStore) FindPaxdArtifact(
+	ctx context.Context,
+	req FindPaxdArtifactRequest,
+) (PaxdArtifact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var found PaxdArtifact
+	for _, artifact := range s.paxdArtifacts {
+		if artifact.DeletedAt != nil ||
+			artifact.Platform != req.Platform ||
+			!paxdArtifactHasTags(artifact.Tags, req.Tags) {
+			continue
+		}
+		if found.ArtifactID == "" ||
+			artifact.CreatedAt.After(found.CreatedAt) ||
+			(artifact.CreatedAt.Equal(found.CreatedAt) && artifact.ArtifactID > found.ArtifactID) {
+			found = artifact
+		}
+	}
+	if found.ArtifactID == "" {
+		return PaxdArtifact{}, ErrNotFound
+	}
+	found.Tags = append([]string(nil), found.Tags...)
+	return found, nil
+}
+
+func paxdArtifactObjectKey(bucket string, object string, generation int64) string {
+	return bucket + "\x00" + object + "\x00" + strconv.FormatInt(generation, 10)
+}
+
+func paxdArtifactHasTags(artifactTags []string, requiredTags []string) bool {
+	if len(requiredTags) == 0 {
+		return true
+	}
+	seen := make(map[string]bool, len(artifactTags))
+	for _, tag := range artifactTags {
+		seen[tag] = true
+	}
+	for _, tag := range requiredTags {
+		if !seen[tag] {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *MemoryStore) RegisterAgent(
