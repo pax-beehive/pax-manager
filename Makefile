@@ -18,6 +18,7 @@ GOIMPORTS := go tool golang.org/x/tools/cmd/goimports
 GOLINES := go tool github.com/segmentio/golines
 GO_MODULE := github.com/pax-beehive/pax-manager
 GOFILES_NO_GENERATED := $$(find cmd internal integration -name '*.go' -type f -exec sh -c 'for f do if ! head -n 3 "$$f" | grep -q "Code generated"; then printf "%s\n" "$$f"; fi; done' sh {} +)
+COVER_PKGS := $$(go list ./cmd/... ./internal/... | grep -vE '/mocks$$|/internal/transport/http/(model|router)')
 
 .PHONY: help
 help:
@@ -26,6 +27,7 @@ help:
 	@printf "  make run            Run manager locally with DATABASE_URL\n"
 	@printf "  make run-memory     Run manager locally with in-memory storage\n"
 	@printf "  make test           Run Go tests\n"
+	@printf "  make test-coverage  Run Go tests with coverage\n"
 	@printf "  make test-race      Run Go tests with race detector\n"
 	@printf "  make integration-test Start Docker Compose and run integration tests\n"
 	@printf "  make integration-down Stop the integration Docker Compose stack\n"
@@ -63,6 +65,11 @@ run-memory:
 .PHONY: test
 test:
 	GOCACHE=$(GOCACHE) go test -count=1 $(PKG)
+
+.PHONY: test-coverage
+test-coverage:
+	GOCACHE=$(GOCACHE) go test -count=1 -covermode=atomic -coverprofile=coverage.out $(COVER_PKGS)
+	go tool cover -func=coverage.out
 
 .PHONY: test-race
 test-race:
