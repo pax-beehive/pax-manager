@@ -471,6 +471,70 @@ func (s *PostgresStore) RecordSecretAccess(
 	return err
 }
 
+const paxdArtifactSelectSQL = `
+	SELECT artifact_id, platform, array_to_json(tags), version, build_id, bucket, object,
+		generation, sha256, size_bytes, content_type, created_by, created_at, deleted_at
+	FROM paxd_artifacts
+`
+
+func (s *PostgresStore) CreatePaxdArtifact(
+	ctx context.Context,
+	req CreatePaxdArtifactRequest,
+	createdBy string,
+) (PaxdArtifact, error) {
+	artifactID, err := newSecret("paxdart")
+	if err != nil {
+		return PaxdArtifact{}, err
+	}
+	row := s.db.QueryRowContext(ctx, `
+		INSERT INTO paxd_artifacts (
+			artifact_id, platform, tags, version, build_id, bucket, object, generation,
+			sha256, size_bytes, content_type, created_by, created_at
+		)
+		VALUES (
+			$1, $2,
+			CASE WHEN $3 = '' THEN '{}'::text[] ELSE string_to_array($3, ',')::text[] END,
+			$4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+		)
+		ON CONFLICT (bucket, object, generation) DO UPDATE SET
+			platform = EXCLUDED.platform,
+			tags = EXCLUDED.tags,
+			version = EXCLUDED.version,
+			build_id = EXCLUDED.build_id,
+			sha256 = EXCLUDED.sha256,
+			size_bytes = EXCLUDED.size_bytes,
+			content_type = EXCLUDED.content_type,
+			created_by = EXCLUDED.created_by,
+			deleted_at = NULL
+		RETURNING artifact_id, platform, array_to_json(tags), version, build_id, bucket, object,
+			generation, sha256, size_bytes, content_type, created_by, created_at, deleted_at
+	`, artifactID, req.Platform, paxdArtifactTagList(req.Tags), req.Version, req.BuildID,
+		req.Bucket, req.Object, req.Generation, req.SHA256, req.SizeBytes, req.ContentType,
+		createdBy, s.now().UTC())
+	return scanPaxdArtifact(row)
+}
+
+func (s *PostgresStore) FindPaxdArtifact(
+	ctx context.Context,
+	req FindPaxdArtifactRequest,
+) (PaxdArtifact, error) {
+	row := s.db.QueryRowContext(ctx, paxdArtifactSelectSQL+`
+		WHERE platform = $1
+			AND tags @> CASE
+				WHEN $2 = '' THEN '{}'::text[]
+				ELSE string_to_array($2, ',')::text[]
+			END
+			AND deleted_at IS NULL
+		ORDER BY created_at DESC, artifact_id DESC
+		LIMIT 1
+	`, req.Platform, paxdArtifactTagList(req.Tags))
+	return scanPaxdArtifact(row)
+}
+
+func paxdArtifactTagList(tags []string) string {
+	return strings.Join(tags, ",")
+}
+
 func (s *PostgresStore) RegisterAgent(
 	ctx context.Context,
 	owner User,

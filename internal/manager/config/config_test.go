@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +22,7 @@ func TestLoad(t *testing.T) {
 			require.False(t, cfg.AllowLocalUserHeader)
 			require.False(t, cfg.CloudflareAccessDisabled)
 			require.Equal(t, int64(1<<20), cfg.MaxBodyBytes)
+			require.Equal(t, 15*time.Minute, cfg.PaxdArtifactDownloadTTL)
 			require.True(t, cfg.AdminEmails["toddzheng024@gmail.com"])
 			require.True(t, cfg.AdminEmails["gengcongkai456789@gmail.com"])
 			require.True(t, cfg.AdminEmails["zhangjiahang0725@gmail.com"])
@@ -46,6 +48,17 @@ func TestLoad(t *testing.T) {
 			t.Setenv("API_RATE_LIMIT_BURST", "2")
 			t.Setenv("REGISTER_RATE_LIMIT_PER_MINUTE", "3")
 			t.Setenv("REGISTER_RATE_LIMIT_BURST", "1")
+			t.Setenv("PAXD_ARTIFACT_DOWNLOAD_URL_TTL_SECONDS", "60")
+			t.Setenv("PAXD_ARTIFACT_UPLOAD_AUDIENCE", "https://manager.example.com")
+			t.Setenv(
+				"PAXD_ARTIFACT_UPLOAD_PRINCIPALS",
+				"release-bot@example.iam.gserviceaccount.com",
+			)
+			t.Setenv(
+				"PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT",
+				"signer@example.iam.gserviceaccount.com",
+			)
+			t.Setenv("PAXD_ARTIFACT_GCS_MOCK", "true")
 
 			cfg := config.Load()
 
@@ -66,6 +79,18 @@ func TestLoad(t *testing.T) {
 			require.Equal(t, 2, cfg.APIRateLimitBurst)
 			require.Equal(t, 3, cfg.RegisterLimitPerMinute)
 			require.Equal(t, 1, cfg.RegisterLimitBurst)
+			require.Equal(t, time.Minute, cfg.PaxdArtifactDownloadTTL)
+			require.Equal(t, "https://manager.example.com", cfg.PaxdArtifactUploadAudience)
+			require.True(
+				t,
+				cfg.PaxdArtifactUploadPrincipals["release-bot@example.iam.gserviceaccount.com"],
+			)
+			require.Equal(
+				t,
+				"signer@example.iam.gserviceaccount.com",
+				cfg.PaxdArtifactSigningServiceAccount,
+			)
+			require.True(t, cfg.PaxdArtifactGCSMock)
 		},
 	)
 }
@@ -102,6 +127,11 @@ func clearConfigEnv(t *testing.T) {
 		"API_RATE_LIMIT_BURST",
 		"REGISTER_RATE_LIMIT_PER_MINUTE",
 		"REGISTER_RATE_LIMIT_BURST",
+		"PAXD_ARTIFACT_DOWNLOAD_URL_TTL_SECONDS",
+		"PAXD_ARTIFACT_UPLOAD_AUDIENCE",
+		"PAXD_ARTIFACT_UPLOAD_PRINCIPALS",
+		"PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT",
+		"PAXD_ARTIFACT_GCS_MOCK",
 	} {
 		t.Setenv(key, "")
 	}

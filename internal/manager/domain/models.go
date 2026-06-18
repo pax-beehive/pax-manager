@@ -331,6 +331,53 @@ type SecretAccessEvent struct {
 	Result    string
 }
 
+type PaxdArtifact struct {
+	ArtifactID  string     `json:"artifact_id"`
+	Platform    string     `json:"platform"`
+	Tags        []string   `json:"tags"`
+	Version     string     `json:"version"`
+	BuildID     string     `json:"build_id,omitempty"`
+	Bucket      string     `json:"bucket"`
+	Object      string     `json:"object"`
+	Generation  int64      `json:"generation"`
+	SHA256      string     `json:"sha256"`
+	SizeBytes   int64      `json:"size_bytes"`
+	ContentType string     `json:"content_type,omitempty"`
+	CreatedBy   string     `json:"created_by,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
+}
+
+type CreatePaxdArtifactRequest struct {
+	Platform    string   `json:"platform"`
+	Tags        []string `json:"tags"`
+	Version     string   `json:"version"`
+	BuildID     string   `json:"build_id"`
+	Bucket      string   `json:"bucket"`
+	Object      string   `json:"object"`
+	Generation  int64    `json:"generation"`
+	SHA256      string   `json:"sha256"`
+	SizeBytes   int64    `json:"size_bytes"`
+	ContentType string   `json:"content_type"`
+}
+
+type FindPaxdArtifactRequest struct {
+	Platform string
+	Tags     []string
+}
+
+type PaxdArtifactDownloadResponse struct {
+	URL        string       `json:"url"`
+	ExpiresAt  time.Time    `json:"expires_at"`
+	Artifact   PaxdArtifact `json:"artifact"`
+	SHA256     string       `json:"sha256"`
+	SizeBytes  int64        `json:"size_bytes"`
+	Version    string       `json:"version"`
+	Platform   string       `json:"platform"`
+	Tags       []string     `json:"tags"`
+	Generation int64        `json:"generation"`
+}
+
 type CreateUserAPIKeyResponse struct {
 	APIKey UserAPIKey `json:"api_key"`
 	Key    string     `json:"key"`

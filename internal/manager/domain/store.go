@@ -49,6 +49,12 @@ type Store interface {
 		encrypted SecretVersion,
 	) (SecretVersion, bool, error)
 	RecordSecretAccess(ctx context.Context, event SecretAccessEvent) error
+	CreatePaxdArtifact(
+		ctx context.Context,
+		req CreatePaxdArtifactRequest,
+		createdBy string,
+	) (PaxdArtifact, error)
+	FindPaxdArtifact(ctx context.Context, req FindPaxdArtifactRequest) (PaxdArtifact, error)
 	RegisterAgent(
 		ctx context.Context,
 		owner User,

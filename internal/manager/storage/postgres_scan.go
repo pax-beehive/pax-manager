@@ -362,6 +362,35 @@ func scanSecretVersion(row rowScanner) (SecretVersion, error) {
 	return version, nil
 }
 
+func scanPaxdArtifact(row rowScanner) (PaxdArtifact, error) {
+	var artifact PaxdArtifact
+	var tags []byte
+	if err := row.Scan(
+		&artifact.ArtifactID,
+		&artifact.Platform,
+		&tags,
+		&artifact.Version,
+		&artifact.BuildID,
+		&artifact.Bucket,
+		&artifact.Object,
+		&artifact.Generation,
+		&artifact.SHA256,
+		&artifact.SizeBytes,
+		&artifact.ContentType,
+		&artifact.CreatedBy,
+		&artifact.CreatedAt,
+		&artifact.DeletedAt,
+	); err != nil {
+		return PaxdArtifact{}, mapSQLError(err)
+	}
+	if len(tags) > 0 {
+		if err := json.Unmarshal(tags, &artifact.Tags); err != nil {
+			return PaxdArtifact{}, err
+		}
+	}
+	return artifact, nil
+}
+
 func scanMailboxRows(rows *sql.Rows) ([]MailboxMessage, error) {
 	out := make([]MailboxMessage, 0)
 	for rows.Next() {

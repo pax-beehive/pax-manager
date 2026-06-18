@@ -33,6 +33,7 @@ type Service struct {
 	secrets         auth.Secrets
 	paxd            *paxd.Service
 	userapi         *userapi.Service
+	paxdArtifacts   paxdArtifactBackend
 }
 
 type Server = Service
@@ -70,6 +71,7 @@ func newServer(cfg Config, store Store) *Service {
 		authService,
 		secrets,
 	)
+	s.paxdArtifacts = newGCPPaxdArtifactBackend(cfg)
 	return s
 }
 
@@ -125,6 +127,8 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		"/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/tunnel",
 		adaptor.HertzHandler(http.HandlerFunc(s.handleUserACPTunnel)),
 	)
+	h.GET("/api/v1/public/paxd/download", s.handleDownloadPaxdArtifact)
+	h.POST("/api/v1/admin/paxd/artifacts", s.handlePublishPaxdArtifact)
 
 	h.Static("/", "static")
 }

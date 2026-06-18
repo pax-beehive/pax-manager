@@ -2,6 +2,7 @@ package manager
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -63,6 +64,12 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel"]; !ok {
 		t.Fatalf("missing /api/v1/user session ACP tunnel websocket path")
 	}
+	if _, ok := doc.Paths["/api/v1/public/paxd/download"]; !ok {
+		t.Fatalf("missing /api/v1/public/paxd/download path")
+	}
+	if _, ok := doc.Paths["/api/v1/admin/paxd/artifacts"]; !ok {
+		t.Fatalf("missing /api/v1/admin/paxd/artifacts path")
+	}
 	for _, removed := range []string{
 		"/api/user/sessions/{sessionId}",
 		"/api/user/sessions/{sessionId}/messages",
@@ -92,6 +99,101 @@ func TestOpenAPIUI(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Fatalf("openapi ui missing %q", want)
 		}
+	}
+}
+
+func TestPaxdArtifactPublishAndDownload(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	srv.cfg.PaxdArtifactUploadAudience = "https://manager.example.com"
+	srv.cfg.PaxdArtifactUploadPrincipals = map[string]bool{
+		"release-bot@example.iam.gserviceaccount.com": true,
+	}
+	srv.cfg.PaxdArtifactDownloadTTL = time.Minute
+	fakeBackend := &fakePaxdArtifactBackend{
+		principal: "release-bot@example.iam.gserviceaccount.com",
+		attrs: paxdArtifactObjectAttrs{
+			Generation:  12345,
+			SizeBytes:   4096,
+			ContentType: "application/octet-stream",
+		},
+	}
+	srv.paxdArtifacts = fakeBackend
+
+	publishReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/admin/paxd/artifacts",
+		bytes.NewReader([]byte(`{
+			"platform":"Linux/AMD64",
+			"tags":["stable","latest"],
+			"version":"v0.1.2",
+			"build_id":"build-123",
+			"bucket":"paxd-releases",
+			"object":"paxd/v0.1.2/linux-amd64/paxd",
+			"sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+		}`)),
+	)
+	setJSON(publishReq)
+	publishReq.Header.Set("Authorization", "Bearer valid-token")
+	publishRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(publishRec, publishReq)
+	if publishRec.Code != http.StatusOK {
+		t.Fatalf("publish code = %d, body = %s", publishRec.Code, publishRec.Body.String())
+	}
+	published := decodeData[struct {
+		Artifact PaxdArtifact `json:"artifact"`
+	}](t, publishRec.Body.Bytes())
+	if published.Artifact.Platform != "linux/amd64" {
+		t.Fatalf("platform = %q", published.Artifact.Platform)
+	}
+	if published.Artifact.Generation != 12345 || published.Artifact.SizeBytes != 4096 {
+		t.Fatalf("artifact attrs = %+v", published.Artifact)
+	}
+	if got := strings.Join(published.Artifact.Tags, ","); got != "latest,stable" {
+		t.Fatalf("tags = %q", got)
+	}
+
+	downloadReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/public/paxd/download?platform=linux/amd64&tags=stable",
+		nil,
+	)
+	downloadRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(downloadRec, downloadReq)
+	if downloadRec.Code != http.StatusOK {
+		t.Fatalf("download code = %d, body = %s", downloadRec.Code, downloadRec.Body.String())
+	}
+	download := decodeData[PaxdArtifactDownloadResponse](t, downloadRec.Body.Bytes())
+	if download.URL != "https://signed.example/paxd/v0.1.2/linux-amd64/paxd" {
+		t.Fatalf("signed url = %q", download.URL)
+	}
+	if !download.ExpiresAt.Equal(srv.clock().UTC().Add(time.Minute)) {
+		t.Fatalf("expires_at = %s", download.ExpiresAt)
+	}
+	if fakeBackend.signedArtifact.ArtifactID != published.Artifact.ArtifactID {
+		t.Fatalf("signed artifact = %+v", fakeBackend.signedArtifact)
+	}
+}
+
+func TestPaxdArtifactPublishRequiresBearerToken(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	srv.cfg.PaxdArtifactUploadAudience = "https://manager.example.com"
+	srv.cfg.PaxdArtifactUploadPrincipals = map[string]bool{
+		"release-bot@example.iam.gserviceaccount.com": true,
+	}
+	srv.paxdArtifacts = &fakePaxdArtifactBackend{
+		principal: "release-bot@example.iam.gserviceaccount.com",
+	}
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/admin/paxd/artifacts",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	setJSON(req)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("missing auth code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -1183,7 +1285,11 @@ func TestNodeStatusReportsAccumulateSessionBatches(t *testing.T) {
 	registerRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(registerRec, registerReq)
 	if registerRec.Code != http.StatusOK {
-		t.Fatalf("register node agent code = %d, body = %s", registerRec.Code, registerRec.Body.String())
+		t.Fatalf(
+			"register node agent code = %d, body = %s",
+			registerRec.Code,
+			registerRec.Body.String(),
+		)
 	}
 	registered := decodeData[RegisterNodeAgentResponse](t, registerRec.Body.Bytes())
 
@@ -1459,6 +1565,43 @@ func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 		t.Fatalf("bad register response: %+v", registered)
 	}
 	return srv, registered.APIKey
+}
+
+type fakePaxdArtifactBackend struct {
+	principal      string
+	attrs          paxdArtifactObjectAttrs
+	signedArtifact PaxdArtifact
+	expiresAt      time.Time
+}
+
+func (b *fakePaxdArtifactBackend) SignDownloadURL(
+	ctx context.Context,
+	artifact PaxdArtifact,
+	expiresAt time.Time,
+) (string, error) {
+	b.signedArtifact = artifact
+	b.expiresAt = expiresAt
+	return "https://signed.example/" + artifact.Object, nil
+}
+
+func (b *fakePaxdArtifactBackend) VerifyUploader(
+	ctx context.Context,
+	token string,
+	audience string,
+) (string, error) {
+	if token != "valid-token" {
+		return "", ErrUnauthorized
+	}
+	return b.principal, nil
+}
+
+func (b *fakePaxdArtifactBackend) ObjectAttrs(
+	ctx context.Context,
+	bucket string,
+	object string,
+	generation int64,
+) (paxdArtifactObjectAttrs, error) {
+	return b.attrs, nil
 }
 
 func userPrincipalFromHTTPRequest(

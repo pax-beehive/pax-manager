@@ -275,6 +275,39 @@ CREATE TABLE IF NOT EXISTS secret_access_events (
 CREATE INDEX IF NOT EXISTS idx_secret_access_events_secret_created
     ON secret_access_events(secret_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS paxd_artifacts (
+    artifact_id TEXT PRIMARY KEY,
+    platform TEXT NOT NULL,
+    tags TEXT[] NOT NULL DEFAULT '{}'::text[],
+    version TEXT NOT NULL,
+    build_id TEXT NOT NULL DEFAULT '',
+    bucket TEXT NOT NULL,
+    object TEXT NOT NULL,
+    generation BIGINT NOT NULL DEFAULT 0,
+    sha256 TEXT NOT NULL,
+    size_bytes BIGINT NOT NULL DEFAULT 0,
+    content_type TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ,
+    UNIQUE(bucket, object, generation)
+);
+
+ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS build_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS generation BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS sha256 TEXT NOT NULL DEFAULT '';
+ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS size_bytes BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS content_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT '';
+ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_paxd_artifacts_platform_created
+    ON paxd_artifacts(platform, created_at DESC)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_paxd_artifacts_tags
+    ON paxd_artifacts USING GIN(tags)
+    WHERE deleted_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS agent_approvals (
     approval_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id),
