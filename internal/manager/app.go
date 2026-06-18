@@ -32,7 +32,29 @@ func Run(ctx context.Context) error {
 	logging.Info(ctx, "agent api ready", slog.String("url", "http://localhost"+addr+"/api/agent/*"))
 	logging.Info(ctx, "user api ready", slog.String("url", "http://localhost"+addr+"/api/user/*"))
 
-	return srv.engine(addr).Run()
+	return runServer(ctx, srv.engine(addr))
+}
+
+func runServer(ctx context.Context, srv interface {
+	Run() error
+	Shutdown(context.Context) error
+}) error {
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.Run()
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 func openStore(ctx context.Context, databaseURL string) (Store, func(), error) {
