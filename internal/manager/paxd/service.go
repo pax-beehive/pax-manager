@@ -373,10 +373,10 @@ func (s *Service) CreateNodeOutboundMessage(
 	node domain.Node,
 	req domain.CreateOutboundMessageRequest,
 ) (int, any, error) {
-	if req.AgentID == "" || req.Content == "" {
+	if req.AgentID == "" || req.SessionID == "" || req.Content == "" {
 		return 0, nil, apperr.Error{
 			Status:  http.StatusBadRequest,
-			Message: "agent_id and content are required",
+			Message: "agent_id, session_id, and content are required",
 		}
 	}
 	msg, err := s.store.CreateNodeOutboundMessage(c, node, req)

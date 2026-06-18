@@ -275,6 +275,34 @@ func TestMailbox(t *testing.T) {
 	)
 
 	t.Run(
+		"Given missing session ID when creating mailbox message then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().
+				Principal(ctx, auth.RequestMetadata{}).
+				Return(userPrincipal("usr_self", false), nil).
+				Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.CreateMailboxMessage(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateMailboxRequest{AgentID: "agent_1", Message: "hello"},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run(
 		"Given no mailbox list limit when listing mailbox then it uses the default limit",
 		func(t *testing.T) {
 			ctx := context.Background()
