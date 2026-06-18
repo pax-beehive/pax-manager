@@ -60,6 +60,9 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/tunnel"]; !ok {
 		t.Fatalf("missing /api/v1/user/{user_id}/agents/{agent_id}/tunnel websocket path")
 	}
+	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel"]; !ok {
+		t.Fatalf("missing /api/v1/user session ACP tunnel websocket path")
+	}
 	for _, removed := range []string{
 		"/api/user/sessions/{sessionId}",
 		"/api/user/sessions/{sessionId}/messages",
@@ -650,6 +653,84 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	}
 }
 
+func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleUserACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
+	agentWSA, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-a",
+		agentHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel a: %v", err)
+	}
+	defer func() { _ = agentWSA.Close() }()
+	agentWSB, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-b",
+		agentHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel b: %v", err)
+	}
+	defer func() { _ = agentWSB.Close() }()
+
+	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
+	userWSA, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/sessions/sess-a/tunnel",
+		userHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial user tunnel a: %v", err)
+	}
+	defer func() { _ = userWSA.Close() }()
+	userWSB, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/sessions/sess-b/tunnel",
+		userHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial user tunnel b: %v", err)
+	}
+	defer func() { _ = userWSB.Close() }()
+
+	requestA := []byte(`{"jsonrpc":"2.0","id":"a","method":"initialize","params":{}}`)
+	if err := userWSA.WriteMessage(websocket.TextMessage, requestA); err != nil {
+		t.Fatalf("write user request a: %v", err)
+	}
+	if err := agentWSA.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set agent a read deadline: %v", err)
+	}
+	messageType, gotRequestA, err := agentWSA.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent request a: %v", err)
+	}
+	if messageType != websocket.TextMessage || string(gotRequestA) != string(requestA) {
+		t.Fatalf("agent a got type=%d payload=%s", messageType, gotRequestA)
+	}
+
+	requestB := []byte(`{"jsonrpc":"2.0","id":"b","method":"initialize","params":{}}`)
+	if err := userWSB.WriteMessage(websocket.TextMessage, requestB); err != nil {
+		t.Fatalf("write user request b: %v", err)
+	}
+	if err := agentWSB.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set agent b read deadline: %v", err)
+	}
+	messageType, gotRequestB, err := agentWSB.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent request b: %v", err)
+	}
+	if messageType != websocket.TextMessage || string(gotRequestB) != string(requestB) {
+		t.Fatalf("agent b got type=%d payload=%s", messageType, gotRequestB)
+	}
+}
+
 func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
@@ -671,7 +752,7 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 	defer func() { _ = agentWS.Close() }()
 
 	userWS, _, err := websocket.DefaultDialer.Dial(
-		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel",
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel?session_id=sess-approval",
 		http.Header{"X-User-Email": []string{"todd@example.com"}},
 	)
 	if err != nil {

@@ -20,7 +20,12 @@ import (
 
 type ACPTunnelHub struct {
 	mu     sync.RWMutex
-	agents map[string]*ACPTunnelAgent
+	agents map[acpTunnelKey]*ACPTunnelAgent
+}
+
+type acpTunnelKey struct {
+	agentID   string
+	sessionID string
 }
 
 type ACPTunnelAgent struct {
@@ -37,26 +42,27 @@ type ACPTunnelAgent struct {
 }
 
 func NewACPTunnelHub() *ACPTunnelHub {
-	return &ACPTunnelHub{agents: make(map[string]*ACPTunnelAgent)}
+	return &ACPTunnelHub{agents: make(map[acpTunnelKey]*ACPTunnelAgent)}
 }
 
-func (h *ACPTunnelHub) add(agentID string, conn *ACPTunnelAgent) {
+func (h *ACPTunnelHub) add(agentID string, sessionID string, conn *ACPTunnelAgent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.agents[agentID] = conn
+	h.agents[acpTunnelKey{agentID: agentID, sessionID: sessionID}] = conn
 }
 
-func (h *ACPTunnelHub) remove(agentID string, conn *ACPTunnelAgent) {
+func (h *ACPTunnelHub) remove(agentID string, sessionID string, conn *ACPTunnelAgent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.agents[agentID] == conn {
-		delete(h.agents, agentID)
+	key := acpTunnelKey{agentID: agentID, sessionID: sessionID}
+	if h.agents[key] == conn {
+		delete(h.agents, key)
 	}
 }
 
-func (h *ACPTunnelHub) claim(agentID string) (*ACPTunnelAgent, error) {
+func (h *ACPTunnelHub) claim(agentID string, sessionID string) (*ACPTunnelAgent, error) {
 	h.mu.RLock()
-	conn := h.agents[agentID]
+	conn := h.agents[acpTunnelKey{agentID: agentID, sessionID: sessionID}]
 	h.mu.RUnlock()
 	if conn == nil {
 		return nil, apperr.Error{Status: http.StatusNotFound, Message: "agent tunnel not connected"}
@@ -188,15 +194,21 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		sessionID:   initial.SessionID,
 		ws:          ws,
 	}
-	s.acpTunnels.add(initial.AgentID, conn)
-	log.Printf("agent acp tunnel connected: agent_id=%s auth_mode=%s", initial.AgentID, authMode)
+	s.acpTunnels.add(initial.AgentID, initial.SessionID, conn)
+	log.Printf(
+		"agent acp tunnel connected: agent_id=%s session_id=%s auth_mode=%s",
+		initial.AgentID,
+		initial.SessionID,
+		authMode,
+	)
 	defer func() {
-		s.acpTunnels.remove(initial.AgentID, conn)
+		s.acpTunnels.remove(initial.AgentID, initial.SessionID, conn)
 		conn.closeUser()
 		_ = ws.Close()
 		log.Printf(
-			"agent acp tunnel disconnected: agent_id=%s auth_mode=%s",
+			"agent acp tunnel disconnected: agent_id=%s session_id=%s auth_mode=%s",
 			initial.AgentID,
+			initial.SessionID,
 			authMode,
 		)
 	}()
@@ -313,10 +325,12 @@ func (s *Server) virtualACPSessionID(
 
 func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 	agentID := userTunnelAgentID(r)
+	requestSessionID := userTunnelSessionID(r)
 	log.Printf(
-		"user acp tunnel request: path=%s agent_id=%q remote=%s",
+		"user acp tunnel request: path=%s agent_id=%q session_id=%q remote=%s",
 		r.URL.Path,
 		agentID,
+		requestSessionID,
 		r.RemoteAddr,
 	)
 	if agentID == "" {
@@ -324,7 +338,8 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 		writeHTTPError(w, http.StatusBadRequest, "agent_id is required")
 		return
 	}
-	if err := s.authorizeUserTunnel(r, agentID); err != nil {
+	principal, err := s.authorizeUserTunnel(r, agentID)
+	if err != nil {
 		status, message := endpointErrorStatus(err)
 		log.Printf(
 			"user acp tunnel rejected: agent_id=%s status=%d reason=%s err=%v",
@@ -336,13 +351,20 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 		writeHTTPEndpointError(w, err)
 		return
 	}
+	sessionID := s.virtualACPSessionID(
+		r.Context(),
+		principal.User.UserID,
+		agentID,
+		requestSessionID,
+	)
 
-	agentConn, err := s.acpTunnels.claim(agentID)
+	agentConn, err := s.acpTunnels.claim(agentID, sessionID)
 	if err != nil {
 		status, message := endpointErrorStatus(err)
 		log.Printf(
-			"user acp tunnel claim failed: agent_id=%s status=%d reason=%s err=%v",
+			"user acp tunnel claim failed: agent_id=%s session_id=%s status=%d reason=%s err=%v",
 			agentID,
+			sessionID,
 			status,
 			message,
 			err,
@@ -362,22 +384,27 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 		agentConn.closeUser()
 	}()
 
-	log.Printf("user acp tunnel connected: %s", agentID)
-	defer log.Printf("user acp tunnel disconnected: %s", agentID)
+	log.Printf("user acp tunnel connected: agent_id=%s session_id=%s", agentID, sessionID)
+	defer log.Printf("user acp tunnel disconnected: agent_id=%s session_id=%s", agentID, sessionID)
 
 	err = relayUserFramesToAgent(userWS, agentConn)
 	if err != nil && !isWebSocketCloseError(err) {
-		log.Printf("user acp tunnel relay ended: agent_id=%s err=%v", agentID, err)
+		log.Printf(
+			"user acp tunnel relay ended: agent_id=%s session_id=%s err=%v",
+			agentID,
+			sessionID,
+			err,
+		)
 	}
 }
 
-func (s *Server) authorizeUserTunnel(r *http.Request, agentID string) error {
+func (s *Server) authorizeUserTunnel(r *http.Request, agentID string) (UserPrincipal, error) {
 	principal, err := s.auth.Principal(r.Context(), httpRequestMetadata(r))
 	if err != nil {
-		return err
+		return UserPrincipal{}, err
 	}
 	_, err = s.store.GetAgent(r.Context(), principal, agentID)
-	return err
+	return principal, err
 }
 
 func httpRequestMetadata(r *http.Request) auth.RequestMetadata {
@@ -398,7 +425,7 @@ func userTunnelAgentID(r *http.Request) string {
 		_, rest, ok := strings.Cut(rest, "/agents/")
 		if ok {
 			agentID, suffix, ok := strings.Cut(rest, "/")
-			if ok && suffix == "tunnel" {
+			if ok && (suffix == "tunnel" || strings.HasPrefix(suffix, "sessions/")) {
 				return agentID
 			}
 		}
@@ -407,6 +434,25 @@ func userTunnelAgentID(r *http.Request) string {
 		return agentID
 	}
 	return r.URL.Query().Get("agentId")
+}
+
+func userTunnelSessionID(r *http.Request) string {
+	if sessionID := r.PathValue("sessionID"); sessionID != "" {
+		return sessionID
+	}
+	if rest, ok := strings.CutPrefix(r.URL.Path, "/api/v1/user/"); ok {
+		_, rest, ok := strings.Cut(rest, "/agents/")
+		if ok {
+			_, suffix, ok := strings.Cut(rest, "/")
+			if ok {
+				sessionID, suffix, ok := strings.Cut(strings.TrimPrefix(suffix, "sessions/"), "/")
+				if ok && suffix == "tunnel" {
+					return sessionID
+				}
+			}
+		}
+	}
+	return websocketSessionID(r)
 }
 
 type acpJSONRPCMessage struct {

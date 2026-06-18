@@ -93,6 +93,13 @@ func addACPWebSocketPaths(doc map[string]any) {
 					"schema":      map[string]string{"type": "string"},
 					"description": "Local runtime instance ID. Defaults to default.",
 				},
+				{
+					"name":        "session_id",
+					"in":          "query",
+					"required":    false,
+					"schema":      map[string]string{"type": "string"},
+					"description": "ACP session ID served by this tunnel.",
+				},
 			},
 			"responses": map[string]any{
 				"101": map[string]string{"description": "WebSocket tunnel established."},
@@ -124,6 +131,13 @@ func addACPWebSocketPaths(doc map[string]any) {
 					"schema":      map[string]string{"type": "string"},
 					"description": "Agent ID to connect to.",
 				},
+				{
+					"name":        "session_id",
+					"in":          "query",
+					"required":    false,
+					"schema":      map[string]string{"type": "string"},
+					"description": "ACP session ID to connect to. Omit only for tunnels registered without a session ID.",
+				},
 			},
 			"responses": map[string]any{
 				"101": map[string]string{"description": "WebSocket tunnel established."},
@@ -133,6 +147,45 @@ func addACPWebSocketPaths(doc map[string]any) {
 		},
 	}
 	paths["/api/v1/user/{user_id}/agents/{agent_id}/tunnel"] = v1UserTunnelGET
+
+	v1UserSessionTunnelGET := map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"ACP"},
+			"summary":     "Connect ACP user tunnel for a session",
+			"description": "Upgrades to a WebSocket used by an ACP client to exchange JSON-RPC frames with a connected paxd agent tunnel for one ACP session.",
+			"x-websocket": true,
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters": []map[string]any{
+				{
+					"name":        "user_id",
+					"in":          "path",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "User ID or self.",
+				},
+				{
+					"name":        "agent_id",
+					"in":          "path",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "Agent ID to connect to.",
+				},
+				{
+					"name":        "session_id",
+					"in":          "path",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "ACP session ID to connect to.",
+				},
+			},
+			"responses": map[string]any{
+				"101": map[string]string{"description": "WebSocket tunnel established."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent tunnel is not connected."},
+			},
+		},
+	}
+	paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel"] = v1UserSessionTunnelGET
 }
 
 const openAPIHTML = `<!doctype html>
