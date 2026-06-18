@@ -886,6 +886,52 @@ func (s *MemoryStore) GetSession(
 	return AgentSession{}, ErrNotFound
 }
 
+func (s *MemoryStore) UpdateSessionRuntimeState(
+	ctx context.Context,
+	state SessionRuntimeState,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if state.AgentID == "" || state.SessionID == "" {
+		return ErrNotFound
+	}
+	agent, ok := s.agents[state.AgentID]
+	if !ok {
+		return ErrNotFound
+	}
+	if state.NodeID == "" {
+		state.NodeID = agent.NodeID
+	}
+	if state.OwnerUserID == "" {
+		state.OwnerUserID = agent.OwnerUserID
+	}
+	if state.UpdatedAt.IsZero() {
+		state.UpdatedAt = s.now().UTC()
+	}
+	status, currentTask, runID, runStatus := state.StatusSummary()
+	session, ok := s.sessions[sessionKey(state.AgentID, state.SessionID)]
+	if !ok {
+		session = AgentSession{
+			ID:        int64(len(s.sessions) + 1),
+			NodeID:    state.NodeID,
+			AgentID:   state.AgentID,
+			SessionID: state.SessionID,
+			Status:    status,
+			CreatedAt: state.UpdatedAt,
+		}
+	}
+	session.NodeID = firstNonEmpty(state.NodeID, session.NodeID)
+	session.Status = status
+	session.CurrentTask = currentTask
+	session.RunID = runID
+	session.RunStatus = runStatus
+	session.UpdatedAt = state.UpdatedAt
+	session.RuntimeState = &state
+	session.Metadata = runtimeMetadata(session.Metadata, state)
+	s.sessions[sessionKey(state.AgentID, state.SessionID)] = session
+	return nil
+}
+
 func (s *MemoryStore) ListSessionMessages(
 	ctx context.Context,
 	principal UserPrincipal,

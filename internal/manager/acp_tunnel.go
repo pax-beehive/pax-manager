@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
+	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
 
 type ACPTunnelHub struct {
@@ -39,6 +40,12 @@ type ACPTunnelAgent struct {
 	userWriteMu  sync.Mutex
 	paired       bool
 	userWS       *websocket.Conn
+}
+
+type acpUserTunnelMetadata struct {
+	ClientID string
+	DeviceID string
+	TunnelID string
 }
 
 func NewACPTunnelHub() *ACPTunnelHub {
@@ -116,7 +123,32 @@ func (a *ACPTunnelAgent) writeToAgent(messageType int, payload []byte) error {
 	return a.ws.WriteMessage(messageType, payload)
 }
 
-func (a *ACPTunnelAgent) forwardAgentFrames(ctx context.Context, store Store) error {
+func (a *ACPTunnelAgent) actorAttrs() []slog.Attr {
+	return []slog.Attr{
+		slog.String("agent_id", a.agentID),
+		slog.String("node_id", a.nodeID),
+		slog.String("owner_user_id", a.ownerUserID),
+		slog.String("session_id", a.sessionID),
+	}
+}
+
+func (s *Service) agentACPFramePipeline() acpFramePipeline {
+	return newACPFramePipeline(
+		acpApprovalMiddleware{store: s.store},
+		acpRuntimeStateMiddleware{projector: s.acpRuntime},
+	)
+}
+
+func (s *Service) userACPFramePipeline() acpFramePipeline {
+	return newACPFramePipeline(
+		acpRuntimeStateMiddleware{projector: s.acpRuntime},
+	)
+}
+
+func (a *ACPTunnelAgent) forwardAgentFrames(
+	ctx context.Context,
+	pipeline acpFramePipeline,
+) error {
 	for {
 		messageType, payload, err := a.ws.ReadMessage()
 		if err != nil {
@@ -125,30 +157,38 @@ func (a *ACPTunnelAgent) forwardAgentFrames(ctx context.Context, store Store) er
 		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
 			continue
 		}
-		payload, handled, err := a.prepareAgentACPFrame(ctx, store, messageType, payload)
+		frame := newACPFrameContext(a, acpAgentToUser, messageType, payload)
+		err = pipeline.Handle(ctx, frame, func(_ context.Context, frame *acpFrameContext) error {
+			userWS := a.currentUser()
+			if userWS == nil {
+				logging.Warn(
+					ctx,
+					"agent acp tunnel dropped frame without user",
+					slog.String("agent_id", a.agentID),
+					slog.String("session_id", a.sessionID),
+				)
+				return nil
+			}
+			a.userWriteMu.Lock()
+			defer a.userWriteMu.Unlock()
+			return userWS.WriteMessage(frame.messageType, frame.payload)
+		})
 		if err != nil {
-			log.Printf(
-				"agent acp tunnel approval handling failed: agent_id=%s err=%v",
-				a.agentID,
-				err,
+			logging.Error(
+				ctx,
+				"agent acp tunnel frame handling failed",
+				slog.String("agent_id", a.agentID),
+				slog.String("session_id", a.sessionID),
+				logging.Err(err),
 			)
 		}
-		if handled {
-			continue
-		}
-		userWS := a.currentUser()
-		if userWS == nil {
-			log.Printf("agent acp tunnel dropped frame without user: agent_id=%s", a.agentID)
-			continue
-		}
-		a.userWriteMu.Lock()
-		err = userWS.WriteMessage(messageType, payload)
-		a.userWriteMu.Unlock()
-		if err != nil {
-			log.Printf(
-				"agent acp tunnel failed to write user frame: agent_id=%s err=%v",
-				a.agentID,
-				err,
+		if err != nil && !frame.handled {
+			logging.Error(
+				ctx,
+				"agent acp tunnel failed to write user frame",
+				slog.String("agent_id", a.agentID),
+				slog.String("session_id", a.sessionID),
+				logging.Err(err),
 			)
 			a.closeUser()
 		}
@@ -156,33 +196,44 @@ func (a *ACPTunnelAgent) forwardAgentFrames(ctx context.Context, store Store) er
 }
 
 func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
-	log.Printf(
-		"agent acp tunnel request: path=%s query_agent_id=%q remote=%s",
-		r.URL.Path,
-		websocketAgentID(r),
-		r.RemoteAddr,
+	ctx, logID := httpRequestLogContext(r.Context(), r)
+	w.Header().Set(logging.HeaderLogID, logID)
+	r = r.WithContext(ctx)
+	logging.Info(
+		ctx,
+		"agent acp tunnel request",
+		slog.String("query_agent_id", websocketAgentID(r)),
 	)
 	initial, authMode, err := s.authenticateAgentACPTunnel(r)
 	if err != nil {
 		status, message := endpointErrorStatus(err)
-		log.Printf(
-			"agent acp tunnel rejected: query_agent_id=%q status=%d reason=%s err=%v",
-			websocketAgentID(r),
-			status,
-			message,
-			err,
+		logging.Warn(
+			ctx,
+			"agent acp tunnel rejected",
+			slog.String("query_agent_id", websocketAgentID(r)),
+			slog.Int("status", status),
+			slog.String("reason", message),
+			logging.Err(err),
 		)
 		writeHTTPEndpointError(w, err)
 		return
 	}
+	ctx = logging.With(
+		ctx,
+		slog.String("agent_id", initial.AgentID),
+		slog.String("node_id", initial.NodeID),
+		slog.String("owner_user_id", initial.OwnerUserID),
+		slog.String("session_id", initial.SessionID),
+		slog.String("auth_mode", authMode),
+	)
+	r = r.WithContext(ctx)
 
-	ws, err := upgrader.Upgrade(w, r, nil)
+	ws, err := upgrader.Upgrade(w, r, websocketResponseHeader(ctx))
 	if err != nil {
-		log.Printf(
-			"agent acp tunnel upgrade failed: agent_id=%s auth_mode=%s err=%v",
-			initial.AgentID,
-			authMode,
-			err,
+		logging.Error(
+			ctx,
+			"agent acp tunnel upgrade failed",
+			logging.Err(err),
 		)
 		return
 	}
@@ -195,31 +246,26 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		ws:          ws,
 	}
 	s.acpTunnels.add(initial.AgentID, initial.SessionID, conn)
-	log.Printf(
-		"agent acp tunnel connected: agent_id=%s session_id=%s auth_mode=%s",
-		initial.AgentID,
-		initial.SessionID,
-		authMode,
-	)
+	logging.Info(ctx, "agent acp tunnel connected")
 	defer func() {
 		s.acpTunnels.remove(initial.AgentID, initial.SessionID, conn)
 		conn.closeUser()
 		_ = ws.Close()
-		log.Printf(
-			"agent acp tunnel disconnected: agent_id=%s session_id=%s auth_mode=%s",
-			initial.AgentID,
-			initial.SessionID,
-			authMode,
-		)
+		logging.Info(ctx, "agent acp tunnel disconnected")
 	}()
 
-	err = conn.forwardAgentFrames(r.Context(), s.store)
+	err = runACPActors(r.Context(), acpActor{
+		name:  "agent_tunnel",
+		attrs: conn.actorAttrs(),
+		run: func(actorCtx context.Context) error {
+			return conn.forwardAgentFrames(actorCtx, s.agentACPFramePipeline())
+		},
+	})
 	if err != nil && !isWebSocketCloseError(err) {
-		log.Printf(
-			"agent acp tunnel read ended: agent_id=%s auth_mode=%s err=%v",
-			initial.AgentID,
-			authMode,
-			err,
+		logging.Warn(
+			ctx,
+			"agent acp tunnel read ended",
+			logging.Err(err),
 		)
 	}
 }
@@ -261,12 +307,13 @@ func (s *Server) authenticateAgentACPTunnel(
 
 	node, nodeErr := s.store.AuthenticateNode(r.Context(), keyHash)
 	if nodeErr != nil {
-		log.Printf(
-			"agent acp tunnel auth failed: query_agent_id=%q key_prefix=%q agent_err=%v node_err=%v",
-			requestAgentID,
-			s.secrets.Prefix(paxKey),
-			agentErr,
-			nodeErr,
+		logging.Warn(
+			r.Context(),
+			"agent acp tunnel auth failed",
+			slog.String("query_agent_id", requestAgentID),
+			slog.String("key_prefix", s.secrets.Prefix(paxKey)),
+			slog.String("agent_error", agentErr.Error()),
+			slog.String("node_error", nodeErr.Error()),
 		)
 		return agentWSInitialRequest{}, "", nodeErr
 	}
@@ -278,11 +325,12 @@ func (s *Server) authenticateAgentACPTunnel(
 	}
 	agent, err := s.store.GetNodeAgent(r.Context(), node.NodeID, requestAgentID)
 	if err != nil {
-		log.Printf(
-			"agent acp tunnel node auth accepted but agent not found: node_id=%s query_agent_id=%q err=%v",
-			node.NodeID,
-			requestAgentID,
-			err,
+		logging.Warn(
+			r.Context(),
+			"agent acp tunnel node auth accepted but agent not found",
+			slog.String("node_id", node.NodeID),
+			slog.String("query_agent_id", requestAgentID),
+			logging.Err(err),
 		)
 		return agentWSInitialRequest{}, "", err
 	}
@@ -324,29 +372,39 @@ func (s *Server) virtualACPSessionID(
 }
 
 func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
+	ctx, logID := httpRequestLogContext(r.Context(), r)
+	w.Header().Set(logging.HeaderLogID, logID)
+	r = r.WithContext(ctx)
 	agentID := userTunnelAgentID(r)
 	requestSessionID := userTunnelSessionID(r)
-	log.Printf(
-		"user acp tunnel request: path=%s agent_id=%q session_id=%q remote=%s",
-		r.URL.Path,
-		agentID,
-		requestSessionID,
-		r.RemoteAddr,
+	userTunnel := userTunnelMetadata(r)
+	ctx = logging.With(
+		ctx,
+		slog.String("agent_id", agentID),
+		slog.String("requested_session_id", requestSessionID),
+		slog.String("client_id", userTunnel.ClientID),
+		slog.String("device_id", userTunnel.DeviceID),
+		slog.String("tunnel_id", userTunnel.TunnelID),
+	)
+	r = r.WithContext(ctx)
+	logging.Info(
+		ctx,
+		"user acp tunnel request",
 	)
 	if agentID == "" {
-		log.Printf("user acp tunnel rejected: reason=missing_agent_id")
+		logging.Warn(ctx, "user acp tunnel rejected", slog.String("reason", "missing_agent_id"))
 		writeHTTPError(w, http.StatusBadRequest, "agent_id is required")
 		return
 	}
 	principal, err := s.authorizeUserTunnel(r, agentID)
 	if err != nil {
 		status, message := endpointErrorStatus(err)
-		log.Printf(
-			"user acp tunnel rejected: agent_id=%s status=%d reason=%s err=%v",
-			agentID,
-			status,
-			message,
-			err,
+		logging.Warn(
+			ctx,
+			"user acp tunnel rejected",
+			slog.Int("status", status),
+			slog.String("reason", message),
+			logging.Err(err),
 		)
 		writeHTTPEndpointError(w, err)
 		return
@@ -357,26 +415,31 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 		agentID,
 		requestSessionID,
 	)
+	ctx = logging.With(
+		ctx,
+		slog.String("owner_user_id", principal.User.UserID),
+		slog.String("session_id", sessionID),
+	)
+	r = r.WithContext(ctx)
 
 	agentConn, err := s.acpTunnels.claim(agentID, sessionID)
 	if err != nil {
 		status, message := endpointErrorStatus(err)
-		log.Printf(
-			"user acp tunnel claim failed: agent_id=%s session_id=%s status=%d reason=%s err=%v",
-			agentID,
-			sessionID,
-			status,
-			message,
-			err,
+		logging.Warn(
+			ctx,
+			"user acp tunnel claim failed",
+			slog.Int("status", status),
+			slog.String("reason", message),
+			logging.Err(err),
 		)
 		writeHTTPEndpointError(w, err)
 		return
 	}
 	defer s.acpTunnels.release(agentConn)
 
-	userWS, err := upgrader.Upgrade(w, r, nil)
+	userWS, err := upgrader.Upgrade(w, r, websocketResponseHeader(ctx))
 	if err != nil {
-		log.Printf("user acp tunnel upgrade failed: agent_id=%s err=%v", agentID, err)
+		logging.Error(ctx, "user acp tunnel upgrade failed", logging.Err(err))
 		return
 	}
 	agentConn.attachUser(userWS)
@@ -384,17 +447,48 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 		agentConn.closeUser()
 	}()
 
-	log.Printf("user acp tunnel connected: agent_id=%s session_id=%s", agentID, sessionID)
-	defer log.Printf("user acp tunnel disconnected: agent_id=%s session_id=%s", agentID, sessionID)
+	logging.Info(ctx, "user acp tunnel connected")
+	defer logging.Info(ctx, "user acp tunnel disconnected")
 
-	err = relayUserFramesToAgent(userWS, agentConn)
+	err = runACPActors(r.Context(), acpActor{
+		name: "user_tunnel",
+		attrs: append(
+			agentConn.actorAttrs(),
+			slog.String("client_id", userTunnel.ClientID),
+			slog.String("device_id", userTunnel.DeviceID),
+			slog.String("tunnel_id", userTunnel.TunnelID),
+		),
+		run: func(actorCtx context.Context) error {
+			return relayUserFramesToAgent(actorCtx, userWS, agentConn, s.userACPFramePipeline())
+		},
+	})
 	if err != nil && !isWebSocketCloseError(err) {
-		log.Printf(
-			"user acp tunnel relay ended: agent_id=%s session_id=%s err=%v",
-			agentID,
-			sessionID,
-			err,
+		logging.Warn(
+			ctx,
+			"user acp tunnel relay ended",
+			logging.Err(err),
 		)
+	}
+}
+
+func userTunnelMetadata(r *http.Request) acpUserTunnelMetadata {
+	return acpUserTunnelMetadata{
+		ClientID: firstNonEmpty(
+			r.Header.Get("X-Pax-Client-ID"),
+			r.URL.Query().Get("client_id"),
+			r.URL.Query().Get("clientId"),
+		),
+		DeviceID: firstNonEmpty(
+			r.Header.Get("X-Pax-Device-ID"),
+			r.URL.Query().Get("device_id"),
+			r.URL.Query().Get("deviceId"),
+		),
+		TunnelID: firstNonEmpty(
+			r.Header.Get("X-Pax-Tunnel-ID"),
+			r.URL.Query().Get("tunnel_id"),
+			r.URL.Query().Get("tunnelId"),
+			logging.NewLogID(),
+		),
 	}
 }
 
@@ -460,65 +554,8 @@ type acpJSONRPCMessage struct {
 	ID      json.RawMessage `json:"id,omitempty"`
 	Method  string          `json:"method,omitempty"`
 	Params  json.RawMessage `json:"params,omitempty"`
-}
-
-func (a *ACPTunnelAgent) prepareAgentACPFrame(
-	ctx context.Context,
-	store Store,
-	messageType int,
-	payload []byte,
-) ([]byte, bool, error) {
-	if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
-		return payload, false, nil
-	}
-	var msg acpJSONRPCMessage
-	if err := json.Unmarshal(payload, &msg); err != nil ||
-		msg.Method != "session/request_permission" {
-		return payload, false, nil
-	}
-	params, err := decodeACPParams(msg.Params)
-	if err != nil {
-		return payload, false, err
-	}
-	fingerprint, err := acpPermissionFingerprint(params)
-	if err != nil {
-		return payload, false, err
-	}
-	domain := stringField(params, "domain", "agent_action")
-	operation := stringField(params, "operation", "session/request_permission")
-	_, err = store.FindReusableApprovalGrant(ctx, ApprovalGrantLookup{
-		OwnerUserID:       a.ownerUserID,
-		RequestNodeID:     a.nodeID,
-		RequestAgentID:    a.agentID,
-		RequestSessionID:  a.sessionID,
-		Domain:            domain,
-		Operation:         operation,
-		ActionFingerprint: fingerprint,
-	})
-	if err == nil {
-		response, buildErr := acpAllowOnceResponse(msg, params)
-		if buildErr != nil {
-			return payload, false, buildErr
-		}
-		if writeErr := a.writeToAgent(websocket.TextMessage, response); writeErr != nil {
-			return payload, true, writeErr
-		}
-		return payload, true, nil
-	}
-	if !errors.Is(err, ErrNotFound) {
-		return payload, false, err
-	}
-
-	changed := appendACPAllowAlwaysOption(params)
-	if !changed {
-		return payload, false, nil
-	}
-	msg.Params = mustMarshalRaw(params)
-	out, err := json.Marshal(msg)
-	if err != nil {
-		return payload, false, err
-	}
-	return out, false, nil
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   json.RawMessage `json:"error,omitempty"`
 }
 
 func decodeACPParams(raw json.RawMessage) (map[string]any, error) {
@@ -694,7 +731,12 @@ func mustMarshalRaw(v any) json.RawMessage {
 	return data
 }
 
-func relayUserFramesToAgent(userWS *websocket.Conn, agentConn *ACPTunnelAgent) error {
+func relayUserFramesToAgent(
+	ctx context.Context,
+	userWS *websocket.Conn,
+	agentConn *ACPTunnelAgent,
+	pipeline acpFramePipeline,
+) error {
 	for {
 		messageType, payload, err := userWS.ReadMessage()
 		if err != nil {
@@ -703,7 +745,14 @@ func relayUserFramesToAgent(userWS *websocket.Conn, agentConn *ACPTunnelAgent) e
 		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
 			continue
 		}
-		if err := agentConn.writeToAgent(messageType, payload); err != nil {
+		frame := newACPFrameContext(agentConn, acpUserToAgent, messageType, payload)
+		if err := pipeline.Handle(
+			ctx,
+			frame,
+			func(_ context.Context, frame *acpFrameContext) error {
+				return agentConn.writeToAgent(frame.messageType, frame.payload)
+			},
+		); err != nil {
 			return err
 		}
 	}

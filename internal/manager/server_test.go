@@ -13,7 +13,40 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/common/adaptor"
 	"github.com/gorilla/websocket"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
+
+func TestRequestLogIDHeaderIsPropagated(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/echo", strings.NewReader(`{}`))
+	req.Header.Set(logging.HeaderRequestID, "req_test_123")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("echo code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get(logging.HeaderLogID); got != "req_test_123" {
+		t.Fatalf("log id header = %q, want request id", got)
+	}
+}
+
+func TestRequestLogIDHeaderIsGenerated(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/echo", strings.NewReader(`{}`))
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("echo code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get(logging.HeaderLogID); !strings.HasPrefix(got, "log_") {
+		t.Fatalf("log id header = %q, want generated log id", got)
+	}
+}
 
 func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")

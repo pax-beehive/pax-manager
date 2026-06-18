@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 
@@ -12,6 +12,7 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
+	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
 
 type AgentWSConn struct {
@@ -48,15 +49,25 @@ var upgrader = websocket.Upgrader{
 }
 
 func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
+	ctx, logID := httpRequestLogContext(r.Context(), r)
+	w.Header().Set(logging.HeaderLogID, logID)
+	r = r.WithContext(ctx)
 	owner, agent, initial, err := s.authenticateAgentWS(r)
 	if err != nil {
 		writeHTTPEndpointError(w, err)
 		return
 	}
+	ctx = logging.With(
+		ctx,
+		slog.String("agent_id", agent.AgentID),
+		slog.String("owner_user_id", owner.UserID),
+		slog.String("session_id", initial.SessionID),
+	)
+	r = r.WithContext(ctx)
 
-	ws, err := upgrader.Upgrade(w, r, nil)
+	ws, err := upgrader.Upgrade(w, r, websocketResponseHeader(ctx))
 	if err != nil {
-		log.Printf("agent websocket upgrade: %v", err)
+		logging.Error(ctx, "agent websocket upgrade failed", logging.Err(err))
 		return
 	}
 
@@ -70,12 +81,12 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 		send:      make(chan []byte, 256),
 	}
 	s.agentWS.add(connID, conn)
-	log.Printf("agent websocket connected: %s owner=%s", agent.AgentID, owner.UserID)
+	logging.Info(ctx, "agent websocket connected")
 	defer func() {
 		s.agentWS.remove(connID)
 		close(conn.send)
 		_ = ws.Close()
-		log.Printf("agent websocket disconnected: %s owner=%s", agent.AgentID, owner.UserID)
+		logging.Info(ctx, "agent websocket disconnected")
 	}()
 
 	if err := writeAgentWSResponse(ws, agentWSResponse{

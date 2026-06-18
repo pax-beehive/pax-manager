@@ -1,7 +1,11 @@
 package manager
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -102,5 +106,46 @@ func TestACPPermissionFingerprintUsesStableToolCallFields(t *testing.T) {
 	}
 	if firstFingerprint != secondFingerprint {
 		t.Fatalf("fingerprints differ: %q != %q", firstFingerprint, secondFingerprint)
+	}
+}
+
+func TestRunACPActorsRecoversPanic(t *testing.T) {
+	err := runACPActors(context.Background(), acpActor{
+		name: "panic_actor",
+		run: func(context.Context) error {
+			panic("boom")
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "panic") {
+		t.Fatalf("err = %v, want panic error", err)
+	}
+}
+
+func TestUserTunnelMetadataUsesHeadersAndFallbackTunnelID(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/self/agents/a/tunnel", nil)
+	req.Header.Set("X-Pax-Client-ID", "client_1")
+	req.Header.Set("X-Pax-Device-ID", "device_1")
+
+	got := userTunnelMetadata(req)
+	if got.ClientID != "client_1" || got.DeviceID != "device_1" {
+		t.Fatalf("metadata = %+v", got)
+	}
+	if !strings.HasPrefix(got.TunnelID, "log_") {
+		t.Fatalf("tunnel id = %q, want generated id", got.TunnelID)
+	}
+}
+
+func TestUserTunnelMetadataPrefersExplicitTunnelID(t *testing.T) {
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agents/a/tunnel?client_id=query_client&device_id=query_device&tunnel_id=tunnel_1",
+		nil,
+	)
+
+	got := userTunnelMetadata(req)
+	if got.ClientID != "query_client" ||
+		got.DeviceID != "query_device" ||
+		got.TunnelID != "tunnel_1" {
+		t.Fatalf("metadata = %+v", got)
 	}
 }
