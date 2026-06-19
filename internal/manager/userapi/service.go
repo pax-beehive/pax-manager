@@ -83,6 +83,13 @@ type Store interface {
 		principal domain.UserPrincipal,
 		sessionID string,
 	) ([]domain.MailboxMessage, error)
+	ListMessages(
+		ctx context.Context,
+		agentID string,
+		sessionID string,
+		limit int,
+	) ([]domain.Message, error)
+	ListMessageParts(ctx context.Context, messageID string) ([]domain.MessagePart, error)
 	CreateMailboxMessage(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -502,6 +509,56 @@ func (s *Service) ListNodeAgentSessionMessages(
 		return 0, nil, err
 	}
 	return http.StatusOK, map[string]any{"messages": messages}, nil
+}
+
+func (s *Service) ListAgentSessionHistory(
+	c context.Context,
+	meta auth.RequestMetadata,
+	agentID string,
+	sessionID string,
+	limit int,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if agentID == "" || sessionID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "agent_id and session_id are required",
+		}
+	}
+	if _, err := s.sessionTarget(c, principal, agentID, sessionID); err != nil {
+		return 0, nil, err
+	}
+	return s.listSessionHistory(c, agentID, sessionID, limit)
+}
+
+func (s *Service) listSessionHistory(
+	c context.Context,
+	agentID string,
+	sessionID string,
+	limit int,
+) (int, any, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 1000
+	}
+	messages, err := s.store.ListMessages(c, agentID, sessionID, limit)
+	if err != nil {
+		return 0, nil, err
+	}
+	history := make([]domain.MessageWithParts, 0, len(messages))
+	for _, message := range messages {
+		parts, err := s.store.ListMessageParts(c, message.MessageID)
+		if err != nil {
+			return 0, nil, err
+		}
+		history = append(history, domain.MessageWithParts{
+			Message: message,
+			Parts:   parts,
+		})
+	}
+	return http.StatusOK, map[string]any{"messages": history}, nil
 }
 
 func (s *Service) CreateMailboxMessage(

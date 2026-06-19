@@ -174,6 +174,7 @@ func (a *ACPTunnelAgent) actorAttrs() []slog.Attr {
 
 func (s *Service) agentACPFramePipeline() acpFramePipeline {
 	return newACPFramePipeline(
+		acpSessionIDMiddleware{store: s.store},
 		acpApprovalMiddleware{store: s.store},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
 	)
@@ -181,6 +182,7 @@ func (s *Service) agentACPFramePipeline() acpFramePipeline {
 
 func (s *Service) userACPFramePipeline() acpFramePipeline {
 	return newACPFramePipeline(
+		acpSessionIDMiddleware{store: s.store},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
 	)
 }

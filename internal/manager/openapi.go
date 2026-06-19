@@ -61,8 +61,60 @@ func openAPIDocument(serverURL string) ([]byte, error) {
 	}
 	doc["servers"] = []map[string]string{{"url": serverURL}}
 	addACPWebSocketPaths(doc)
+	addSessionHistoryPath(doc)
 	addPaxdArtifactPaths(doc)
 	return json.MarshalIndent(doc, "", "  ")
+}
+
+func addSessionHistoryPath(doc map[string]any) {
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		paths = map[string]any{}
+		doc["paths"] = paths
+	}
+	paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history"] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "List agent session history",
+			"description": "Lists durable session history messages with their message parts for a specific session under an agent visible to the current user.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters": []map[string]any{
+				{
+					"name":        "user_id",
+					"in":          "path",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "User ID or self.",
+				},
+				{
+					"name":        "agent_id",
+					"in":          "path",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "Agent identifier.",
+				},
+				{
+					"name":        "session_id",
+					"in":          "path",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "Session identifier.",
+				},
+				{
+					"name":        "limit",
+					"in":          "query",
+					"required":    false,
+					"schema":      map[string]any{"type": "integer", "maximum": 1000},
+					"description": "Maximum number of history messages to return. Defaults to 1000.",
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Session history messages."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent or session not found."},
+			},
+		},
+	}
 }
 
 func addACPWebSocketPaths(doc map[string]any) {

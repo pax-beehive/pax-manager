@@ -158,3 +158,60 @@ func TestACPHistoryProjectsInboundResultBoundariesIntoExpectedMessageRows(t *tes
 		}
 	}
 }
+
+func TestACPHistoryStoresManagerSessionID(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	user, err := store.EnsureUser(ctx, "todd@example.com", "Todd", "user")
+	if err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	agent, err := store.RegisterAgent(ctx, user, domain.RegisterAgentRequest{
+		Name: "agent",
+		OS:   "darwin",
+	}, "hash")
+	if err != nil {
+		t.Fatalf("register agent: %v", err)
+	}
+	session, err := store.CreateNodeAgentSession(ctx, domain.UserPrincipal{User: user}, domain.CreateSessionRequest{
+		NodeID:    agent.NodeID,
+		AgentID:   agent.AgentID,
+		SessionID: "sess_manager_1",
+		NativeID:  "harness-session-1",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	raw := json.RawMessage(`{"method":"session/update","params":{"sessionId":"harness-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hi"}}},"jsonrpc":"2.0"}`)
+	if err := projectACPTransportMessage(
+		ctx,
+		store,
+		agent.AgentID,
+		user.UserID,
+		agent.NodeID,
+		domain.TransportStreamPaxdToManager,
+		1,
+		"seq:1",
+		raw,
+	); err != nil {
+		t.Fatalf("project message: %v", err)
+	}
+
+	messages, err := store.ListMessages(ctx, agent.AgentID, session.SessionID, 100)
+	if err != nil {
+		t.Fatalf("list manager session messages: %v", err)
+	}
+	if len(messages) != 1 || messages[0].SessionID != session.SessionID {
+		t.Fatalf("messages = %+v, want manager session id %q", messages, session.SessionID)
+	}
+	nativeMessages, err := store.ListMessages(ctx, agent.AgentID, session.NativeID, 100)
+	if err != nil {
+		t.Fatalf("list native session messages: %v", err)
+	}
+	if len(nativeMessages) != 0 {
+		t.Fatalf("native session messages = %+v, want none", nativeMessages)
+	}
+}

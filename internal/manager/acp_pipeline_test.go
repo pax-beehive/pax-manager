@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+	"github.com/pax-beehive/pax-manager/internal/manager/storage"
 )
 
 type runtimeStateRecorder struct {
@@ -172,5 +173,80 @@ func TestACPRuntimeProjectorIsConcurrentSafe(t *testing.T) {
 		state.SessionID != "sess_1" ||
 		state.Lifecycle != domain.RuntimeLifecycleRunning {
 		t.Fatalf("last state = %+v", state)
+	}
+}
+
+func TestACPSessionIDMiddlewareTranslatesFramePayloadAtUserBoundary(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
+	})
+	user, err := store.EnsureUser(ctx, "todd@example.com", "Todd", "user")
+	if err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	agentModel, err := store.RegisterAgent(ctx, user, domain.RegisterAgentRequest{
+		Name: "agent",
+		OS:   "darwin",
+	}, "hash")
+	if err != nil {
+		t.Fatalf("register agent: %v", err)
+	}
+	session, err := store.CreateNodeAgentSession(ctx, domain.UserPrincipal{User: user}, domain.CreateSessionRequest{
+		NodeID:    agentModel.NodeID,
+		AgentID:   agentModel.AgentID,
+		SessionID: "sess_manager_1",
+		NativeID:  "harness-session-1",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	agent := &ACPTunnelAgent{
+		agentID:     agentModel.AgentID,
+		nodeID:      agentModel.NodeID,
+		ownerUserID: user.UserID,
+		sessionID:   session.SessionID,
+	}
+	middleware := acpSessionIDMiddleware{store: store}
+
+	userFrame := newACPFrameContext(
+		agent,
+		acpUserToAgent,
+		websocket.TextMessage,
+		[]byte(`{"jsonrpc":"2.0","method":"session/prompt","params":{"sessionId":"sess_manager_1","prompt":[{"type":"text","text":"hi"}]}}`),
+	)
+	if err := middleware.HandleACPFrame(ctx, userFrame, func(_ context.Context, frame *acpFrameContext) error {
+		assertFrameSessionID(t, frame.payload, "harness-session-1")
+		return nil
+	}); err != nil {
+		t.Fatalf("user frame middleware: %v", err)
+	}
+
+	agentFrame := newACPFrameContext(
+		agent,
+		acpAgentToUser,
+		websocket.TextMessage,
+		[]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"harness-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hi"}}}}`),
+	)
+	if err := middleware.HandleACPFrame(ctx, agentFrame, func(_ context.Context, frame *acpFrameContext) error {
+		assertFrameSessionID(t, frame.payload, "sess_manager_1")
+		return nil
+	}); err != nil {
+		t.Fatalf("agent frame middleware: %v", err)
+	}
+}
+
+func assertFrameSessionID(t *testing.T, payload []byte, want string) {
+	t.Helper()
+	var got struct {
+		Params struct {
+			SessionID string `json:"sessionId"`
+		} `json:"params"`
+	}
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Params.SessionID != want {
+		t.Fatalf("frame sessionId = %q, want %q; payload=%s", got.Params.SessionID, want, payload)
 	}
 }

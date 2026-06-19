@@ -1248,6 +1248,62 @@ func (_c *MockStore_RevokeUserAPIKey_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
+// ListMessages provides a mock function with given fields: ctx, agentID, sessionID, limit
+func (_m *MockStore) ListMessages(ctx context.Context, agentID string, sessionID string, limit int) ([]domain.Message, error) {
+	ret := _m.Called(ctx, agentID, sessionID, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListMessages")
+	}
+
+	var r0 []domain.Message
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) ([]domain.Message, error)); ok {
+		return rf(ctx, agentID, sessionID, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) []domain.Message); ok {
+		r0 = rf(ctx, agentID, sessionID, limit)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]domain.Message)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int) error); ok {
+		r1 = rf(ctx, agentID, sessionID, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListMessageParts provides a mock function with given fields: ctx, messageID
+func (_m *MockStore) ListMessageParts(ctx context.Context, messageID string) ([]domain.MessagePart, error) {
+	ret := _m.Called(ctx, messageID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListMessageParts")
+	}
+
+	var r0 []domain.MessagePart
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]domain.MessagePart, error)); ok {
+		return rf(ctx, messageID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []domain.MessagePart); ok {
+		r0 = rf(ctx, messageID)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]domain.MessagePart)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, messageID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NewMockStore creates a new instance of MockStore. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockStore(t interface {

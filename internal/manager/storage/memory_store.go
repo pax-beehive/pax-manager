@@ -408,6 +408,9 @@ func (s *MemoryStore) CreateSecretVersion(
 func (s *MemoryStore) RecordSecretAccess(ctx context.Context, event SecretAccessEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if event.AgentID != "" && event.SessionID != "" {
+		event.SessionID = s.virtualSessionIDLocked(event.AgentID, event.SessionID)
+	}
 	s.secretAccess = append(s.secretAccess, event)
 	return nil
 }

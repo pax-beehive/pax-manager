@@ -167,6 +167,11 @@ type MessagePart struct {
 	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
+type MessageWithParts struct {
+	Message
+	Parts []MessagePart `json:"parts"`
+}
+
 const (
 	TransportStreamManagerToPaxd = "manager_to_paxd"
 	TransportStreamPaxdToManager = "paxd_to_manager"

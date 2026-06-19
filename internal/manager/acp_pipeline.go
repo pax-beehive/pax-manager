@@ -89,6 +89,106 @@ func (f *acpFrameContext) replaceFrame(frame acpJSONRPCMessage) error {
 	return nil
 }
 
+type acpSessionIDMiddleware struct {
+	store Store
+}
+
+func (m acpSessionIDMiddleware) HandleACPFrame(
+	ctx context.Context,
+	frame *acpFrameContext,
+	next acpFrameHandler,
+) error {
+	if frame.agent == nil || frame.agent.sessionID == "" {
+		return next(ctx, frame)
+	}
+	targetSessionID := frame.agent.sessionID
+	if frame.direction == acpUserToAgent {
+		nativeID, err := m.nativeSessionID(ctx, frame.agent)
+		if err != nil {
+			return err
+		}
+		targetSessionID = nativeID
+	}
+	payload, ok, err := rewriteACPFrameSessionID(frame.payload, targetSessionID)
+	if err != nil {
+		return err
+	}
+	if ok {
+		frame.payload = payload
+		_ = json.Unmarshal(payload, &frame.frame)
+	}
+	return next(ctx, frame)
+}
+
+func (m acpSessionIDMiddleware) nativeSessionID(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+) (string, error) {
+	if m.store == nil {
+		return agent.sessionID, nil
+	}
+	sessions, err := m.store.ListAgentSessions(
+		ctx,
+		domain.UserPrincipal{User: domain.User{UserID: agent.ownerUserID}},
+		agent.agentID,
+	)
+	if err != nil {
+		return agent.sessionID, nil
+	}
+	for _, session := range sessions {
+		if session.SessionID == agent.sessionID {
+			return firstNonEmpty(session.NativeID, session.SessionID), nil
+		}
+	}
+	return agent.sessionID, nil
+}
+
+func rewriteACPFrameSessionID(payload []byte, sessionID string) ([]byte, bool, error) {
+	if sessionID == "" || !json.Valid(payload) {
+		return payload, false, nil
+	}
+	var value any
+	if err := json.Unmarshal(payload, &value); err != nil {
+		return nil, false, err
+	}
+	changed := rewriteSessionIDValue(value, sessionID)
+	if !changed {
+		return payload, false, nil
+	}
+	rewritten, err := json.Marshal(value)
+	return rewritten, true, err
+}
+
+func rewriteSessionIDValue(value any, sessionID string) bool {
+	switch typed := value.(type) {
+	case map[string]any:
+		changed := false
+		for key, nested := range typed {
+			if key == "sessionId" || key == "session_id" {
+				if typed[key] != sessionID {
+					typed[key] = sessionID
+					changed = true
+				}
+				continue
+			}
+			if rewriteSessionIDValue(nested, sessionID) {
+				changed = true
+			}
+		}
+		return changed
+	case []any:
+		changed := false
+		for _, nested := range typed {
+			if rewriteSessionIDValue(nested, sessionID) {
+				changed = true
+			}
+		}
+		return changed
+	default:
+		return false
+	}
+}
+
 type acpApprovalMiddleware struct {
 	store Store
 }
