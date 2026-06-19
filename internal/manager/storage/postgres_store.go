@@ -915,7 +915,7 @@ func (s *PostgresStore) UpsertNodeStatus(
 			node.PaxdVersion,
 			node.APIEndpoint,
 			"node:"+node.NodeID+":"+agentID,
-			firstNonEmpty(input.Status, "online"),
+			reportedAgentStatus(input),
 			now,
 			nullRaw(input.Metadata),
 		)

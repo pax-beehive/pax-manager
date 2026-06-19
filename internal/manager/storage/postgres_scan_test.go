@@ -25,7 +25,7 @@ func (r fakeRow) Scan(dest ...any) error {
 	return nil
 }
 
-func TestScanAgentKeepsLifecycleStatusSeparateFromLiveness(t *testing.T) {
+func TestScanAgentRequiresOnlineStatusAndFreshHeartbeatForOnline(t *testing.T) {
 	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
 	agent, err := scanAgent(fakeRow{
 		"agent_1",
@@ -50,7 +50,7 @@ func TestScanAgentKeepsLifecycleStatusSeparateFromLiveness(t *testing.T) {
 	if agent.Status != "pending" {
 		t.Fatalf("status = %q, want pending", agent.Status)
 	}
-	if !agent.Online {
-		t.Fatal("online = false, want true")
+	if agent.Online {
+		t.Fatal("online = true, want false")
 	}
 }
