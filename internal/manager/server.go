@@ -140,6 +140,7 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		adaptor.HertzHandler(http.HandlerFunc(s.handleUserACPTunnel)),
 	)
 	h.GET("/api/v1/public/paxd/download", s.handleDownloadPaxdArtifact)
+	h.GET("/api/v1/public/paxd/install.sh", s.handleDownloadPaxdInstaller)
 	h.POST("/api/v1/admin/paxd/artifacts", s.handlePublishPaxdArtifact)
 
 	h.Static("/", "static")

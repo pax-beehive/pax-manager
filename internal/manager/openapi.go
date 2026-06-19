@@ -283,6 +283,16 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			},
 		},
 	}
+	paths["/api/v1/public/paxd/install.sh"] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"paxd"},
+			"summary":     "Redirect to paxd installer script",
+			"description": "Redirects to a short-lived signed GCS URL for the paxd installer shell script.",
+			"responses": map[string]any{
+				"302": map[string]string{"description": "Redirect to signed installer URL."},
+			},
+		},
+	}
 	paths["/api/v1/admin/paxd/artifacts"] = map[string]any{
 		"post": map[string]any{
 			"tags":        []string{"paxd"},

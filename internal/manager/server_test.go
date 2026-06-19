@@ -104,6 +104,9 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	if _, ok := doc.Paths["/api/v1/public/paxd/download"]; !ok {
 		t.Fatalf("missing /api/v1/public/paxd/download path")
 	}
+	if _, ok := doc.Paths["/api/v1/public/paxd/install.sh"]; !ok {
+		t.Fatalf("missing /api/v1/public/paxd/install.sh path")
+	}
 	if _, ok := doc.Paths["/api/v1/admin/paxd/artifacts"]; !ok {
 		t.Fatalf("missing /api/v1/admin/paxd/artifacts path")
 	}
@@ -326,6 +329,34 @@ func TestPaxdArtifactPublishAndDownload(t *testing.T) {
 	}
 	if fakeBackend.signedArtifact.ArtifactID != published.Artifact.ArtifactID {
 		t.Fatalf("signed artifact = %+v", fakeBackend.signedArtifact)
+	}
+}
+
+func TestPaxdInstallerRedirect(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	srv.cfg.PaxdArtifactDownloadTTL = time.Minute
+	srv.cfg.PaxdInstallerBucket = "pax-tech-bucket"
+	srv.cfg.PaxdInstallerObject = "script/installer.sh"
+	fakeBackend := &fakePaxdArtifactBackend{}
+	srv.paxdArtifacts = fakeBackend
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/public/paxd/install.sh", nil)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("installer code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Location"); got != "https://signed.example/script/installer.sh" {
+		t.Fatalf("location = %q", got)
+	}
+	if fakeBackend.signedArtifact.Bucket != "pax-tech-bucket" {
+		t.Fatalf("signed bucket = %q", fakeBackend.signedArtifact.Bucket)
+	}
+	if fakeBackend.signedArtifact.Object != "script/installer.sh" {
+		t.Fatalf("signed object = %q", fakeBackend.signedArtifact.Object)
+	}
+	if !fakeBackend.expiresAt.Equal(srv.clock().UTC().Add(time.Minute)) {
+		t.Fatalf("expires_at = %s", fakeBackend.expiresAt)
 	}
 }
 
