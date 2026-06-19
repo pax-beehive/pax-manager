@@ -626,14 +626,15 @@ func (s *PostgresStore) CreateNodeRegistrationSession(
 			registration_id, pair_code, poll_token_hash, status, requested_name,
 			requested_hostname, requested_machine_type, requested_os, requested_arch,
 			requested_paxd_version, requested_api_endpoint, requested_metadata,
-			expires_at, created_at
+			request_ip, request_city, request_country, expires_at, created_at
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 	`, session.RegistrationID, session.PairCode, session.PollTokenHash, session.Status,
 		session.Request.Name, session.Request.Hostname, session.Request.MachineType,
 		defaultOS(session.Request.OS), session.Request.Arch, session.Request.PaxdVersion,
 		defaultAPIEndpoint(session.Request.APIEndpoint), nullRaw(session.Request.Metadata),
-		session.ExpiresAt, session.CreatedAt)
+		session.RequestIP, session.RequestCity, session.RequestCountry, session.ExpiresAt,
+		session.CreatedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return ErrConflict
@@ -641,6 +642,30 @@ func (s *PostgresStore) CreateNodeRegistrationSession(
 		return err
 	}
 	return nil
+}
+
+func (s *PostgresStore) GetNodeRegistrationSession(
+	ctx context.Context,
+	pairCode string,
+) (NodeRegistrationSession, error) {
+	session, err := scanNodeRegistrationSession(s.db.QueryRowContext(ctx, `
+		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
+			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
+			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
+			COALESCE(requested_metadata, '{}'::jsonb), COALESCE(request_ip, ''),
+			COALESCE(request_city, ''), COALESCE(request_country, ''), expires_at, created_at,
+			approved_at, consumed_at
+		FROM node_registration_sessions
+		WHERE pair_code = $1
+	`, pairCode))
+	if err != nil {
+		return NodeRegistrationSession{}, err
+	}
+	if session.Status == domain.NodeRegistrationStatusPending &&
+		!session.ExpiresAt.After(s.now().UTC()) {
+		session.Status = domain.NodeRegistrationStatusExpired
+	}
+	return session, nil
 }
 
 func (s *PostgresStore) DeleteStaleNodeRegistrationSessions(
@@ -670,8 +695,9 @@ func (s *PostgresStore) ApproveNodeRegistrationSession(
 		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
 			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
 			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
-			COALESCE(requested_metadata, '{}'::jsonb), expires_at, created_at, approved_at,
-			consumed_at
+			COALESCE(requested_metadata, '{}'::jsonb), COALESCE(request_ip, ''),
+			COALESCE(request_city, ''), COALESCE(request_country, ''), expires_at, created_at,
+			approved_at, consumed_at
 		FROM node_registration_sessions
 		WHERE pair_code = $1
 		FOR UPDATE
@@ -697,8 +723,9 @@ func (s *PostgresStore) ApproveNodeRegistrationSession(
 		RETURNING registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
 			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
 			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
-			COALESCE(requested_metadata, '{}'::jsonb), expires_at, created_at, approved_at,
-			consumed_at
+			COALESCE(requested_metadata, '{}'::jsonb), COALESCE(request_ip, ''),
+			COALESCE(request_city, ''), COALESCE(request_country, ''), expires_at, created_at,
+			approved_at, consumed_at
 	`, registrationID, domain.NodeRegistrationStatusApproved, principal.User.UserID, now))
 	if err != nil {
 		return NodeRegistrationSession{}, err
@@ -718,8 +745,9 @@ func (s *PostgresStore) PollNodeRegistrationSession(
 		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
 			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
 			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
-			COALESCE(requested_metadata, '{}'::jsonb), expires_at, created_at, approved_at,
-			consumed_at
+			COALESCE(requested_metadata, '{}'::jsonb), COALESCE(request_ip, ''),
+			COALESCE(request_city, ''), COALESCE(request_country, ''), expires_at, created_at,
+			approved_at, consumed_at
 		FROM node_registration_sessions
 		WHERE registration_id = $1 AND poll_token_hash = $2
 	`, registrationID, pollTokenHash))
@@ -757,8 +785,9 @@ func (s *PostgresStore) ConsumeNodeRegistrationSession(
 		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
 			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
 			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
-			COALESCE(requested_metadata, '{}'::jsonb), expires_at, created_at, approved_at,
-			consumed_at
+			COALESCE(requested_metadata, '{}'::jsonb), COALESCE(request_ip, ''),
+			COALESCE(request_city, ''), COALESCE(request_country, ''), expires_at, created_at,
+			approved_at, consumed_at
 		FROM node_registration_sessions
 		WHERE registration_id = $1 AND poll_token_hash = $2
 		FOR UPDATE

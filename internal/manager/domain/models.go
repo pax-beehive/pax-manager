@@ -289,6 +289,9 @@ type NodeRegistrationSession struct {
 	OwnerUserID    string              `json:"owner_user_id,omitempty"`
 	NodeID         string              `json:"node_id,omitempty"`
 	Request        RegisterNodeRequest `json:"request"`
+	RequestIP      string              `json:"request_ip,omitempty"`
+	RequestCity    string              `json:"request_city,omitempty"`
+	RequestCountry string              `json:"request_country,omitempty"`
 	ExpiresAt      time.Time           `json:"expires_at"`
 	CreatedAt      time.Time           `json:"created_at"`
 	ApprovedAt     *time.Time          `json:"approved_at,omitempty"`
@@ -326,6 +329,22 @@ type ApproveNodeRegistrationResponse struct {
 	PairCode       string `json:"pair_code"`
 	Status         string `json:"status"`
 	ExpiresAt      string `json:"expires_at"`
+}
+
+type NodeRegistrationNetworkPreview struct {
+	IPAddress string `json:"ip_address,omitempty"`
+	City      string `json:"city,omitempty"`
+	Country   string `json:"country,omitempty"`
+}
+
+type NodeRegistrationPreviewResponse struct {
+	RegistrationID string                         `json:"registration_id"`
+	PairCode       string                         `json:"pair_code"`
+	Status         string                         `json:"status"`
+	Request        RegisterNodeRequest            `json:"request"`
+	Network        NodeRegistrationNetworkPreview `json:"network,omitempty"`
+	ExpiresAt      string                         `json:"expires_at"`
+	CreatedAt      string                         `json:"created_at"`
 }
 
 type RegisterNodeAgentRequest struct {
