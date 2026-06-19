@@ -70,6 +70,10 @@ type Store interface {
 	) (Node, error)
 	CreateNodeRegistrationSession(ctx context.Context, session NodeRegistrationSession) error
 	DeleteStaleNodeRegistrationSessions(ctx context.Context, cutoff time.Time) error
+	GetNodeRegistrationSession(
+		ctx context.Context,
+		pairCode string,
+	) (NodeRegistrationSession, error)
 	ApproveNodeRegistrationSession(
 		ctx context.Context,
 		principal UserPrincipal,

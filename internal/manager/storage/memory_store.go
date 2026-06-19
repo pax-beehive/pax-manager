@@ -642,6 +642,24 @@ func (s *MemoryStore) DeleteStaleNodeRegistrationSessions(
 	return nil
 }
 
+func (s *MemoryStore) GetNodeRegistrationSession(
+	ctx context.Context,
+	pairCode string,
+) (NodeRegistrationSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	registrationID, ok := s.nodeRegistrationPairCodes[pairCode]
+	if !ok {
+		return NodeRegistrationSession{}, ErrNotFound
+	}
+	session := s.nodeRegistrations[registrationID]
+	if session.Status == domain.NodeRegistrationStatusPending &&
+		!session.ExpiresAt.After(s.now().UTC()) {
+		session.Status = domain.NodeRegistrationStatusExpired
+	}
+	return session, nil
+}
+
 func (s *MemoryStore) ApproveNodeRegistrationSession(
 	ctx context.Context,
 	principal UserPrincipal,
