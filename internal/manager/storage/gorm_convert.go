@@ -24,6 +24,13 @@ func stringValue(v *string) string {
 	return *v
 }
 
+func stringPtr(v string) *string {
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
 func timeValue(v *time.Time) time.Time {
 	if v == nil {
 		return time.Time{}
@@ -79,6 +86,13 @@ func rawJSONPtr(raw json.RawMessage) *string {
 func rawJSONValue(raw *string) json.RawMessage {
 	if raw == nil || *raw == "" {
 		return json.RawMessage("{}")
+	}
+	return json.RawMessage(*raw)
+}
+
+func rawJSONArrayValue(raw *string) json.RawMessage {
+	if raw == nil || *raw == "" {
+		return json.RawMessage("[]")
 	}
 	return json.RawMessage(*raw)
 }

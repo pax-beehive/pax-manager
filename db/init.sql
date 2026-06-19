@@ -407,6 +407,98 @@ CREATE INDEX IF NOT EXISTS idx_paxd_artifacts_tags
     ON paxd_artifacts USING GIN(tags)
     WHERE deleted_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS knowledge_capsules (
+    capsule_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    source_session_id TEXT NOT NULL,
+    source_agent_id TEXT NOT NULL,
+    source_node_id TEXT NOT NULL DEFAULT '',
+    created_by_user_id TEXT NOT NULL REFERENCES users(user_id),
+    keyword TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    suggested_skills_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    references_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    open_questions_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    risks_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    redactions_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status TEXT NOT NULL DEFAULT 'active',
+    truncated BOOLEAN NOT NULL DEFAULT FALSE,
+    original_estimated_chars BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    archived_at TIMESTAMPTZ
+);
+
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS owner_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS source_session_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS source_agent_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS source_node_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS created_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS keyword TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS summary TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS content TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS suggested_skills_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS references_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS open_questions_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS risks_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS redactions_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS truncated BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS original_estimated_chars BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE knowledge_capsules ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_capsules_owner_status
+    ON knowledge_capsules(owner_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_knowledge_capsules_source_session
+    ON knowledge_capsules(owner_user_id, source_session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_knowledge_capsules_keyword
+    ON knowledge_capsules(owner_user_id, keyword, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS session_knowledge_injections (
+    injection_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    capsule_id TEXT NOT NULL REFERENCES knowledge_capsules(capsule_id),
+    target_session_id TEXT NOT NULL,
+    target_agent_id TEXT NOT NULL,
+    target_node_id TEXT NOT NULL DEFAULT '',
+    created_by_user_id TEXT NOT NULL REFERENCES users(user_id),
+    delivered_as_user_id TEXT NOT NULL DEFAULT '',
+    delivery_method TEXT NOT NULL DEFAULT 'mailbox_steer',
+    delivery_message_id TEXT NOT NULL DEFAULT '',
+    delivery_message_type TEXT NOT NULL DEFAULT 'system_handoff',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    delivered_at TIMESTAMPTZ,
+    failed_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    error TEXT NOT NULL DEFAULT ''
+);
+
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS owner_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS capsule_id TEXT REFERENCES knowledge_capsules(capsule_id);
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS target_session_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS target_agent_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS target_node_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS created_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS delivered_as_user_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS delivery_method TEXT NOT NULL DEFAULT 'mailbox_steer';
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS delivery_message_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS delivery_message_type TEXT NOT NULL DEFAULT 'system_handoff';
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS failed_at TIMESTAMPTZ;
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+ALTER TABLE session_knowledge_injections ADD COLUMN IF NOT EXISTS error TEXT NOT NULL DEFAULT '';
+
+CREATE INDEX IF NOT EXISTS idx_session_knowledge_injections_capsule
+    ON session_knowledge_injections(owner_user_id, capsule_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_session_knowledge_injections_target_session
+    ON session_knowledge_injections(owner_user_id, target_session_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS agent_approvals (
     approval_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id),

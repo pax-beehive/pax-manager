@@ -173,6 +173,86 @@ type MessageWithParts struct {
 }
 
 const (
+	KnowledgeCapsuleStatusActive   = "active"
+	KnowledgeCapsuleStatusArchived = "archived"
+
+	KnowledgeInjectionStatusPending   = "pending"
+	KnowledgeInjectionStatusDelivered = "delivered"
+	KnowledgeInjectionStatusFailed    = "failed"
+	KnowledgeInjectionStatusRevoked   = "revoked"
+
+	KnowledgeInjectionDeliveryMailboxSteer = "mailbox_steer"
+	MessageTypeSystemHandoff               = "system_handoff"
+)
+
+type KnowledgeCapsule struct {
+	CapsuleID              string          `json:"capsule_id"`
+	OwnerUserID            string          `json:"owner_user_id"`
+	SourceSessionID        string          `json:"source_session_id"`
+	SourceAgentID          string          `json:"source_agent_id"`
+	SourceNodeID           string          `json:"source_node_id,omitempty"`
+	CreatedByUserID        string          `json:"created_by_user_id"`
+	Keyword                string          `json:"keyword"`
+	Title                  string          `json:"title"`
+	Summary                string          `json:"summary"`
+	Content                string          `json:"content"`
+	SuggestedSkills        json.RawMessage `json:"suggested_skills,omitempty"`
+	References             json.RawMessage `json:"references,omitempty"`
+	OpenQuestions          json.RawMessage `json:"open_questions,omitempty"`
+	Risks                  json.RawMessage `json:"risks,omitempty"`
+	Redactions             json.RawMessage `json:"redactions,omitempty"`
+	Status                 string          `json:"status"`
+	Truncated              bool            `json:"truncated"`
+	OriginalEstimatedChars int64           `json:"original_estimated_chars"`
+	CreatedAt              time.Time       `json:"created_at"`
+	ArchivedAt             *time.Time      `json:"archived_at,omitempty"`
+}
+
+type SessionKnowledgeInjection struct {
+	InjectionID         string     `json:"injection_id"`
+	OwnerUserID         string     `json:"owner_user_id"`
+	CapsuleID           string     `json:"capsule_id"`
+	TargetSessionID     string     `json:"target_session_id"`
+	TargetAgentID       string     `json:"target_agent_id"`
+	TargetNodeID        string     `json:"target_node_id,omitempty"`
+	CreatedByUserID     string     `json:"created_by_user_id"`
+	DeliveredAsUserID   string     `json:"delivered_as_user_id,omitempty"`
+	DeliveryMethod      string     `json:"delivery_method"`
+	DeliveryMessageID   string     `json:"delivery_message_id,omitempty"`
+	DeliveryMessageType string     `json:"delivery_message_type"`
+	Status              string     `json:"status"`
+	CreatedAt           time.Time  `json:"created_at"`
+	DeliveredAt         *time.Time `json:"delivered_at,omitempty"`
+	FailedAt            *time.Time `json:"failed_at,omitempty"`
+	RevokedAt           *time.Time `json:"revoked_at,omitempty"`
+	Error               string     `json:"error,omitempty"`
+}
+
+type CreateKnowledgeCapsuleRequest struct {
+	Keyword string `json:"keyword"`
+}
+
+type ListKnowledgeCapsulesFilter struct {
+	Principal       UserPrincipal
+	Status          string
+	Keyword         string
+	SourceSessionID string
+	Limit           int
+	Cursor          string
+}
+
+type InjectKnowledgeCapsuleRequest struct {
+	CapsuleID string `json:"capsule_id"`
+}
+
+type ListKnowledgeInjectionsFilter struct {
+	Principal       UserPrincipal
+	TargetSessionID string
+	Limit           int
+	Cursor          string
+}
+
+const (
 	TransportStreamManagerToPaxd = "manager_to_paxd"
 	TransportStreamPaxdToManager = "paxd_to_manager"
 
@@ -831,7 +911,7 @@ func firstNonZeroFloat(values ...float64) float64 {
 
 func DefaultMessageType(v string) string {
 	switch v {
-	case "chat", "steer", "command":
+	case "chat", "steer", "command", MessageTypeSystemHandoff:
 		return v
 	case "":
 		return "chat"
@@ -847,7 +927,7 @@ func ExpiresAt(now time.Time, messageType string) *time.Time {
 		t = now.Add(30 * time.Second)
 	case "chat":
 		t = now.Add(5 * time.Minute)
-	case "command":
+	case "command", MessageTypeSystemHandoff:
 		t = now.Add(5 * time.Minute)
 	default:
 		return nil
@@ -886,6 +966,14 @@ func MailboxPayload(req CreateMailboxRequest) (json.RawMessage, error) {
 			"event_type":  "execute",
 			"session_id":  req.SessionID,
 			"command":     req.Message,
+		}
+	case MessageTypeSystemHandoff:
+		payload = map[string]any{
+			"entity_type":  "knowledge",
+			"event_type":   MessageTypeSystemHandoff,
+			"message_type": MessageTypeSystemHandoff,
+			"session_id":   req.SessionID,
+			"handoff":      req.Message,
 		}
 	default:
 		return nil, errors.New("unsupported message type")

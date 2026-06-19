@@ -23,6 +23,179 @@ func (_m *MockStore) EXPECT() *MockStore_Expecter {
 	return &MockStore_Expecter{mock: &_m.Mock}
 }
 
+// ArchiveKnowledgeCapsule provides a mock function with given fields: ctx, principal, capsuleID, archivedAt
+func (_m *MockStore) ArchiveKnowledgeCapsule(ctx context.Context, principal domain.UserPrincipal, capsuleID string, archivedAt time.Time) (domain.KnowledgeCapsule, error) {
+	ret := _m.Called(ctx, principal, capsuleID, archivedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ArchiveKnowledgeCapsule")
+	}
+
+	var r0 domain.KnowledgeCapsule
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) (domain.KnowledgeCapsule, error)); ok {
+		return rf(ctx, principal, capsuleID, archivedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) domain.KnowledgeCapsule); ok {
+		r0 = rf(ctx, principal, capsuleID, archivedAt)
+	} else {
+		r0 = ret.Get(0).(domain.KnowledgeCapsule)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, capsuleID, archivedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ArchiveKnowledgeCapsule_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ArchiveKnowledgeCapsule'
+type MockStore_ArchiveKnowledgeCapsule_Call struct {
+	*mock.Call
+}
+
+// ArchiveKnowledgeCapsule is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - capsuleID string
+//   - archivedAt time.Time
+func (_e *MockStore_Expecter) ArchiveKnowledgeCapsule(ctx interface{}, principal interface{}, capsuleID interface{}, archivedAt interface{}) *MockStore_ArchiveKnowledgeCapsule_Call {
+	return &MockStore_ArchiveKnowledgeCapsule_Call{Call: _e.mock.On("ArchiveKnowledgeCapsule", ctx, principal, capsuleID, archivedAt)}
+}
+
+func (_c *MockStore_ArchiveKnowledgeCapsule_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, capsuleID string, archivedAt time.Time)) *MockStore_ArchiveKnowledgeCapsule_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_ArchiveKnowledgeCapsule_Call) Return(_a0 domain.KnowledgeCapsule, _a1 error) *MockStore_ArchiveKnowledgeCapsule_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ArchiveKnowledgeCapsule_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, time.Time) (domain.KnowledgeCapsule, error)) *MockStore_ArchiveKnowledgeCapsule_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateKnowledgeCapsule provides a mock function with given fields: ctx, capsule
+func (_m *MockStore) CreateKnowledgeCapsule(ctx context.Context, capsule domain.KnowledgeCapsule) (domain.KnowledgeCapsule, error) {
+	ret := _m.Called(ctx, capsule)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateKnowledgeCapsule")
+	}
+
+	var r0 domain.KnowledgeCapsule
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.KnowledgeCapsule) (domain.KnowledgeCapsule, error)); ok {
+		return rf(ctx, capsule)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.KnowledgeCapsule) domain.KnowledgeCapsule); ok {
+		r0 = rf(ctx, capsule)
+	} else {
+		r0 = ret.Get(0).(domain.KnowledgeCapsule)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.KnowledgeCapsule) error); ok {
+		r1 = rf(ctx, capsule)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateKnowledgeCapsule_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateKnowledgeCapsule'
+type MockStore_CreateKnowledgeCapsule_Call struct {
+	*mock.Call
+}
+
+// CreateKnowledgeCapsule is a helper method to define mock.On call
+//   - ctx context.Context
+//   - capsule domain.KnowledgeCapsule
+func (_e *MockStore_Expecter) CreateKnowledgeCapsule(ctx interface{}, capsule interface{}) *MockStore_CreateKnowledgeCapsule_Call {
+	return &MockStore_CreateKnowledgeCapsule_Call{Call: _e.mock.On("CreateKnowledgeCapsule", ctx, capsule)}
+}
+
+func (_c *MockStore_CreateKnowledgeCapsule_Call) Run(run func(ctx context.Context, capsule domain.KnowledgeCapsule)) *MockStore_CreateKnowledgeCapsule_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.KnowledgeCapsule))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateKnowledgeCapsule_Call) Return(_a0 domain.KnowledgeCapsule, _a1 error) *MockStore_CreateKnowledgeCapsule_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateKnowledgeCapsule_Call) RunAndReturn(run func(context.Context, domain.KnowledgeCapsule) (domain.KnowledgeCapsule, error)) *MockStore_CreateKnowledgeCapsule_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateKnowledgeInjection provides a mock function with given fields: ctx, injection
+func (_m *MockStore) CreateKnowledgeInjection(ctx context.Context, injection domain.SessionKnowledgeInjection) (domain.SessionKnowledgeInjection, error) {
+	ret := _m.Called(ctx, injection)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateKnowledgeInjection")
+	}
+
+	var r0 domain.SessionKnowledgeInjection
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.SessionKnowledgeInjection) (domain.SessionKnowledgeInjection, error)); ok {
+		return rf(ctx, injection)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.SessionKnowledgeInjection) domain.SessionKnowledgeInjection); ok {
+		r0 = rf(ctx, injection)
+	} else {
+		r0 = ret.Get(0).(domain.SessionKnowledgeInjection)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.SessionKnowledgeInjection) error); ok {
+		r1 = rf(ctx, injection)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateKnowledgeInjection_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateKnowledgeInjection'
+type MockStore_CreateKnowledgeInjection_Call struct {
+	*mock.Call
+}
+
+// CreateKnowledgeInjection is a helper method to define mock.On call
+//   - ctx context.Context
+//   - injection domain.SessionKnowledgeInjection
+func (_e *MockStore_Expecter) CreateKnowledgeInjection(ctx interface{}, injection interface{}) *MockStore_CreateKnowledgeInjection_Call {
+	return &MockStore_CreateKnowledgeInjection_Call{Call: _e.mock.On("CreateKnowledgeInjection", ctx, injection)}
+}
+
+func (_c *MockStore_CreateKnowledgeInjection_Call) Run(run func(ctx context.Context, injection domain.SessionKnowledgeInjection)) *MockStore_CreateKnowledgeInjection_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.SessionKnowledgeInjection))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateKnowledgeInjection_Call) Return(_a0 domain.SessionKnowledgeInjection, _a1 error) *MockStore_CreateKnowledgeInjection_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateKnowledgeInjection_Call) RunAndReturn(run func(context.Context, domain.SessionKnowledgeInjection) (domain.SessionKnowledgeInjection, error)) *MockStore_CreateKnowledgeInjection_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateMailboxMessage provides a mock function with given fields: ctx, principal, req
 func (_m *MockStore) CreateMailboxMessage(ctx context.Context, principal domain.UserPrincipal, req domain.CreateMailboxRequest) (domain.MailboxMessage, error) {
 	ret := _m.Called(ctx, principal, req)
@@ -437,6 +610,64 @@ func (_c *MockStore_GetAgent_Call) RunAndReturn(run func(context.Context, domain
 	return _c
 }
 
+// GetKnowledgeCapsule provides a mock function with given fields: ctx, principal, capsuleID
+func (_m *MockStore) GetKnowledgeCapsule(ctx context.Context, principal domain.UserPrincipal, capsuleID string) (domain.KnowledgeCapsule, error) {
+	ret := _m.Called(ctx, principal, capsuleID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetKnowledgeCapsule")
+	}
+
+	var r0 domain.KnowledgeCapsule
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) (domain.KnowledgeCapsule, error)); ok {
+		return rf(ctx, principal, capsuleID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) domain.KnowledgeCapsule); ok {
+		r0 = rf(ctx, principal, capsuleID)
+	} else {
+		r0 = ret.Get(0).(domain.KnowledgeCapsule)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, capsuleID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetKnowledgeCapsule_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetKnowledgeCapsule'
+type MockStore_GetKnowledgeCapsule_Call struct {
+	*mock.Call
+}
+
+// GetKnowledgeCapsule is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - capsuleID string
+func (_e *MockStore_Expecter) GetKnowledgeCapsule(ctx interface{}, principal interface{}, capsuleID interface{}) *MockStore_GetKnowledgeCapsule_Call {
+	return &MockStore_GetKnowledgeCapsule_Call{Call: _e.mock.On("GetKnowledgeCapsule", ctx, principal, capsuleID)}
+}
+
+func (_c *MockStore_GetKnowledgeCapsule_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, capsuleID string)) *MockStore_GetKnowledgeCapsule_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetKnowledgeCapsule_Call) Return(_a0 domain.KnowledgeCapsule, _a1 error) *MockStore_GetKnowledgeCapsule_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetKnowledgeCapsule_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.KnowledgeCapsule, error)) *MockStore_GetKnowledgeCapsule_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetNode provides a mock function with given fields: ctx, principal, nodeID
 func (_m *MockStore) GetNode(ctx context.Context, principal domain.UserPrincipal, nodeID string) (domain.Node, error) {
 	ret := _m.Called(ctx, principal, nodeID)
@@ -844,6 +1075,124 @@ func (_c *MockStore_ListAgents_Call) RunAndReturn(run func(context.Context, doma
 	return _c
 }
 
+// ListKnowledgeCapsules provides a mock function with given fields: ctx, filter
+func (_m *MockStore) ListKnowledgeCapsules(ctx context.Context, filter domain.ListKnowledgeCapsulesFilter) ([]domain.KnowledgeCapsule, error) {
+	ret := _m.Called(ctx, filter)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListKnowledgeCapsules")
+	}
+
+	var r0 []domain.KnowledgeCapsule
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.ListKnowledgeCapsulesFilter) ([]domain.KnowledgeCapsule, error)); ok {
+		return rf(ctx, filter)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.ListKnowledgeCapsulesFilter) []domain.KnowledgeCapsule); ok {
+		r0 = rf(ctx, filter)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.KnowledgeCapsule)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.ListKnowledgeCapsulesFilter) error); ok {
+		r1 = rf(ctx, filter)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListKnowledgeCapsules_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListKnowledgeCapsules'
+type MockStore_ListKnowledgeCapsules_Call struct {
+	*mock.Call
+}
+
+// ListKnowledgeCapsules is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filter domain.ListKnowledgeCapsulesFilter
+func (_e *MockStore_Expecter) ListKnowledgeCapsules(ctx interface{}, filter interface{}) *MockStore_ListKnowledgeCapsules_Call {
+	return &MockStore_ListKnowledgeCapsules_Call{Call: _e.mock.On("ListKnowledgeCapsules", ctx, filter)}
+}
+
+func (_c *MockStore_ListKnowledgeCapsules_Call) Run(run func(ctx context.Context, filter domain.ListKnowledgeCapsulesFilter)) *MockStore_ListKnowledgeCapsules_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.ListKnowledgeCapsulesFilter))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListKnowledgeCapsules_Call) Return(_a0 []domain.KnowledgeCapsule, _a1 error) *MockStore_ListKnowledgeCapsules_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListKnowledgeCapsules_Call) RunAndReturn(run func(context.Context, domain.ListKnowledgeCapsulesFilter) ([]domain.KnowledgeCapsule, error)) *MockStore_ListKnowledgeCapsules_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListKnowledgeInjections provides a mock function with given fields: ctx, filter
+func (_m *MockStore) ListKnowledgeInjections(ctx context.Context, filter domain.ListKnowledgeInjectionsFilter) ([]domain.SessionKnowledgeInjection, error) {
+	ret := _m.Called(ctx, filter)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListKnowledgeInjections")
+	}
+
+	var r0 []domain.SessionKnowledgeInjection
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.ListKnowledgeInjectionsFilter) ([]domain.SessionKnowledgeInjection, error)); ok {
+		return rf(ctx, filter)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.ListKnowledgeInjectionsFilter) []domain.SessionKnowledgeInjection); ok {
+		r0 = rf(ctx, filter)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.SessionKnowledgeInjection)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.ListKnowledgeInjectionsFilter) error); ok {
+		r1 = rf(ctx, filter)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListKnowledgeInjections_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListKnowledgeInjections'
+type MockStore_ListKnowledgeInjections_Call struct {
+	*mock.Call
+}
+
+// ListKnowledgeInjections is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filter domain.ListKnowledgeInjectionsFilter
+func (_e *MockStore_Expecter) ListKnowledgeInjections(ctx interface{}, filter interface{}) *MockStore_ListKnowledgeInjections_Call {
+	return &MockStore_ListKnowledgeInjections_Call{Call: _e.mock.On("ListKnowledgeInjections", ctx, filter)}
+}
+
+func (_c *MockStore_ListKnowledgeInjections_Call) Run(run func(ctx context.Context, filter domain.ListKnowledgeInjectionsFilter)) *MockStore_ListKnowledgeInjections_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.ListKnowledgeInjectionsFilter))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListKnowledgeInjections_Call) Return(_a0 []domain.SessionKnowledgeInjection, _a1 error) *MockStore_ListKnowledgeInjections_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListKnowledgeInjections_Call) RunAndReturn(run func(context.Context, domain.ListKnowledgeInjectionsFilter) ([]domain.SessionKnowledgeInjection, error)) *MockStore_ListKnowledgeInjections_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListMailbox provides a mock function with given fields: ctx, filter
 func (_m *MockStore) ListMailbox(ctx context.Context, filter domain.MailboxFilter) ([]domain.MailboxMessage, error) {
 	ret := _m.Called(ctx, filter)
@@ -899,6 +1248,126 @@ func (_c *MockStore_ListMailbox_Call) Return(_a0 []domain.MailboxMessage, _a1 er
 }
 
 func (_c *MockStore_ListMailbox_Call) RunAndReturn(run func(context.Context, domain.MailboxFilter) ([]domain.MailboxMessage, error)) *MockStore_ListMailbox_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListMessageParts provides a mock function with given fields: ctx, messageID
+func (_m *MockStore) ListMessageParts(ctx context.Context, messageID string) ([]domain.MessagePart, error) {
+	ret := _m.Called(ctx, messageID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListMessageParts")
+	}
+
+	var r0 []domain.MessagePart
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]domain.MessagePart, error)); ok {
+		return rf(ctx, messageID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []domain.MessagePart); ok {
+		r0 = rf(ctx, messageID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.MessagePart)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, messageID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListMessageParts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListMessageParts'
+type MockStore_ListMessageParts_Call struct {
+	*mock.Call
+}
+
+// ListMessageParts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - messageID string
+func (_e *MockStore_Expecter) ListMessageParts(ctx interface{}, messageID interface{}) *MockStore_ListMessageParts_Call {
+	return &MockStore_ListMessageParts_Call{Call: _e.mock.On("ListMessageParts", ctx, messageID)}
+}
+
+func (_c *MockStore_ListMessageParts_Call) Run(run func(ctx context.Context, messageID string)) *MockStore_ListMessageParts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListMessageParts_Call) Return(_a0 []domain.MessagePart, _a1 error) *MockStore_ListMessageParts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListMessageParts_Call) RunAndReturn(run func(context.Context, string) ([]domain.MessagePart, error)) *MockStore_ListMessageParts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListMessages provides a mock function with given fields: ctx, agentID, sessionID, limit
+func (_m *MockStore) ListMessages(ctx context.Context, agentID string, sessionID string, limit int) ([]domain.Message, error) {
+	ret := _m.Called(ctx, agentID, sessionID, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListMessages")
+	}
+
+	var r0 []domain.Message
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) ([]domain.Message, error)); ok {
+		return rf(ctx, agentID, sessionID, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) []domain.Message); ok {
+		r0 = rf(ctx, agentID, sessionID, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.Message)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int) error); ok {
+		r1 = rf(ctx, agentID, sessionID, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListMessages_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListMessages'
+type MockStore_ListMessages_Call struct {
+	*mock.Call
+}
+
+// ListMessages is a helper method to define mock.On call
+//   - ctx context.Context
+//   - agentID string
+//   - sessionID string
+//   - limit int
+func (_e *MockStore_Expecter) ListMessages(ctx interface{}, agentID interface{}, sessionID interface{}, limit interface{}) *MockStore_ListMessages_Call {
+	return &MockStore_ListMessages_Call{Call: _e.mock.On("ListMessages", ctx, agentID, sessionID, limit)}
+}
+
+func (_c *MockStore_ListMessages_Call) Run(run func(ctx context.Context, agentID string, sessionID string, limit int)) *MockStore_ListMessages_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListMessages_Call) Return(_a0 []domain.Message, _a1 error) *MockStore_ListMessages_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListMessages_Call) RunAndReturn(run func(context.Context, string, string, int) ([]domain.Message, error)) *MockStore_ListMessages_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1246,62 +1715,6 @@ func (_c *MockStore_RevokeUserAPIKey_Call) Return(_a0 error) *MockStore_RevokeUs
 func (_c *MockStore_RevokeUserAPIKey_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) error) *MockStore_RevokeUserAPIKey_Call {
 	_c.Call.Return(run)
 	return _c
-}
-
-// ListMessages provides a mock function with given fields: ctx, agentID, sessionID, limit
-func (_m *MockStore) ListMessages(ctx context.Context, agentID string, sessionID string, limit int) ([]domain.Message, error) {
-	ret := _m.Called(ctx, agentID, sessionID, limit)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListMessages")
-	}
-
-	var r0 []domain.Message
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) ([]domain.Message, error)); ok {
-		return rf(ctx, agentID, sessionID, limit)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, int) []domain.Message); ok {
-		r0 = rf(ctx, agentID, sessionID, limit)
-	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]domain.Message)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, int) error); ok {
-		r1 = rf(ctx, agentID, sessionID, limit)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// ListMessageParts provides a mock function with given fields: ctx, messageID
-func (_m *MockStore) ListMessageParts(ctx context.Context, messageID string) ([]domain.MessagePart, error) {
-	ret := _m.Called(ctx, messageID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListMessageParts")
-	}
-
-	var r0 []domain.MessagePart
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]domain.MessagePart, error)); ok {
-		return rf(ctx, messageID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []domain.MessagePart); ok {
-		r0 = rf(ctx, messageID)
-	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]domain.MessagePart)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, messageID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
 }
 
 // NewMockStore creates a new instance of MockStore. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

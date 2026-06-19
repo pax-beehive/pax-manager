@@ -16,25 +16,27 @@ import (
 )
 
 var (
-	Q                       = new(Query)
-	Agent                   *agent
-	AgentApproval           *agentApproval
-	AgentRegistrationToken  *agentRegistrationToken
-	AgentSession            *agentSession
-	Mailbox                 *mailbox
-	Message                 *message
-	MessageOffset           *messageOffset
-	MessagePart             *messagePart
-	Node                    *node
-	NodeMessageOffset       *nodeMessageOffset
-	NodeRegistrationSession *nodeRegistrationSession
-	PaxdArtifact            *paxdArtifact
-	Secret                  *secret
-	SecretAccessEvent       *secretAccessEvent
-	SecretVersion           *secretVersion
-	TransportJournal        *transportJournal
-	User                    *user
-	UserAPIKey              *userAPIKey
+	Q                         = new(Query)
+	Agent                     *agent
+	AgentApproval             *agentApproval
+	AgentRegistrationToken    *agentRegistrationToken
+	AgentSession              *agentSession
+	KnowledgeCapsule          *knowledgeCapsule
+	Mailbox                   *mailbox
+	Message                   *message
+	MessageOffset             *messageOffset
+	MessagePart               *messagePart
+	Node                      *node
+	NodeMessageOffset         *nodeMessageOffset
+	NodeRegistrationSession   *nodeRegistrationSession
+	PaxdArtifact              *paxdArtifact
+	Secret                    *secret
+	SecretAccessEvent         *secretAccessEvent
+	SecretVersion             *secretVersion
+	SessionKnowledgeInjection *sessionKnowledgeInjection
+	TransportJournal          *transportJournal
+	User                      *user
+	UserAPIKey                *userAPIKey
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
@@ -43,6 +45,7 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	AgentApproval = &Q.AgentApproval
 	AgentRegistrationToken = &Q.AgentRegistrationToken
 	AgentSession = &Q.AgentSession
+	KnowledgeCapsule = &Q.KnowledgeCapsule
 	Mailbox = &Q.Mailbox
 	Message = &Q.Message
 	MessageOffset = &Q.MessageOffset
@@ -54,6 +57,7 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	Secret = &Q.Secret
 	SecretAccessEvent = &Q.SecretAccessEvent
 	SecretVersion = &Q.SecretVersion
+	SessionKnowledgeInjection = &Q.SessionKnowledgeInjection
 	TransportJournal = &Q.TransportJournal
 	User = &Q.User
 	UserAPIKey = &Q.UserAPIKey
@@ -61,49 +65,53 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
-		db:                      db,
-		Agent:                   newAgent(db, opts...),
-		AgentApproval:           newAgentApproval(db, opts...),
-		AgentRegistrationToken:  newAgentRegistrationToken(db, opts...),
-		AgentSession:            newAgentSession(db, opts...),
-		Mailbox:                 newMailbox(db, opts...),
-		Message:                 newMessage(db, opts...),
-		MessageOffset:           newMessageOffset(db, opts...),
-		MessagePart:             newMessagePart(db, opts...),
-		Node:                    newNode(db, opts...),
-		NodeMessageOffset:       newNodeMessageOffset(db, opts...),
-		NodeRegistrationSession: newNodeRegistrationSession(db, opts...),
-		PaxdArtifact:            newPaxdArtifact(db, opts...),
-		Secret:                  newSecret(db, opts...),
-		SecretAccessEvent:       newSecretAccessEvent(db, opts...),
-		SecretVersion:           newSecretVersion(db, opts...),
-		TransportJournal:        newTransportJournal(db, opts...),
-		User:                    newUser(db, opts...),
-		UserAPIKey:              newUserAPIKey(db, opts...),
+		db:                        db,
+		Agent:                     newAgent(db, opts...),
+		AgentApproval:             newAgentApproval(db, opts...),
+		AgentRegistrationToken:    newAgentRegistrationToken(db, opts...),
+		AgentSession:              newAgentSession(db, opts...),
+		KnowledgeCapsule:          newKnowledgeCapsule(db, opts...),
+		Mailbox:                   newMailbox(db, opts...),
+		Message:                   newMessage(db, opts...),
+		MessageOffset:             newMessageOffset(db, opts...),
+		MessagePart:               newMessagePart(db, opts...),
+		Node:                      newNode(db, opts...),
+		NodeMessageOffset:         newNodeMessageOffset(db, opts...),
+		NodeRegistrationSession:   newNodeRegistrationSession(db, opts...),
+		PaxdArtifact:              newPaxdArtifact(db, opts...),
+		Secret:                    newSecret(db, opts...),
+		SecretAccessEvent:         newSecretAccessEvent(db, opts...),
+		SecretVersion:             newSecretVersion(db, opts...),
+		SessionKnowledgeInjection: newSessionKnowledgeInjection(db, opts...),
+		TransportJournal:          newTransportJournal(db, opts...),
+		User:                      newUser(db, opts...),
+		UserAPIKey:                newUserAPIKey(db, opts...),
 	}
 }
 
 type Query struct {
 	db *gorm.DB
 
-	Agent                   agent
-	AgentApproval           agentApproval
-	AgentRegistrationToken  agentRegistrationToken
-	AgentSession            agentSession
-	Mailbox                 mailbox
-	Message                 message
-	MessageOffset           messageOffset
-	MessagePart             messagePart
-	Node                    node
-	NodeMessageOffset       nodeMessageOffset
-	NodeRegistrationSession nodeRegistrationSession
-	PaxdArtifact            paxdArtifact
-	Secret                  secret
-	SecretAccessEvent       secretAccessEvent
-	SecretVersion           secretVersion
-	TransportJournal        transportJournal
-	User                    user
-	UserAPIKey              userAPIKey
+	Agent                     agent
+	AgentApproval             agentApproval
+	AgentRegistrationToken    agentRegistrationToken
+	AgentSession              agentSession
+	KnowledgeCapsule          knowledgeCapsule
+	Mailbox                   mailbox
+	Message                   message
+	MessageOffset             messageOffset
+	MessagePart               messagePart
+	Node                      node
+	NodeMessageOffset         nodeMessageOffset
+	NodeRegistrationSession   nodeRegistrationSession
+	PaxdArtifact              paxdArtifact
+	Secret                    secret
+	SecretAccessEvent         secretAccessEvent
+	SecretVersion             secretVersion
+	SessionKnowledgeInjection sessionKnowledgeInjection
+	TransportJournal          transportJournal
+	User                      user
+	UserAPIKey                userAPIKey
 }
 
 func (q *Query) Available() bool { return q.db != nil }
@@ -112,25 +120,27 @@ func (q *Query) UnderlyingDB() *gorm.DB { return q.db }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
-		db:                      db,
-		Agent:                   q.Agent.clone(db),
-		AgentApproval:           q.AgentApproval.clone(db),
-		AgentRegistrationToken:  q.AgentRegistrationToken.clone(db),
-		AgentSession:            q.AgentSession.clone(db),
-		Mailbox:                 q.Mailbox.clone(db),
-		Message:                 q.Message.clone(db),
-		MessageOffset:           q.MessageOffset.clone(db),
-		MessagePart:             q.MessagePart.clone(db),
-		Node:                    q.Node.clone(db),
-		NodeMessageOffset:       q.NodeMessageOffset.clone(db),
-		NodeRegistrationSession: q.NodeRegistrationSession.clone(db),
-		PaxdArtifact:            q.PaxdArtifact.clone(db),
-		Secret:                  q.Secret.clone(db),
-		SecretAccessEvent:       q.SecretAccessEvent.clone(db),
-		SecretVersion:           q.SecretVersion.clone(db),
-		TransportJournal:        q.TransportJournal.clone(db),
-		User:                    q.User.clone(db),
-		UserAPIKey:              q.UserAPIKey.clone(db),
+		db:                        db,
+		Agent:                     q.Agent.clone(db),
+		AgentApproval:             q.AgentApproval.clone(db),
+		AgentRegistrationToken:    q.AgentRegistrationToken.clone(db),
+		AgentSession:              q.AgentSession.clone(db),
+		KnowledgeCapsule:          q.KnowledgeCapsule.clone(db),
+		Mailbox:                   q.Mailbox.clone(db),
+		Message:                   q.Message.clone(db),
+		MessageOffset:             q.MessageOffset.clone(db),
+		MessagePart:               q.MessagePart.clone(db),
+		Node:                      q.Node.clone(db),
+		NodeMessageOffset:         q.NodeMessageOffset.clone(db),
+		NodeRegistrationSession:   q.NodeRegistrationSession.clone(db),
+		PaxdArtifact:              q.PaxdArtifact.clone(db),
+		Secret:                    q.Secret.clone(db),
+		SecretAccessEvent:         q.SecretAccessEvent.clone(db),
+		SecretVersion:             q.SecretVersion.clone(db),
+		SessionKnowledgeInjection: q.SessionKnowledgeInjection.clone(db),
+		TransportJournal:          q.TransportJournal.clone(db),
+		User:                      q.User.clone(db),
+		UserAPIKey:                q.UserAPIKey.clone(db),
 	}
 }
 
@@ -144,69 +154,75 @@ func (q *Query) WriteDB() *Query {
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
-		db:                      db,
-		Agent:                   q.Agent.replaceDB(db),
-		AgentApproval:           q.AgentApproval.replaceDB(db),
-		AgentRegistrationToken:  q.AgentRegistrationToken.replaceDB(db),
-		AgentSession:            q.AgentSession.replaceDB(db),
-		Mailbox:                 q.Mailbox.replaceDB(db),
-		Message:                 q.Message.replaceDB(db),
-		MessageOffset:           q.MessageOffset.replaceDB(db),
-		MessagePart:             q.MessagePart.replaceDB(db),
-		Node:                    q.Node.replaceDB(db),
-		NodeMessageOffset:       q.NodeMessageOffset.replaceDB(db),
-		NodeRegistrationSession: q.NodeRegistrationSession.replaceDB(db),
-		PaxdArtifact:            q.PaxdArtifact.replaceDB(db),
-		Secret:                  q.Secret.replaceDB(db),
-		SecretAccessEvent:       q.SecretAccessEvent.replaceDB(db),
-		SecretVersion:           q.SecretVersion.replaceDB(db),
-		TransportJournal:        q.TransportJournal.replaceDB(db),
-		User:                    q.User.replaceDB(db),
-		UserAPIKey:              q.UserAPIKey.replaceDB(db),
+		db:                        db,
+		Agent:                     q.Agent.replaceDB(db),
+		AgentApproval:             q.AgentApproval.replaceDB(db),
+		AgentRegistrationToken:    q.AgentRegistrationToken.replaceDB(db),
+		AgentSession:              q.AgentSession.replaceDB(db),
+		KnowledgeCapsule:          q.KnowledgeCapsule.replaceDB(db),
+		Mailbox:                   q.Mailbox.replaceDB(db),
+		Message:                   q.Message.replaceDB(db),
+		MessageOffset:             q.MessageOffset.replaceDB(db),
+		MessagePart:               q.MessagePart.replaceDB(db),
+		Node:                      q.Node.replaceDB(db),
+		NodeMessageOffset:         q.NodeMessageOffset.replaceDB(db),
+		NodeRegistrationSession:   q.NodeRegistrationSession.replaceDB(db),
+		PaxdArtifact:              q.PaxdArtifact.replaceDB(db),
+		Secret:                    q.Secret.replaceDB(db),
+		SecretAccessEvent:         q.SecretAccessEvent.replaceDB(db),
+		SecretVersion:             q.SecretVersion.replaceDB(db),
+		SessionKnowledgeInjection: q.SessionKnowledgeInjection.replaceDB(db),
+		TransportJournal:          q.TransportJournal.replaceDB(db),
+		User:                      q.User.replaceDB(db),
+		UserAPIKey:                q.UserAPIKey.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
-	Agent                   IAgentDo
-	AgentApproval           IAgentApprovalDo
-	AgentRegistrationToken  IAgentRegistrationTokenDo
-	AgentSession            IAgentSessionDo
-	Mailbox                 IMailboxDo
-	Message                 IMessageDo
-	MessageOffset           IMessageOffsetDo
-	MessagePart             IMessagePartDo
-	Node                    INodeDo
-	NodeMessageOffset       INodeMessageOffsetDo
-	NodeRegistrationSession INodeRegistrationSessionDo
-	PaxdArtifact            IPaxdArtifactDo
-	Secret                  ISecretDo
-	SecretAccessEvent       ISecretAccessEventDo
-	SecretVersion           ISecretVersionDo
-	TransportJournal        ITransportJournalDo
-	User                    IUserDo
-	UserAPIKey              IUserAPIKeyDo
+	Agent                     IAgentDo
+	AgentApproval             IAgentApprovalDo
+	AgentRegistrationToken    IAgentRegistrationTokenDo
+	AgentSession              IAgentSessionDo
+	KnowledgeCapsule          IKnowledgeCapsuleDo
+	Mailbox                   IMailboxDo
+	Message                   IMessageDo
+	MessageOffset             IMessageOffsetDo
+	MessagePart               IMessagePartDo
+	Node                      INodeDo
+	NodeMessageOffset         INodeMessageOffsetDo
+	NodeRegistrationSession   INodeRegistrationSessionDo
+	PaxdArtifact              IPaxdArtifactDo
+	Secret                    ISecretDo
+	SecretAccessEvent         ISecretAccessEventDo
+	SecretVersion             ISecretVersionDo
+	SessionKnowledgeInjection ISessionKnowledgeInjectionDo
+	TransportJournal          ITransportJournalDo
+	User                      IUserDo
+	UserAPIKey                IUserAPIKeyDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
-		Agent:                   q.Agent.WithContext(ctx),
-		AgentApproval:           q.AgentApproval.WithContext(ctx),
-		AgentRegistrationToken:  q.AgentRegistrationToken.WithContext(ctx),
-		AgentSession:            q.AgentSession.WithContext(ctx),
-		Mailbox:                 q.Mailbox.WithContext(ctx),
-		Message:                 q.Message.WithContext(ctx),
-		MessageOffset:           q.MessageOffset.WithContext(ctx),
-		MessagePart:             q.MessagePart.WithContext(ctx),
-		Node:                    q.Node.WithContext(ctx),
-		NodeMessageOffset:       q.NodeMessageOffset.WithContext(ctx),
-		NodeRegistrationSession: q.NodeRegistrationSession.WithContext(ctx),
-		PaxdArtifact:            q.PaxdArtifact.WithContext(ctx),
-		Secret:                  q.Secret.WithContext(ctx),
-		SecretAccessEvent:       q.SecretAccessEvent.WithContext(ctx),
-		SecretVersion:           q.SecretVersion.WithContext(ctx),
-		TransportJournal:        q.TransportJournal.WithContext(ctx),
-		User:                    q.User.WithContext(ctx),
-		UserAPIKey:              q.UserAPIKey.WithContext(ctx),
+		Agent:                     q.Agent.WithContext(ctx),
+		AgentApproval:             q.AgentApproval.WithContext(ctx),
+		AgentRegistrationToken:    q.AgentRegistrationToken.WithContext(ctx),
+		AgentSession:              q.AgentSession.WithContext(ctx),
+		KnowledgeCapsule:          q.KnowledgeCapsule.WithContext(ctx),
+		Mailbox:                   q.Mailbox.WithContext(ctx),
+		Message:                   q.Message.WithContext(ctx),
+		MessageOffset:             q.MessageOffset.WithContext(ctx),
+		MessagePart:               q.MessagePart.WithContext(ctx),
+		Node:                      q.Node.WithContext(ctx),
+		NodeMessageOffset:         q.NodeMessageOffset.WithContext(ctx),
+		NodeRegistrationSession:   q.NodeRegistrationSession.WithContext(ctx),
+		PaxdArtifact:              q.PaxdArtifact.WithContext(ctx),
+		Secret:                    q.Secret.WithContext(ctx),
+		SecretAccessEvent:         q.SecretAccessEvent.WithContext(ctx),
+		SecretVersion:             q.SecretVersion.WithContext(ctx),
+		SessionKnowledgeInjection: q.SessionKnowledgeInjection.WithContext(ctx),
+		TransportJournal:          q.TransportJournal.WithContext(ctx),
+		User:                      q.User.WithContext(ctx),
+		UserAPIKey:                q.UserAPIKey.WithContext(ctx),
 	}
 }
 
