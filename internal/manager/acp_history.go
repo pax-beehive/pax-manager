@@ -281,7 +281,15 @@ func normalizeACPTextUpdate(rpc acpHistoryRPC, fields acpHistoryFields) (acpHist
 		}
 		return fields, true
 	}
-	return fields, rpc.Method == "session/update" && fields.SessionUpdate != ""
+	if rpc.Method != "session/update" {
+		return fields, false
+	}
+	switch fields.SessionUpdate {
+	case "agent_message_chunk", "agent_thought_chunk", "message_delta":
+		return fields, true
+	default:
+		return fields, false
+	}
 }
 
 func classifyACPHistoryProjection(

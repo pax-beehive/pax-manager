@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,6 +146,8 @@ func TestACPHistoryProjectsInboundResultBoundariesIntoExpectedMessageRows(t *tes
 	type projectedRow struct {
 		messageType string
 		text        string
+		partType    string
+		rawContains string
 	}
 	got := make([]projectedRow, 0, len(messages))
 	for _, msg := range messages {
@@ -162,33 +165,59 @@ func TestACPHistoryProjectsInboundResultBoundariesIntoExpectedMessageRows(t *tes
 		if err != nil {
 			t.Fatalf("list parts for %s: %v", msg.MessageID, err)
 		}
-		if len(parts) != 1 || parts[0].PartIndex != 0 ||
-			parts[0].PartType != domain.MessagePartText {
-			t.Fatalf("parts for %s = %+v, want exactly one text part", msg.MessageID, parts)
+		if len(parts) != 1 || parts[0].PartIndex != 0 {
+			t.Fatalf("parts for %s = %+v, want exactly one part", msg.MessageID, parts)
 		}
-		got = append(got, projectedRow{messageType: msg.MessageType, text: parts[0].Text})
+		got = append(got, projectedRow{
+			messageType: msg.MessageType,
+			text:        parts[0].Text,
+			partType:    parts[0].PartType,
+			rawContains: string(parts[0].PayloadJSON),
+		})
 	}
 
 	want := []projectedRow{
-		{messageType: "agent_thought_chunk", text: "The user wants a playful dog greeting."},
-		{messageType: "agent_message_chunk", text: "（摇尾巴）奴才给主人请安了，汪！"},
+		{
+			messageType: "agent_thought_chunk",
+			text:        "The user wants a playful dog greeting.",
+			partType:    domain.MessagePartText,
+		},
+		{
+			messageType: "agent_message_chunk",
+			text:        "（摇尾巴）奴才给主人请安了，汪！",
+			partType:    domain.MessagePartText,
+		},
 		{
 			messageType: "agent_thought_chunk",
 			text:        "The user wants me to remember the passphrase blue-mango and reply only OK. Let me save this to memory first.The passphrase was already saved, so no duplicate was added. Now I just reply OK as instructed.",
+			partType:    domain.MessagePartText,
 		},
 		{
 			messageType: "tool_call",
-			text:        "Memory add (memory)\nPreview: Passphrase: \"blue-mango\"",
+			partType:    domain.MessagePartRawJSON,
+			rawContains: `"title":"memory add: memory"`,
 		},
-		{messageType: "agent_message_chunk", text: "\n\nOK"},
+		{
+			messageType: "agent_message_chunk",
+			text:        "\n\nOK",
+			partType:    domain.MessagePartText,
+		},
 		{
 			messageType: "agent_thought_chunk",
 			text:        "The user is testing if I remember the pass phrase.",
+			partType:    domain.MessagePartText,
 		},
-		{messageType: "agent_message_chunk", text: "（竖起耳朵，认真回话）主人让奴才记住的是 **blue-mango**，汪！"},
+		{
+			messageType: "agent_message_chunk",
+			text:        "（竖起耳朵，认真回话）主人让奴才记住的是 **blue-mango**，汪！",
+			partType:    domain.MessagePartText,
+		},
 	}
 	for i := range want {
-		if got[i] != want[i] {
+		if got[i].messageType != want[i].messageType ||
+			got[i].text != want[i].text ||
+			got[i].partType != want[i].partType ||
+			(want[i].rawContains != "" && !strings.Contains(got[i].rawContains, want[i].rawContains)) {
 			t.Fatalf("row %d = %+v, want %+v", i, got[i], want[i])
 		}
 	}
@@ -301,5 +330,50 @@ func TestACPHistoryProjectsNonTextSessionUpdateAsRawJSON(t *testing.T) {
 		string(parts[0].PayloadJSON) != string(raw) ||
 		parts[0].Text != "" {
 		t.Fatalf("parts = %+v, want one raw_json part", parts)
+	}
+}
+
+func TestACPHistoryPreservesToolCallRawPayload(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	raw := json.RawMessage(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_tool_1","update":{"content":[{"content":{"text":"{\n  \"linkedin_username\": \"test_user_debug\"\n}","type":"text"},"type":"content"}],"kind":"other","locations":[],"rawInput":{"linkedin_username":"test_user_debug"},"sessionUpdate":"tool_call","title":"mcp_linkedin_connect_with_person","toolCallId":"tc-7a75bb3b54d2"}}}`,
+	)
+	if err := projectACPTransportMessage(
+		ctx,
+		store,
+		"agent_1",
+		"user_1",
+		"node_1",
+		domain.TransportStreamPaxdToManager,
+		9,
+		"",
+		raw,
+	); err != nil {
+		t.Fatalf("project tool call: %v", err)
+	}
+
+	messages, err := store.ListMessages(ctx, "agent_1", "sess_tool_1", 100)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	if len(messages) != 1 || messages[0].MessageType != "tool_call" {
+		t.Fatalf("messages = %+v, want one tool_call", messages)
+	}
+	parts, err := store.ListMessageParts(ctx, messages[0].MessageID)
+	if err != nil {
+		t.Fatalf("list parts: %v", err)
+	}
+	if len(parts) != 1 ||
+		parts[0].PartType != domain.MessagePartRawJSON ||
+		!strings.Contains(string(parts[0].PayloadJSON), `"title":"mcp_linkedin_connect_with_person"`) ||
+		!strings.Contains(string(parts[0].PayloadJSON), `"rawInput":{"linkedin_username":"test_user_debug"}`) ||
+		parts[0].Text != "" {
+		t.Fatalf("parts = %+v, want raw tool call payload", parts)
+	}
+	if string(messages[0].RawJSON) != string(raw) {
+		t.Fatalf("message raw json = %s, want %s", messages[0].RawJSON, raw)
 	}
 }

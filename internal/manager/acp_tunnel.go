@@ -953,8 +953,8 @@ func (a *ACPTunnelAgent) historyGroupID(seq int64, payload json.RawMessage) stri
 	var rpc acpHistoryRPC
 	_ = json.Unmarshal(payload, &rpc)
 	fields := extractACPHistoryFields(payload, rpc)
-	fields, ok := normalizeACPTextUpdate(rpc, fields)
-	if !ok {
+	fields, projection := classifyACPHistoryProjection(rpc, fields)
+	if projection != acpHistoryProjectionText {
 		return ""
 	}
 	key := firstNonEmpty(fields.SessionID, a.sessionID) + "\x00" +
