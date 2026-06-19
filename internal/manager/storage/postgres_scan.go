@@ -33,7 +33,8 @@ func scanAgent(row rowScanner) (Agent, error) {
 	); err != nil {
 		return Agent{}, mapSQLError(err)
 	}
-	agent.Online = agent.Status == "online" && liveness == "online"
+	agent.Status = liveness
+	agent.Online = liveness == "online"
 	agent.Metadata = json.RawMessage(metadata)
 	return agent, nil
 }
