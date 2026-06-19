@@ -31,18 +31,19 @@ type acpTunnelKey struct {
 }
 
 type ACPTunnelAgent struct {
-	agentID       string
-	nodeID        string
-	ownerUserID   string
-	sessionID     string
-	ws            *websocket.Conn
-	mu            sync.Mutex
-	agentWriteMu  sync.Mutex
-	userWriteMu   sync.Mutex
-	paired        bool
-	userWS        *websocket.Conn
-	store         domain.Store
-	historyGroups map[string]string
+	agentID           string
+	nodeID            string
+	ownerUserID       string
+	sessionID         string
+	ws                *websocket.Conn
+	mu                sync.Mutex
+	agentWriteMu      sync.Mutex
+	userWriteMu       sync.Mutex
+	paired            bool
+	userWS            *websocket.Conn
+	store             domain.Store
+	historyGroups     map[string]string
+	pendingSessionNew map[string]string
 }
 
 type acpTunnelEnvelope struct {
@@ -134,6 +135,50 @@ func (a *ACPTunnelAgent) currentUser() *websocket.Conn {
 	return a.userWS
 }
 
+func (a *ACPTunnelAgent) ensureManagerSessionID() (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.sessionID != "" {
+		return a.sessionID, nil
+	}
+	sessionID, err := newManagerSessionID()
+	if err != nil {
+		return "", err
+	}
+	a.sessionID = sessionID
+	return sessionID, nil
+}
+
+func newManagerSessionID() (string, error) {
+	return auth.Secrets{}.New("sess")
+}
+
+func (a *ACPTunnelAgent) trackSessionNew(requestID string, managerSessionID string) {
+	if requestID == "" || managerSessionID == "" {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pendingSessionNew == nil {
+		a.pendingSessionNew = make(map[string]string)
+	}
+	a.pendingSessionNew[requestID] = managerSessionID
+}
+
+func (a *ACPTunnelAgent) takeSessionNew(requestID string) (string, bool) {
+	if requestID == "" {
+		return "", false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pendingSessionNew == nil {
+		return "", false
+	}
+	managerSessionID, ok := a.pendingSessionNew[requestID]
+	delete(a.pendingSessionNew, requestID)
+	return managerSessionID, ok
+}
+
 // Tunnel reliability is a small durable outbox/inbox layered over WebSocket:
 // outbound user->manager->paxd frames are journaled as pending, sent with a
 // monotonically increasing per-agent stream seq, and advanced to acked when
@@ -174,6 +219,7 @@ func (a *ACPTunnelAgent) actorAttrs() []slog.Attr {
 
 func (s *Service) agentACPFramePipeline() acpFramePipeline {
 	return newACPFramePipeline(
+		acpSessionLifecycleMiddleware{store: s.store},
 		acpSessionIDMiddleware{store: s.store},
 		acpApprovalMiddleware{store: s.store},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
@@ -182,6 +228,7 @@ func (s *Service) agentACPFramePipeline() acpFramePipeline {
 
 func (s *Service) userACPFramePipeline() acpFramePipeline {
 	return newACPFramePipeline(
+		acpSessionLifecycleMiddleware{store: s.store},
 		acpSessionIDMiddleware{store: s.store},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
 	)

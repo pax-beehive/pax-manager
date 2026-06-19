@@ -85,7 +85,7 @@ func canAccessOwner(principal UserPrincipal, ownerUserID string) bool {
 }
 
 func isManagerSessionID(sessionID string) bool {
-	return strings.HasPrefix(sessionID, "sess_")
+	return strings.HasPrefix(sessionID, "sess_") || strings.HasPrefix(sessionID, "sess-")
 }
 
 func reportedNativeSessionID(input SessionStatusInput) string {

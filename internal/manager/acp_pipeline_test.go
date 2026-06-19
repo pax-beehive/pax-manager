@@ -291,6 +291,89 @@ func TestACPSessionIDMiddlewareTranslatesAgentFrameWhenTunnelUsesNativeID(t *tes
 	}
 }
 
+func TestACPSessionLifecycleMiddlewareBindsSessionNewResponse(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
+	})
+	user, err := store.EnsureUser(ctx, "todd@example.com", "Todd", "user")
+	if err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	agentModel, err := store.RegisterAgent(ctx, user, domain.RegisterAgentRequest{
+		Name: "agent",
+		OS:   "darwin",
+	}, "hash")
+	if err != nil {
+		t.Fatalf("register agent: %v", err)
+	}
+	agent := &ACPTunnelAgent{
+		agentID:     agentModel.AgentID,
+		nodeID:      agentModel.NodeID,
+		ownerUserID: user.UserID,
+		sessionID:   "sess-manager-1",
+		store:       store,
+	}
+	pipeline := newACPFramePipeline(
+		acpSessionLifecycleMiddleware{store: store},
+		acpSessionIDMiddleware{store: store},
+	)
+
+	requestPayload := []byte(`{"jsonrpc":"2.0","id":7,"method":"session/new","params":{"cwd":"/tmp"}}`)
+	requestFrame := newACPFrameContext(
+		agent,
+		acpUserToAgent,
+		websocket.TextMessage,
+		requestPayload,
+	)
+	if err := pipeline.Handle(ctx, requestFrame, func(_ context.Context, frame *acpFrameContext) error {
+		if string(frame.payload) != string(requestPayload) {
+			t.Fatalf("session/new request was rewritten: %s", frame.payload)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("session/new request pipeline: %v", err)
+	}
+
+	responseFrame := newACPFrameContext(
+		agent,
+		acpAgentToUser,
+		websocket.TextMessage,
+		[]byte(`{"jsonrpc":"2.0","id":7,"result":{"sessionId":"native-session-1"}}`),
+	)
+	if err := pipeline.Handle(ctx, responseFrame, func(_ context.Context, frame *acpFrameContext) error {
+		assertFrameResultSessionID(t, frame.payload, "sess-manager-1")
+		return nil
+	}); err != nil {
+		t.Fatalf("session/new response pipeline: %v", err)
+	}
+
+	sessions, err := store.ListAgentSessions(ctx, domain.UserPrincipal{User: user}, agentModel.AgentID)
+	if err != nil {
+		t.Fatalf("list sessions: %v", err)
+	}
+	if len(sessions) != 1 ||
+		sessions[0].SessionID != "sess-manager-1" ||
+		sessions[0].NativeID != "native-session-1" {
+		t.Fatalf("sessions = %+v, want manager/native mapping", sessions)
+	}
+
+	promptFrame := newACPFrameContext(
+		agent,
+		acpUserToAgent,
+		websocket.TextMessage,
+		[]byte(
+			`{"jsonrpc":"2.0","id":8,"method":"session/prompt","params":{"sessionId":"sess-manager-1","prompt":[{"type":"text","text":"hi"}]}}`,
+		),
+	)
+	if err := pipeline.Handle(ctx, promptFrame, func(_ context.Context, frame *acpFrameContext) error {
+		assertFrameSessionID(t, frame.payload, "native-session-1")
+		return nil
+	}); err != nil {
+		t.Fatalf("prompt pipeline: %v", err)
+	}
+}
+
 func assertFrameSessionID(t *testing.T, payload []byte, want string) {
 	t.Helper()
 	var got struct {
@@ -303,5 +386,20 @@ func assertFrameSessionID(t *testing.T, payload []byte, want string) {
 	}
 	if got.Params.SessionID != want {
 		t.Fatalf("frame sessionId = %q, want %q; payload=%s", got.Params.SessionID, want, payload)
+	}
+}
+
+func assertFrameResultSessionID(t *testing.T, payload []byte, want string) {
+	t.Helper()
+	var got struct {
+		Result struct {
+			SessionID string `json:"sessionId"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Result.SessionID != want {
+		t.Fatalf("frame result sessionId = %q, want %q; payload=%s", got.Result.SessionID, want, payload)
 	}
 }
