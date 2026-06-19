@@ -118,6 +118,24 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		"/api/v1/user/:user_id/agents/:agent_id/sessions/:session_id/history",
 		ListAgentSessionHistory,
 	)
+	h.POST(
+		"/api/v1/user/:user_id/sessions/:session_id/knowledge-capsules",
+		CreateKnowledgeCapsule,
+	)
+	h.GET("/api/v1/user/:user_id/knowledge-capsules", ListKnowledgeCapsules)
+	h.GET("/api/v1/user/:user_id/knowledge-capsules/:capsule_id", GetKnowledgeCapsule)
+	h.POST(
+		"/api/v1/user/:user_id/knowledge-capsules/:capsule_id/archive",
+		ArchiveKnowledgeCapsule,
+	)
+	h.POST(
+		"/api/v1/user/:user_id/sessions/:session_id/knowledge-injections",
+		InjectKnowledgeCapsule,
+	)
+	h.GET(
+		"/api/v1/user/:user_id/sessions/:session_id/knowledge-injections",
+		ListKnowledgeInjections,
+	)
 
 	h.GET("/openapi", OpenAPIUI)
 	h.GET("/openapi.json", OpenAPIJSON)

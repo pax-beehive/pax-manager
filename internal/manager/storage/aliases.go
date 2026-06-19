@@ -58,6 +58,10 @@ type MailboxPull = domain.MailboxPull
 type MailboxFilter = domain.MailboxFilter
 type Message = domain.Message
 type MessagePart = domain.MessagePart
+type KnowledgeCapsule = domain.KnowledgeCapsule
+type SessionKnowledgeInjection = domain.SessionKnowledgeInjection
+type ListKnowledgeCapsulesFilter = domain.ListKnowledgeCapsulesFilter
+type ListKnowledgeInjectionsFilter = domain.ListKnowledgeInjectionsFilter
 type TransportFrame = domain.TransportFrame
 
 func newSecret(prefix string) (string, error) {

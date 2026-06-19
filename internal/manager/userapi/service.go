@@ -90,6 +90,33 @@ type Store interface {
 		limit int,
 	) ([]domain.Message, error)
 	ListMessageParts(ctx context.Context, messageID string) ([]domain.MessagePart, error)
+	CreateKnowledgeCapsule(
+		ctx context.Context,
+		capsule domain.KnowledgeCapsule,
+	) (domain.KnowledgeCapsule, error)
+	ListKnowledgeCapsules(
+		ctx context.Context,
+		filter domain.ListKnowledgeCapsulesFilter,
+	) ([]domain.KnowledgeCapsule, error)
+	GetKnowledgeCapsule(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		capsuleID string,
+	) (domain.KnowledgeCapsule, error)
+	ArchiveKnowledgeCapsule(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		capsuleID string,
+		archivedAt time.Time,
+	) (domain.KnowledgeCapsule, error)
+	CreateKnowledgeInjection(
+		ctx context.Context,
+		injection domain.SessionKnowledgeInjection,
+	) (domain.SessionKnowledgeInjection, error)
+	ListKnowledgeInjections(
+		ctx context.Context,
+		filter domain.ListKnowledgeInjectionsFilter,
+	) ([]domain.SessionKnowledgeInjection, error)
 	CreateMailboxMessage(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -579,7 +606,7 @@ func (s *Service) CreateMailboxMessage(
 	if domain.DefaultMessageType(req.MessageType) == "" {
 		return 0, nil, apperr.Error{
 			Status:  http.StatusBadRequest,
-			Message: "message_type must be chat, steer, or command",
+			Message: "message_type must be chat, steer, command, or system_handoff",
 		}
 	}
 	if req.NodeID != "" {

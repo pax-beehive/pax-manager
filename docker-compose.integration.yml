@@ -30,6 +30,10 @@ services:
       CLOUDFLARE_ACCESS_DISABLED: "true"
       ALLOW_LOCAL_USER_HEADER: "true"
       ADMIN_EMAILS: local@example.local
+      API_RATE_LIMIT_PER_MINUTE: "6000"
+      API_RATE_LIMIT_BURST: "1000"
+      REGISTER_RATE_LIMIT_PER_MINUTE: "6000"
+      REGISTER_RATE_LIMIT_BURST: "1000"
       PAXD_ARTIFACT_GCS_MOCK: "true"
       PAXD_ARTIFACT_UPLOAD_AUDIENCE: "pax-manager-integration"
       PAXD_ARTIFACT_UPLOAD_PRINCIPALS: "release-bot@example.iam.gserviceaccount.com"

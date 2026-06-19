@@ -689,6 +689,147 @@ func TestRevokeUserAPIKey(t *testing.T) {
 	})
 }
 
+func TestKnowledgeCapsuleFlow(t *testing.T) {
+	t.Run(
+		"Given a keyword then it extracts matching session history into a capsule",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			source := domain.AgentSession{
+				NodeID:    "node_1",
+				AgentID:   "agt_1",
+				SessionID: "sess_1",
+			}
+			message := domain.Message{
+				MessageID: "msg_1",
+				AgentID:   "agt_1",
+				SessionID: "sess_1",
+				Role:      "assistant",
+				CreatedAt: fixedUserNow(),
+			}
+			part := domain.MessagePart{
+				MessageID: "msg_1",
+				PartType:  domain.MessagePartText,
+				Text:      "Use capability injection after token=secret123 is configured.",
+			}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			secrets := userapimocks.NewMockSecretIssuer(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().GetSession(ctx, principal, "sess_1").Return(source, nil).Once()
+			store.EXPECT().ListMessages(ctx, "agt_1", "sess_1", 1000).
+				Return([]domain.Message{message}, nil).
+				Once()
+			store.EXPECT().ListMessageParts(ctx, "msg_1").
+				Return([]domain.MessagePart{part}, nil).
+				Once()
+			secrets.EXPECT().New("kcap").Return("kcap_1", nil).Once()
+			store.EXPECT().CreateKnowledgeCapsule(
+				ctx,
+				mock.MatchedBy(func(capsule domain.KnowledgeCapsule) bool {
+					require.Equal(t, "kcap_1", capsule.CapsuleID)
+					require.Equal(t, "capability injection", capsule.Keyword)
+					require.Contains(t, capsule.Content, "capability injection")
+					require.NotContains(t, capsule.Content, "secret123")
+					require.Equal(t, domain.KnowledgeCapsuleStatusActive, capsule.Status)
+					return true
+				}),
+			).Return(domain.KnowledgeCapsule{CapsuleID: "kcap_1"}, nil).Once()
+
+			svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+			status, data, err := svc.CreateKnowledgeCapsule(
+				ctx,
+				auth.RequestMetadata{},
+				"sess_1",
+				domain.CreateKnowledgeCapsuleRequest{Keyword: "capability injection"},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(
+				t,
+				"kcap_1",
+				data.(map[string]any)["capsule"].(domain.KnowledgeCapsule).CapsuleID,
+			)
+		},
+	)
+
+	t.Run(
+		"Given an active capsule then it injects a system handoff mailbox message",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			target := domain.AgentSession{
+				NodeID:    "node_1",
+				AgentID:   "agt_1",
+				SessionID: "sess_2",
+			}
+			capsule := domain.KnowledgeCapsule{
+				CapsuleID:       "kcap_1",
+				OwnerUserID:     "usr_self",
+				SourceSessionID: "sess_1",
+				SourceAgentID:   "agt_1",
+				Keyword:         "handoff",
+				Title:           "Knowledge capsule: handoff",
+				Summary:         "summary",
+				Content:         "content",
+				Status:          domain.KnowledgeCapsuleStatusActive,
+			}
+			mailbox := domain.MailboxMessage{MessageID: "msg_delivery"}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			secrets := userapimocks.NewMockSecretIssuer(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().GetSession(ctx, principal, "sess_2").Return(target, nil).Once()
+			store.EXPECT().GetKnowledgeCapsule(ctx, principal, "kcap_1").Return(capsule, nil).Once()
+			store.EXPECT().CreateMailboxMessage(
+				ctx,
+				principal,
+				mock.MatchedBy(func(req domain.CreateMailboxRequest) bool {
+					require.Equal(t, "node_1", req.NodeID)
+					require.Equal(t, "agt_1", req.AgentID)
+					require.Equal(t, "sess_2", req.SessionID)
+					require.Equal(t, domain.MessageTypeSystemHandoff, req.MessageType)
+					require.Contains(t, req.Message, "system_handoff")
+					require.Contains(t, string(req.Payload), `"label":"system_handoff"`)
+					return true
+				}),
+			).Return(mailbox, nil).Once()
+			secrets.EXPECT().New("kinj").Return("kinj_1", nil).Once()
+			store.EXPECT().CreateKnowledgeInjection(
+				ctx,
+				mock.MatchedBy(func(injection domain.SessionKnowledgeInjection) bool {
+					require.Equal(t, "kinj_1", injection.InjectionID)
+					require.Equal(t, "kcap_1", injection.CapsuleID)
+					require.Equal(t, "sess_2", injection.TargetSessionID)
+					require.Equal(t, "msg_delivery", injection.DeliveryMessageID)
+					require.Equal(t, domain.KnowledgeInjectionStatusDelivered, injection.Status)
+					require.Equal(t, domain.MessageTypeSystemHandoff, injection.DeliveryMessageType)
+					return true
+				}),
+			).Return(domain.SessionKnowledgeInjection{InjectionID: "kinj_1"}, nil).Once()
+
+			svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+			status, data, err := svc.InjectKnowledgeCapsule(
+				ctx,
+				auth.RequestMetadata{},
+				"sess_2",
+				domain.InjectKnowledgeCapsuleRequest{CapsuleID: "kcap_1"},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(
+				t,
+				"kinj_1",
+				data.(map[string]any)["injection"].(domain.SessionKnowledgeInjection).InjectionID,
+			)
+		},
+	)
+}
+
 func userPrincipal(userID string, admin bool) domain.UserPrincipal {
 	return domain.UserPrincipal{
 		User:    domain.User{UserID: userID, Email: userID + "@example.com"},

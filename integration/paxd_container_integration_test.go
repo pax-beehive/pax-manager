@@ -33,6 +33,7 @@ type nodeAgentListResponse struct {
 
 func TestPaxdContainerMockHermesIntegration(t *testing.T) {
 	fixture := newIntegrationFixture(t)
+	skipPaxdContainerIntegrationIfUnavailable(t)
 	var node registerNodeResponse
 	var createdAgent createNodeAgentResponse
 	sessionID := "sess-paxd-container"
@@ -329,6 +330,18 @@ func paxdRepoDir(t *testing.T) string {
 		t.Fatalf("get cwd: %v", err)
 	}
 	return filepath.Clean(filepath.Join(wd, "..", "..", "paxd"))
+}
+
+func skipPaxdContainerIntegrationIfUnavailable(t *testing.T) {
+	t.Helper()
+	if os.Getenv("PAXD_INTEGRATION_SKIP_BUILD") == "true" {
+		return
+	}
+	paxdDir := paxdRepoDir(t)
+	if _, err := os.Stat(filepath.Join(paxdDir, "Dockerfile.integration")); err == nil {
+		return
+	}
+	t.Skipf("skipping paxd container integration; sibling paxd repo not found at %s", paxdDir)
 }
 
 func waitFor(

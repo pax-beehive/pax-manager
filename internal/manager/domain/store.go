@@ -203,6 +203,30 @@ type Store interface {
 		limit int,
 	) ([]Message, error)
 	ListMessageParts(ctx context.Context, messageID string) ([]MessagePart, error)
+	CreateKnowledgeCapsule(ctx context.Context, capsule KnowledgeCapsule) (KnowledgeCapsule, error)
+	ListKnowledgeCapsules(
+		ctx context.Context,
+		filter ListKnowledgeCapsulesFilter,
+	) ([]KnowledgeCapsule, error)
+	GetKnowledgeCapsule(
+		ctx context.Context,
+		principal UserPrincipal,
+		capsuleID string,
+	) (KnowledgeCapsule, error)
+	ArchiveKnowledgeCapsule(
+		ctx context.Context,
+		principal UserPrincipal,
+		capsuleID string,
+		archivedAt time.Time,
+	) (KnowledgeCapsule, error)
+	CreateKnowledgeInjection(
+		ctx context.Context,
+		injection SessionKnowledgeInjection,
+	) (SessionKnowledgeInjection, error)
+	ListKnowledgeInjections(
+		ctx context.Context,
+		filter ListKnowledgeInjectionsFilter,
+	) ([]SessionKnowledgeInjection, error)
 	AppendMessagePartText(
 		ctx context.Context,
 		messageID string,
