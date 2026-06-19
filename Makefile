@@ -37,6 +37,7 @@ help:
 	@printf "  make lint           Run golangci-lint\n"
 	@printf "  make fmt-check      Check gofmt, goimports, and golines formatting\n"
 	@printf "  make generate       Generate derived source files\n"
+	@printf "  make gorm-gen       Regenerate GORM models and query helpers from DATABASE_URL\n"
 	@printf "  make hz-update      Regenerate Hertz router and model from Thrift IDL\n"
 	@printf "  make mocks          Regenerate interface mocks with mockery\n"
 	@printf "  make fmt            Format Go files\n"
@@ -114,6 +115,10 @@ fmt-check:
 .PHONY: generate
 generate: hz-update mocks
 	GOCACHE=$(GOCACHE) go generate ./internal/manager
+
+.PHONY: gorm-gen
+gorm-gen:
+	GOCACHE=$(GOCACHE) DATABASE_URL="$(DATABASE_URL)" go run ./cmd/gormgen
 
 .PHONY: hz-update
 hz-update:

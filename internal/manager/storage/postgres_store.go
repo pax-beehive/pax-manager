@@ -10,16 +10,33 @@ import (
 	"strings"
 	"time"
 
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+	dbmodel "github.com/pax-beehive/pax-manager/internal/manager/storage/dal/model"
+	"github.com/pax-beehive/pax-manager/internal/manager/storage/dal/query"
 )
 
 type PostgresStore struct {
-	db  *sql.DB
-	now func() time.Time
+	db     *sql.DB
+	gormDB *gorm.DB
+	q      *query.Query
+	now    func() time.Time
 }
 
 func NewPostgresStore(db *sql.DB, now func() time.Time) *PostgresStore {
-	return &PostgresStore{db: db, now: now}
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{})
+	if err != nil {
+		panic(err)
+	}
+	return &PostgresStore{
+		db:     db,
+		gormDB: gormDB,
+		q:      query.Use(gormDB),
+		now:    now,
+	}
 }
 
 func isUniqueViolation(err error) bool {
@@ -56,34 +73,49 @@ func (s *PostgresStore) EnsureUser(
 		return User{}, err
 	}
 	now := s.now().UTC()
-	row := s.db.QueryRowContext(ctx, `
-		INSERT INTO users (user_id, email, display_name, role, created_at, last_seen_at)
-		VALUES ($1, $2, $3, $4, $5, $5)
-		ON CONFLICT (email) DO UPDATE SET
-			display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), users.display_name),
-			role = EXCLUDED.role,
-			last_seen_at = EXCLUDED.last_seen_at
-		RETURNING user_id, email, display_name, role, created_at, last_seen_at
-	`, userID, email, displayName, role, now)
-	return scanUser(row)
+	row := dbmodel.User{
+		UserID:      userID,
+		Email:       email,
+		DisplayName: displayName,
+		Role:        &role,
+		CreatedAt:   &now,
+		LastSeenAt:  &now,
+	}
+	err = s.gormDB.WithContext(ctx).Clauses(
+		clause.OnConflict{
+			Columns: []clause.Column{{Name: "email"}},
+			DoUpdates: clause.Assignments(map[string]any{
+				"display_name": gorm.Expr(
+					"COALESCE(NULLIF(EXCLUDED.display_name, ''), users.display_name)",
+				),
+				"role":         gorm.Expr("EXCLUDED.role"),
+				"last_seen_at": gorm.Expr("EXCLUDED.last_seen_at"),
+			}),
+		},
+		clause.Returning{},
+	).Create(&row).Error
+	if err != nil {
+		return User{}, err
+	}
+	return userFromModel(&row), nil
 }
 
 func (s *PostgresStore) GetUserByEmail(ctx context.Context, email string) (User, error) {
-	row := s.db.QueryRowContext(ctx, `
-		SELECT user_id, email, display_name, role, created_at, last_seen_at
-		FROM users
-		WHERE email = $1
-	`, normalizeEmail(email))
-	return scanUser(row)
+	u := s.q.User
+	row, err := u.WithContext(ctx).Where(u.Email.Eq(normalizeEmail(email))).First()
+	if err != nil {
+		return User{}, mapGormError(err)
+	}
+	return userFromModel(row), nil
 }
 
 func (s *PostgresStore) GetUser(ctx context.Context, userID string) (User, error) {
-	row := s.db.QueryRowContext(ctx, `
-		SELECT user_id, email, display_name, role, created_at, last_seen_at
-		FROM users
-		WHERE user_id = $1
-	`, userID)
-	return scanUser(row)
+	u := s.q.User
+	row, err := u.WithContext(ctx).Where(u.UserID.Eq(userID)).First()
+	if err != nil {
+		return User{}, mapGormError(err)
+	}
+	return userFromModel(row), nil
 }
 
 func (s *PostgresStore) CreateRegistrationToken(
@@ -92,63 +124,53 @@ func (s *PostgresStore) CreateRegistrationToken(
 	tokenHash string,
 	expiresAt *time.Time,
 ) error {
-	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO agent_registration_tokens (token_hash, owner_user_id, expires_at, created_at)
-		VALUES ($1, $2, $3, $4)
-	`, tokenHash, ownerUserID, expiresAt, s.now().UTC())
-	if err != nil {
-		return err
+	now := s.now().UTC()
+	token := dbmodel.AgentRegistrationToken{
+		TokenHash:   tokenHash,
+		OwnerUserID: ownerUserID,
+		ExpiresAt:   expiresAt,
+		CreatedAt:   &now,
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return s.q.AgentRegistrationToken.WithContext(ctx).Create(&token)
 }
 
 func (s *PostgresStore) ResolveRegistrationToken(
 	ctx context.Context,
 	tokenHash string,
 ) (User, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	var user User
+	err := s.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		qtx := query.Use(tx)
+		tokens := qtx.AgentRegistrationToken
+		token, err := tokens.WithContext(ctx).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(tokens.TokenHash.Eq(tokenHash)).
+			First()
+		if err != nil {
+			return mapGormError(err)
+		}
+		now := s.now().UTC()
+		if token.UsedAt != nil || (token.ExpiresAt != nil && token.ExpiresAt.Before(now)) {
+			return ErrUnauthorized
+		}
+		info, err := tokens.WithContext(ctx).
+			Where(tokens.TokenHash.Eq(tokenHash)).
+			Update(tokens.UsedAt, now)
+		if err != nil {
+			return err
+		}
+		if info.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		users := qtx.User
+		row, err := users.WithContext(ctx).Where(users.UserID.Eq(token.OwnerUserID)).First()
+		if err != nil {
+			return mapGormError(err)
+		}
+		user = userFromModel(row)
+		return nil
+	})
 	if err != nil {
-		return User{}, err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	var ownerUserID string
-	var expiresAt *time.Time
-	var usedAt *time.Time
-	err = tx.QueryRowContext(ctx, `
-		SELECT owner_user_id, expires_at, used_at
-		FROM agent_registration_tokens
-		WHERE token_hash = $1
-		FOR UPDATE
-	`, tokenHash).Scan(&ownerUserID, &expiresAt, &usedAt)
-	if err != nil {
-		return User{}, mapSQLError(err)
-	}
-	now := s.now().UTC()
-	if usedAt != nil || (expiresAt != nil && expiresAt.Before(now)) {
-		return User{}, ErrUnauthorized
-	}
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE agent_registration_tokens SET used_at = $2 WHERE token_hash = $1
-	`, tokenHash, now); err != nil {
-		return User{}, err
-	}
-	user, err := scanUser(tx.QueryRowContext(ctx, `
-		SELECT user_id, email, display_name, role, created_at, last_seen_at
-		FROM users
-		WHERE user_id = $1
-	`, ownerUserID))
-	if err != nil {
-		return User{}, err
-	}
-	if err := tx.Commit(); err != nil {
 		return User{}, err
 	}
 	return user, nil
@@ -165,31 +187,34 @@ func (s *PostgresStore) CreateUserAPIKey(
 	if err != nil {
 		return UserAPIKey{}, err
 	}
-	row := s.db.QueryRowContext(ctx, `
-		INSERT INTO user_api_keys (key_id, owner_user_id, name, key_hash, prefix, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING key_id, owner_user_id, name, prefix, created_at, last_used_at, revoked_at
-	`, keyID, principal.User.UserID, name, keyHash, prefix, s.now().UTC())
-	return scanUserAPIKey(row)
+	now := s.now().UTC()
+	row := dbmodel.UserAPIKey{
+		KeyID:       keyID,
+		OwnerUserID: principal.User.UserID,
+		Name:        name,
+		KeyHash:     keyHash,
+		Prefix:      prefix,
+		CreatedAt:   &now,
+	}
+	if err := s.q.UserAPIKey.WithContext(ctx).Create(&row); err != nil {
+		return UserAPIKey{}, err
+	}
+	return userAPIKeyFromModel(&row), nil
 }
 
 func (s *PostgresStore) ListUserAPIKeys(
 	ctx context.Context,
 	principal UserPrincipal,
 ) ([]UserAPIKey, error) {
-	query := `
-		SELECT key_id, owner_user_id, name, prefix, created_at, last_used_at, revoked_at
-		FROM user_api_keys
-		WHERE owner_user_id = $1
-	`
-	args := []any{principal.User.UserID}
-	query += ` ORDER BY created_at DESC`
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	keys := s.q.UserAPIKey
+	rows, err := keys.WithContext(ctx).
+		Where(keys.OwnerUserID.Eq(principal.User.UserID)).
+		Order(keys.CreatedAt.Desc()).
+		Find()
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
-	return scanUserAPIKeys(rows)
+	return userAPIKeysFromModels(rows), nil
 }
 
 func (s *PostgresStore) RevokeUserAPIKey(
@@ -197,57 +222,54 @@ func (s *PostgresStore) RevokeUserAPIKey(
 	principal UserPrincipal,
 	keyID string,
 ) error {
-	query := `UPDATE user_api_keys SET revoked_at = $2 WHERE key_id = $1 AND owner_user_id = $3`
-	args := []any{keyID, s.now().UTC(), principal.User.UserID}
-	result, err := s.db.ExecContext(ctx, query, args...)
+	now := s.now().UTC()
+	keys := s.q.UserAPIKey
+	info, err := keys.WithContext(ctx).
+		Where(keys.KeyID.Eq(keyID), keys.OwnerUserID.Eq(principal.User.UserID)).
+		Update(keys.RevokedAt, now)
 	if err != nil {
 		return err
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
+	if info.RowsAffected == 0 {
 		return ErrNotFound
 	}
 	return nil
 }
 
 func (s *PostgresStore) AuthenticateUserAPIKey(ctx context.Context, keyHash string) (User, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	var user User
+	err := s.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		qtx := query.Use(tx)
+		keys := qtx.UserAPIKey
+		key, err := keys.WithContext(ctx).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(keys.KeyHash.Eq(keyHash)).
+			First()
+		if err != nil {
+			return mapGormError(err)
+		}
+		if key.RevokedAt != nil {
+			return ErrUnauthorized
+		}
+		now := s.now().UTC()
+		info, err := keys.WithContext(ctx).
+			Where(keys.KeyID.Eq(key.KeyID)).
+			Update(keys.LastUsedAt, now)
+		if err != nil {
+			return err
+		}
+		if info.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		users := qtx.User
+		row, err := users.WithContext(ctx).Where(users.UserID.Eq(key.OwnerUserID)).First()
+		if err != nil {
+			return mapGormError(err)
+		}
+		user = userFromModel(row)
+		return nil
+	})
 	if err != nil {
-		return User{}, err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	var keyID string
-	var ownerUserID string
-	var revokedAt *time.Time
-	err = tx.QueryRowContext(ctx, `
-		SELECT key_id, owner_user_id, revoked_at
-		FROM user_api_keys
-		WHERE key_hash = $1
-		FOR UPDATE
-	`, keyHash).Scan(&keyID, &ownerUserID, &revokedAt)
-	if err != nil {
-		return User{}, mapSQLError(err)
-	}
-	if revokedAt != nil {
-		return User{}, ErrUnauthorized
-	}
-	now := s.now().UTC()
-	if _, err := tx.ExecContext(ctx, `UPDATE user_api_keys SET last_used_at = $2 WHERE key_id = $1`, keyID, now); err != nil {
-		return User{}, err
-	}
-	user, err := scanUser(tx.QueryRowContext(ctx, `
-		SELECT user_id, email, display_name, role, created_at, last_seen_at
-		FROM users
-		WHERE user_id = $1
-	`, ownerUserID))
-	if err != nil {
-		return User{}, err
-	}
-	if err := tx.Commit(); err != nil {
 		return User{}, err
 	}
 	return user, nil
@@ -589,53 +611,58 @@ func (s *PostgresStore) RegisterNode(
 		return Node{}, err
 	}
 	now := s.now().UTC()
-	row := s.db.QueryRowContext(
-		ctx,
-		`
-		INSERT INTO nodes (
-			node_id, owner_user_id, name, hostname, machine_type, os, arch, paxd_version,
-			api_endpoint, api_key_hash, status, last_heartbeat, registered_at, metadata
-		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'online',$11,$12,$13)
-		RETURNING node_id, owner_user_id, name, hostname, machine_type, os, arch, paxd_version,
-			api_endpoint, status, last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
-	`,
-		nodeID,
-		owner.UserID,
-		defaultNodeName(req),
-		req.Hostname,
-		req.MachineType,
-		defaultOS(req.OS),
-		req.Arch,
-		req.PaxdVersion,
-		defaultAPIEndpoint(req.APIEndpoint),
-		apiKeyHash,
-		now,
-		now,
-		nullRaw(req.Metadata),
-	)
-	return scanNode(row)
+	osValue := defaultOS(req.OS)
+	apiEndpoint := defaultAPIEndpoint(req.APIEndpoint)
+	status := "online"
+	row := dbmodel.Node{
+		NodeID:        nodeID,
+		OwnerUserID:   owner.UserID,
+		Name:          defaultNodeName(req),
+		Hostname:      req.Hostname,
+		MachineType:   req.MachineType,
+		Os:            &osValue,
+		Arch:          req.Arch,
+		PaxdVersion:   req.PaxdVersion,
+		APIEndpoint:   &apiEndpoint,
+		APIKeyHash:    apiKeyHash,
+		Status:        &status,
+		LastHeartbeat: &now,
+		RegisteredAt:  &now,
+		Metadata:      rawJSONPtr(req.Metadata),
+	}
+	if err := s.q.Node.WithContext(ctx).Create(&row); err != nil {
+		return Node{}, err
+	}
+	return nodeFromModel(&row), nil
 }
 
 func (s *PostgresStore) CreateNodeRegistrationSession(
 	ctx context.Context,
 	session NodeRegistrationSession,
 ) error {
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO node_registration_sessions (
-			registration_id, pair_code, poll_token_hash, status, requested_name,
-			requested_hostname, requested_machine_type, requested_os, requested_arch,
-			requested_paxd_version, requested_api_endpoint, requested_metadata,
-			request_ip, request_city, request_country, expires_at, created_at
-		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-	`, session.RegistrationID, session.PairCode, session.PollTokenHash, session.Status,
-		session.Request.Name, session.Request.Hostname, session.Request.MachineType,
-		defaultOS(session.Request.OS), session.Request.Arch, session.Request.PaxdVersion,
-		defaultAPIEndpoint(session.Request.APIEndpoint), nullRaw(session.Request.Metadata),
-		session.RequestIP, session.RequestCity, session.RequestCountry, session.ExpiresAt,
-		session.CreatedAt)
-	if err != nil {
+	status := session.Status
+	requestedOS := defaultOS(session.Request.OS)
+	requestedAPIEndpoint := defaultAPIEndpoint(session.Request.APIEndpoint)
+	row := dbmodel.NodeRegistrationSession{
+		RegistrationID:       session.RegistrationID,
+		PairCode:             session.PairCode,
+		PollTokenHash:        session.PollTokenHash,
+		Status:               &status,
+		RequestedName:        session.Request.Name,
+		RequestedHostname:    session.Request.Hostname,
+		RequestedMachineType: session.Request.MachineType,
+		RequestedOs:          &requestedOS,
+		RequestedArch:        session.Request.Arch,
+		RequestedPaxdVersion: session.Request.PaxdVersion,
+		RequestedAPIEndpoint: &requestedAPIEndpoint,
+		RequestedMetadata:    rawJSONPtr(session.Request.Metadata),
+		RequestIP:            session.RequestIP,
+		RequestCity:          session.RequestCity,
+		RequestCountry:       session.RequestCountry,
+		ExpiresAt:            session.ExpiresAt,
+		CreatedAt:            &session.CreatedAt,
+	}
+	if err := s.q.NodeRegistrationSession.WithContext(ctx).Create(&row); err != nil {
 		if isUniqueViolation(err) {
 			return ErrConflict
 		}
@@ -672,12 +699,15 @@ func (s *PostgresStore) DeleteStaleNodeRegistrationSessions(
 	ctx context.Context,
 	cutoff time.Time,
 ) error {
-	_, err := s.db.ExecContext(ctx, `
-		DELETE FROM node_registration_sessions
-		WHERE expires_at <= $1
-			OR status IN ($2, $3, $4)
-	`, cutoff, domain.NodeRegistrationStatusConsumed, domain.NodeRegistrationStatusDenied,
-		domain.NodeRegistrationStatusExpired)
+	sessions := s.q.NodeRegistrationSession
+	_, err := sessions.WithContext(ctx).
+		Where(sessions.ExpiresAt.Lte(cutoff)).
+		Or(sessions.Status.In(
+			domain.NodeRegistrationStatusConsumed,
+			domain.NodeRegistrationStatusDenied,
+			domain.NodeRegistrationStatusExpired,
+		)).
+		Delete()
 	return err
 }
 
@@ -686,51 +716,51 @@ func (s *PostgresStore) ApproveNodeRegistrationSession(
 	principal UserPrincipal,
 	pairCode string,
 ) (NodeRegistrationSession, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	var session NodeRegistrationSession
+	err := s.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		qtx := query.Use(tx)
+		sessions := qtx.NodeRegistrationSession
+		row, err := sessions.WithContext(ctx).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(sessions.PairCode.Eq(pairCode)).
+			First()
+		if err != nil {
+			return mapGormError(err)
+		}
+		session = nodeRegistrationSessionFromModel(row)
+		if session.Status != domain.NodeRegistrationStatusPending {
+			return ErrConflict
+		}
+		now := s.now().UTC()
+		if !session.ExpiresAt.After(now) {
+			_, _ = sessions.WithContext(ctx).
+				Where(sessions.RegistrationID.Eq(session.RegistrationID)).
+				Update(sessions.Status, domain.NodeRegistrationStatusExpired)
+			return ErrUnauthorized
+		}
+		info, err := sessions.WithContext(ctx).
+			Where(sessions.RegistrationID.Eq(session.RegistrationID)).
+			UpdateSimple(
+				sessions.Status.Value(domain.NodeRegistrationStatusApproved),
+				sessions.OwnerUserID.Value(principal.User.UserID),
+				sessions.ApprovedAt.Value(now),
+			)
+		if err != nil {
+			return err
+		}
+		if info.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		row, err = sessions.WithContext(ctx).
+			Where(sessions.RegistrationID.Eq(session.RegistrationID)).
+			First()
+		if err != nil {
+			return mapGormError(err)
+		}
+		session = nodeRegistrationSessionFromModel(row)
+		return nil
+	})
 	if err != nil {
-		return NodeRegistrationSession{}, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	session, err := scanNodeRegistrationSession(tx.QueryRowContext(ctx, `
-		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
-			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
-			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
-			COALESCE(requested_metadata, '{}'::jsonb), COALESCE(request_ip, ''),
-			COALESCE(request_city, ''), COALESCE(request_country, ''), expires_at, created_at,
-			approved_at, consumed_at
-		FROM node_registration_sessions
-		WHERE pair_code = $1
-		FOR UPDATE
-	`, pairCode))
-	if err != nil {
-		return NodeRegistrationSession{}, err
-	}
-	if session.Status != domain.NodeRegistrationStatusPending {
-		return NodeRegistrationSession{}, ErrConflict
-	}
-	now := s.now().UTC()
-	if !session.ExpiresAt.After(now) {
-		_, _ = tx.ExecContext(ctx, `
-			UPDATE node_registration_sessions SET status = $2 WHERE registration_id = $1
-		`, session.RegistrationID, domain.NodeRegistrationStatusExpired)
-		return NodeRegistrationSession{}, ErrUnauthorized
-	}
-	registrationID := session.RegistrationID
-	session, err = scanNodeRegistrationSession(tx.QueryRowContext(ctx, `
-		UPDATE node_registration_sessions
-		SET status = $2, owner_user_id = $3, approved_at = $4
-		WHERE registration_id = $1
-		RETURNING registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
-			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
-			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
-			COALESCE(requested_metadata, '{}'::jsonb), COALESCE(request_ip, ''),
-			COALESCE(request_city, ''), COALESCE(request_country, ''), expires_at, created_at,
-			approved_at, consumed_at
-	`, registrationID, domain.NodeRegistrationStatusApproved, principal.User.UserID, now))
-	if err != nil {
-		return NodeRegistrationSession{}, err
-	}
-	if err := tx.Commit(); err != nil {
 		return NodeRegistrationSession{}, err
 	}
 	return session, nil
@@ -741,28 +771,26 @@ func (s *PostgresStore) PollNodeRegistrationSession(
 	registrationID string,
 	pollTokenHash string,
 ) (NodeRegistrationSession, error) {
-	session, err := scanNodeRegistrationSession(s.db.QueryRowContext(ctx, `
-		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
-			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
-			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
-			COALESCE(requested_metadata, '{}'::jsonb), COALESCE(request_ip, ''),
-			COALESCE(request_city, ''), COALESCE(request_country, ''), expires_at, created_at,
-			approved_at, consumed_at
-		FROM node_registration_sessions
-		WHERE registration_id = $1 AND poll_token_hash = $2
-	`, registrationID, pollTokenHash))
+	sessions := s.q.NodeRegistrationSession
+	row, err := sessions.WithContext(ctx).
+		Where(
+			sessions.RegistrationID.Eq(registrationID),
+			sessions.PollTokenHash.Eq(pollTokenHash),
+		).
+		First()
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(mapGormError(err), ErrNotFound) {
 			return NodeRegistrationSession{}, ErrUnauthorized
 		}
 		return NodeRegistrationSession{}, err
 	}
+	session := nodeRegistrationSessionFromModel(row)
 	if session.Status == domain.NodeRegistrationStatusPending &&
 		!session.ExpiresAt.After(s.now().UTC()) {
 		session.Status = domain.NodeRegistrationStatusExpired
-		_, _ = s.db.ExecContext(ctx, `
-			UPDATE node_registration_sessions SET status = $2 WHERE registration_id = $1
-		`, session.RegistrationID, domain.NodeRegistrationStatusExpired)
+		_, _ = sessions.WithContext(ctx).
+			Where(sessions.RegistrationID.Eq(session.RegistrationID)).
+			Update(sessions.Status, domain.NodeRegistrationStatusExpired)
 	}
 	return session, nil
 }
@@ -773,66 +801,77 @@ func (s *PostgresStore) ConsumeNodeRegistrationSession(
 	pollTokenHash string,
 	apiKeyHash string,
 ) (Node, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return Node{}, ErrUnauthorized
+	var node Node
+	err := s.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		qtx := query.Use(tx)
+		sessions := qtx.NodeRegistrationSession
+		row, err := sessions.WithContext(ctx).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where(
+				sessions.RegistrationID.Eq(registrationID),
+				sessions.PollTokenHash.Eq(pollTokenHash),
+			).
+			First()
+		if err != nil {
+			if errors.Is(mapGormError(err), ErrNotFound) {
+				return ErrUnauthorized
+			}
+			return err
 		}
-		return Node{}, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	session, err := scanNodeRegistrationSession(tx.QueryRowContext(ctx, `
-		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
-			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
-			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
-			COALESCE(requested_metadata, '{}'::jsonb), COALESCE(request_ip, ''),
-			COALESCE(request_city, ''), COALESCE(request_country, ''), expires_at, created_at,
-			approved_at, consumed_at
-		FROM node_registration_sessions
-		WHERE registration_id = $1 AND poll_token_hash = $2
-		FOR UPDATE
-	`, registrationID, pollTokenHash))
+		session := nodeRegistrationSessionFromModel(row)
+		if session.Status != domain.NodeRegistrationStatusApproved || session.OwnerUserID == "" {
+			return ErrConflict
+		}
+		now := s.now().UTC()
+		if !session.ExpiresAt.After(now) {
+			_, _ = sessions.WithContext(ctx).
+				Where(sessions.RegistrationID.Eq(session.RegistrationID)).
+				Update(sessions.Status, domain.NodeRegistrationStatusExpired)
+			return ErrUnauthorized
+		}
+		nodeID, err := newSecret("node")
+		if err != nil {
+			return err
+		}
+		osValue := defaultOS(session.Request.OS)
+		apiEndpoint := defaultAPIEndpoint(session.Request.APIEndpoint)
+		status := "online"
+		nodeRow := dbmodel.Node{
+			NodeID:        nodeID,
+			OwnerUserID:   session.OwnerUserID,
+			Name:          defaultNodeName(session.Request),
+			Hostname:      session.Request.Hostname,
+			MachineType:   session.Request.MachineType,
+			Os:            &osValue,
+			Arch:          session.Request.Arch,
+			PaxdVersion:   session.Request.PaxdVersion,
+			APIEndpoint:   &apiEndpoint,
+			APIKeyHash:    apiKeyHash,
+			Status:        &status,
+			LastHeartbeat: &now,
+			RegisteredAt:  &now,
+			Metadata:      rawJSONPtr(session.Request.Metadata),
+		}
+		if err := qtx.Node.WithContext(ctx).Create(&nodeRow); err != nil {
+			return err
+		}
+		info, err := sessions.WithContext(ctx).
+			Where(sessions.RegistrationID.Eq(session.RegistrationID)).
+			UpdateSimple(
+				sessions.Status.Value(domain.NodeRegistrationStatusConsumed),
+				sessions.NodeID.Value(nodeRow.NodeID),
+				sessions.ConsumedAt.Value(now),
+			)
+		if err != nil {
+			return err
+		}
+		if info.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		node = nodeFromModel(&nodeRow)
+		return nil
+	})
 	if err != nil {
-		return Node{}, err
-	}
-	if session.Status != domain.NodeRegistrationStatusApproved || session.OwnerUserID == "" {
-		return Node{}, ErrConflict
-	}
-	now := s.now().UTC()
-	if !session.ExpiresAt.After(now) {
-		_, _ = tx.ExecContext(ctx, `
-			UPDATE node_registration_sessions SET status = $2 WHERE registration_id = $1
-		`, session.RegistrationID, domain.NodeRegistrationStatusExpired)
-		return Node{}, ErrUnauthorized
-	}
-	nodeID, err := newSecret("node")
-	if err != nil {
-		return Node{}, err
-	}
-	node, err := scanNode(tx.QueryRowContext(ctx, `
-		INSERT INTO nodes (
-			node_id, owner_user_id, name, hostname, machine_type, os, arch, paxd_version,
-			api_endpoint, api_key_hash, status, last_heartbeat, registered_at, metadata
-		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'online',$11,$12,$13)
-		RETURNING node_id, owner_user_id, name, hostname, machine_type, os, arch, paxd_version,
-			api_endpoint, status, last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
-	`, nodeID, session.OwnerUserID, defaultNodeName(session.Request),
-		session.Request.Hostname, session.Request.MachineType, defaultOS(session.Request.OS),
-		session.Request.Arch, session.Request.PaxdVersion,
-		defaultAPIEndpoint(session.Request.APIEndpoint), apiKeyHash, now, now,
-		nullRaw(session.Request.Metadata)))
-	if err != nil {
-		return Node{}, err
-	}
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE node_registration_sessions
-		SET status = $2, node_id = $3, consumed_at = $4
-		WHERE registration_id = $1
-	`, session.RegistrationID, domain.NodeRegistrationStatusConsumed, node.NodeID, now); err != nil {
-		return Node{}, err
-	}
-	if err := tx.Commit(); err != nil {
 		return Node{}, err
 	}
 	return node, nil

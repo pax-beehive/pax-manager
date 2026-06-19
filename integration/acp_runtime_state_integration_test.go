@@ -3,6 +3,7 @@
 package integration_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -45,7 +46,7 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 		"method":"session/prompt",
 		"params":{"sessionId":"sess-acp-runtime","prompt":[{"type":"text","text":"run tests"}]}
 	}`)
-	assertRawWSContains(t, agentWS, `"method":"session/prompt"`)
+	assertAgentDataContains(t, agentWS, 1, `"method":"session/prompt"`)
 	waitForRuntimeState(
 		t,
 		fixture,
@@ -57,7 +58,7 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 		},
 	)
 
-	writeRawWS(t, agentWS, `{
+	writeAgentData(t, agentWS, 1, `{
 		"jsonrpc":"2.0",
 		"id":"perm-1",
 		"method":"session/request_permission",
@@ -72,6 +73,7 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 			"options":[{"optionId":"allow","kind":"allow_once"}]
 		}
 	}`)
+	assertAgentAck(t, agentWS, 1)
 	assertRawWSContains(t, userWS, `"session/request_permission"`)
 	waitForRuntimeState(
 		t,
@@ -92,7 +94,7 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 		"id":"perm-1",
 		"result":{"optionId":"allow","kind":"allow_once"}
 	}`)
-	assertRawWSContains(t, agentWS, `"perm-1"`)
+	assertAgentDataContains(t, agentWS, 2, `"perm-1"`)
 	waitForRuntimeState(
 		t,
 		fixture,
@@ -104,11 +106,12 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 		},
 	)
 
-	writeRawWS(t, agentWS, `{
+	writeAgentData(t, agentWS, 2, `{
 		"jsonrpc":"2.0",
 		"id":1,
 		"result":{"stopReason":"end_turn"}
 	}`)
+	assertAgentAck(t, agentWS, 2)
 	assertRawWSContains(t, userWS, `"stopReason"`)
 	waitForRuntimeState(
 		t,
@@ -178,6 +181,76 @@ func writeRawWS(t *testing.T, ws *websocket.Conn, raw string) {
 	if err := ws.WriteMessage(websocket.TextMessage, []byte(raw)); err != nil {
 		t.Fatalf("write websocket frame: %v", err)
 	}
+}
+
+type acpTunnelEnvelope struct {
+	Type    string          `json:"type"`
+	Stream  string          `json:"stream"`
+	Seq     int64           `json:"seq"`
+	Payload json.RawMessage `json:"payload,omitempty"`
+}
+
+func writeAgentData(t *testing.T, ws *websocket.Conn, seq int64, raw string) {
+	t.Helper()
+	data, err := json.Marshal(acpTunnelEnvelope{
+		Type:    "data",
+		Stream:  "paxd_to_manager",
+		Seq:     seq,
+		Payload: json.RawMessage(raw),
+	})
+	if err != nil {
+		t.Fatalf("marshal agent data envelope: %v", err)
+	}
+	writeRawWS(t, ws, string(data))
+}
+
+func assertAgentDataContains(t *testing.T, ws *websocket.Conn, seq int64, want string) {
+	t.Helper()
+	env := readAgentEnvelope(t, ws)
+	if env.Type != "data" || env.Stream != "manager_to_paxd" || env.Seq != seq {
+		t.Fatalf("agent envelope = %+v, want data manager_to_paxd seq %d", env, seq)
+	}
+	if !strings.Contains(string(env.Payload), want) {
+		t.Fatalf("agent envelope payload %s does not contain %s", env.Payload, want)
+	}
+	writeRawWS(t, ws, mustMarshalString(t, acpTunnelEnvelope{
+		Type:   "ack",
+		Stream: "manager_to_paxd",
+		Seq:    seq,
+	}))
+}
+
+func assertAgentAck(t *testing.T, ws *websocket.Conn, seq int64) {
+	t.Helper()
+	env := readAgentEnvelope(t, ws)
+	if env.Type != "ack" || env.Stream != "paxd_to_manager" || env.Seq != seq {
+		t.Fatalf("agent ack envelope = %+v, want ack paxd_to_manager seq %d", env, seq)
+	}
+}
+
+func readAgentEnvelope(t *testing.T, ws *websocket.Conn) acpTunnelEnvelope {
+	t.Helper()
+	if err := ws.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("set agent websocket read deadline: %v", err)
+	}
+	_, payload, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent websocket frame: %v", err)
+	}
+	var env acpTunnelEnvelope
+	if err := json.Unmarshal(payload, &env); err != nil {
+		t.Fatalf("decode agent websocket envelope %s: %v", payload, err)
+	}
+	return env
+}
+
+func mustMarshalString(t *testing.T, v any) string {
+	t.Helper()
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal websocket payload: %v", err)
+	}
+	return string(data)
 }
 
 func assertRawWSContains(t *testing.T, ws *websocket.Conn, want string) {

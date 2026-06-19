@@ -260,12 +260,16 @@ func TestACPSessionIDMiddlewareTranslatesAgentFrameWhenTunnelUsesNativeID(t *tes
 	if err != nil {
 		t.Fatalf("register agent: %v", err)
 	}
-	session, err := store.CreateNodeAgentSession(ctx, domain.UserPrincipal{User: user}, domain.CreateSessionRequest{
-		NodeID:    agentModel.NodeID,
-		AgentID:   agentModel.AgentID,
-		SessionID: "sess_manager_1",
-		NativeID:  "harness-session-1",
-	})
+	session, err := store.CreateNodeAgentSession(
+		ctx,
+		domain.UserPrincipal{User: user},
+		domain.CreateSessionRequest{
+			NodeID:    agentModel.NodeID,
+			AgentID:   agentModel.AgentID,
+			SessionID: "sess_manager_1",
+			NativeID:  "harness-session-1",
+		},
+	)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
@@ -281,7 +285,9 @@ func TestACPSessionIDMiddlewareTranslatesAgentFrameWhenTunnelUsesNativeID(t *tes
 		agent,
 		acpAgentToUser,
 		websocket.TextMessage,
-		[]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"harness-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hi"}}}}`),
+		[]byte(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"harness-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hi"}}}}`,
+		),
 	)
 	if err := middleware.HandleACPFrame(ctx, agentFrame, func(_ context.Context, frame *acpFrameContext) error {
 		assertFrameSessionID(t, frame.payload, session.SessionID)

@@ -2036,6 +2036,19 @@ func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {
 			if meRec.Code != http.StatusOK {
 				t.Fatalf("me code = %d, body = %s", meRec.Code, meRec.Body.String())
 			}
+			meResp := decodeData[struct {
+				User struct {
+					UserID  string `json:"user_id"`
+					Email   string `json:"email"`
+					Name    string `json:"name"`
+					IsAdmin bool   `json:"is_admin"`
+				} `json:"user"`
+			}](t, meRec.Body.Bytes())
+			if meResp.User.UserID == "" ||
+				meResp.User.Email != "todd@example.com" ||
+				meResp.User.IsAdmin {
+				t.Fatalf("me response = %+v", meResp.User)
+			}
 
 			tokenReq := httptest.NewRequest(
 				http.MethodPost,
