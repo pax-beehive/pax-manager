@@ -28,6 +28,14 @@ type acpHistoryFields struct {
 	Content       string
 }
 
+type acpHistoryProjectionKind string
+
+const (
+	acpHistoryProjectionNone acpHistoryProjectionKind = ""
+	acpHistoryProjectionText acpHistoryProjectionKind = "text"
+	acpHistoryProjectionRaw  acpHistoryProjectionKind = "raw"
+)
+
 func projectACPTransportMessage(
 	ctx context.Context,
 	store domain.Store,
@@ -47,9 +55,13 @@ func projectACPTransportMessage(
 	direction := domain.MessageDirectionAgentToUser
 	role := "assistant"
 	fields := extractACPHistoryFields(payload, rpc)
-	fields, ok := normalizeACPTextUpdate(rpc, fields)
-	if !ok {
+	fields, projection := classifyACPHistoryProjection(rpc, fields)
+	if projection == acpHistoryProjectionNone {
 		return nil
+	}
+	textProjection := projection == acpHistoryProjectionText
+	if !textProjection {
+		historyGroupID = ""
 	}
 	fields.SessionID = canonicalACPHistorySessionID(
 		ctx,
@@ -68,6 +80,9 @@ func projectACPTransportMessage(
 		"acp",
 	)
 	logicalKey := acpHistoryLogicalKey(agentID, stream, seq, historyGroupID, fields)
+	if !textProjection {
+		logicalKey = acpHistoryRawLogicalKey(agentID, stream, seq, fields)
+	}
 	messageID := acpHistoryMessageID(logicalKey)
 	msg := domain.Message{
 		MessageID:   messageID,
@@ -84,10 +99,21 @@ func projectACPTransportMessage(
 		ResponseID:  fields.ResponseID,
 		LogicalKey:  logicalKey,
 	}
+	if !textProjection {
+		msg.RawJSON = append(json.RawMessage(nil), payload...)
+	}
 	if err := store.UpsertMessage(ctx, &msg); err != nil {
 		return err
 	}
-	return store.AppendMessagePartText(ctx, msg.MessageID, 0, fields.Content, nil)
+	if textProjection {
+		return store.AppendMessagePartText(ctx, msg.MessageID, 0, fields.Content, nil)
+	}
+	return store.UpsertMessagePart(ctx, &domain.MessagePart{
+		MessageID:   msg.MessageID,
+		PartIndex:   0,
+		PartType:    domain.MessagePartRawJSON,
+		PayloadJSON: append(json.RawMessage(nil), payload...),
+	})
 }
 
 func canonicalACPHistorySessionID(
@@ -156,6 +182,22 @@ func acpHistoryLogicalKey(
 		)
 	}
 	return fmt.Sprintf("acp:%s:%s:text:%d", agentID, stream, seq)
+}
+
+func acpHistoryRawLogicalKey(
+	agentID string,
+	stream string,
+	seq int64,
+	fields acpHistoryFields,
+) string {
+	return fmt.Sprintf(
+		"acp:%s:%s:%s:%s:raw:%d",
+		agentID,
+		stream,
+		firstNonEmpty(fields.SessionID, "_"),
+		firstNonEmpty(fields.SessionUpdate, strings.Trim(fields.EntityType+":"+fields.EventType, ":"), "_"),
+		seq,
+	)
 }
 
 func acpHistoryMessageID(logicalKey string) string {
@@ -240,4 +282,21 @@ func normalizeACPTextUpdate(rpc acpHistoryRPC, fields acpHistoryFields) (acpHist
 		return fields, true
 	}
 	return fields, rpc.Method == "session/update" && fields.SessionUpdate != ""
+}
+
+func classifyACPHistoryProjection(
+	rpc acpHistoryRPC,
+	fields acpHistoryFields,
+) (acpHistoryFields, acpHistoryProjectionKind) {
+	fields, ok := normalizeACPTextUpdate(rpc, fields)
+	if ok {
+		return fields, acpHistoryProjectionText
+	}
+	if rpc.Method == "session/update" && fields.SessionUpdate != "" {
+		return fields, acpHistoryProjectionRaw
+	}
+	if fields.EntityType != "" || fields.EventType != "" {
+		return fields, acpHistoryProjectionRaw
+	}
+	return fields, acpHistoryProjectionNone
 }

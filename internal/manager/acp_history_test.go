@@ -256,3 +256,50 @@ func TestACPHistoryStoresManagerSessionID(t *testing.T) {
 		t.Fatalf("native session messages = %+v, want none", nativeMessages)
 	}
 }
+
+func TestACPHistoryProjectsNonTextSessionUpdateAsRawJSON(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	raw := json.RawMessage(
+		`{"method":"session/update","params":{"sessionId":"sess-raw-1","update":{"sessionUpdate":"usage_update","usage":{"inputTokens":7,"outputTokens":3}}},"jsonrpc":"2.0"}`,
+	)
+	if err := projectACPTransportMessage(
+		ctx,
+		store,
+		"agent_1",
+		"user_1",
+		"node_1",
+		domain.TransportStreamPaxdToManager,
+		7,
+		"",
+		raw,
+	); err != nil {
+		t.Fatalf("project raw update: %v", err)
+	}
+
+	messages, err := store.ListMessages(ctx, "agent_1", "sess-raw-1", 100)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("messages = %+v, want one raw update message", messages)
+	}
+	msg := messages[0]
+	if msg.MessageType != "usage_update" ||
+		msg.RawJSON == nil ||
+		string(msg.RawJSON) != string(raw) {
+		t.Fatalf("message = %+v, want usage_update with raw json", msg)
+	}
+	parts, err := store.ListMessageParts(ctx, msg.MessageID)
+	if err != nil {
+		t.Fatalf("list parts: %v", err)
+	}
+	if len(parts) != 1 ||
+		parts[0].PartType != domain.MessagePartRawJSON ||
+		string(parts[0].PayloadJSON) != string(raw) ||
+		parts[0].Text != "" {
+		t.Fatalf("parts = %+v, want one raw_json part", parts)
+	}
+}
