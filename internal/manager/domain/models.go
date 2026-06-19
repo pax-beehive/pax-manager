@@ -273,6 +273,61 @@ type RegisterNodeResponse struct {
 	APIKey string `json:"api_key"`
 }
 
+const (
+	NodeRegistrationStatusPending  = "pending"
+	NodeRegistrationStatusApproved = "approved"
+	NodeRegistrationStatusDenied   = "denied"
+	NodeRegistrationStatusExpired  = "expired"
+	NodeRegistrationStatusConsumed = "consumed"
+)
+
+type NodeRegistrationSession struct {
+	RegistrationID string              `json:"registration_id"`
+	PairCode       string              `json:"pair_code"`
+	PollTokenHash  string              `json:"-"`
+	Status         string              `json:"status"`
+	OwnerUserID    string              `json:"owner_user_id,omitempty"`
+	NodeID         string              `json:"node_id,omitempty"`
+	Request        RegisterNodeRequest `json:"request"`
+	ExpiresAt      time.Time           `json:"expires_at"`
+	CreatedAt      time.Time           `json:"created_at"`
+	ApprovedAt     *time.Time          `json:"approved_at,omitempty"`
+	ConsumedAt     *time.Time          `json:"consumed_at,omitempty"`
+}
+
+type StartNodeRegistrationRequest struct {
+	RegisterNodeRequest
+}
+
+type StartNodeRegistrationResponse struct {
+	RegistrationID          string `json:"registration_id"`
+	PairCode                string `json:"pair_code"`
+	PollToken               string `json:"poll_token"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete"`
+	ExpiresIn               int64  `json:"expires_in"`
+	Interval                int64  `json:"interval"`
+	ExpiresAt               string `json:"expires_at"`
+}
+
+type PollNodeRegistrationRequest struct {
+	RegistrationID string `json:"registration_id"`
+	PollToken      string `json:"poll_token"`
+}
+
+type PollNodeRegistrationResponse struct {
+	Status string `json:"status"`
+	NodeID string `json:"node_id,omitempty"`
+	APIKey string `json:"api_key,omitempty"`
+}
+
+type ApproveNodeRegistrationResponse struct {
+	RegistrationID string `json:"registration_id"`
+	PairCode       string `json:"pair_code"`
+	Status         string `json:"status"`
+	ExpiresAt      string `json:"expires_at"`
+}
+
 type RegisterNodeAgentRequest struct {
 	Node  RegisterNodeRequest `json:"node"`
 	Agent CreateAgentRequest  `json:"agent"`

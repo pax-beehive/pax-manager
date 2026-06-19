@@ -256,6 +256,36 @@ CREATE TABLE IF NOT EXISTS agent_registration_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_registration_tokens_owner ON agent_registration_tokens(owner_user_id);
 
+CREATE TABLE IF NOT EXISTS node_registration_sessions (
+    registration_id TEXT PRIMARY KEY,
+    pair_code TEXT UNIQUE NOT NULL,
+    poll_token_hash TEXT UNIQUE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    owner_user_id TEXT REFERENCES users(user_id),
+    node_id TEXT REFERENCES nodes(node_id),
+    requested_name TEXT NOT NULL DEFAULT '',
+    requested_hostname TEXT NOT NULL,
+    requested_machine_type TEXT NOT NULL DEFAULT '',
+    requested_os TEXT NOT NULL DEFAULT 'unknown',
+    requested_arch TEXT NOT NULL DEFAULT '',
+    requested_paxd_version TEXT NOT NULL DEFAULT '',
+    requested_api_endpoint TEXT NOT NULL DEFAULT 'http://localhost:8642',
+    requested_metadata JSONB,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    approved_at TIMESTAMPTZ,
+    consumed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_registration_sessions_pair_code
+    ON node_registration_sessions(pair_code);
+CREATE INDEX IF NOT EXISTS idx_node_registration_sessions_poll
+    ON node_registration_sessions(registration_id, poll_token_hash);
+CREATE INDEX IF NOT EXISTS idx_node_registration_sessions_owner
+    ON node_registration_sessions(owner_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_node_registration_sessions_expires
+    ON node_registration_sessions(expires_at);
+
 CREATE TABLE IF NOT EXISTS user_api_keys (
     key_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

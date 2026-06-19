@@ -119,6 +119,124 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	}
 }
 
+func TestNodeRegistrationSessionConnectsNodeAfterUserApproval(t *testing.T) {
+	srv, _ := testServer(t, "owner@example.com")
+
+	startReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/start",
+		bytes.NewReader([]byte(`{
+			"name":"workstation",
+			"hostname":"workstation.local",
+			"machine_type":"mac",
+			"os":"darwin",
+			"arch":"arm64",
+			"paxd_version":"0.1.0",
+			"api_endpoint":"http://localhost:8642"
+		}`)),
+	)
+	startReq.Host = "pax.example.com"
+	startReq.Header.Set("X-Forwarded-Proto", "https")
+	setJSON(startReq)
+	startRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(startRec, startReq)
+	if startRec.Code != http.StatusOK {
+		t.Fatalf("start code = %d, body = %s", startRec.Code, startRec.Body.String())
+	}
+	start := decodeData[StartNodeRegistrationResponse](t, startRec.Body.Bytes())
+	if len(start.PairCode) != 6 || start.PollToken == "" || start.RegistrationID == "" {
+		t.Fatalf("bad start response: %+v", start)
+	}
+	if start.VerificationURI != "https://pax.example.com/connect.html" {
+		t.Fatalf("verification uri = %q", start.VerificationURI)
+	}
+
+	pollBody := []byte(
+		`{"registration_id":"` + start.RegistrationID + `","poll_token":"` + start.PollToken + `"}`,
+	)
+	pollReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/poll",
+		bytes.NewReader(pollBody),
+	)
+	setJSON(pollReq)
+	pollRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(pollRec, pollReq)
+	if pollRec.Code != http.StatusOK {
+		t.Fatalf("pending poll code = %d, body = %s", pollRec.Code, pollRec.Body.String())
+	}
+	pending := decodeData[PollNodeRegistrationResponse](t, pollRec.Body.Bytes())
+	if pending.Status != "pending" || pending.APIKey != "" {
+		t.Fatalf("pending poll = %+v", pending)
+	}
+
+	approveReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/node-registrations/"+start.PairCode+"/approve",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	setJSON(approveReq)
+	approveReq.Header.Set("X-User-Email", "owner@example.com")
+	approveRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(approveRec, approveReq)
+	if approveRec.Code != http.StatusOK {
+		t.Fatalf("approve code = %d, body = %s", approveRec.Code, approveRec.Body.String())
+	}
+
+	pollReq = httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/poll",
+		bytes.NewReader(pollBody),
+	)
+	setJSON(pollReq)
+	pollRec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(pollRec, pollReq)
+	if pollRec.Code != http.StatusOK {
+		t.Fatalf("approved poll code = %d, body = %s", pollRec.Code, pollRec.Body.String())
+	}
+	approved := decodeData[PollNodeRegistrationResponse](t, pollRec.Body.Bytes())
+	if approved.Status != "approved" || approved.NodeID == "" || approved.APIKey == "" {
+		t.Fatalf("approved poll = %+v", approved)
+	}
+
+	statusReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/status",
+		bytes.NewReader([]byte(`{"hostname":"workstation.local","agents":[]}`)),
+	)
+	setJSON(statusReq)
+	statusReq.Header.Set("X-Pax-Key", approved.APIKey)
+	statusRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(statusRec, statusReq)
+	if statusRec.Code != http.StatusOK {
+		t.Fatalf("node status code = %d, body = %s", statusRec.Code, statusRec.Body.String())
+	}
+
+	nextStartReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/start",
+		bytes.NewReader([]byte(`{"hostname":"next.local","os":"darwin"}`)),
+	)
+	setJSON(nextStartReq)
+	nextStartRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(nextStartRec, nextStartReq)
+	if nextStartRec.Code != http.StatusOK {
+		t.Fatalf("next start code = %d, body = %s", nextStartRec.Code, nextStartRec.Body.String())
+	}
+
+	pollReq = httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/poll",
+		bytes.NewReader(pollBody),
+	)
+	setJSON(pollReq)
+	pollRec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(pollRec, pollReq)
+	if pollRec.Code != http.StatusUnauthorized {
+		t.Fatalf("stale poll code = %d, body = %s", pollRec.Code, pollRec.Body.String())
+	}
+}
+
 func TestOpenAPIUI(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 
@@ -880,7 +998,9 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 	}
 	defer userWS.Close()
 
-	initialize := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`)
+	initialize := []byte(
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`,
+	)
 	if err := userWS.WriteMessage(websocket.TextMessage, initialize); err != nil {
 		t.Fatalf("write initialize: %v", err)
 	}
@@ -914,9 +1034,15 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("initialize response = %s", gotInitializeResponse)
 	}
 
-	firstDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"h"}}}}`)
-	secondDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"i"}}}}`)
-	thoughtDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"thinking"}}}}`)
+	firstDelta := json.RawMessage(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"h"}}}}`,
+	)
+	secondDelta := json.RawMessage(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"i"}}}}`,
+	)
+	thoughtDelta := json.RawMessage(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"thinking"}}}}`,
+	)
 	writeAgentDataFrame(t, agentWS, 2, firstDelta)
 	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 2)
 	_, gotFirstDelta, err := userWS.ReadMessage()
@@ -981,7 +1107,10 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("agent_message_chunk text = %q, want hi", gotPartsByType["agent_message_chunk"])
 	}
 	if gotPartsByType["agent_thought_chunk"] != "thinking" {
-		t.Fatalf("agent_thought_chunk text = %q, want thinking", gotPartsByType["agent_thought_chunk"])
+		t.Fatalf(
+			"agent_thought_chunk text = %q, want thinking",
+			gotPartsByType["agent_thought_chunk"],
+		)
 	}
 	allMessages, err := srv.store.ListMessages(t.Context(), agentID, "", 100)
 	if err != nil {
@@ -1024,7 +1153,9 @@ func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	}
 	defer userWS.Close()
 
-	requestPayload := []byte(`{"jsonrpc":"2.0","id":7,"method":"session/new","params":{"cwd":"/tmp"}}`)
+	requestPayload := []byte(
+		`{"jsonrpc":"2.0","id":7,"method":"session/new","params":{"cwd":"/tmp"}}`,
+	)
 	if err := userWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
 		t.Fatalf("write user request: %v", err)
 	}
@@ -1436,7 +1567,12 @@ func decodeACPTunnelEnvelope(t *testing.T, data []byte) acpTunnelEnvelope {
 	return env
 }
 
-func writeAgentDataFrame(t *testing.T, agentWS *websocket.Conn, seq int64, payload json.RawMessage) {
+func writeAgentDataFrame(
+	t *testing.T,
+	agentWS *websocket.Conn,
+	seq int64,
+	payload json.RawMessage,
+) {
 	t.Helper()
 	frame := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
 		Type:    acpTunnelTypeData,
@@ -1460,7 +1596,13 @@ func readAgentAck(t *testing.T, agentWS *websocket.Conn, stream string, seq int6
 		ack.Type != acpTunnelTypeAck ||
 		ack.Stream != stream ||
 		ack.Seq != seq {
-		t.Fatalf("agent ack type=%d payload=%s, want stream=%s seq=%d", messageType, payload, stream, seq)
+		t.Fatalf(
+			"agent ack type=%d payload=%s, want stream=%s seq=%d",
+			messageType,
+			payload,
+			stream,
+			seq,
+		)
 	}
 }
 
@@ -1992,7 +2134,11 @@ func TestNodeAPIUserNodeAgentSessionHistory(t *testing.T) {
 	createAgentRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(createAgentRec, createAgentReq)
 	if createAgentRec.Code != http.StatusOK {
-		t.Fatalf("create node agent code = %d, body = %s", createAgentRec.Code, createAgentRec.Body.String())
+		t.Fatalf(
+			"create node agent code = %d, body = %s",
+			createAgentRec.Code,
+			createAgentRec.Body.String(),
+		)
 	}
 	agentResp := decodeData[struct {
 		Agent Agent `json:"agent"`
@@ -2011,7 +2157,11 @@ func TestNodeAPIUserNodeAgentSessionHistory(t *testing.T) {
 	createSessionRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(createSessionRec, createSessionReq)
 	if createSessionRec.Code != http.StatusOK {
-		t.Fatalf("create node session code = %d, body = %s", createSessionRec.Code, createSessionRec.Body.String())
+		t.Fatalf(
+			"create node session code = %d, body = %s",
+			createSessionRec.Code,
+			createSessionRec.Body.String(),
+		)
 	}
 
 	historyMessage := domain.Message{

@@ -68,6 +68,24 @@ type Store interface {
 		req RegisterNodeRequest,
 		apiKeyHash string,
 	) (Node, error)
+	CreateNodeRegistrationSession(ctx context.Context, session NodeRegistrationSession) error
+	DeleteStaleNodeRegistrationSessions(ctx context.Context, cutoff time.Time) error
+	ApproveNodeRegistrationSession(
+		ctx context.Context,
+		principal UserPrincipal,
+		pairCode string,
+	) (NodeRegistrationSession, error)
+	PollNodeRegistrationSession(
+		ctx context.Context,
+		registrationID string,
+		pollTokenHash string,
+	) (NodeRegistrationSession, error)
+	ConsumeNodeRegistrationSession(
+		ctx context.Context,
+		registrationID string,
+		pollTokenHash string,
+		apiKeyHash string,
+	) (Node, error)
 	AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error)
 	UpsertNodeStatus(ctx context.Context, node Node, report NodeStatusReport) error
 	ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error)
@@ -174,7 +192,12 @@ type Store interface {
 	) (MailboxMessage, error)
 	UpsertMessage(ctx context.Context, msg *Message) error
 	UpsertMessagePart(ctx context.Context, part *MessagePart) error
-	ListMessages(ctx context.Context, agentID string, sessionID string, limit int) ([]Message, error)
+	ListMessages(
+		ctx context.Context,
+		agentID string,
+		sessionID string,
+		limit int,
+	) ([]Message, error)
 	ListMessageParts(ctx context.Context, messageID string) ([]MessagePart, error)
 	AppendMessagePartText(
 		ctx context.Context,
@@ -185,7 +208,12 @@ type Store interface {
 	) error
 	SaveTransportFrame(ctx context.Context, frame *TransportFrame) error
 	SaveTransportFrameIfAbsent(ctx context.Context, frame *TransportFrame) (bool, error)
-	NextTransportSeq(ctx context.Context, agentID string, stream string, direction string) (int64, error)
+	NextTransportSeq(
+		ctx context.Context,
+		agentID string,
+		stream string,
+		direction string,
+	) (int64, error)
 	GetTransportFrame(
 		ctx context.Context,
 		agentID string,
@@ -210,7 +238,12 @@ type Store interface {
 		status string,
 		errMsg string,
 	) error
-	AckOutboundTransportFrames(ctx context.Context, agentID string, stream string, throughSeq int64) error
+	AckOutboundTransportFrames(
+		ctx context.Context,
+		agentID string,
+		stream string,
+		throughSeq int64,
+	) error
 	DeleteCompletedTransportFrames(ctx context.Context, cutoff time.Time, limit int) (int64, error)
 	UpdateOffset(ctx context.Context, agentID string, offset int64) error
 	UpdateNodeOffset(ctx context.Context, nodeID string, offset int64) error

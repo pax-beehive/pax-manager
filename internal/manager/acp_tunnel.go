@@ -870,12 +870,20 @@ func relayUserFramesToAgent(
 	}
 }
 
-func (a *ACPTunnelAgent) wrapManagerToPaxd(ctx context.Context, payload []byte) ([]byte, int64, error) {
+func (a *ACPTunnelAgent) wrapManagerToPaxd(
+	ctx context.Context,
+	payload []byte,
+) ([]byte, int64, error) {
 	var raw json.RawMessage
 	if err := json.Unmarshal(payload, &raw); err != nil {
 		return nil, 0, fmt.Errorf("wrap acp frame: payload must be JSON: %w", err)
 	}
-	seq, err := a.store.NextTransportSeq(ctx, a.agentID, domain.TransportStreamManagerToPaxd, domain.TransportDirectionOutbound)
+	seq, err := a.store.NextTransportSeq(
+		ctx,
+		a.agentID,
+		domain.TransportStreamManagerToPaxd,
+		domain.TransportDirectionOutbound,
+	)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -937,7 +945,11 @@ func (a *ACPTunnelAgent) replayUnackedToAgent(ctx context.Context) error {
 		a.agentID,
 		domain.TransportStreamManagerToPaxd,
 		domain.TransportDirectionOutbound,
-		[]string{domain.TransportStatusPending, domain.TransportStatusSent, domain.TransportStatusFailed},
+		[]string{
+			domain.TransportStatusPending,
+			domain.TransportStatusSent,
+			domain.TransportStatusFailed,
+		},
 		1000,
 	)
 	if err != nil {
@@ -1004,7 +1016,10 @@ func decodePaxdToManager(payload []byte) (acpTunnelEnvelope, bool, error) {
 		return acpTunnelEnvelope{}, false, fmt.Errorf("unexpected acp tunnel stream %q", env.Stream)
 	}
 	if env.Type == acpTunnelTypeAck && env.Stream != acpTunnelStreamManagerToPaxd {
-		return acpTunnelEnvelope{}, false, fmt.Errorf("unexpected acp tunnel ack stream %q", env.Stream)
+		return acpTunnelEnvelope{}, false, fmt.Errorf(
+			"unexpected acp tunnel ack stream %q",
+			env.Stream,
+		)
 	}
 	if env.Seq <= 0 {
 		return acpTunnelEnvelope{}, false, fmt.Errorf("invalid acp tunnel seq %d", env.Seq)

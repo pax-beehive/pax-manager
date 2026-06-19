@@ -25,7 +25,8 @@ func (s *Service) protect() app.HandlerFunc {
 		path := string(ctx.Path())
 		if strings.HasPrefix(path, "/api/") {
 			limiter := s.apiLimiter
-			if path == "/api/agent/register" {
+			if path == "/api/agent/register" ||
+				strings.HasPrefix(path, "/api/v1/node/registration/") {
 				limiter = s.registerLimiter
 			}
 			if limiter != nil && !limiter.allow(clientAddress(ctx)) {
