@@ -46,6 +46,9 @@ func newNodeRegistrationSession(db *gorm.DB, opts ...gen.DOOption) nodeRegistrat
 	_nodeRegistrationSession.CreatedAt = field.NewTime(tableName, "created_at")
 	_nodeRegistrationSession.ApprovedAt = field.NewTime(tableName, "approved_at")
 	_nodeRegistrationSession.ConsumedAt = field.NewTime(tableName, "consumed_at")
+	_nodeRegistrationSession.RequestIP = field.NewString(tableName, "request_ip")
+	_nodeRegistrationSession.RequestCity = field.NewString(tableName, "request_city")
+	_nodeRegistrationSession.RequestCountry = field.NewString(tableName, "request_country")
 
 	_nodeRegistrationSession.fillFieldMap()
 
@@ -74,6 +77,9 @@ type nodeRegistrationSession struct {
 	CreatedAt            field.Time
 	ApprovedAt           field.Time
 	ConsumedAt           field.Time
+	RequestIP            field.String
+	RequestCity          field.String
+	RequestCountry       field.String
 
 	fieldMap map[string]field.Expr
 }
@@ -108,6 +114,9 @@ func (n *nodeRegistrationSession) updateTableName(table string) *nodeRegistratio
 	n.CreatedAt = field.NewTime(table, "created_at")
 	n.ApprovedAt = field.NewTime(table, "approved_at")
 	n.ConsumedAt = field.NewTime(table, "consumed_at")
+	n.RequestIP = field.NewString(table, "request_ip")
+	n.RequestCity = field.NewString(table, "request_city")
+	n.RequestCountry = field.NewString(table, "request_country")
 
 	n.fillFieldMap()
 
@@ -136,7 +145,7 @@ func (n *nodeRegistrationSession) GetFieldByName(fieldName string) (field.OrderE
 }
 
 func (n *nodeRegistrationSession) fillFieldMap() {
-	n.fieldMap = make(map[string]field.Expr, 18)
+	n.fieldMap = make(map[string]field.Expr, 21)
 	n.fieldMap["registration_id"] = n.RegistrationID
 	n.fieldMap["pair_code"] = n.PairCode
 	n.fieldMap["poll_token_hash"] = n.PollTokenHash
@@ -155,6 +164,9 @@ func (n *nodeRegistrationSession) fillFieldMap() {
 	n.fieldMap["created_at"] = n.CreatedAt
 	n.fieldMap["approved_at"] = n.ApprovedAt
 	n.fieldMap["consumed_at"] = n.ConsumedAt
+	n.fieldMap["request_ip"] = n.RequestIP
+	n.fieldMap["request_city"] = n.RequestCity
+	n.fieldMap["request_country"] = n.RequestCountry
 }
 
 func (n nodeRegistrationSession) clone(db *gorm.DB) nodeRegistrationSession {

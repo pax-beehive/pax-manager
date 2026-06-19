@@ -64,6 +64,38 @@ func scanNode(row rowScanner) (Node, error) {
 	return node, nil
 }
 
+func scanNodeRegistrationSession(row rowScanner) (NodeRegistrationSession, error) {
+	var session NodeRegistrationSession
+	var metadata []byte
+	if err := row.Scan(
+		&session.RegistrationID,
+		&session.PairCode,
+		&session.PollTokenHash,
+		&session.Status,
+		&session.OwnerUserID,
+		&session.NodeID,
+		&session.Request.Name,
+		&session.Request.Hostname,
+		&session.Request.MachineType,
+		&session.Request.OS,
+		&session.Request.Arch,
+		&session.Request.PaxdVersion,
+		&session.Request.APIEndpoint,
+		&metadata,
+		&session.RequestIP,
+		&session.RequestCity,
+		&session.RequestCountry,
+		&session.ExpiresAt,
+		&session.CreatedAt,
+		&session.ApprovedAt,
+		&session.ConsumedAt,
+	); err != nil {
+		return NodeRegistrationSession{}, mapSQLError(err)
+	}
+	session.Request.Metadata = json.RawMessage(metadata)
+	return session, nil
+}
+
 func scanNodes(rows *sql.Rows) ([]Node, error) {
 	out := make([]Node, 0)
 	for rows.Next() {

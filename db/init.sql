@@ -271,11 +271,18 @@ CREATE TABLE IF NOT EXISTS node_registration_sessions (
     requested_paxd_version TEXT NOT NULL DEFAULT '',
     requested_api_endpoint TEXT NOT NULL DEFAULT 'http://localhost:8642',
     requested_metadata JSONB,
+    request_ip TEXT NOT NULL DEFAULT '',
+    request_city TEXT NOT NULL DEFAULT '',
+    request_country TEXT NOT NULL DEFAULT '',
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     approved_at TIMESTAMPTZ,
     consumed_at TIMESTAMPTZ
 );
+
+ALTER TABLE node_registration_sessions ADD COLUMN IF NOT EXISTS request_ip TEXT NOT NULL DEFAULT '';
+ALTER TABLE node_registration_sessions ADD COLUMN IF NOT EXISTS request_city TEXT NOT NULL DEFAULT '';
+ALTER TABLE node_registration_sessions ADD COLUMN IF NOT EXISTS request_country TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_node_registration_sessions_pair_code
     ON node_registration_sessions(pair_code);

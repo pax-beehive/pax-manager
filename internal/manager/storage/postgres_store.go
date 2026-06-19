@@ -656,6 +656,9 @@ func (s *PostgresStore) CreateNodeRegistrationSession(
 		RequestedPaxdVersion: session.Request.PaxdVersion,
 		RequestedAPIEndpoint: &requestedAPIEndpoint,
 		RequestedMetadata:    rawJSONPtr(session.Request.Metadata),
+		RequestIP:            session.RequestIP,
+		RequestCity:          session.RequestCity,
+		RequestCountry:       session.RequestCountry,
 		ExpiresAt:            session.ExpiresAt,
 		CreatedAt:            &session.CreatedAt,
 	}
@@ -666,6 +669,30 @@ func (s *PostgresStore) CreateNodeRegistrationSession(
 		return err
 	}
 	return nil
+}
+
+func (s *PostgresStore) GetNodeRegistrationSession(
+	ctx context.Context,
+	pairCode string,
+) (NodeRegistrationSession, error) {
+	session, err := scanNodeRegistrationSession(s.db.QueryRowContext(ctx, `
+		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
+			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
+			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
+			COALESCE(requested_metadata, '{}'::jsonb), COALESCE(request_ip, ''),
+			COALESCE(request_city, ''), COALESCE(request_country, ''), expires_at, created_at,
+			approved_at, consumed_at
+		FROM node_registration_sessions
+		WHERE pair_code = $1
+	`, pairCode))
+	if err != nil {
+		return NodeRegistrationSession{}, err
+	}
+	if session.Status == domain.NodeRegistrationStatusPending &&
+		!session.ExpiresAt.After(s.now().UTC()) {
+		session.Status = domain.NodeRegistrationStatusExpired
+	}
+	return session, nil
 }
 
 func (s *PostgresStore) DeleteStaleNodeRegistrationSessions(

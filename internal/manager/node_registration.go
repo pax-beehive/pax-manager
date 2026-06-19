@@ -30,6 +30,7 @@ func StartNodeRegistration(c context.Context, ctx *app.RequestContext) {
 		c,
 		req,
 		verificationBaseURL(service.cfg, ctx),
+		nodeRegistrationNetwork(ctx),
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
@@ -47,10 +48,17 @@ func ApproveNodeRegistration(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func GetNodeRegistration(c context.Context, ctx *app.RequestContext) {
+	pairCode := strings.ToUpper(strings.TrimSpace(ctx.Param("pair_code")))
+	status, data, err := serviceFromContext(ctx).GetNodeRegistration(c, ctx, pairCode)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func (s *Service) StartNodeRegistration(
 	c context.Context,
 	req StartNodeRegistrationRequest,
 	baseURL string,
+	network domain.NodeRegistrationNetworkPreview,
 ) (int, any, error) {
 	if req.Hostname == "" {
 		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "hostname is required"}
@@ -92,6 +100,9 @@ func (s *Service) StartNodeRegistration(
 			PollTokenHash:  s.secrets.Hash(pollToken),
 			Status:         domain.NodeRegistrationStatusPending,
 			Request:        req.RegisterNodeRequest,
+			RequestIP:      network.IPAddress,
+			RequestCity:    network.City,
+			RequestCountry: network.Country,
 			ExpiresAt:      expiresAt,
 			CreatedAt:      now,
 		})
@@ -115,6 +126,40 @@ func (s *Service) StartNodeRegistration(
 		ExpiresIn:               int64(nodeRegistrationTTL.Seconds()),
 		Interval:                nodeRegistrationPollInterval,
 		ExpiresAt:               expiresAt.Format(time.RFC3339),
+	}, nil
+}
+
+func (s *Service) GetNodeRegistration(
+	c context.Context,
+	ctx *app.RequestContext,
+	pairCode string,
+) (int, any, error) {
+	if pairCode == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "pair code is required"}
+	}
+	if _, err := s.userPrincipal(c, ctx); err != nil {
+		return 0, nil, err
+	}
+	session, err := s.store.GetNodeRegistrationSession(c, pairCode)
+	if err != nil {
+		return 0, nil, err
+	}
+	if session.Status == domain.NodeRegistrationStatusPending &&
+		!session.ExpiresAt.After(s.clock().UTC()) {
+		session.Status = domain.NodeRegistrationStatusExpired
+	}
+	return http.StatusOK, domain.NodeRegistrationPreviewResponse{
+		RegistrationID: session.RegistrationID,
+		PairCode:       session.PairCode,
+		Status:         session.Status,
+		Request:        session.Request,
+		Network: domain.NodeRegistrationNetworkPreview{
+			IPAddress: session.RequestIP,
+			City:      session.RequestCity,
+			Country:   session.RequestCountry,
+		},
+		ExpiresAt: session.ExpiresAt.Format(time.RFC3339),
+		CreatedAt: session.CreatedAt.Format(time.RFC3339),
 	}, nil
 }
 
@@ -217,4 +262,16 @@ func verificationBaseURL(cfg Config, ctx *app.RequestContext) string {
 		return ""
 	}
 	return proto + "://" + host
+}
+
+func nodeRegistrationNetwork(ctx *app.RequestContext) domain.NodeRegistrationNetworkPreview {
+	ipAddress := clientAddress(ctx)
+	if ipAddress == "unknown" {
+		ipAddress = ""
+	}
+	return domain.NodeRegistrationNetworkPreview{
+		IPAddress: ipAddress,
+		City:      strings.TrimSpace(string(ctx.GetHeader("CF-IPCity"))),
+		Country:   strings.TrimSpace(string(ctx.GetHeader("CF-IPCountry"))),
+	}
 }

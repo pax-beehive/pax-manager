@@ -30,6 +30,9 @@ type NodeRegistrationSession struct {
 	CreatedAt            *time.Time `gorm:"column:created_at;type:timestamp with time zone;not null;index:idx_node_registration_sessions_owner,priority:2;default:now()" json:"created_at"`
 	ApprovedAt           *time.Time `gorm:"column:approved_at;type:timestamp with time zone" json:"approved_at"`
 	ConsumedAt           *time.Time `gorm:"column:consumed_at;type:timestamp with time zone" json:"consumed_at"`
+	RequestIP            string     `gorm:"column:request_ip;type:text;not null" json:"request_ip"`
+	RequestCity          string     `gorm:"column:request_city;type:text;not null" json:"request_city"`
+	RequestCountry       string     `gorm:"column:request_country;type:text;not null" json:"request_country"`
 }
 
 // TableName NodeRegistrationSession's table name

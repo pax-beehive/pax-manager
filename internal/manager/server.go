@@ -124,6 +124,7 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/echo", Echo)
 	h.POST("/api/v1/node/registration/start", StartNodeRegistration)
 	h.POST("/api/v1/node/registration/poll", PollNodeRegistration)
+	h.GET("/api/v1/user/:user_id/node-registrations/:pair_code", GetNodeRegistration)
 	h.POST("/api/v1/user/:user_id/node-registrations/:pair_code/approve", ApproveNodeRegistration)
 	h.GET(
 		"/api/agent/ws",

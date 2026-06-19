@@ -140,6 +140,9 @@ func TestNodeRegistrationSessionConnectsNodeAfterUserApproval(t *testing.T) {
 	)
 	startReq.Host = "pax.example.com"
 	startReq.Header.Set("X-Forwarded-Proto", "https")
+	startReq.Header.Set("CF-Connecting-IP", "203.0.113.10")
+	startReq.Header.Set("CF-IPCity", "San Francisco")
+	startReq.Header.Set("CF-IPCountry", "United States")
 	setJSON(startReq)
 	startRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(startRec, startReq)
@@ -237,6 +240,63 @@ func TestNodeRegistrationSessionConnectsNodeAfterUserApproval(t *testing.T) {
 	srv.routes().ServeHTTP(pollRec, pollReq)
 	if pollRec.Code != http.StatusUnauthorized {
 		t.Fatalf("stale poll code = %d, body = %s", pollRec.Code, pollRec.Body.String())
+	}
+}
+
+func TestNodeRegistrationPreviewShowsRequestedIdentity(t *testing.T) {
+	srv, _ := testServer(t, "owner@example.com")
+
+	startReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/start",
+		bytes.NewReader([]byte(`{
+			"name":"workstation",
+			"hostname":"workstation.local",
+			"machine_type":"mac",
+			"os":"darwin",
+			"arch":"arm64",
+			"paxd_version":"0.1.0",
+			"api_endpoint":"http://localhost:8642"
+		}`)),
+	)
+	startReq.Header.Set("CF-Connecting-IP", "203.0.113.10")
+	startReq.Header.Set("CF-IPCity", "San Francisco")
+	startReq.Header.Set("CF-IPCountry", "United States")
+	setJSON(startReq)
+	startRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(startRec, startReq)
+	if startRec.Code != http.StatusOK {
+		t.Fatalf("start code = %d, body = %s", startRec.Code, startRec.Body.String())
+	}
+	start := decodeData[StartNodeRegistrationResponse](t, startRec.Body.Bytes())
+
+	previewReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/node-registrations/"+start.PairCode,
+		nil,
+	)
+	previewReq.Header.Set("X-User-Email", "owner@example.com")
+	previewRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(previewRec, previewReq)
+	if previewRec.Code != http.StatusOK {
+		t.Fatalf("preview code = %d, body = %s", previewRec.Code, previewRec.Body.String())
+	}
+	preview := decodeData[NodeRegistrationPreviewResponse](t, previewRec.Body.Bytes())
+	if preview.PairCode != start.PairCode || preview.Status != "pending" {
+		t.Fatalf("preview identity = %+v", preview)
+	}
+	if preview.Request.Hostname != "workstation.local" ||
+		preview.Request.OS != "darwin" ||
+		preview.Request.Arch != "arm64" ||
+		preview.Request.MachineType != "mac" ||
+		preview.Request.PaxdVersion != "0.1.0" ||
+		preview.Request.APIEndpoint != "http://localhost:8642" {
+		t.Fatalf("preview request = %+v", preview.Request)
+	}
+	if preview.Network.IPAddress != "203.0.113.10" ||
+		preview.Network.City != "San Francisco" ||
+		preview.Network.Country != "United States" {
+		t.Fatalf("preview network = %+v", preview.Network)
 	}
 }
 

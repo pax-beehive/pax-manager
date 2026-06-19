@@ -119,6 +119,9 @@ func nodeRegistrationSessionFromModel(
 		Status:         stringValue(row.Status),
 		OwnerUserID:    stringValue(row.OwnerUserID),
 		NodeID:         stringValue(row.NodeID),
+		RequestIP:      row.RequestIP,
+		RequestCity:    row.RequestCity,
+		RequestCountry: row.RequestCountry,
 		Request: RegisterNodeRequest{
 			Name:        row.RequestedName,
 			Hostname:    row.RequestedHostname,

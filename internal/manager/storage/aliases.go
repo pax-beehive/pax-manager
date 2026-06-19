@@ -26,6 +26,7 @@ type ApprovalOption = domain.ApprovalOption
 type AgentApproval = domain.AgentApproval
 type RegisterNodeRequest = domain.RegisterNodeRequest
 type NodeRegistrationSession = domain.NodeRegistrationSession
+type NodeRegistrationPreviewResponse = domain.NodeRegistrationPreviewResponse
 type RegisterAgentRequest = domain.RegisterAgentRequest
 type UserAPIKey = domain.UserAPIKey
 type Secret = domain.Secret
