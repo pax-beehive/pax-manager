@@ -69,6 +69,32 @@ func (s *Service) handleDownloadPaxdArtifact(c context.Context, ctx *app.Request
 	})
 }
 
+func (s *Service) handleDownloadPaxdInstaller(c context.Context, ctx *app.RequestContext) {
+	bucket := strings.TrimSpace(s.cfg.PaxdInstallerBucket)
+	object := strings.TrimSpace(s.cfg.PaxdInstallerObject)
+	if bucket == "" || object == "" {
+		writeEndpointError(ctx, apperr.Error{
+			Status:  http.StatusInternalServerError,
+			Message: "paxd installer object is not configured",
+		})
+		return
+	}
+	expiresAt := s.clock().UTC().Add(s.paxdArtifactDownloadTTL())
+	url, err := s.paxdArtifacts.SignDownloadURL(c, PaxdArtifact{
+		Platform:    "script",
+		Tags:        []string{"installer"},
+		Version:     "latest",
+		Bucket:      bucket,
+		Object:      object,
+		ContentType: "text/x-shellscript",
+	}, expiresAt)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	ctx.Redirect(http.StatusFound, []byte(url))
+}
+
 func (s *Service) handlePublishPaxdArtifact(c context.Context, ctx *app.RequestContext) {
 	principal, err := s.authenticatePaxdArtifactUploader(c, ctx)
 	if err != nil {
