@@ -2366,6 +2366,54 @@ func TestNodeAPIUserNodeAgentSessionHistory(t *testing.T) {
 	}
 }
 
+func TestAgentSessionHistoryFallsBackToDurableMessages(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+	sessionID := "sess_15e5718ff7125f2077253247f61742f173d39957ece9827d"
+
+	if err := srv.store.UpsertMessage(t.Context(), &domain.Message{
+		MessageID:   "msg_history_without_session_row",
+		AgentID:     agentID,
+		SessionID:   sessionID,
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionAgentToUser,
+		Role:        "assistant",
+		Status:      "received",
+		MessageType: "agent_message_chunk",
+	}); err != nil {
+		t.Fatalf("upsert history message: %v", err)
+	}
+	if err := srv.store.UpsertMessagePart(t.Context(), &domain.MessagePart{
+		MessageID: "msg_history_without_session_row",
+		PartIndex: 0,
+		PartType:  domain.MessagePartText,
+		Text:      "hello from durable history",
+	}); err != nil {
+		t.Fatalf("upsert history part: %v", err)
+	}
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agents/"+agentID+"/sessions/"+sessionID+"/history",
+		nil,
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("history code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := decodeData[struct {
+		Messages []MessageWithParts `json:"messages"`
+	}](t, rec.Body.Bytes())
+	if len(got.Messages) != 1 ||
+		got.Messages[0].MessageID != "msg_history_without_session_row" ||
+		len(got.Messages[0].Parts) != 1 ||
+		got.Messages[0].Parts[0].Text != "hello from durable history" {
+		t.Fatalf("history messages = %+v", got.Messages)
+	}
+}
+
 func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 	t.Helper()
 	now := func() time.Time { return time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC) }

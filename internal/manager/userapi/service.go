@@ -2,6 +2,7 @@ package userapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -528,8 +529,15 @@ func (s *Service) ListAgentSessionHistory(
 			Message: "agent_id and session_id are required",
 		}
 	}
-	if _, err := s.sessionTarget(c, principal, agentID, sessionID); err != nil {
+	session, err := s.sessionTarget(c, principal, agentID, sessionID)
+	if err == nil {
+		sessionID = session.SessionID
+	} else if !errors.Is(err, domain.ErrNotFound) {
 		return 0, nil, err
+	} else {
+		if _, agentErr := s.store.GetAgent(c, principal, agentID); agentErr != nil {
+			return 0, nil, agentErr
+		}
 	}
 	return s.listSessionHistory(c, agentID, sessionID, limit)
 }
