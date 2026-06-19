@@ -58,6 +58,134 @@ Response:
 `device_code` is a secret held by paxd for polling. `user_code` is the short
 code the browser user enters.
 
+## Browser Verification Link Contract
+
+paxd does not construct the browser verification URL itself. paxd calls
+`POST /api/v1/node/registration/start` and displays the URL fields returned by
+pax-manager:
+
+```text
+Open: <verification_uri_complete or verification_uri>
+Code: <pair_code>
+```
+
+paxd should prefer `verification_uri_complete` when present, because it includes
+the pair code:
+
+```text
+https://pax.example.com/connect.html?code=K7Q9XM
+```
+
+If `verification_uri_complete` is absent, paxd falls back to `verification_uri`
+and still prints the code separately:
+
+```text
+https://pax.example.com/connect.html
+K7Q9XM
+```
+
+### URL Construction
+
+pax-manager constructs the verification URL from the incoming request:
+
+```text
+base_url = X-Forwarded-Proto + "://" + Host
+verification_uri = base_url + "/connect.html"
+verification_uri_complete = verification_uri + "?code=" + url_escape(pair_code)
+```
+
+For production behind Cloudflare or another proxy, the proxy must preserve:
+
+```text
+Host
+X-Forwarded-Proto
+```
+
+Otherwise pax-manager may return an internal or `http://` URL.
+
+### Frontend Page Behavior
+
+The frontend verification page should:
+
+1. Read `code` from the query string if present.
+2. Uppercase and display/fill the six-character pair code.
+3. Require the browser user to be authenticated by the normal user auth layer.
+4. Submit approval to:
+
+```http
+POST /api/v1/user/self/node-registrations/{pair_code}/approve
+Content-Type: application/json
+
+{}
+```
+
+The response shape is:
+
+```json
+{
+  "data": {
+    "registration_id": "nreg_...",
+    "pair_code": "K7Q9XM",
+    "status": "approved",
+    "expires_at": "2026-06-19T01:23:45Z"
+  },
+  "code": 200,
+  "message": "ok"
+}
+```
+
+The frontend should show a terminal handoff message after approval:
+
+```text
+Approved. You can return to the terminal.
+```
+
+The browser never receives the node API key.
+
+### paxd Polling Completion
+
+While the browser user approves the code, paxd polls:
+
+```http
+POST /api/v1/node/registration/poll
+Content-Type: application/json
+
+{
+  "registration_id": "nreg_...",
+  "poll_token": "nregpoll_..."
+}
+```
+
+Before approval:
+
+```json
+{
+  "data": {
+    "status": "pending"
+  },
+  "code": 200,
+  "message": "ok"
+}
+```
+
+After approval, pax-manager creates the node and returns the credential only to
+paxd:
+
+```json
+{
+  "data": {
+    "status": "approved",
+    "node_id": "node_...",
+    "api_key": "pax_..."
+  },
+  "code": 200,
+  "message": "ok"
+}
+```
+
+paxd writes `node_id` and `api_key` into local config and SQLite. The
+registration session is then consumed and removed during stale-session cleanup.
+
 ### 2. User Approval
 
 The user opens the verification URL and logs in. The page asks for the short
