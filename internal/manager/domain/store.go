@@ -192,7 +192,12 @@ type Store interface {
 	) (MailboxMessage, error)
 	UpsertMessage(ctx context.Context, msg *Message) error
 	UpsertMessagePart(ctx context.Context, part *MessagePart) error
-	ListMessages(ctx context.Context, agentID string, sessionID string, limit int) ([]Message, error)
+	ListMessages(
+		ctx context.Context,
+		agentID string,
+		sessionID string,
+		limit int,
+	) ([]Message, error)
 	ListMessageParts(ctx context.Context, messageID string) ([]MessagePart, error)
 	AppendMessagePartText(
 		ctx context.Context,
@@ -203,7 +208,12 @@ type Store interface {
 	) error
 	SaveTransportFrame(ctx context.Context, frame *TransportFrame) error
 	SaveTransportFrameIfAbsent(ctx context.Context, frame *TransportFrame) (bool, error)
-	NextTransportSeq(ctx context.Context, agentID string, stream string, direction string) (int64, error)
+	NextTransportSeq(
+		ctx context.Context,
+		agentID string,
+		stream string,
+		direction string,
+	) (int64, error)
 	GetTransportFrame(
 		ctx context.Context,
 		agentID string,
@@ -228,7 +238,12 @@ type Store interface {
 		status string,
 		errMsg string,
 	) error
-	AckOutboundTransportFrames(ctx context.Context, agentID string, stream string, throughSeq int64) error
+	AckOutboundTransportFrames(
+		ctx context.Context,
+		agentID string,
+		stream string,
+		throughSeq int64,
+	) error
 	DeleteCompletedTransportFrames(ctx context.Context, cutoff time.Time, limit int) (int64, error)
 	UpdateOffset(ctx context.Context, agentID string, offset int64) error
 	UpdateNodeOffset(ctx context.Context, nodeID string, offset int64) error

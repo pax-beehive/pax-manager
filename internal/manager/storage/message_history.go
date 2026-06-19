@@ -440,7 +440,9 @@ func (s *MemoryStore) saveMailboxHistoryLocked(mailbox MailboxMessage) error {
 	}
 	s.messages[msg.MessageID] = cloneMessage(msg)
 	s.prepareMessagePartLocked(&part)
-	s.messageParts[messagePartKey{MessageID: part.MessageID, Index: part.PartIndex}] = cloneMessagePart(part)
+	s.messageParts[messagePartKey{MessageID: part.MessageID, Index: part.PartIndex}] = cloneMessagePart(
+		part,
+	)
 	return nil
 }
 

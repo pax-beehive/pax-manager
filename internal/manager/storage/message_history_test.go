@@ -93,12 +93,16 @@ func TestMemorySecretAccessStoresManagerSessionID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register agent: %v", err)
 	}
-	session, err := store.CreateNodeAgentSession(ctx, UserPrincipal{User: user}, CreateSessionRequest{
-		NodeID:    agent.NodeID,
-		AgentID:   agent.AgentID,
-		SessionID: "sess_manager_1",
-		NativeID:  "harness-session-1",
-	})
+	session, err := store.CreateNodeAgentSession(
+		ctx,
+		UserPrincipal{User: user},
+		CreateSessionRequest{
+			NodeID:    agent.NodeID,
+			AgentID:   agent.AgentID,
+			SessionID: "sess_manager_1",
+			NativeID:  "harness-session-1",
+		},
+	)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
@@ -114,6 +118,10 @@ func TestMemorySecretAccessStoresManagerSessionID(t *testing.T) {
 		t.Fatalf("record secret access: %v", err)
 	}
 	if len(store.secretAccess) != 1 || store.secretAccess[0].SessionID != session.SessionID {
-		t.Fatalf("secret access = %+v, want manager session id %q", store.secretAccess, session.SessionID)
+		t.Fatalf(
+			"secret access = %+v, want manager session id %q",
+			store.secretAccess,
+			session.SessionID,
+		)
 	}
 }

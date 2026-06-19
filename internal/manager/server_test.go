@@ -998,7 +998,9 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 	}
 	defer userWS.Close()
 
-	initialize := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`)
+	initialize := []byte(
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`,
+	)
 	if err := userWS.WriteMessage(websocket.TextMessage, initialize); err != nil {
 		t.Fatalf("write initialize: %v", err)
 	}
@@ -1032,9 +1034,15 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("initialize response = %s", gotInitializeResponse)
 	}
 
-	firstDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"h"}}}}`)
-	secondDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"i"}}}}`)
-	thoughtDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"thinking"}}}}`)
+	firstDelta := json.RawMessage(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"h"}}}}`,
+	)
+	secondDelta := json.RawMessage(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"i"}}}}`,
+	)
+	thoughtDelta := json.RawMessage(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"thinking"}}}}`,
+	)
 	writeAgentDataFrame(t, agentWS, 2, firstDelta)
 	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 2)
 	_, gotFirstDelta, err := userWS.ReadMessage()
@@ -1099,7 +1107,10 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("agent_message_chunk text = %q, want hi", gotPartsByType["agent_message_chunk"])
 	}
 	if gotPartsByType["agent_thought_chunk"] != "thinking" {
-		t.Fatalf("agent_thought_chunk text = %q, want thinking", gotPartsByType["agent_thought_chunk"])
+		t.Fatalf(
+			"agent_thought_chunk text = %q, want thinking",
+			gotPartsByType["agent_thought_chunk"],
+		)
 	}
 	allMessages, err := srv.store.ListMessages(t.Context(), agentID, "", 100)
 	if err != nil {
@@ -1142,7 +1153,9 @@ func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	}
 	defer userWS.Close()
 
-	requestPayload := []byte(`{"jsonrpc":"2.0","id":7,"method":"session/new","params":{"cwd":"/tmp"}}`)
+	requestPayload := []byte(
+		`{"jsonrpc":"2.0","id":7,"method":"session/new","params":{"cwd":"/tmp"}}`,
+	)
 	if err := userWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
 		t.Fatalf("write user request: %v", err)
 	}
@@ -1554,7 +1567,12 @@ func decodeACPTunnelEnvelope(t *testing.T, data []byte) acpTunnelEnvelope {
 	return env
 }
 
-func writeAgentDataFrame(t *testing.T, agentWS *websocket.Conn, seq int64, payload json.RawMessage) {
+func writeAgentDataFrame(
+	t *testing.T,
+	agentWS *websocket.Conn,
+	seq int64,
+	payload json.RawMessage,
+) {
 	t.Helper()
 	frame := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
 		Type:    acpTunnelTypeData,
@@ -1578,7 +1596,13 @@ func readAgentAck(t *testing.T, agentWS *websocket.Conn, stream string, seq int6
 		ack.Type != acpTunnelTypeAck ||
 		ack.Stream != stream ||
 		ack.Seq != seq {
-		t.Fatalf("agent ack type=%d payload=%s, want stream=%s seq=%d", messageType, payload, stream, seq)
+		t.Fatalf(
+			"agent ack type=%d payload=%s, want stream=%s seq=%d",
+			messageType,
+			payload,
+			stream,
+			seq,
+		)
 	}
 }
 
@@ -2110,7 +2134,11 @@ func TestNodeAPIUserNodeAgentSessionHistory(t *testing.T) {
 	createAgentRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(createAgentRec, createAgentReq)
 	if createAgentRec.Code != http.StatusOK {
-		t.Fatalf("create node agent code = %d, body = %s", createAgentRec.Code, createAgentRec.Body.String())
+		t.Fatalf(
+			"create node agent code = %d, body = %s",
+			createAgentRec.Code,
+			createAgentRec.Body.String(),
+		)
 	}
 	agentResp := decodeData[struct {
 		Agent Agent `json:"agent"`
@@ -2129,7 +2157,11 @@ func TestNodeAPIUserNodeAgentSessionHistory(t *testing.T) {
 	createSessionRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(createSessionRec, createSessionReq)
 	if createSessionRec.Code != http.StatusOK {
-		t.Fatalf("create node session code = %d, body = %s", createSessionRec.Code, createSessionRec.Body.String())
+		t.Fatalf(
+			"create node session code = %d, body = %s",
+			createSessionRec.Code,
+			createSessionRec.Body.String(),
+		)
 	}
 
 	historyMessage := domain.Message{

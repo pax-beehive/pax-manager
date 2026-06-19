@@ -51,7 +51,13 @@ func projectACPTransportMessage(
 	if !ok {
 		return nil
 	}
-	fields.SessionID = canonicalACPHistorySessionID(ctx, store, ownerUserID, agentID, fields.SessionID)
+	fields.SessionID = canonicalACPHistorySessionID(
+		ctx,
+		store,
+		ownerUserID,
+		agentID,
+		fields.SessionID,
+	)
 	if fields.Role != "" {
 		role = fields.Role
 	}
