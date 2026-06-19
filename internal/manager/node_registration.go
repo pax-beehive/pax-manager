@@ -25,10 +25,11 @@ const (
 func StartNodeRegistration(c context.Context, ctx *app.RequestContext) {
 	var req StartNodeRegistrationRequest
 	decodeBody(ctx, &req)
-	status, data, err := serviceFromContext(ctx).StartNodeRegistration(
+	service := serviceFromContext(ctx)
+	status, data, err := service.StartNodeRegistration(
 		c,
 		req,
-		verificationBaseURL(ctx),
+		verificationBaseURL(service.cfg, ctx),
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
@@ -200,7 +201,10 @@ func newNodePairCode() (string, error) {
 	return b.String(), nil
 }
 
-func verificationBaseURL(ctx *app.RequestContext) string {
+func verificationBaseURL(cfg Config, ctx *app.RequestContext) string {
+	if baseURL := strings.TrimSpace(cfg.PaxdVerificationBaseURL); baseURL != "" {
+		return baseURL
+	}
 	proto := string(ctx.GetHeader("X-Forwarded-Proto"))
 	if proto == "" {
 		proto = "http"

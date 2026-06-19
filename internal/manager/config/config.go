@@ -9,6 +9,8 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
+const DefaultPaxdVerificationBaseURL = "https://ws.paxtech.net"
+
 type Config struct {
 	Port                              string
 	DatabaseURL                       string
@@ -33,6 +35,7 @@ type Config struct {
 	PaxdArtifactGCSMock               bool
 	PaxdInstallerBucket               string
 	PaxdInstallerObject               string
+	PaxdVerificationBaseURL           string
 }
 
 func Load() Config {
@@ -67,6 +70,10 @@ func Load() Config {
 		PaxdInstallerObject: envDefault(
 			"PAXD_INSTALLER_OBJECT",
 			"script/installer.sh",
+		),
+		PaxdVerificationBaseURL: envDefault(
+			"PAXD_VERIFICATION_BASE_URL",
+			DefaultPaxdVerificationBaseURL,
 		),
 	}
 }

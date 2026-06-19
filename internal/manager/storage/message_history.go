@@ -134,7 +134,7 @@ func (s *PostgresStore) ListMessages(
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	messages := make([]Message, 0)
 	for rows.Next() {
 		msg, err := scanMessage(rows)
@@ -159,7 +159,7 @@ func (s *PostgresStore) ListMessageParts(
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	parts := make([]MessagePart, 0)
 	for rows.Next() {
 		part, err := scanMessagePart(rows)

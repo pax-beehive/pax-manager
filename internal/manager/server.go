@@ -42,6 +42,9 @@ type Server = Service
 
 func newServer(cfg Config, store Store) *Service {
 	cfg.AdminEmails = managerconfig.MergeAdminEmails(cfg.AdminEmails)
+	if cfg.PaxdVerificationBaseURL == "" {
+		cfg.PaxdVerificationBaseURL = managerconfig.DefaultPaxdVerificationBaseURL
+	}
 	secrets := auth.Secrets{}
 	store = newCanonicalSessionStore(store)
 	s := &Service{

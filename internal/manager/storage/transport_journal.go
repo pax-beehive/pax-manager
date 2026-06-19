@@ -159,7 +159,7 @@ func (s *PostgresStore) ListTransportFrames(
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var frames []TransportFrame
 	for rows.Next() {
 		frame, err := scanTransportFrame(rows)
