@@ -150,7 +150,7 @@ func TestNodeRegistrationSessionConnectsNodeAfterUserApproval(t *testing.T) {
 	if len(start.PairCode) != 6 || start.PollToken == "" || start.RegistrationID == "" {
 		t.Fatalf("bad start response: %+v", start)
 	}
-	if start.VerificationURI != "https://pax.example.com/connect.html" {
+	if start.VerificationURI != "https://ws.paxtech.net/connect.html" {
 		t.Fatalf("verification uri = %q", start.VerificationURI)
 	}
 
@@ -237,6 +237,29 @@ func TestNodeRegistrationSessionConnectsNodeAfterUserApproval(t *testing.T) {
 	srv.routes().ServeHTTP(pollRec, pollReq)
 	if pollRec.Code != http.StatusUnauthorized {
 		t.Fatalf("stale poll code = %d, body = %s", pollRec.Code, pollRec.Body.String())
+	}
+}
+
+func TestNodeRegistrationVerificationURLFallsBackToRequestHost(t *testing.T) {
+	srv, _ := testServer(t, "owner@example.com")
+	srv.cfg.PaxdVerificationBaseURL = ""
+
+	startReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/start",
+		bytes.NewReader([]byte(`{"hostname":"workstation.local"}`)),
+	)
+	startReq.Host = "api.example.com"
+	startReq.Header.Set("X-Forwarded-Proto", "https")
+	setJSON(startReq)
+	startRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(startRec, startReq)
+	if startRec.Code != http.StatusOK {
+		t.Fatalf("start code = %d, body = %s", startRec.Code, startRec.Body.String())
+	}
+	start := decodeData[StartNodeRegistrationResponse](t, startRec.Body.Bytes())
+	if start.VerificationURI != "https://api.example.com/connect.html" {
+		t.Fatalf("verification uri = %q", start.VerificationURI)
 	}
 }
 
@@ -998,6 +1021,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	)
 }
 
+//nolint:gocyclo
 func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
@@ -1017,7 +1041,7 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
-	defer agentWS.Close()
+	defer func() { _ = agentWS.Close() }()
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -1027,7 +1051,7 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial user tunnel: %v", err)
 	}
-	defer userWS.Close()
+	defer func() { _ = userWS.Close() }()
 
 	initialize := []byte(
 		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`,
@@ -1182,7 +1206,7 @@ func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial user tunnel: %v", err)
 	}
-	defer userWS.Close()
+	defer func() { _ = userWS.Close() }()
 
 	requestPayload := []byte(
 		`{"jsonrpc":"2.0","id":7,"method":"session/new","params":{"cwd":"/tmp"}}`,
@@ -1219,7 +1243,7 @@ func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial second agent tunnel: %v", err)
 	}
-	defer secondAgentWS.Close()
+	defer func() { _ = secondAgentWS.Close() }()
 
 	_, replayed, err := secondAgentWS.ReadMessage()
 	if err != nil {

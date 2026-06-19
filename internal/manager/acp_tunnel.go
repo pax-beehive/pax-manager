@@ -1030,14 +1030,6 @@ func decodePaxdToManager(payload []byte) (acpTunnelEnvelope, bool, error) {
 	return env, true, nil
 }
 
-func unwrapPaxdToManager(payload []byte) ([]byte, bool, error) {
-	env, ok, err := decodePaxdToManager(payload)
-	if err != nil || !ok || env.Type != acpTunnelTypeData {
-		return nil, ok, err
-	}
-	return env.Payload, true, nil
-}
-
 func isWebSocketCloseError(err error) bool {
 	if err == nil {
 		return true

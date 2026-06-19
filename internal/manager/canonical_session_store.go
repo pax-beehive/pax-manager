@@ -30,7 +30,7 @@ func (s canonicalSessionStore) RecordSecretAccess(
 	event domain.SecretAccessEvent,
 ) error {
 	if event.AgentID != "" && event.SessionID != "" && event.NodeID != "" {
-		agent, err := s.Store.GetNodeAgent(ctx, event.NodeID, event.AgentID)
+		agent, err := s.GetNodeAgent(ctx, event.NodeID, event.AgentID)
 		if err == nil {
 			sessionID, err := s.canonicalSessionID(
 				ctx,
@@ -53,7 +53,7 @@ func (s canonicalSessionStore) canonicalSessionID(
 	agentID string,
 	sessionID string,
 ) (string, error) {
-	sessions, err := s.Store.ListAgentSessions(
+	sessions, err := s.ListAgentSessions(
 		ctx,
 		domain.UserPrincipal{User: domain.User{UserID: ownerUserID}},
 		agentID,
