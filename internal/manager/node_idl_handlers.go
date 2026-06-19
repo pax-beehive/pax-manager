@@ -284,6 +284,17 @@ func ListNodeAgentSessionMessages(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func ListAgentSessionHistory(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.ListAgentSessionHistory(
+		c,
+		requestMetadata(ctx),
+		firstString(ctx.Param("agentId"), ctx.Param("agent_id"), ctx.Param("agentID")),
+		firstString(ctx.Param("sessionId"), ctx.Param("session_id"), ctx.Param("sessionID")),
+		queryInt(ctx, "limit"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func CreateNodeAgentSessionMessage(c context.Context, ctx *app.RequestContext) {
 	var req CreateMailboxRequest
 	decodeBody(ctx, &req)

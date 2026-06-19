@@ -14,6 +14,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/adaptor"
 	"github.com/gorilla/websocket"
 
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
 
@@ -81,6 +82,9 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	}
 	if _, ok := doc.Paths["/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages"]; !ok {
 		t.Fatalf("missing /api/v1 user node agent session messages path")
+	}
+	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history"]; !ok {
+		t.Fatalf("missing /api/v1 user agent session history path")
 	}
 	if _, ok := doc.Paths["/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}"]; !ok {
 		t.Fatalf("missing /api/v1 user node agent session path")
@@ -889,13 +893,61 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read agent request: %v", err)
 	}
-	if messageType != websocket.TextMessage || string(gotRequest) != string(requestPayload) {
+	requestEnv := decodeACPTunnelEnvelope(t, gotRequest)
+	if messageType != websocket.TextMessage ||
+		requestEnv.Type != acpTunnelTypeData ||
+		requestEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		requestEnv.Seq != 1 ||
+		string(requestEnv.Payload) != string(requestPayload) {
 		t.Fatalf("agent got type=%d payload=%s", messageType, gotRequest)
 	}
+	waitTransportStatus(
+		t,
+		srv,
+		agentID,
+		domain.TransportStreamManagerToPaxd,
+		1,
+		domain.TransportDirectionOutbound,
+		domain.TransportStatusSent,
+	)
+	requestAck := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
+		Type:   acpTunnelTypeAck,
+		Stream: acpTunnelStreamManagerToPaxd,
+		Seq:    1,
+	})
+	if err := agentWS.WriteMessage(websocket.TextMessage, requestAck); err != nil {
+		t.Fatalf("write agent request ack: %v", err)
+	}
+	waitTransportStatus(
+		t,
+		srv,
+		agentID,
+		domain.TransportStreamManagerToPaxd,
+		1,
+		domain.TransportDirectionOutbound,
+		domain.TransportStatusAcked,
+	)
 
 	responsePayload := []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`)
-	if err := agentWS.WriteMessage(websocket.TextMessage, responsePayload); err != nil {
+	responseEnv := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
+		Type:    acpTunnelTypeData,
+		Stream:  acpTunnelStreamPaxdToManager,
+		Seq:     1,
+		Payload: json.RawMessage(responsePayload),
+	})
+	if err := agentWS.WriteMessage(websocket.TextMessage, responseEnv); err != nil {
 		t.Fatalf("write agent response: %v", err)
+	}
+	messageType, gotAck, err := agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent response ack: %v", err)
+	}
+	responseAck := decodeACPTunnelEnvelope(t, gotAck)
+	if messageType != websocket.TextMessage ||
+		responseAck.Type != acpTunnelTypeAck ||
+		responseAck.Stream != acpTunnelStreamPaxdToManager ||
+		responseAck.Seq != 1 {
+		t.Fatalf("agent got ack type=%d payload=%s", messageType, gotAck)
 	}
 	messageType, gotResponse, err := userWS.ReadMessage()
 	if err != nil {
@@ -904,6 +956,254 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	if messageType != websocket.TextMessage || string(gotResponse) != string(responsePayload) {
 		t.Fatalf("user got type=%d payload=%s", messageType, gotResponse)
 	}
+	waitTransportStatus(
+		t,
+		srv,
+		agentID,
+		domain.TransportStreamPaxdToManager,
+		1,
+		domain.TransportDirectionInbound,
+		domain.TransportStatusApplied,
+	)
+}
+
+func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleUserACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID,
+		agentHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer agentWS.Close()
+
+	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
+	userWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel",
+		userHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial user tunnel: %v", err)
+	}
+	defer userWS.Close()
+
+	initialize := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`)
+	if err := userWS.WriteMessage(websocket.TextMessage, initialize); err != nil {
+		t.Fatalf("write initialize: %v", err)
+	}
+	_, gotInitialize, err := agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent initialize: %v", err)
+	}
+	initializeEnv := decodeACPTunnelEnvelope(t, gotInitialize)
+	if initializeEnv.Type != acpTunnelTypeData ||
+		initializeEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		initializeEnv.Seq != 1 ||
+		string(initializeEnv.Payload) != string(initialize) {
+		t.Fatalf("initialize envelope = %s", gotInitialize)
+	}
+	if err := agentWS.WriteMessage(websocket.TextMessage, mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
+		Type:   acpTunnelTypeAck,
+		Stream: acpTunnelStreamManagerToPaxd,
+		Seq:    initializeEnv.Seq,
+	})); err != nil {
+		t.Fatalf("write initialize ack: %v", err)
+	}
+
+	initializeResponse := json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`)
+	writeAgentDataFrame(t, agentWS, 1, initializeResponse)
+	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 1)
+	_, gotInitializeResponse, err := userWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read user initialize response: %v", err)
+	}
+	if string(gotInitializeResponse) != string(initializeResponse) {
+		t.Fatalf("initialize response = %s", gotInitializeResponse)
+	}
+
+	firstDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"h"}}}}`)
+	secondDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"i"}}}}`)
+	thoughtDelta := json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"thinking"}}}}`)
+	writeAgentDataFrame(t, agentWS, 2, firstDelta)
+	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 2)
+	_, gotFirstDelta, err := userWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read first user delta: %v", err)
+	}
+	if string(gotFirstDelta) != string(firstDelta) {
+		t.Fatalf("first user delta = %s", gotFirstDelta)
+	}
+	writeAgentDataFrame(t, agentWS, 3, secondDelta)
+	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 3)
+	_, gotSecondDelta, err := userWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read second user delta: %v", err)
+	}
+	if string(gotSecondDelta) != string(secondDelta) {
+		t.Fatalf("second user delta = %s", gotSecondDelta)
+	}
+	writeAgentDataFrame(t, agentWS, 4, thoughtDelta)
+	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 4)
+	_, gotThoughtDelta, err := userWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read thought user delta: %v", err)
+	}
+	if string(gotThoughtDelta) != string(thoughtDelta) {
+		t.Fatalf("thought user delta = %s", gotThoughtDelta)
+	}
+
+	messages, err := srv.store.ListMessages(t.Context(), agentID, "sess-1", 100)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("messages = %+v, want message and thought aggregates", messages)
+	}
+	gotPartsByType := make(map[string]string)
+	for _, msg := range messages {
+		if msg.Source != domain.MessageSourceACPTunnel ||
+			msg.Direction != domain.MessageDirectionAgentToUser ||
+			msg.Role != "assistant" ||
+			msg.OwnerUserID == "" ||
+			msg.NodeID == "" ||
+			len(msg.RawJSON) != 0 ||
+			!strings.HasPrefix(msg.MessageID, "msg_") ||
+			!strings.HasPrefix(msg.LogicalKey, "acp:") ||
+			strings.Contains(msg.MessageID, "rpc:") {
+			t.Fatalf("projected message = %+v", msg)
+		}
+		parts, err := srv.store.ListMessageParts(t.Context(), msg.MessageID)
+		if err != nil {
+			t.Fatalf("list message parts: %v", err)
+		}
+		if len(parts) != 1 ||
+			parts[0].PartIndex != 0 ||
+			parts[0].PartType != domain.MessagePartText ||
+			len(parts[0].PayloadJSON) != 0 {
+			t.Fatalf("parts for %s = %+v, want one text part", msg.MessageID, parts)
+		}
+		gotPartsByType[msg.MessageType] = parts[0].Text
+	}
+	if gotPartsByType["agent_message_chunk"] != "hi" {
+		t.Fatalf("agent_message_chunk text = %q, want hi", gotPartsByType["agent_message_chunk"])
+	}
+	if gotPartsByType["agent_thought_chunk"] != "thinking" {
+		t.Fatalf("agent_thought_chunk text = %q, want thinking", gotPartsByType["agent_thought_chunk"])
+	}
+	allMessages, err := srv.store.ListMessages(t.Context(), agentID, "", 100)
+	if err != nil {
+		t.Fatalf("list all messages: %v", err)
+	}
+	for _, candidate := range allMessages {
+		if strings.Contains(candidate.MessageID, "rpc:") {
+			t.Fatalf("rpc-derived message should not be projected: %+v", candidate)
+		}
+	}
+}
+
+func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleUserACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID,
+		agentHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial first agent tunnel: %v", err)
+	}
+
+	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
+	userWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel",
+		userHeader,
+	)
+	if err != nil {
+		t.Fatalf("dial user tunnel: %v", err)
+	}
+	defer userWS.Close()
+
+	requestPayload := []byte(`{"jsonrpc":"2.0","id":7,"method":"session/new","params":{"cwd":"/tmp"}}`)
+	if err := userWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
+		t.Fatalf("write user request: %v", err)
+	}
+	_, gotRequest, err := agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read first agent request: %v", err)
+	}
+	firstEnv := decodeACPTunnelEnvelope(t, gotRequest)
+	if firstEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		firstEnv.Seq != 1 ||
+		string(firstEnv.Payload) != string(requestPayload) {
+		t.Fatalf("first agent payload = %s", gotRequest)
+	}
+	if err := agentWS.Close(); err != nil {
+		t.Fatalf("close first agent tunnel: %v", err)
+	}
+
+	var secondAgentWS *websocket.Conn
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		secondAgentWS, _, err = websocket.DefaultDialer.Dial(
+			baseWS+"/api/v1/agent/tunnel?agent_id="+agentID,
+			agentHeader,
+		)
+		if err == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("dial second agent tunnel: %v", err)
+	}
+	defer secondAgentWS.Close()
+
+	_, replayed, err := secondAgentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read replayed request: %v", err)
+	}
+	replayEnv := decodeACPTunnelEnvelope(t, replayed)
+	if replayEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		replayEnv.Seq != 1 ||
+		string(replayEnv.Payload) != string(requestPayload) {
+		t.Fatalf("replayed agent payload = %s", replayed)
+	}
+	replayAck := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
+		Type:   acpTunnelTypeAck,
+		Stream: acpTunnelStreamManagerToPaxd,
+		Seq:    replayEnv.Seq,
+	})
+	if err := secondAgentWS.WriteMessage(websocket.TextMessage, replayAck); err != nil {
+		t.Fatalf("write replay ack: %v", err)
+	}
+	waitTransportStatus(
+		t,
+		srv,
+		agentID,
+		domain.TransportStreamManagerToPaxd,
+		replayEnv.Seq,
+		domain.TransportDirectionOutbound,
+		domain.TransportStatusAcked,
+	)
 }
 
 func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
@@ -964,7 +1264,11 @@ func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read agent request a: %v", err)
 	}
-	if messageType != websocket.TextMessage || string(gotRequestA) != string(requestA) {
+	requestEnvA := decodeACPTunnelEnvelope(t, gotRequestA)
+	if messageType != websocket.TextMessage ||
+		requestEnvA.Type != acpTunnelTypeData ||
+		requestEnvA.Stream != acpTunnelStreamManagerToPaxd ||
+		string(requestEnvA.Payload) != string(requestA) {
 		t.Fatalf("agent a got type=%d payload=%s", messageType, gotRequestA)
 	}
 
@@ -979,7 +1283,11 @@ func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read agent request b: %v", err)
 	}
-	if messageType != websocket.TextMessage || string(gotRequestB) != string(requestB) {
+	requestEnvB := decodeACPTunnelEnvelope(t, gotRequestB)
+	if messageType != websocket.TextMessage ||
+		requestEnvB.Type != acpTunnelTypeData ||
+		requestEnvB.Stream != acpTunnelStreamManagerToPaxd ||
+		string(requestEnvB.Payload) != string(requestB) {
 		t.Fatalf("agent b got type=%d payload=%s", messageType, gotRequestB)
 	}
 }
@@ -1039,9 +1347,7 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 			}
 		}
 	}`)
-	if err := agentWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
-		t.Fatalf("write agent permission request: %v", err)
-	}
+	writeAgentDataFrame(t, agentWS, 1, requestPayload)
 	if err := userWS.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatalf("set user read deadline: %v", err)
 	}
@@ -1123,32 +1429,34 @@ func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
 			}
 		}
 	}`)
-	if err := agentWS.WriteMessage(websocket.TextMessage, requestPayload); err != nil {
-		t.Fatalf("write agent permission request: %v", err)
-	}
+	writeAgentDataFrame(t, agentWS, 1, requestPayload)
 	if err := agentWS.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatalf("set agent read deadline: %v", err)
 	}
-	messageType, gotResponse, err := agentWS.ReadMessage()
+	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 1)
+	messageType, gotResponseFrame, err := agentWS.ReadMessage()
 	if err != nil {
 		t.Fatalf("read agent permission response: %v", err)
 	}
-	if messageType != websocket.TextMessage {
-		t.Fatalf("message type = %d", messageType)
+	gotResponse := decodeACPTunnelEnvelope(t, gotResponseFrame)
+	if messageType != websocket.TextMessage ||
+		gotResponse.Type != acpTunnelTypeData ||
+		gotResponse.Stream != acpTunnelStreamManagerToPaxd {
+		t.Fatalf("response envelope type=%d payload=%s", messageType, gotResponseFrame)
 	}
 
 	var frame struct {
 		ID     int            `json:"id"`
 		Result map[string]any `json:"result"`
 	}
-	if err := json.Unmarshal(gotResponse, &frame); err != nil {
+	if err := json.Unmarshal(gotResponse.Payload, &frame); err != nil {
 		t.Fatal(err)
 	}
 	if frame.ID != 12 {
 		t.Fatalf("response id = %d", frame.ID)
 	}
 	if got := acpOptionKind(frame.Result); got != "allow_once" {
-		t.Fatalf("selected option kind = %q, frame = %s", got, gotResponse)
+		t.Fatalf("selected option kind = %q, frame = %s", got, gotResponse.Payload)
 	}
 }
 
@@ -1192,7 +1500,10 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read first agent request: %v", err)
 	}
-	if string(gotRequest) != string(firstPayload) {
+	firstEnv := decodeACPTunnelEnvelope(t, gotRequest)
+	if firstEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		firstEnv.Seq != 1 ||
+		string(firstEnv.Payload) != string(firstPayload) {
 		t.Fatalf("first agent payload = %s", gotRequest)
 	}
 	if err := userWS.Close(); err != nil {
@@ -1226,9 +1537,92 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read second agent request: %v", err)
 	}
-	if string(gotRequest) != string(secondPayload) {
+	secondEnv := decodeACPTunnelEnvelope(t, gotRequest)
+	if secondEnv.Stream != acpTunnelStreamManagerToPaxd ||
+		secondEnv.Seq != 2 ||
+		string(secondEnv.Payload) != string(secondPayload) {
 		t.Fatalf("second agent payload = %s", gotRequest)
 	}
+}
+
+func decodeACPTunnelEnvelope(t *testing.T, data []byte) acpTunnelEnvelope {
+	t.Helper()
+	var env acpTunnelEnvelope
+	if err := json.Unmarshal(data, &env); err != nil {
+		t.Fatalf("decode acp tunnel envelope %s: %v", data, err)
+	}
+	return env
+}
+
+func writeAgentDataFrame(t *testing.T, agentWS *websocket.Conn, seq int64, payload json.RawMessage) {
+	t.Helper()
+	frame := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
+		Type:    acpTunnelTypeData,
+		Stream:  acpTunnelStreamPaxdToManager,
+		Seq:     seq,
+		Payload: payload,
+	})
+	if err := agentWS.WriteMessage(websocket.TextMessage, frame); err != nil {
+		t.Fatalf("write agent data frame seq=%d: %v", seq, err)
+	}
+}
+
+func readAgentAck(t *testing.T, agentWS *websocket.Conn, stream string, seq int64) {
+	t.Helper()
+	messageType, payload, err := agentWS.ReadMessage()
+	if err != nil {
+		t.Fatalf("read agent ack seq=%d: %v", seq, err)
+	}
+	ack := decodeACPTunnelEnvelope(t, payload)
+	if messageType != websocket.TextMessage ||
+		ack.Type != acpTunnelTypeAck ||
+		ack.Stream != stream ||
+		ack.Seq != seq {
+		t.Fatalf("agent ack type=%d payload=%s, want stream=%s seq=%d", messageType, payload, stream, seq)
+	}
+}
+
+func mustMarshalACPTunnelEnvelope(t *testing.T, env acpTunnelEnvelope) []byte {
+	t.Helper()
+	data, err := json.Marshal(env)
+	if err != nil {
+		t.Fatalf("marshal acp tunnel envelope: %v", err)
+	}
+	return data
+}
+
+func waitTransportStatus(
+	t *testing.T,
+	srv *Server,
+	agentID string,
+	stream string,
+	seq int64,
+	direction string,
+	status string,
+) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	var got string
+	for time.Now().Before(deadline) {
+		frame, err := srv.store.GetTransportFrame(
+			t.Context(),
+			agentID,
+			stream,
+			seq,
+			direction,
+		)
+		if err != nil {
+			t.Fatalf("get transport frame: %v", err)
+		}
+		if frame != nil {
+			got = frame.Status
+			if got == status {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("transport status = %q, want %q", got, status)
 }
 
 func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
@@ -1671,6 +2065,158 @@ func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {
 			}
 		},
 	)
+}
+
+func TestNodeAPIUserNodeAgentSessionHistory(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	userHeaders := func(req *http.Request) {
+		req.Header.Set("X-User-Email", "todd@example.com")
+		setJSON(req)
+	}
+
+	tokenReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/node-registration-tokens",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	userHeaders(tokenReq)
+	tokenRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(tokenRec, tokenReq)
+	if tokenRec.Code != http.StatusOK {
+		t.Fatalf("node token code = %d, body = %s", tokenRec.Code, tokenRec.Body.String())
+	}
+	tokenResp := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
+
+	registerReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/register",
+		bytes.NewReader([]byte(`{"name":"node-a","hostname":"node-a","os":"linux"}`)),
+	)
+	setJSON(registerReq)
+	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
+	registerRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(registerRec, registerReq)
+	if registerRec.Code != http.StatusOK {
+		t.Fatalf("node register code = %d, body = %s", registerRec.Code, registerRec.Body.String())
+	}
+	registeredNode := decodeData[RegisterNodeResponse](t, registerRec.Body.Bytes())
+
+	createAgentReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+registeredNode.NodeID+"/agents",
+		bytes.NewReader([]byte(`{"name":"hermes-a","agent_type":"hermes"}`)),
+	)
+	userHeaders(createAgentReq)
+	createAgentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createAgentRec, createAgentReq)
+	if createAgentRec.Code != http.StatusOK {
+		t.Fatalf("create node agent code = %d, body = %s", createAgentRec.Code, createAgentRec.Body.String())
+	}
+	agentResp := decodeData[struct {
+		Agent Agent `json:"agent"`
+	}](t, createAgentRec.Body.Bytes())
+
+	createSessionReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+registeredNode.NodeID+"/agents/"+agentResp.Agent.AgentID+"/sessions",
+		bytes.NewReader(
+			[]byte(
+				`{"session_id":"sess_manager_1","native_id":"harness-session-1","name":"first session"}`,
+			),
+		),
+	)
+	userHeaders(createSessionReq)
+	createSessionRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createSessionRec, createSessionReq)
+	if createSessionRec.Code != http.StatusOK {
+		t.Fatalf("create node session code = %d, body = %s", createSessionRec.Code, createSessionRec.Body.String())
+	}
+
+	historyMessage := domain.Message{
+		MessageID:   "msg_history_1",
+		OwnerUserID: agentResp.Agent.OwnerUserID,
+		NodeID:      registeredNode.NodeID,
+		AgentID:     agentResp.Agent.AgentID,
+		SessionID:   "sess_manager_1",
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionAgentToUser,
+		Role:        "assistant",
+		Status:      "received",
+		MessageType: "agent_message_chunk",
+	}
+	if err := srv.store.UpsertMessage(t.Context(), &historyMessage); err != nil {
+		t.Fatalf("upsert history message: %v", err)
+	}
+	if err := srv.store.UpsertMessagePart(t.Context(), &domain.MessagePart{
+		MessageID: "msg_history_1",
+		PartIndex: 0,
+		PartType:  domain.MessagePartText,
+		Text:      "hello from history",
+	}); err != nil {
+		t.Fatalf("upsert history part: %v", err)
+	}
+	nativeHistoryMessage := domain.Message{
+		MessageID:   "msg_history_native",
+		OwnerUserID: agentResp.Agent.OwnerUserID,
+		NodeID:      registeredNode.NodeID,
+		AgentID:     agentResp.Agent.AgentID,
+		SessionID:   "harness-session-1",
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionAgentToUser,
+		Role:        "assistant",
+		Status:      "received",
+		MessageType: "agent_message_chunk",
+	}
+	if err := srv.store.UpsertMessage(t.Context(), &nativeHistoryMessage); err != nil {
+		t.Fatalf("upsert native history message: %v", err)
+	}
+	if err := srv.store.UpsertMessagePart(t.Context(), &domain.MessagePart{
+		MessageID: "msg_history_native",
+		PartIndex: 0,
+		PartType:  domain.MessagePartText,
+		Text:      "hello from native history",
+	}); err != nil {
+		t.Fatalf("upsert native history part: %v", err)
+	}
+	otherSessionMessage := domain.Message{
+		MessageID: "msg_history_other",
+		AgentID:   agentResp.Agent.AgentID,
+		SessionID: "sess-other",
+		Source:    domain.MessageSourceACPTunnel,
+		Direction: domain.MessageDirectionAgentToUser,
+	}
+	if err := srv.store.UpsertMessage(t.Context(), &otherSessionMessage); err != nil {
+		t.Fatalf("upsert other history message: %v", err)
+	}
+
+	historyReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agents/"+agentResp.Agent.AgentID+"/sessions/sess_manager_1/history",
+		nil,
+	)
+	historyReq.Header.Set("X-User-Email", "todd@example.com")
+	historyRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(historyRec, historyReq)
+	if historyRec.Code != http.StatusOK {
+		t.Fatalf("history code = %d, body = %s", historyRec.Code, historyRec.Body.String())
+	}
+	got := decodeData[struct {
+		Messages []MessageWithParts `json:"messages"`
+	}](t, historyRec.Body.Bytes())
+	if len(got.Messages) != 2 {
+		t.Fatalf("history messages = %+v", got.Messages)
+	}
+	gotTextByID := make(map[string]string)
+	for _, message := range got.Messages {
+		if len(message.Parts) != 1 {
+			t.Fatalf("bad parts for history message: %+v", message)
+		}
+		gotTextByID[message.MessageID] = message.Parts[0].Text
+	}
+	if gotTextByID["msg_history_1"] != "hello from history" ||
+		gotTextByID["msg_history_native"] != "hello from native history" {
+		t.Fatalf("bad history response: %+v", got.Messages)
+	}
 }
 
 func testServer(t *testing.T, ownerEmail string) (*Server, string) {

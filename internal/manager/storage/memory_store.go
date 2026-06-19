@@ -30,6 +30,13 @@ type MemoryStore struct {
 	sessions                  map[string]AgentSession
 	mailbox                   map[int64]MailboxMessage
 	offsets                   map[string]int64
+	nextTransportID           int64
+	transportJournal          map[transportFrameKey]TransportFrame
+	nextMessageID             int64
+	nextPartID                int64
+	messages                  map[string]Message
+	messageLogical            map[string]string
+	messageParts              map[messagePartKey]MessagePart
 	approvals                 map[string]AgentApproval
 	secrets                   map[string]Secret
 	secretVersions            map[string]SecretVersion
@@ -56,6 +63,10 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		sessions:                  make(map[string]AgentSession),
 		mailbox:                   make(map[int64]MailboxMessage),
 		offsets:                   make(map[string]int64),
+		transportJournal:          make(map[transportFrameKey]TransportFrame),
+		messages:                  make(map[string]Message),
+		messageLogical:            make(map[string]string),
+		messageParts:              make(map[messagePartKey]MessagePart),
 		approvals:                 make(map[string]AgentApproval),
 		secrets:                   make(map[string]Secret),
 		secretVersions:            make(map[string]SecretVersion),
@@ -63,6 +74,18 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		paxdArtifacts:             make(map[string]PaxdArtifact),
 		paxdArtifactKeys:          make(map[string]string),
 	}
+}
+
+type transportFrameKey struct {
+	AgentID        string
+	Stream         string
+	Seq            int64
+	LocalDirection string
+}
+
+type messagePartKey struct {
+	MessageID string
+	Index     int
 }
 
 type registrationToken struct {
@@ -391,6 +414,9 @@ func (s *MemoryStore) CreateSecretVersion(
 func (s *MemoryStore) RecordSecretAccess(ctx context.Context, event SecretAccessEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if event.AgentID != "" && event.SessionID != "" {
+		event.SessionID = s.virtualSessionIDLocked(event.AgentID, event.SessionID)
+	}
 	s.secretAccess = append(s.secretAccess, event)
 	return nil
 }
@@ -1153,6 +1179,9 @@ func (s *MemoryStore) CreateMailboxMessage(
 		ExpiresAt:   expiresAt(now, messageType),
 	}
 	s.mailbox[msg.ID] = msg
+	if err := s.saveMailboxHistoryLocked(msg); err != nil {
+		return MailboxMessage{}, err
+	}
 	return msg, nil
 }
 
@@ -1658,6 +1687,9 @@ func (s *MemoryStore) CreateNodeOutboundMessage(
 	msg.FileChanges = append([]FileChange(nil), req.FileChanges...)
 	msg.TokenUsage = req.TokenUsage
 	s.mailbox[msg.ID] = msg
+	if err := s.saveMailboxHistoryLocked(msg); err != nil {
+		return MailboxMessage{}, err
+	}
 	msg.SessionID = s.nativeSessionIDLocked(msg.AgentID, msg.SessionID)
 	msg.Payload = replacePayloadSessionID(msg.Payload, msg.SessionID)
 	return msg, nil
@@ -1896,6 +1928,9 @@ func (s *MemoryStore) createMailboxLocked(
 		ExpiresAt:   expiresAt(createdAt, messageType),
 	}
 	s.mailbox[msg.ID] = msg
+	if err := s.saveMailboxHistoryLocked(msg); err != nil {
+		return MailboxMessage{}, err
+	}
 	return msg, nil
 }
 

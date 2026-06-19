@@ -470,6 +470,13 @@ func (s *PostgresStore) RecordSecretAccess(
 	ctx context.Context,
 	event SecretAccessEvent,
 ) error {
+	if event.AgentID != "" && event.SessionID != "" {
+		sessionID, err := s.virtualSessionID(ctx, s.db, event.AgentID, event.SessionID)
+		if err != nil {
+			return err
+		}
+		event.SessionID = sessionID
+	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO secret_access_events (
 			secret_id, version_id, node_id, agent_id, session_id, action, result, created_at
@@ -1285,7 +1292,14 @@ func (s *PostgresStore) CreateMailboxMessage(
 		VALUES ($1,$2,$3,NULLIF($4,''),$5,NULLIF($6,''),$7,$8,$9,'pending','user_to_node',$10,$11)
 		RETURNING `+mailboxReturningSQL+`
 	`, messageID, principal.User.UserID, ownerUserID, agentNodeID, req.AgentID, req.SessionID, req.Message, messageType, payload, now, expiresAt(now, messageType))
-	return scanMailbox(row)
+	msg, err := scanMailbox(row)
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	if err := s.saveMailboxHistory(ctx, msg); err != nil {
+		return MailboxMessage{}, err
+	}
+	return msg, nil
 }
 
 func (s *PostgresStore) CreateApproval(
@@ -1889,6 +1903,9 @@ func (s *PostgresStore) CreateNodeOutboundMessage(
 	if err != nil {
 		return MailboxMessage{}, err
 	}
+	if err := s.saveMailboxHistory(ctx, msg); err != nil {
+		return MailboxMessage{}, err
+	}
 	msg.SessionID, err = s.nativeSessionID(ctx, s.db, msg.AgentID, msg.SessionID)
 	if err != nil {
 		return MailboxMessage{}, err
@@ -2309,7 +2326,14 @@ func (s *PostgresStore) insertMailbox(
 		RETURNING `+mailboxReturningSQL+`
 	`, messageID, userID, ownerUserID, nodeID, agentID, sessionID, message, messageType, payload,
 		status, direction, createdAt, expiresAt(createdAt, messageType))
-	return scanMailbox(row)
+	msg, err := scanMailbox(row)
+	if err != nil {
+		return MailboxMessage{}, err
+	}
+	if err := s.saveMailboxHistory(ctx, msg); err != nil {
+		return MailboxMessage{}, err
+	}
+	return msg, nil
 }
 
 func jsonOrNil(v any) any {
