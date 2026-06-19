@@ -7,55 +7,61 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 type MemoryStore struct {
-	mu               sync.Mutex
-	now              func() time.Time
-	nextMailbox      int64
-	nextSession      int64
-	nodes            map[string]Node
-	agents           map[string]Agent
-	apiKeys          map[string]string
-	nodeAPIKeys      map[string]string
-	users            map[string]User
-	usersByEmail     map[string]string
-	regTokens        map[string]registrationToken
-	userAPIKeys      map[string]UserAPIKey
-	userAPIKeyHashes map[string]string
-	sessions         map[string]AgentSession
-	mailbox          map[int64]MailboxMessage
-	offsets          map[string]int64
-	approvals        map[string]AgentApproval
-	secrets          map[string]Secret
-	secretVersions   map[string]SecretVersion
-	secretVersionIDs map[string][]string
-	secretAccess     []SecretAccessEvent
-	paxdArtifacts    map[string]PaxdArtifact
-	paxdArtifactKeys map[string]string
+	mu                        sync.Mutex
+	now                       func() time.Time
+	nextMailbox               int64
+	nextSession               int64
+	nodes                     map[string]Node
+	agents                    map[string]Agent
+	apiKeys                   map[string]string
+	nodeAPIKeys               map[string]string
+	users                     map[string]User
+	usersByEmail              map[string]string
+	regTokens                 map[string]registrationToken
+	nodeRegistrations         map[string]NodeRegistrationSession
+	nodeRegistrationPairCodes map[string]string
+	userAPIKeys               map[string]UserAPIKey
+	userAPIKeyHashes          map[string]string
+	sessions                  map[string]AgentSession
+	mailbox                   map[int64]MailboxMessage
+	offsets                   map[string]int64
+	approvals                 map[string]AgentApproval
+	secrets                   map[string]Secret
+	secretVersions            map[string]SecretVersion
+	secretVersionIDs          map[string][]string
+	secretAccess              []SecretAccessEvent
+	paxdArtifacts             map[string]PaxdArtifact
+	paxdArtifactKeys          map[string]string
 }
 
 func NewMemoryStore(now func() time.Time) *MemoryStore {
 	return &MemoryStore{
-		now:              now,
-		nodes:            make(map[string]Node),
-		agents:           make(map[string]Agent),
-		apiKeys:          make(map[string]string),
-		nodeAPIKeys:      make(map[string]string),
-		users:            make(map[string]User),
-		usersByEmail:     make(map[string]string),
-		regTokens:        make(map[string]registrationToken),
-		userAPIKeys:      make(map[string]UserAPIKey),
-		userAPIKeyHashes: make(map[string]string),
-		sessions:         make(map[string]AgentSession),
-		mailbox:          make(map[int64]MailboxMessage),
-		offsets:          make(map[string]int64),
-		approvals:        make(map[string]AgentApproval),
-		secrets:          make(map[string]Secret),
-		secretVersions:   make(map[string]SecretVersion),
-		secretVersionIDs: make(map[string][]string),
-		paxdArtifacts:    make(map[string]PaxdArtifact),
-		paxdArtifactKeys: make(map[string]string),
+		now:                       now,
+		nodes:                     make(map[string]Node),
+		agents:                    make(map[string]Agent),
+		apiKeys:                   make(map[string]string),
+		nodeAPIKeys:               make(map[string]string),
+		users:                     make(map[string]User),
+		usersByEmail:              make(map[string]string),
+		regTokens:                 make(map[string]registrationToken),
+		nodeRegistrations:         make(map[string]NodeRegistrationSession),
+		nodeRegistrationPairCodes: make(map[string]string),
+		userAPIKeys:               make(map[string]UserAPIKey),
+		userAPIKeyHashes:          make(map[string]string),
+		sessions:                  make(map[string]AgentSession),
+		mailbox:                   make(map[int64]MailboxMessage),
+		offsets:                   make(map[string]int64),
+		approvals:                 make(map[string]AgentApproval),
+		secrets:                   make(map[string]Secret),
+		secretVersions:            make(map[string]SecretVersion),
+		secretVersionIDs:          make(map[string][]string),
+		paxdArtifacts:             make(map[string]PaxdArtifact),
+		paxdArtifactKeys:          make(map[string]string),
 	}
 }
 
@@ -571,6 +577,143 @@ func (s *MemoryStore) RegisterNode(
 	}
 	s.nodes[nodeID] = node
 	s.nodeAPIKeys[apiKeyHash] = nodeID
+	return node, nil
+}
+
+func (s *MemoryStore) CreateNodeRegistrationSession(
+	ctx context.Context,
+	session NodeRegistrationSession,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.nodeRegistrations[session.RegistrationID]; ok {
+		return ErrConflict
+	}
+	if _, ok := s.nodeRegistrationPairCodes[session.PairCode]; ok {
+		return ErrConflict
+	}
+	s.nodeRegistrations[session.RegistrationID] = session
+	s.nodeRegistrationPairCodes[session.PairCode] = session.RegistrationID
+	return nil
+}
+
+func (s *MemoryStore) DeleteStaleNodeRegistrationSessions(
+	ctx context.Context,
+	cutoff time.Time,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for registrationID, session := range s.nodeRegistrations {
+		if session.ExpiresAt.After(cutoff) &&
+			session.Status != domain.NodeRegistrationStatusConsumed &&
+			session.Status != domain.NodeRegistrationStatusDenied &&
+			session.Status != domain.NodeRegistrationStatusExpired {
+			continue
+		}
+		delete(s.nodeRegistrations, registrationID)
+		delete(s.nodeRegistrationPairCodes, session.PairCode)
+	}
+	return nil
+}
+
+func (s *MemoryStore) ApproveNodeRegistrationSession(
+	ctx context.Context,
+	principal UserPrincipal,
+	pairCode string,
+) (NodeRegistrationSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	registrationID, ok := s.nodeRegistrationPairCodes[pairCode]
+	if !ok {
+		return NodeRegistrationSession{}, ErrNotFound
+	}
+	session := s.nodeRegistrations[registrationID]
+	if session.Status != domain.NodeRegistrationStatusPending {
+		return NodeRegistrationSession{}, ErrConflict
+	}
+	now := s.now().UTC()
+	if !session.ExpiresAt.After(now) {
+		session.Status = domain.NodeRegistrationStatusExpired
+		s.nodeRegistrations[registrationID] = session
+		return NodeRegistrationSession{}, ErrUnauthorized
+	}
+	session.Status = domain.NodeRegistrationStatusApproved
+	session.OwnerUserID = principal.User.UserID
+	session.ApprovedAt = &now
+	s.nodeRegistrations[registrationID] = session
+	return session, nil
+}
+
+func (s *MemoryStore) PollNodeRegistrationSession(
+	ctx context.Context,
+	registrationID string,
+	pollTokenHash string,
+) (NodeRegistrationSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session, ok := s.nodeRegistrations[registrationID]
+	if !ok || session.PollTokenHash != pollTokenHash {
+		return NodeRegistrationSession{}, ErrUnauthorized
+	}
+	if session.Status == domain.NodeRegistrationStatusPending &&
+		!session.ExpiresAt.After(s.now().UTC()) {
+		session.Status = domain.NodeRegistrationStatusExpired
+		s.nodeRegistrations[registrationID] = session
+	}
+	return session, nil
+}
+
+func (s *MemoryStore) ConsumeNodeRegistrationSession(
+	ctx context.Context,
+	registrationID string,
+	pollTokenHash string,
+	apiKeyHash string,
+) (Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session, ok := s.nodeRegistrations[registrationID]
+	if !ok || session.PollTokenHash != pollTokenHash {
+		return Node{}, ErrUnauthorized
+	}
+	if session.Status != domain.NodeRegistrationStatusApproved || session.OwnerUserID == "" {
+		return Node{}, ErrConflict
+	}
+	now := s.now().UTC()
+	if !session.ExpiresAt.After(now) {
+		session.Status = domain.NodeRegistrationStatusExpired
+		s.nodeRegistrations[registrationID] = session
+		return Node{}, ErrUnauthorized
+	}
+	owner, ok := s.users[session.OwnerUserID]
+	if !ok {
+		return Node{}, ErrUnauthorized
+	}
+	nodeID, err := newSecret("node")
+	if err != nil {
+		return Node{}, err
+	}
+	node := Node{
+		NodeID:        nodeID,
+		OwnerUserID:   owner.UserID,
+		Name:          defaultNodeName(session.Request),
+		Hostname:      session.Request.Hostname,
+		MachineType:   session.Request.MachineType,
+		OS:            defaultOS(session.Request.OS),
+		Arch:          session.Request.Arch,
+		PaxdVersion:   session.Request.PaxdVersion,
+		APIEndpoint:   defaultAPIEndpoint(session.Request.APIEndpoint),
+		Status:        "online",
+		Online:        true,
+		LastHeartbeat: &now,
+		RegisteredAt:  now,
+		Metadata:      session.Request.Metadata,
+	}
+	s.nodes[nodeID] = node
+	s.nodeAPIKeys[apiKeyHash] = nodeID
+	session.Status = domain.NodeRegistrationStatusConsumed
+	session.NodeID = nodeID
+	session.ConsumedAt = &now
+	s.nodeRegistrations[registrationID] = session
 	return node, nil
 }
 

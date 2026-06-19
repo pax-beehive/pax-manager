@@ -68,6 +68,24 @@ type Store interface {
 		req RegisterNodeRequest,
 		apiKeyHash string,
 	) (Node, error)
+	CreateNodeRegistrationSession(ctx context.Context, session NodeRegistrationSession) error
+	DeleteStaleNodeRegistrationSessions(ctx context.Context, cutoff time.Time) error
+	ApproveNodeRegistrationSession(
+		ctx context.Context,
+		principal UserPrincipal,
+		pairCode string,
+	) (NodeRegistrationSession, error)
+	PollNodeRegistrationSession(
+		ctx context.Context,
+		registrationID string,
+		pollTokenHash string,
+	) (NodeRegistrationSession, error)
+	ConsumeNodeRegistrationSession(
+		ctx context.Context,
+		registrationID string,
+		pollTokenHash string,
+		apiKeyHash string,
+	) (Node, error)
 	AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error)
 	UpsertNodeStatus(ctx context.Context, node Node, report NodeStatusReport) error
 	ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error)

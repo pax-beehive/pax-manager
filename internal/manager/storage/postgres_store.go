@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 type PostgresStore struct {
@@ -18,6 +20,13 @@ type PostgresStore struct {
 
 func NewPostgresStore(db *sql.DB, now func() time.Time) *PostgresStore {
 	return &PostgresStore{db: db, now: now}
+}
+
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "duplicate key")
 }
 
 func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
@@ -599,6 +608,198 @@ func (s *PostgresStore) RegisterNode(
 		nullRaw(req.Metadata),
 	)
 	return scanNode(row)
+}
+
+func (s *PostgresStore) CreateNodeRegistrationSession(
+	ctx context.Context,
+	session NodeRegistrationSession,
+) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO node_registration_sessions (
+			registration_id, pair_code, poll_token_hash, status, requested_name,
+			requested_hostname, requested_machine_type, requested_os, requested_arch,
+			requested_paxd_version, requested_api_endpoint, requested_metadata,
+			expires_at, created_at
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+	`, session.RegistrationID, session.PairCode, session.PollTokenHash, session.Status,
+		session.Request.Name, session.Request.Hostname, session.Request.MachineType,
+		defaultOS(session.Request.OS), session.Request.Arch, session.Request.PaxdVersion,
+		defaultAPIEndpoint(session.Request.APIEndpoint), nullRaw(session.Request.Metadata),
+		session.ExpiresAt, session.CreatedAt)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrConflict
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *PostgresStore) DeleteStaleNodeRegistrationSessions(
+	ctx context.Context,
+	cutoff time.Time,
+) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM node_registration_sessions
+		WHERE expires_at <= $1
+			OR status IN ($2, $3, $4)
+	`, cutoff, domain.NodeRegistrationStatusConsumed, domain.NodeRegistrationStatusDenied,
+		domain.NodeRegistrationStatusExpired)
+	return err
+}
+
+func (s *PostgresStore) ApproveNodeRegistrationSession(
+	ctx context.Context,
+	principal UserPrincipal,
+	pairCode string,
+) (NodeRegistrationSession, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return NodeRegistrationSession{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	session, err := scanNodeRegistrationSession(tx.QueryRowContext(ctx, `
+		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
+			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
+			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
+			COALESCE(requested_metadata, '{}'::jsonb), expires_at, created_at, approved_at,
+			consumed_at
+		FROM node_registration_sessions
+		WHERE pair_code = $1
+		FOR UPDATE
+	`, pairCode))
+	if err != nil {
+		return NodeRegistrationSession{}, err
+	}
+	if session.Status != domain.NodeRegistrationStatusPending {
+		return NodeRegistrationSession{}, ErrConflict
+	}
+	now := s.now().UTC()
+	if !session.ExpiresAt.After(now) {
+		_, _ = tx.ExecContext(ctx, `
+			UPDATE node_registration_sessions SET status = $2 WHERE registration_id = $1
+		`, session.RegistrationID, domain.NodeRegistrationStatusExpired)
+		return NodeRegistrationSession{}, ErrUnauthorized
+	}
+	registrationID := session.RegistrationID
+	session, err = scanNodeRegistrationSession(tx.QueryRowContext(ctx, `
+		UPDATE node_registration_sessions
+		SET status = $2, owner_user_id = $3, approved_at = $4
+		WHERE registration_id = $1
+		RETURNING registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
+			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
+			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
+			COALESCE(requested_metadata, '{}'::jsonb), expires_at, created_at, approved_at,
+			consumed_at
+	`, registrationID, domain.NodeRegistrationStatusApproved, principal.User.UserID, now))
+	if err != nil {
+		return NodeRegistrationSession{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return NodeRegistrationSession{}, err
+	}
+	return session, nil
+}
+
+func (s *PostgresStore) PollNodeRegistrationSession(
+	ctx context.Context,
+	registrationID string,
+	pollTokenHash string,
+) (NodeRegistrationSession, error) {
+	session, err := scanNodeRegistrationSession(s.db.QueryRowContext(ctx, `
+		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
+			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
+			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
+			COALESCE(requested_metadata, '{}'::jsonb), expires_at, created_at, approved_at,
+			consumed_at
+		FROM node_registration_sessions
+		WHERE registration_id = $1 AND poll_token_hash = $2
+	`, registrationID, pollTokenHash))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return NodeRegistrationSession{}, ErrUnauthorized
+		}
+		return NodeRegistrationSession{}, err
+	}
+	if session.Status == domain.NodeRegistrationStatusPending &&
+		!session.ExpiresAt.After(s.now().UTC()) {
+		session.Status = domain.NodeRegistrationStatusExpired
+		_, _ = s.db.ExecContext(ctx, `
+			UPDATE node_registration_sessions SET status = $2 WHERE registration_id = $1
+		`, session.RegistrationID, domain.NodeRegistrationStatusExpired)
+	}
+	return session, nil
+}
+
+func (s *PostgresStore) ConsumeNodeRegistrationSession(
+	ctx context.Context,
+	registrationID string,
+	pollTokenHash string,
+	apiKeyHash string,
+) (Node, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Node{}, ErrUnauthorized
+		}
+		return Node{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	session, err := scanNodeRegistrationSession(tx.QueryRowContext(ctx, `
+		SELECT registration_id, pair_code, poll_token_hash, status, COALESCE(owner_user_id, ''),
+			COALESCE(node_id, ''), requested_name, requested_hostname, requested_machine_type,
+			requested_os, requested_arch, requested_paxd_version, requested_api_endpoint,
+			COALESCE(requested_metadata, '{}'::jsonb), expires_at, created_at, approved_at,
+			consumed_at
+		FROM node_registration_sessions
+		WHERE registration_id = $1 AND poll_token_hash = $2
+		FOR UPDATE
+	`, registrationID, pollTokenHash))
+	if err != nil {
+		return Node{}, err
+	}
+	if session.Status != domain.NodeRegistrationStatusApproved || session.OwnerUserID == "" {
+		return Node{}, ErrConflict
+	}
+	now := s.now().UTC()
+	if !session.ExpiresAt.After(now) {
+		_, _ = tx.ExecContext(ctx, `
+			UPDATE node_registration_sessions SET status = $2 WHERE registration_id = $1
+		`, session.RegistrationID, domain.NodeRegistrationStatusExpired)
+		return Node{}, ErrUnauthorized
+	}
+	nodeID, err := newSecret("node")
+	if err != nil {
+		return Node{}, err
+	}
+	node, err := scanNode(tx.QueryRowContext(ctx, `
+		INSERT INTO nodes (
+			node_id, owner_user_id, name, hostname, machine_type, os, arch, paxd_version,
+			api_endpoint, api_key_hash, status, last_heartbeat, registered_at, metadata
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'online',$11,$12,$13)
+		RETURNING node_id, owner_user_id, name, hostname, machine_type, os, arch, paxd_version,
+			api_endpoint, status, last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+	`, nodeID, session.OwnerUserID, defaultNodeName(session.Request),
+		session.Request.Hostname, session.Request.MachineType, defaultOS(session.Request.OS),
+		session.Request.Arch, session.Request.PaxdVersion,
+		defaultAPIEndpoint(session.Request.APIEndpoint), apiKeyHash, now, now,
+		nullRaw(session.Request.Metadata)))
+	if err != nil {
+		return Node{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE node_registration_sessions
+		SET status = $2, node_id = $3, consumed_at = $4
+		WHERE registration_id = $1
+	`, session.RegistrationID, domain.NodeRegistrationStatusConsumed, node.NodeID, now); err != nil {
+		return Node{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Node{}, err
+	}
+	return node, nil
 }
 
 func (s *PostgresStore) AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error) {

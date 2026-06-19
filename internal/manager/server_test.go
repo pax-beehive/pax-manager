@@ -115,6 +115,124 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	}
 }
 
+func TestNodeRegistrationSessionConnectsNodeAfterUserApproval(t *testing.T) {
+	srv, _ := testServer(t, "owner@example.com")
+
+	startReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/start",
+		bytes.NewReader([]byte(`{
+			"name":"workstation",
+			"hostname":"workstation.local",
+			"machine_type":"mac",
+			"os":"darwin",
+			"arch":"arm64",
+			"paxd_version":"0.1.0",
+			"api_endpoint":"http://localhost:8642"
+		}`)),
+	)
+	startReq.Host = "pax.example.com"
+	startReq.Header.Set("X-Forwarded-Proto", "https")
+	setJSON(startReq)
+	startRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(startRec, startReq)
+	if startRec.Code != http.StatusOK {
+		t.Fatalf("start code = %d, body = %s", startRec.Code, startRec.Body.String())
+	}
+	start := decodeData[StartNodeRegistrationResponse](t, startRec.Body.Bytes())
+	if len(start.PairCode) != 6 || start.PollToken == "" || start.RegistrationID == "" {
+		t.Fatalf("bad start response: %+v", start)
+	}
+	if start.VerificationURI != "https://pax.example.com/connect.html" {
+		t.Fatalf("verification uri = %q", start.VerificationURI)
+	}
+
+	pollBody := []byte(
+		`{"registration_id":"` + start.RegistrationID + `","poll_token":"` + start.PollToken + `"}`,
+	)
+	pollReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/poll",
+		bytes.NewReader(pollBody),
+	)
+	setJSON(pollReq)
+	pollRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(pollRec, pollReq)
+	if pollRec.Code != http.StatusOK {
+		t.Fatalf("pending poll code = %d, body = %s", pollRec.Code, pollRec.Body.String())
+	}
+	pending := decodeData[PollNodeRegistrationResponse](t, pollRec.Body.Bytes())
+	if pending.Status != "pending" || pending.APIKey != "" {
+		t.Fatalf("pending poll = %+v", pending)
+	}
+
+	approveReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/node-registrations/"+start.PairCode+"/approve",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	setJSON(approveReq)
+	approveReq.Header.Set("X-User-Email", "owner@example.com")
+	approveRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(approveRec, approveReq)
+	if approveRec.Code != http.StatusOK {
+		t.Fatalf("approve code = %d, body = %s", approveRec.Code, approveRec.Body.String())
+	}
+
+	pollReq = httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/poll",
+		bytes.NewReader(pollBody),
+	)
+	setJSON(pollReq)
+	pollRec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(pollRec, pollReq)
+	if pollRec.Code != http.StatusOK {
+		t.Fatalf("approved poll code = %d, body = %s", pollRec.Code, pollRec.Body.String())
+	}
+	approved := decodeData[PollNodeRegistrationResponse](t, pollRec.Body.Bytes())
+	if approved.Status != "approved" || approved.NodeID == "" || approved.APIKey == "" {
+		t.Fatalf("approved poll = %+v", approved)
+	}
+
+	statusReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/status",
+		bytes.NewReader([]byte(`{"hostname":"workstation.local","agents":[]}`)),
+	)
+	setJSON(statusReq)
+	statusReq.Header.Set("X-Pax-Key", approved.APIKey)
+	statusRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(statusRec, statusReq)
+	if statusRec.Code != http.StatusOK {
+		t.Fatalf("node status code = %d, body = %s", statusRec.Code, statusRec.Body.String())
+	}
+
+	nextStartReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/start",
+		bytes.NewReader([]byte(`{"hostname":"next.local","os":"darwin"}`)),
+	)
+	setJSON(nextStartReq)
+	nextStartRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(nextStartRec, nextStartReq)
+	if nextStartRec.Code != http.StatusOK {
+		t.Fatalf("next start code = %d, body = %s", nextStartRec.Code, nextStartRec.Body.String())
+	}
+
+	pollReq = httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/registration/poll",
+		bytes.NewReader(pollBody),
+	)
+	setJSON(pollReq)
+	pollRec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(pollRec, pollReq)
+	if pollRec.Code != http.StatusUnauthorized {
+		t.Fatalf("stale poll code = %d, body = %s", pollRec.Code, pollRec.Body.String())
+	}
+}
+
 func TestOpenAPIUI(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 
