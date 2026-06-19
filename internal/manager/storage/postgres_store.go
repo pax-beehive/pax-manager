@@ -571,7 +571,7 @@ func (s *PostgresStore) RegisterAgent(
 		)
 		VALUES ($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,'online',$11,$12,$13)
 		RETURNING agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
-			api_endpoint, status, last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+			api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 	`, agentID, owner.UserID, defaultAgentName(req), req.Hostname, defaultAgentType(req), req.MachineType, req.OS,
 		req.HermesVersion, defaultAPIEndpoint(req.APIEndpoint), apiKeyHash, now, now, metadata)
 
@@ -852,7 +852,7 @@ func (s *PostgresStore) AuthenticateNode(ctx context.Context, apiKeyHash string)
 func (s *PostgresStore) AuthenticateAgent(ctx context.Context, apiKeyHash string) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
-			api_endpoint, status, last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+			api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
 		WHERE api_key_hash = $1
 	`, apiKeyHash)
@@ -1020,7 +1020,7 @@ func (s *PostgresStore) GetNodeAgent(
 ) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type,
-			machine_type, os, hermes_version, api_endpoint, computed_status(last_heartbeat),
+			machine_type, os, hermes_version, api_endpoint, status, computed_status(last_heartbeat),
 			last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
 		WHERE node_id = $1 AND agent_id = $2
@@ -1038,7 +1038,7 @@ func (s *PostgresStore) ListNodeAgents(
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type,
-			machine_type, os, hermes_version, api_endpoint, computed_status(last_heartbeat),
+			machine_type, os, hermes_version, api_endpoint, status, computed_status(last_heartbeat),
 			last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
 		WHERE node_id = $1
@@ -1072,7 +1072,7 @@ func (s *PostgresStore) CreateNodeAgent(
 		)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',$12,$12,$13)
 		RETURNING agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type,
-			machine_type, os, hermes_version, api_endpoint, status, last_heartbeat, registered_at,
+			machine_type, os, hermes_version, api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at,
 			COALESCE(metadata, '{}'::jsonb)
 	`, agentID, node.NodeID, node.OwnerUserID, firstNonEmpty(req.Name, "agent"), node.Hostname,
 		firstNonEmpty(req.AgentType, "hermes"), node.MachineType, node.OS, node.PaxdVersion,
@@ -1146,7 +1146,7 @@ func (s *PostgresStore) CreateNodeAgentSession(
 func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error) {
 	query := `
 		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
-			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+			api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
 		WHERE owner_user_id = $1
 	`
@@ -1167,7 +1167,7 @@ func (s *PostgresStore) GetAgent(
 ) (Agent, error) {
 	query := `
 		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
-			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+			api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
 		WHERE agent_id = $1
 			AND owner_user_id = $2

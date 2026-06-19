@@ -13,6 +13,7 @@ type rowScanner interface {
 func scanAgent(row rowScanner) (Agent, error) {
 	var agent Agent
 	var metadata []byte
+	var liveness string
 	if err := row.Scan(
 		&agent.AgentID,
 		&agent.NodeID,
@@ -25,13 +26,14 @@ func scanAgent(row rowScanner) (Agent, error) {
 		&agent.HermesVersion,
 		&agent.APIEndpoint,
 		&agent.Status,
+		&liveness,
 		&agent.LastHeartbeat,
 		&agent.RegisteredAt,
 		&metadata,
 	); err != nil {
 		return Agent{}, mapSQLError(err)
 	}
-	agent.Online = agent.Status == "online"
+	agent.Online = liveness == "online"
 	agent.Metadata = json.RawMessage(metadata)
 	return agent, nil
 }
