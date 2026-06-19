@@ -189,18 +189,22 @@ func (m acpSessionIDMiddleware) HandleACPFrame(
 	frame *acpFrameContext,
 	next acpFrameHandler,
 ) error {
-	if frame.agent == nil || frame.agent.sessionID == "" {
+	if frame.agent == nil {
+		return next(ctx, frame)
+	}
+	frameSessionID := frameSessionID(frame.frame)
+	if frame.agent.sessionID == "" && frameSessionID == "" {
 		return next(ctx, frame)
 	}
 	targetSessionID := ""
 	if frame.direction == acpUserToAgent {
-		nativeID, err := m.nativeSessionID(ctx, frame.agent)
+		nativeID, err := m.nativeSessionID(ctx, frame.agent, frameSessionID)
 		if err != nil {
 			return err
 		}
 		targetSessionID = nativeID
 	} else {
-		managerID, err := m.managerSessionID(ctx, frame.agent, frameSessionID(frame.frame))
+		managerID, err := m.managerSessionID(ctx, frame.agent, frameSessionID)
 		if err != nil {
 			return err
 		}
@@ -253,9 +257,10 @@ func (m acpSessionIDMiddleware) managerSessionID(
 func (m acpSessionIDMiddleware) nativeSessionID(
 	ctx context.Context,
 	agent *ACPTunnelAgent,
+	frameSessionID string,
 ) (string, error) {
 	if m.store == nil {
-		return agent.sessionID, nil
+		return firstNonEmpty(frameSessionID, agent.sessionID), nil
 	}
 	sessions, err := m.store.ListAgentSessions(
 		ctx,
@@ -263,14 +268,23 @@ func (m acpSessionIDMiddleware) nativeSessionID(
 		agent.agentID,
 	)
 	if err != nil {
-		return agent.sessionID, nil
+		return firstNonEmpty(frameSessionID, agent.sessionID), nil
+	}
+	targets := map[string]struct{}{}
+	for _, sessionID := range []string{frameSessionID, agent.sessionID} {
+		if sessionID != "" {
+			targets[sessionID] = struct{}{}
+		}
 	}
 	for _, session := range sessions {
-		if session.SessionID == agent.sessionID {
+		if _, ok := targets[session.SessionID]; ok {
+			return firstNonEmpty(session.NativeID, session.SessionID), nil
+		}
+		if _, ok := targets[session.NativeID]; ok {
 			return firstNonEmpty(session.NativeID, session.SessionID), nil
 		}
 	}
-	return agent.sessionID, nil
+	return firstNonEmpty(frameSessionID, agent.sessionID), nil
 }
 
 func frameSessionID(frame acpJSONRPCMessage) string {
