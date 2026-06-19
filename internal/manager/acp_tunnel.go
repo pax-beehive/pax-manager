@@ -150,6 +150,21 @@ func (a *ACPTunnelAgent) currentUser() *websocket.Conn {
 	return a.userWS
 }
 
+func (a *ACPTunnelAgent) withSessionContext(sessionID string) func() {
+	if sessionID == "" {
+		return func() {}
+	}
+	a.mu.Lock()
+	previous := a.sessionID
+	a.sessionID = sessionID
+	a.mu.Unlock()
+	return func() {
+		a.mu.Lock()
+		a.sessionID = previous
+		a.mu.Unlock()
+	}
+}
+
 func (a *ACPTunnelAgent) ensureManagerSessionID() (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -647,6 +662,8 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 		logging.Error(ctx, "user acp tunnel upgrade failed", logging.Err(err))
 		return
 	}
+	restoreSessionContext := agentConn.withSessionContext(sessionID)
+	defer restoreSessionContext()
 	agentConn.attachUser(userWS)
 	defer func() {
 		agentConn.closeUser()
@@ -950,12 +967,16 @@ func relayUserFramesToAgent(
 		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
 			continue
 		}
+		originalPayload := append([]byte(nil), payload...)
 		frame := newACPFrameContext(agentConn, acpUserToAgent, messageType, payload)
 		if err := pipeline.Handle(
 			ctx,
 			frame,
 			func(_ context.Context, frame *acpFrameContext) error {
-				return agentConn.writeToAgent(ctx, frame.messageType, frame.payload)
+				if err := agentConn.writeToAgent(ctx, frame.messageType, frame.payload); err != nil {
+					return err
+				}
+				return projectACPUserPrompt(ctx, agentConn, originalPayload)
 			},
 		); err != nil {
 			return err

@@ -116,6 +116,96 @@ func projectACPTransportMessage(
 	})
 }
 
+func projectACPUserPrompt(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+	payload []byte,
+) error {
+	if agent == nil || agent.store == nil {
+		return nil
+	}
+	var rpc acpHistoryRPC
+	if err := json.Unmarshal(payload, &rpc); err != nil {
+		return nil
+	}
+	if rpc.Method != "session/prompt" {
+		return nil
+	}
+	sessionID := firstNonEmpty(
+		findStringFromRaw(rpc.Params, "sessionId", "session_id"),
+		agent.sessionID,
+	)
+	sessionID = canonicalACPHistorySessionID(
+		ctx,
+		agent.store,
+		agent.ownerUserID,
+		agent.agentID,
+		sessionID,
+	)
+	content := acpPromptText(rpc.Params)
+	if sessionID == "" || content == "" {
+		return nil
+	}
+	logicalKey := fmt.Sprintf(
+		"acp:%s:%s:%s:%s:user_prompt",
+		agent.agentID,
+		domain.TransportStreamManagerToPaxd,
+		sessionID,
+		firstNonEmpty(acpHistoryRPCID(rpc.ID), acpHistoryContentHash(content)),
+	)
+	msg := domain.Message{
+		MessageID:   acpHistoryMessageID(logicalKey),
+		OwnerUserID: agent.ownerUserID,
+		NodeID:      agent.nodeID,
+		AgentID:     agent.agentID,
+		SessionID:   sessionID,
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionUserToAgent,
+		Role:        "user",
+		Status:      "sent",
+		MessageType: "user_message",
+		LogicalKey:  logicalKey,
+		RawJSON:     append(json.RawMessage(nil), payload...),
+	}
+	if err := agent.store.UpsertMessage(ctx, &msg); err != nil {
+		return err
+	}
+	return agent.store.UpsertMessagePart(ctx, &domain.MessagePart{
+		MessageID:   msg.MessageID,
+		PartIndex:   0,
+		PartType:    domain.MessagePartText,
+		Text:        content,
+		PayloadJSON: append(json.RawMessage(nil), payload...),
+	})
+}
+
+func acpPromptText(raw json.RawMessage) string {
+	var params map[string]any
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return ""
+	}
+	prompt, _ := params["prompt"].([]any)
+	parts := make([]string, 0, len(prompt))
+	for _, item := range prompt {
+		if text := findString(item, "text", "content"); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func acpHistoryRPCID(id any) string {
+	if id == nil {
+		return ""
+	}
+	return fmt.Sprint(id)
+}
+
+func acpHistoryContentHash(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return fmt.Sprintf("%x", sum[:8])
+}
+
 func canonicalACPHistorySessionID(
 	ctx context.Context,
 	store domain.Store,

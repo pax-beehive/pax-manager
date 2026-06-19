@@ -55,6 +55,19 @@ func TestACPTunnelHubClaimAnyTriesNativeBeforeAgentTunnel(t *testing.T) {
 	}
 }
 
+func TestACPTunnelAgentSessionContextRestoresPreviousSession(t *testing.T) {
+	agent := &ACPTunnelAgent{sessionID: ""}
+
+	restore := agent.withSessionContext("sess_1")
+	if agent.sessionID != "sess_1" {
+		t.Fatalf("sessionID = %q, want temporary context", agent.sessionID)
+	}
+	restore()
+	if agent.sessionID != "" {
+		t.Fatalf("sessionID = %q, want restored empty context", agent.sessionID)
+	}
+}
+
 func TestACPRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 	params := map[string]any{
 		"options": []any{

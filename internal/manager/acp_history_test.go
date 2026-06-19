@@ -223,6 +223,51 @@ func TestACPHistoryProjectsInboundResultBoundariesIntoExpectedMessageRows(t *tes
 	}
 }
 
+func TestACPHistoryProjectsUserPrompt(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	agent := &ACPTunnelAgent{
+		agentID:     "agent-real",
+		ownerUserID: "user-real",
+		nodeID:      "node-real",
+		sessionID:   "sess_15e5718ff7125f2077253247f61742f173d39957ece9827d",
+		store:       store,
+	}
+
+	err := projectACPUserPrompt(
+		ctx,
+		agent,
+		[]byte(`{"jsonrpc":"2.0","id":7,"method":"session/prompt","params":{"sessionId":"sess_15e5718ff7125f2077253247f61742f173d39957ece9827d","prompt":[{"type":"text","text":"hello from user"}]}}`),
+	)
+	if err != nil {
+		t.Fatalf("project user prompt: %v", err)
+	}
+
+	messages, err := store.ListMessages(ctx, agent.agentID, agent.sessionID, 100)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("messages = %+v, want one user prompt", messages)
+	}
+	msg := messages[0]
+	if msg.Direction != domain.MessageDirectionUserToAgent ||
+		msg.Role != "user" ||
+		msg.MessageType != "user_message" ||
+		msg.SessionID != agent.sessionID {
+		t.Fatalf("message = %+v", msg)
+	}
+	parts, err := store.ListMessageParts(ctx, msg.MessageID)
+	if err != nil {
+		t.Fatalf("list parts: %v", err)
+	}
+	if len(parts) != 1 || parts[0].Text != "hello from user" {
+		t.Fatalf("parts = %+v", parts)
+	}
+}
+
 func TestACPHistoryStoresManagerSessionID(t *testing.T) {
 	ctx := context.Background()
 	store := storage.NewMemoryStore(func() time.Time {
