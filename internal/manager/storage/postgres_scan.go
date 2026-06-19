@@ -3,7 +3,10 @@ package storage
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"strconv"
+
+	"gorm.io/gorm"
 )
 
 type rowScanner interface {
@@ -59,35 +62,6 @@ func scanNode(row rowScanner) (Node, error) {
 	node.Online = node.Status == "online"
 	node.Metadata = json.RawMessage(metadata)
 	return node, nil
-}
-
-func scanNodeRegistrationSession(row rowScanner) (NodeRegistrationSession, error) {
-	var session NodeRegistrationSession
-	var metadata []byte
-	if err := row.Scan(
-		&session.RegistrationID,
-		&session.PairCode,
-		&session.PollTokenHash,
-		&session.Status,
-		&session.OwnerUserID,
-		&session.NodeID,
-		&session.Request.Name,
-		&session.Request.Hostname,
-		&session.Request.MachineType,
-		&session.Request.OS,
-		&session.Request.Arch,
-		&session.Request.PaxdVersion,
-		&session.Request.APIEndpoint,
-		&metadata,
-		&session.ExpiresAt,
-		&session.CreatedAt,
-		&session.ApprovedAt,
-		&session.ConsumedAt,
-	); err != nil {
-		return NodeRegistrationSession{}, mapSQLError(err)
-	}
-	session.Request.Metadata = json.RawMessage(metadata)
-	return session, nil
 }
 
 func scanNodes(rows *sql.Rows) ([]Node, error) {
@@ -304,52 +278,6 @@ func scanApprovals(rows *sql.Rows) ([]AgentApproval, error) {
 	return out, nil
 }
 
-func scanUser(row rowScanner) (User, error) {
-	var user User
-	if err := row.Scan(
-		&user.UserID,
-		&user.Email,
-		&user.DisplayName,
-		&user.Role,
-		&user.CreatedAt,
-		&user.LastSeenAt,
-	); err != nil {
-		return User{}, mapSQLError(err)
-	}
-	return user, nil
-}
-
-func scanUserAPIKey(row rowScanner) (UserAPIKey, error) {
-	var key UserAPIKey
-	if err := row.Scan(
-		&key.KeyID,
-		&key.OwnerUserID,
-		&key.Name,
-		&key.Prefix,
-		&key.CreatedAt,
-		&key.LastUsedAt,
-		&key.RevokedAt,
-	); err != nil {
-		return UserAPIKey{}, mapSQLError(err)
-	}
-	return key, nil
-}
-
-func scanUserAPIKeys(rows *sql.Rows) ([]UserAPIKey, error) {
-	out := make([]UserAPIKey, 0)
-	for rows.Next() {
-		key, err := scanUserAPIKey(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, key)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func scanSecret(row rowScanner) (Secret, error) {
 	var secret Secret
 	var metadata []byte
@@ -454,6 +382,9 @@ func scanMailboxRows(rows *sql.Rows) ([]MailboxMessage, error) {
 
 func mapSQLError(err error) error {
 	if err == sql.ErrNoRows {
+		return ErrNotFound
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrNotFound
 	}
 	return err
