@@ -31,18 +31,19 @@ type acpTunnelKey struct {
 }
 
 type ACPTunnelAgent struct {
-	agentID       string
-	nodeID        string
-	ownerUserID   string
-	sessionID     string
-	ws            *websocket.Conn
-	mu            sync.Mutex
-	agentWriteMu  sync.Mutex
-	userWriteMu   sync.Mutex
-	paired        bool
-	userWS        *websocket.Conn
-	store         domain.Store
-	historyGroups map[string]string
+	agentID           string
+	nodeID            string
+	ownerUserID       string
+	sessionID         string
+	ws                *websocket.Conn
+	mu                sync.Mutex
+	agentWriteMu      sync.Mutex
+	userWriteMu       sync.Mutex
+	paired            bool
+	userWS            *websocket.Conn
+	store             domain.Store
+	historyGroups     map[string]string
+	pendingSessionNew map[string]string
 }
 
 type acpTunnelEnvelope struct {
@@ -85,8 +86,23 @@ func (h *ACPTunnelHub) remove(agentID string, sessionID string, conn *ACPTunnelA
 }
 
 func (h *ACPTunnelHub) claim(agentID string, sessionID string) (*ACPTunnelAgent, error) {
+	return h.claimAny(agentID, sessionID, "")
+}
+
+func (h *ACPTunnelHub) claimAny(agentID string, sessionIDs ...string) (*ACPTunnelAgent, error) {
 	h.mu.RLock()
-	conn := h.agents[acpTunnelKey{agentID: agentID, sessionID: sessionID}]
+	var conn *ACPTunnelAgent
+	seen := map[string]struct{}{}
+	for _, sessionID := range sessionIDs {
+		if _, ok := seen[sessionID]; ok {
+			continue
+		}
+		seen[sessionID] = struct{}{}
+		conn = h.agents[acpTunnelKey{agentID: agentID, sessionID: sessionID}]
+		if conn != nil {
+			break
+		}
+	}
 	h.mu.RUnlock()
 	if conn == nil {
 		return nil, apperr.Error{Status: http.StatusNotFound, Message: "agent tunnel not connected"}
@@ -134,6 +150,65 @@ func (a *ACPTunnelAgent) currentUser() *websocket.Conn {
 	return a.userWS
 }
 
+func (a *ACPTunnelAgent) withSessionContext(sessionID string) func() {
+	if sessionID == "" {
+		return func() {}
+	}
+	a.mu.Lock()
+	previous := a.sessionID
+	a.sessionID = sessionID
+	a.mu.Unlock()
+	return func() {
+		a.mu.Lock()
+		a.sessionID = previous
+		a.mu.Unlock()
+	}
+}
+
+func (a *ACPTunnelAgent) ensureManagerSessionID() (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.sessionID != "" {
+		return a.sessionID, nil
+	}
+	sessionID, err := newManagerSessionID()
+	if err != nil {
+		return "", err
+	}
+	a.sessionID = sessionID
+	return sessionID, nil
+}
+
+func newManagerSessionID() (string, error) {
+	return auth.Secrets{}.New("sess")
+}
+
+func (a *ACPTunnelAgent) trackSessionNew(requestID string, managerSessionID string) {
+	if requestID == "" || managerSessionID == "" {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pendingSessionNew == nil {
+		a.pendingSessionNew = make(map[string]string)
+	}
+	a.pendingSessionNew[requestID] = managerSessionID
+}
+
+func (a *ACPTunnelAgent) takeSessionNew(requestID string) (string, bool) {
+	if requestID == "" {
+		return "", false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pendingSessionNew == nil {
+		return "", false
+	}
+	managerSessionID, ok := a.pendingSessionNew[requestID]
+	delete(a.pendingSessionNew, requestID)
+	return managerSessionID, ok
+}
+
 // Tunnel reliability is a small durable outbox/inbox layered over WebSocket:
 // outbound user->manager->paxd frames are journaled as pending, sent with a
 // monotonically increasing per-agent stream seq, and advanced to acked when
@@ -174,6 +249,7 @@ func (a *ACPTunnelAgent) actorAttrs() []slog.Attr {
 
 func (s *Service) agentACPFramePipeline() acpFramePipeline {
 	return newACPFramePipeline(
+		acpSessionLifecycleMiddleware{store: s.store},
 		acpSessionIDMiddleware{store: s.store},
 		acpApprovalMiddleware{store: s.store},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
@@ -182,6 +258,7 @@ func (s *Service) agentACPFramePipeline() acpFramePipeline {
 
 func (s *Service) userACPFramePipeline() acpFramePipeline {
 	return newACPFramePipeline(
+		acpSessionLifecycleMiddleware{store: s.store},
 		acpSessionIDMiddleware{store: s.store},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
 	)
@@ -483,6 +560,31 @@ func (s *Server) virtualACPSessionID(
 	return sessionID
 }
 
+func (s *Server) nativeACPSessionID(
+	ctx context.Context,
+	ownerUserID string,
+	agentID string,
+	sessionID string,
+) string {
+	if sessionID == "" {
+		return ""
+	}
+	principal := UserPrincipal{User: User{UserID: ownerUserID}}
+	sessions, err := s.store.ListAgentSessions(ctx, principal, agentID)
+	if err != nil {
+		return sessionID
+	}
+	for _, session := range sessions {
+		if session.SessionID == sessionID {
+			return firstNonEmpty(session.NativeID, session.SessionID)
+		}
+		if session.NativeID == sessionID {
+			return session.NativeID
+		}
+	}
+	return sessionID
+}
+
 func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 	ctx, logID := httpRequestLogContext(r.Context(), r)
 	w.Header().Set(logging.HeaderLogID, logID)
@@ -534,7 +636,13 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 	)
 	r = r.WithContext(ctx)
 
-	agentConn, err := s.acpTunnels.claim(agentID, sessionID)
+	nativeSessionID := s.nativeACPSessionID(
+		r.Context(),
+		principal.User.UserID,
+		agentID,
+		sessionID,
+	)
+	agentConn, err := s.acpTunnels.claimAny(agentID, sessionID, nativeSessionID, "")
 	if err != nil {
 		status, message := endpointErrorStatus(err)
 		logging.Warn(
@@ -554,6 +662,8 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 		logging.Error(ctx, "user acp tunnel upgrade failed", logging.Err(err))
 		return
 	}
+	restoreSessionContext := agentConn.withSessionContext(sessionID)
+	defer restoreSessionContext()
 	agentConn.attachUser(userWS)
 	defer func() {
 		agentConn.closeUser()
@@ -857,12 +967,16 @@ func relayUserFramesToAgent(
 		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
 			continue
 		}
+		originalPayload := append([]byte(nil), payload...)
 		frame := newACPFrameContext(agentConn, acpUserToAgent, messageType, payload)
 		if err := pipeline.Handle(
 			ctx,
 			frame,
 			func(_ context.Context, frame *acpFrameContext) error {
-				return agentConn.writeToAgent(ctx, frame.messageType, frame.payload)
+				if err := agentConn.writeToAgent(ctx, frame.messageType, frame.payload); err != nil {
+					return err
+				}
+				return projectACPUserPrompt(ctx, agentConn, originalPayload)
 			},
 		); err != nil {
 			return err
@@ -906,8 +1020,8 @@ func (a *ACPTunnelAgent) historyGroupID(seq int64, payload json.RawMessage) stri
 	var rpc acpHistoryRPC
 	_ = json.Unmarshal(payload, &rpc)
 	fields := extractACPHistoryFields(payload, rpc)
-	fields, ok := normalizeACPTextUpdate(rpc, fields)
-	if !ok {
+	fields, projection := classifyACPHistoryProjection(rpc, fields)
+	if projection != acpHistoryProjectionText {
 		return ""
 	}
 	key := firstNonEmpty(fields.SessionID, a.sessionID) + "\x00" +

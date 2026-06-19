@@ -93,23 +93,118 @@ type acpSessionIDMiddleware struct {
 	store Store
 }
 
+type acpSessionLifecycleMiddleware struct {
+	store Store
+}
+
+func (m acpSessionLifecycleMiddleware) HandleACPFrame(
+	ctx context.Context,
+	frame *acpFrameContext,
+	next acpFrameHandler,
+) error {
+	if frame.agent == nil {
+		return next(ctx, frame)
+	}
+	requestID := acpJSONRPCID(frame.frame)
+	if frame.direction == acpUserToAgent && frame.frame.Method == "session/new" {
+		managerSessionID, err := frame.agent.ensureManagerSessionID()
+		if err != nil {
+			return err
+		}
+		frame.agent.trackSessionNew(requestID, managerSessionID)
+		return next(ctx, frame)
+	}
+	if frame.direction != acpAgentToUser || requestID == "" {
+		return next(ctx, frame)
+	}
+	managerSessionID, ok := frame.agent.takeSessionNew(requestID)
+	if !ok {
+		return next(ctx, frame)
+	}
+	if len(frame.frame.Error) > 0 {
+		return next(ctx, frame)
+	}
+	nativeSessionID := findStringFromRaw(frame.frame.Result, "sessionId", "session_id")
+	if nativeSessionID == "" {
+		return next(ctx, frame)
+	}
+	if err := m.bindNativeSessionID(ctx, frame.agent, managerSessionID, nativeSessionID); err != nil {
+		return err
+	}
+	payload, changed, err := rewriteACPFrameSessionID(frame.payload, managerSessionID)
+	if err != nil {
+		return err
+	}
+	if changed {
+		frame.payload = payload
+		_ = json.Unmarshal(payload, &frame.frame)
+	}
+	return next(ctx, frame)
+}
+
+func (m acpSessionLifecycleMiddleware) bindNativeSessionID(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+	managerSessionID string,
+	nativeSessionID string,
+) error {
+	if m.store == nil || agent == nil || managerSessionID == "" || nativeSessionID == "" {
+		return nil
+	}
+	req := domain.CreateSessionRequest{
+		NodeID:    agent.nodeID,
+		AgentID:   agent.agentID,
+		SessionID: managerSessionID,
+		NativeID:  nativeSessionID,
+		Source:    domain.MessageSourceACPTunnel,
+	}
+	principal := domain.UserPrincipal{User: domain.User{UserID: agent.ownerUserID}}
+	if agent.nodeID != "" {
+		if _, err := m.store.CreateNodeAgentSession(ctx, principal, req); err == nil {
+			return nil
+		} else if !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
+	}
+	return m.store.UpsertAgentStatus(ctx, domain.AgentStatusReport{
+		AgentID: agent.agentID,
+		Sessions: []domain.SessionStatusInput{{
+			SessionID: managerSessionID,
+			NativeID:  nativeSessionID,
+			Source:    domain.MessageSourceACPTunnel,
+			Status:    "idle",
+		}},
+	})
+}
+
+func acpJSONRPCID(frame acpJSONRPCMessage) string {
+	if len(frame.ID) == 0 {
+		return ""
+	}
+	return string(frame.ID)
+}
+
 func (m acpSessionIDMiddleware) HandleACPFrame(
 	ctx context.Context,
 	frame *acpFrameContext,
 	next acpFrameHandler,
 ) error {
-	if frame.agent == nil || frame.agent.sessionID == "" {
+	if frame.agent == nil {
+		return next(ctx, frame)
+	}
+	frameSessionID := frameSessionID(frame.frame)
+	if frame.agent.sessionID == "" && frameSessionID == "" {
 		return next(ctx, frame)
 	}
 	targetSessionID := ""
 	if frame.direction == acpUserToAgent {
-		nativeID, err := m.nativeSessionID(ctx, frame.agent)
+		nativeID, err := m.nativeSessionID(ctx, frame.agent, frameSessionID)
 		if err != nil {
 			return err
 		}
 		targetSessionID = nativeID
 	} else {
-		managerID, err := m.managerSessionID(ctx, frame.agent, frameSessionID(frame.frame))
+		managerID, err := m.managerSessionID(ctx, frame.agent, frameSessionID)
 		if err != nil {
 			return err
 		}
@@ -162,9 +257,10 @@ func (m acpSessionIDMiddleware) managerSessionID(
 func (m acpSessionIDMiddleware) nativeSessionID(
 	ctx context.Context,
 	agent *ACPTunnelAgent,
+	frameSessionID string,
 ) (string, error) {
 	if m.store == nil {
-		return agent.sessionID, nil
+		return firstNonEmpty(frameSessionID, agent.sessionID), nil
 	}
 	sessions, err := m.store.ListAgentSessions(
 		ctx,
@@ -172,14 +268,23 @@ func (m acpSessionIDMiddleware) nativeSessionID(
 		agent.agentID,
 	)
 	if err != nil {
-		return agent.sessionID, nil
+		return firstNonEmpty(frameSessionID, agent.sessionID), nil
+	}
+	targets := map[string]struct{}{}
+	for _, sessionID := range []string{frameSessionID, agent.sessionID} {
+		if sessionID != "" {
+			targets[sessionID] = struct{}{}
+		}
 	}
 	for _, session := range sessions {
-		if session.SessionID == agent.sessionID {
+		if _, ok := targets[session.SessionID]; ok {
+			return firstNonEmpty(session.NativeID, session.SessionID), nil
+		}
+		if _, ok := targets[session.NativeID]; ok {
 			return firstNonEmpty(session.NativeID, session.SessionID), nil
 		}
 	}
-	return agent.sessionID, nil
+	return firstNonEmpty(frameSessionID, agent.sessionID), nil
 }
 
 func frameSessionID(frame acpJSONRPCMessage) string {

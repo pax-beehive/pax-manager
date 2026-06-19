@@ -28,6 +28,14 @@ type acpHistoryFields struct {
 	Content       string
 }
 
+type acpHistoryProjectionKind string
+
+const (
+	acpHistoryProjectionNone acpHistoryProjectionKind = ""
+	acpHistoryProjectionText acpHistoryProjectionKind = "text"
+	acpHistoryProjectionRaw  acpHistoryProjectionKind = "raw"
+)
+
 func projectACPTransportMessage(
 	ctx context.Context,
 	store domain.Store,
@@ -47,9 +55,13 @@ func projectACPTransportMessage(
 	direction := domain.MessageDirectionAgentToUser
 	role := "assistant"
 	fields := extractACPHistoryFields(payload, rpc)
-	fields, ok := normalizeACPTextUpdate(rpc, fields)
-	if !ok {
+	fields, projection := classifyACPHistoryProjection(rpc, fields)
+	if projection == acpHistoryProjectionNone {
 		return nil
+	}
+	textProjection := projection == acpHistoryProjectionText
+	if !textProjection {
+		historyGroupID = ""
 	}
 	fields.SessionID = canonicalACPHistorySessionID(
 		ctx,
@@ -68,6 +80,9 @@ func projectACPTransportMessage(
 		"acp",
 	)
 	logicalKey := acpHistoryLogicalKey(agentID, stream, seq, historyGroupID, fields)
+	if !textProjection {
+		logicalKey = acpHistoryRawLogicalKey(agentID, stream, seq, fields)
+	}
 	messageID := acpHistoryMessageID(logicalKey)
 	msg := domain.Message{
 		MessageID:   messageID,
@@ -84,10 +99,111 @@ func projectACPTransportMessage(
 		ResponseID:  fields.ResponseID,
 		LogicalKey:  logicalKey,
 	}
+	if !textProjection {
+		msg.RawJSON = append(json.RawMessage(nil), payload...)
+	}
 	if err := store.UpsertMessage(ctx, &msg); err != nil {
 		return err
 	}
-	return store.AppendMessagePartText(ctx, msg.MessageID, 0, fields.Content, nil)
+	if textProjection {
+		return store.AppendMessagePartText(ctx, msg.MessageID, 0, fields.Content, nil)
+	}
+	return store.UpsertMessagePart(ctx, &domain.MessagePart{
+		MessageID:   msg.MessageID,
+		PartIndex:   0,
+		PartType:    domain.MessagePartRawJSON,
+		PayloadJSON: append(json.RawMessage(nil), payload...),
+	})
+}
+
+func projectACPUserPrompt(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+	payload []byte,
+) error {
+	if agent == nil || agent.store == nil {
+		return nil
+	}
+	var rpc acpHistoryRPC
+	if err := json.Unmarshal(payload, &rpc); err != nil {
+		return nil
+	}
+	if rpc.Method != "session/prompt" {
+		return nil
+	}
+	sessionID := firstNonEmpty(
+		findStringFromRaw(rpc.Params, "sessionId", "session_id"),
+		agent.sessionID,
+	)
+	sessionID = canonicalACPHistorySessionID(
+		ctx,
+		agent.store,
+		agent.ownerUserID,
+		agent.agentID,
+		sessionID,
+	)
+	content := acpPromptText(rpc.Params)
+	if sessionID == "" || content == "" {
+		return nil
+	}
+	logicalKey := fmt.Sprintf(
+		"acp:%s:%s:%s:%s:user_prompt",
+		agent.agentID,
+		domain.TransportStreamManagerToPaxd,
+		sessionID,
+		firstNonEmpty(acpHistoryRPCID(rpc.ID), acpHistoryContentHash(content)),
+	)
+	msg := domain.Message{
+		MessageID:   acpHistoryMessageID(logicalKey),
+		OwnerUserID: agent.ownerUserID,
+		NodeID:      agent.nodeID,
+		AgentID:     agent.agentID,
+		SessionID:   sessionID,
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionUserToAgent,
+		Role:        "user",
+		Status:      "sent",
+		MessageType: "user_message",
+		LogicalKey:  logicalKey,
+		RawJSON:     append(json.RawMessage(nil), payload...),
+	}
+	if err := agent.store.UpsertMessage(ctx, &msg); err != nil {
+		return err
+	}
+	return agent.store.UpsertMessagePart(ctx, &domain.MessagePart{
+		MessageID:   msg.MessageID,
+		PartIndex:   0,
+		PartType:    domain.MessagePartText,
+		Text:        content,
+		PayloadJSON: append(json.RawMessage(nil), payload...),
+	})
+}
+
+func acpPromptText(raw json.RawMessage) string {
+	var params map[string]any
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return ""
+	}
+	prompt, _ := params["prompt"].([]any)
+	parts := make([]string, 0, len(prompt))
+	for _, item := range prompt {
+		if text := findString(item, "text", "content"); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func acpHistoryRPCID(id any) string {
+	if id == nil {
+		return ""
+	}
+	return fmt.Sprint(id)
+}
+
+func acpHistoryContentHash(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return fmt.Sprintf("%x", sum[:8])
 }
 
 func canonicalACPHistorySessionID(
@@ -156,6 +272,22 @@ func acpHistoryLogicalKey(
 		)
 	}
 	return fmt.Sprintf("acp:%s:%s:text:%d", agentID, stream, seq)
+}
+
+func acpHistoryRawLogicalKey(
+	agentID string,
+	stream string,
+	seq int64,
+	fields acpHistoryFields,
+) string {
+	return fmt.Sprintf(
+		"acp:%s:%s:%s:%s:raw:%d",
+		agentID,
+		stream,
+		firstNonEmpty(fields.SessionID, "_"),
+		firstNonEmpty(fields.SessionUpdate, strings.Trim(fields.EntityType+":"+fields.EventType, ":"), "_"),
+		seq,
+	)
 }
 
 func acpHistoryMessageID(logicalKey string) string {
@@ -239,5 +371,30 @@ func normalizeACPTextUpdate(rpc acpHistoryRPC, fields acpHistoryFields) (acpHist
 		}
 		return fields, true
 	}
-	return fields, rpc.Method == "session/update" && fields.SessionUpdate != ""
+	if rpc.Method != "session/update" {
+		return fields, false
+	}
+	switch fields.SessionUpdate {
+	case "agent_message_chunk", "agent_thought_chunk", "message_delta":
+		return fields, true
+	default:
+		return fields, false
+	}
+}
+
+func classifyACPHistoryProjection(
+	rpc acpHistoryRPC,
+	fields acpHistoryFields,
+) (acpHistoryFields, acpHistoryProjectionKind) {
+	fields, ok := normalizeACPTextUpdate(rpc, fields)
+	if ok {
+		return fields, acpHistoryProjectionText
+	}
+	if rpc.Method == "session/update" && fields.SessionUpdate != "" {
+		return fields, acpHistoryProjectionRaw
+	}
+	if fields.EntityType != "" || fields.EventType != "" {
+		return fields, acpHistoryProjectionRaw
+	}
+	return fields, acpHistoryProjectionNone
 }

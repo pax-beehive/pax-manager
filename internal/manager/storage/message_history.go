@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -121,8 +122,16 @@ func (s *PostgresStore) ListMessages(
 	args := []any{agentID}
 	filter := "agent_id = $1"
 	if sessionID != "" {
-		args = append(args, sessionID)
-		filter += " AND session_id = $" + strconvArg(len(args))
+		sessionIDs, err := s.messageHistorySessionIDs(ctx, agentID, sessionID)
+		if err != nil {
+			return nil, err
+		}
+		placeholders := make([]string, 0, len(sessionIDs))
+		for _, id := range sessionIDs {
+			args = append(args, id)
+			placeholders = append(placeholders, "$"+strconvArg(len(args)))
+		}
+		filter += " AND session_id IN (" + strings.Join(placeholders, ",") + ")"
 	}
 	args = append(args, limit)
 	rows, err := s.db.QueryContext(ctx, `
@@ -144,6 +153,22 @@ func (s *PostgresStore) ListMessages(
 		messages = append(messages, msg)
 	}
 	return messages, rows.Err()
+}
+
+func (s *PostgresStore) messageHistorySessionIDs(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+) ([]string, error) {
+	managerID, err := s.virtualSessionID(ctx, s.db, agentID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	nativeID, err := s.nativeSessionID(ctx, s.db, agentID, managerID)
+	if err != nil {
+		return nil, err
+	}
+	return uniqueNonEmptyStrings(sessionID, managerID, nativeID), nil
 }
 
 func (s *PostgresStore) ListMessageParts(
@@ -206,12 +231,24 @@ func (s *MemoryStore) ListMessages(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	sessionIDs := map[string]struct{}{}
+	if sessionID != "" {
+		managerID := s.virtualSessionIDLocked(agentID, sessionID)
+		nativeID := s.nativeSessionIDLocked(agentID, managerID)
+		for _, id := range uniqueNonEmptyStrings(sessionID, managerID, nativeID) {
+			sessionIDs[id] = struct{}{}
+		}
+	}
 	messages := make([]Message, 0)
 	for _, msg := range s.messages {
 		if msg.AgentID != agentID {
 			continue
 		}
-		if sessionID != "" && msg.SessionID != sessionID {
+		if len(sessionIDs) > 0 {
+			if _, ok := sessionIDs[msg.SessionID]; !ok {
+				continue
+			}
+		} else if sessionID != "" {
 			continue
 		}
 		messages = append(messages, cloneMessage(msg))
@@ -223,6 +260,22 @@ func (s *MemoryStore) ListMessages(
 		messages = messages[:limit]
 	}
 	return messages, nil
+}
+
+func uniqueNonEmptyStrings(values ...string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 func (s *MemoryStore) ListMessageParts(

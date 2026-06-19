@@ -9,6 +9,65 @@ import (
 	"testing"
 )
 
+func TestACPTunnelHubClaimFallsBackToAgentTunnel(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	hub.add("agent-1", "", agentConn)
+
+	got, err := hub.claim("agent-1", "sess-1")
+	if err != nil {
+		t.Fatalf("claim session tunnel through agent tunnel: %v", err)
+	}
+	if got != agentConn {
+		t.Fatalf("claim returned %#v, want %#v", got, agentConn)
+	}
+}
+
+func TestACPTunnelHubClaimPrefersExactSessionTunnel(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	sessionConn := &ACPTunnelAgent{agentID: "agent-1", sessionID: "sess-1"}
+	hub.add("agent-1", "", agentConn)
+	hub.add("agent-1", "sess-1", sessionConn)
+
+	got, err := hub.claim("agent-1", "sess-1")
+	if err != nil {
+		t.Fatalf("claim exact session tunnel: %v", err)
+	}
+	if got != sessionConn {
+		t.Fatalf("claim returned %#v, want %#v", got, sessionConn)
+	}
+}
+
+func TestACPTunnelHubClaimAnyTriesNativeBeforeAgentTunnel(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	nativeConn := &ACPTunnelAgent{agentID: "agent-1", sessionID: "native-1"}
+	hub.add("agent-1", "", agentConn)
+	hub.add("agent-1", "native-1", nativeConn)
+
+	got, err := hub.claimAny("agent-1", "sess_manager_1", "native-1", "")
+	if err != nil {
+		t.Fatalf("claim native session tunnel: %v", err)
+	}
+	if got != nativeConn {
+		t.Fatalf("claim returned %#v, want %#v", got, nativeConn)
+	}
+}
+
+func TestACPTunnelAgentSessionContextRestoresPreviousSession(t *testing.T) {
+	agent := &ACPTunnelAgent{sessionID: ""}
+
+	restore := agent.withSessionContext("sess_1")
+	if agent.sessionID != "sess_1" {
+		t.Fatalf("sessionID = %q, want temporary context", agent.sessionID)
+	}
+	restore()
+	if agent.sessionID != "" {
+		t.Fatalf("sessionID = %q, want restored empty context", agent.sessionID)
+	}
+}
+
 func TestACPRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 	params := map[string]any{
 		"options": []any{

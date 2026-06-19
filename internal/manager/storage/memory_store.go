@@ -899,7 +899,7 @@ func (s *MemoryStore) CreateNodeAgent(
 		return Agent{}, MailboxMessage{}, ErrNotFound
 	}
 	now := s.now().UTC()
-	agent, err := s.createNodeAgentLocked(node, req.Name, req.AgentType, req.Metadata, now)
+	agent, err := s.createNodeAgentLocked(node, req.Name, req.AgentType, "pending", false, req.Metadata, now)
 	if err != nil {
 		return Agent{}, MailboxMessage{}, err
 	}
@@ -1764,8 +1764,8 @@ func (s *MemoryStore) upsertNodeAgentLocked(
 			agent.OwnerUserID = node.OwnerUserID
 			agent.Name = firstNonEmpty(input.Name, agent.Name)
 			agent.AgentType = firstNonEmpty(input.AgentType, agent.AgentType)
-			agent.Status = defaultSessionStatus(input.Status)
-			agent.Online = input.Online || input.Status == "online"
+			agent.Status = reportedAgentStatus(input)
+			agent.Online = agent.Status == "online"
 			if input.LastHeartbeat != nil {
 				agent.LastHeartbeat = input.LastHeartbeat
 			} else {
@@ -1776,13 +1776,16 @@ func (s *MemoryStore) upsertNodeAgentLocked(
 			return agent, nil
 		}
 	}
-	return s.createNodeAgentLocked(node, input.Name, input.AgentType, input.Metadata, now)
+	status := reportedAgentStatus(input)
+	return s.createNodeAgentLocked(node, input.Name, input.AgentType, status, status == "online", input.Metadata, now)
 }
 
 func (s *MemoryStore) createNodeAgentLocked(
 	node Node,
 	name string,
 	agentType string,
+	status string,
+	online bool,
 	metadata []byte,
 	now time.Time,
 ) (Agent, error) {
@@ -1801,8 +1804,8 @@ func (s *MemoryStore) createNodeAgentLocked(
 		OS:            node.OS,
 		HermesVersion: node.PaxdVersion,
 		APIEndpoint:   node.APIEndpoint,
-		Status:        "online",
-		Online:        true,
+		Status:        status,
+		Online:        online,
 		LastHeartbeat: &now,
 		RegisteredAt:  now,
 		Metadata:      metadata,
