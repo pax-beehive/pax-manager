@@ -86,8 +86,23 @@ func (h *ACPTunnelHub) remove(agentID string, sessionID string, conn *ACPTunnelA
 }
 
 func (h *ACPTunnelHub) claim(agentID string, sessionID string) (*ACPTunnelAgent, error) {
+	return h.claimAny(agentID, sessionID, "")
+}
+
+func (h *ACPTunnelHub) claimAny(agentID string, sessionIDs ...string) (*ACPTunnelAgent, error) {
 	h.mu.RLock()
-	conn := h.agents[acpTunnelKey{agentID: agentID, sessionID: sessionID}]
+	var conn *ACPTunnelAgent
+	seen := map[string]struct{}{}
+	for _, sessionID := range sessionIDs {
+		if _, ok := seen[sessionID]; ok {
+			continue
+		}
+		seen[sessionID] = struct{}{}
+		conn = h.agents[acpTunnelKey{agentID: agentID, sessionID: sessionID}]
+		if conn != nil {
+			break
+		}
+	}
 	h.mu.RUnlock()
 	if conn == nil {
 		return nil, apperr.Error{Status: http.StatusNotFound, Message: "agent tunnel not connected"}
@@ -530,6 +545,31 @@ func (s *Server) virtualACPSessionID(
 	return sessionID
 }
 
+func (s *Server) nativeACPSessionID(
+	ctx context.Context,
+	ownerUserID string,
+	agentID string,
+	sessionID string,
+) string {
+	if sessionID == "" {
+		return ""
+	}
+	principal := UserPrincipal{User: User{UserID: ownerUserID}}
+	sessions, err := s.store.ListAgentSessions(ctx, principal, agentID)
+	if err != nil {
+		return sessionID
+	}
+	for _, session := range sessions {
+		if session.SessionID == sessionID {
+			return firstNonEmpty(session.NativeID, session.SessionID)
+		}
+		if session.NativeID == sessionID {
+			return session.NativeID
+		}
+	}
+	return sessionID
+}
+
 func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 	ctx, logID := httpRequestLogContext(r.Context(), r)
 	w.Header().Set(logging.HeaderLogID, logID)
@@ -581,7 +621,13 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 	)
 	r = r.WithContext(ctx)
 
-	agentConn, err := s.acpTunnels.claim(agentID, sessionID)
+	nativeSessionID := s.nativeACPSessionID(
+		r.Context(),
+		principal.User.UserID,
+		agentID,
+		sessionID,
+	)
+	agentConn, err := s.acpTunnels.claimAny(agentID, sessionID, nativeSessionID, "")
 	if err != nil {
 		status, message := endpointErrorStatus(err)
 		logging.Warn(
