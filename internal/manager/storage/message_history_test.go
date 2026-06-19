@@ -76,3 +76,44 @@ func TestMemoryMailboxWritesMessageHistory(t *testing.T) {
 		t.Fatalf("history part = %+v", part)
 	}
 }
+
+func TestMemorySecretAccessStoresManagerSessionID(t *testing.T) {
+	store := NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	})
+	ctx := context.Background()
+	user, err := store.EnsureUser(ctx, "todd@example.com", "Todd", "user")
+	if err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	agent, err := store.RegisterAgent(ctx, user, RegisterAgentRequest{
+		Name: "agent",
+		OS:   "darwin",
+	}, "hash")
+	if err != nil {
+		t.Fatalf("register agent: %v", err)
+	}
+	session, err := store.CreateNodeAgentSession(ctx, UserPrincipal{User: user}, CreateSessionRequest{
+		NodeID:    agent.NodeID,
+		AgentID:   agent.AgentID,
+		SessionID: "sess_manager_1",
+		NativeID:  "harness-session-1",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	if err := store.RecordSecretAccess(ctx, SecretAccessEvent{
+		SecretID:  "secret_1",
+		NodeID:    agent.NodeID,
+		AgentID:   agent.AgentID,
+		SessionID: session.NativeID,
+		Action:    "read_value",
+		Result:    "allowed",
+	}); err != nil {
+		t.Fatalf("record secret access: %v", err)
+	}
+	if len(store.secretAccess) != 1 || store.secretAccess[0].SessionID != session.SessionID {
+		t.Fatalf("secret access = %+v, want manager session id %q", store.secretAccess, session.SessionID)
+	}
+}

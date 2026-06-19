@@ -461,6 +461,13 @@ func (s *PostgresStore) RecordSecretAccess(
 	ctx context.Context,
 	event SecretAccessEvent,
 ) error {
+	if event.AgentID != "" && event.SessionID != "" {
+		sessionID, err := s.virtualSessionID(ctx, s.db, event.AgentID, event.SessionID)
+		if err != nil {
+			return err
+		}
+		event.SessionID = sessionID
+	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO secret_access_events (
 			secret_id, version_id, node_id, agent_id, session_id, action, result, created_at

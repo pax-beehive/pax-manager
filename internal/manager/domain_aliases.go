@@ -17,6 +17,7 @@ type Node = domain.Node
 type Agent = domain.Agent
 type AgentSession = domain.AgentSession
 type MailboxMessage = domain.MailboxMessage
+type MessageWithParts = domain.MessageWithParts
 type ApprovalOption = domain.ApprovalOption
 type AgentApproval = domain.AgentApproval
 type RegisterNodeRequest = domain.RegisterNodeRequest

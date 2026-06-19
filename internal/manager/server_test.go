@@ -83,6 +83,9 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	if _, ok := doc.Paths["/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages"]; !ok {
 		t.Fatalf("missing /api/v1 user node agent session messages path")
 	}
+	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history"]; !ok {
+		t.Fatalf("missing /api/v1 user agent session history path")
+	}
 	if _, ok := doc.Paths["/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}"]; !ok {
 		t.Fatalf("missing /api/v1 user node agent session path")
 	}
@@ -1944,6 +1947,158 @@ func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {
 			}
 		},
 	)
+}
+
+func TestNodeAPIUserNodeAgentSessionHistory(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	userHeaders := func(req *http.Request) {
+		req.Header.Set("X-User-Email", "todd@example.com")
+		setJSON(req)
+	}
+
+	tokenReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/node-registration-tokens",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	userHeaders(tokenReq)
+	tokenRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(tokenRec, tokenReq)
+	if tokenRec.Code != http.StatusOK {
+		t.Fatalf("node token code = %d, body = %s", tokenRec.Code, tokenRec.Body.String())
+	}
+	tokenResp := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
+
+	registerReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/register",
+		bytes.NewReader([]byte(`{"name":"node-a","hostname":"node-a","os":"linux"}`)),
+	)
+	setJSON(registerReq)
+	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
+	registerRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(registerRec, registerReq)
+	if registerRec.Code != http.StatusOK {
+		t.Fatalf("node register code = %d, body = %s", registerRec.Code, registerRec.Body.String())
+	}
+	registeredNode := decodeData[RegisterNodeResponse](t, registerRec.Body.Bytes())
+
+	createAgentReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+registeredNode.NodeID+"/agents",
+		bytes.NewReader([]byte(`{"name":"hermes-a","agent_type":"hermes"}`)),
+	)
+	userHeaders(createAgentReq)
+	createAgentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createAgentRec, createAgentReq)
+	if createAgentRec.Code != http.StatusOK {
+		t.Fatalf("create node agent code = %d, body = %s", createAgentRec.Code, createAgentRec.Body.String())
+	}
+	agentResp := decodeData[struct {
+		Agent Agent `json:"agent"`
+	}](t, createAgentRec.Body.Bytes())
+
+	createSessionReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+registeredNode.NodeID+"/agents/"+agentResp.Agent.AgentID+"/sessions",
+		bytes.NewReader(
+			[]byte(
+				`{"session_id":"sess_manager_1","native_id":"harness-session-1","name":"first session"}`,
+			),
+		),
+	)
+	userHeaders(createSessionReq)
+	createSessionRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createSessionRec, createSessionReq)
+	if createSessionRec.Code != http.StatusOK {
+		t.Fatalf("create node session code = %d, body = %s", createSessionRec.Code, createSessionRec.Body.String())
+	}
+
+	historyMessage := domain.Message{
+		MessageID:   "msg_history_1",
+		OwnerUserID: agentResp.Agent.OwnerUserID,
+		NodeID:      registeredNode.NodeID,
+		AgentID:     agentResp.Agent.AgentID,
+		SessionID:   "sess_manager_1",
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionAgentToUser,
+		Role:        "assistant",
+		Status:      "received",
+		MessageType: "agent_message_chunk",
+	}
+	if err := srv.store.UpsertMessage(t.Context(), &historyMessage); err != nil {
+		t.Fatalf("upsert history message: %v", err)
+	}
+	if err := srv.store.UpsertMessagePart(t.Context(), &domain.MessagePart{
+		MessageID: "msg_history_1",
+		PartIndex: 0,
+		PartType:  domain.MessagePartText,
+		Text:      "hello from history",
+	}); err != nil {
+		t.Fatalf("upsert history part: %v", err)
+	}
+	nativeHistoryMessage := domain.Message{
+		MessageID:   "msg_history_native",
+		OwnerUserID: agentResp.Agent.OwnerUserID,
+		NodeID:      registeredNode.NodeID,
+		AgentID:     agentResp.Agent.AgentID,
+		SessionID:   "harness-session-1",
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionAgentToUser,
+		Role:        "assistant",
+		Status:      "received",
+		MessageType: "agent_message_chunk",
+	}
+	if err := srv.store.UpsertMessage(t.Context(), &nativeHistoryMessage); err != nil {
+		t.Fatalf("upsert native history message: %v", err)
+	}
+	if err := srv.store.UpsertMessagePart(t.Context(), &domain.MessagePart{
+		MessageID: "msg_history_native",
+		PartIndex: 0,
+		PartType:  domain.MessagePartText,
+		Text:      "hello from native history",
+	}); err != nil {
+		t.Fatalf("upsert native history part: %v", err)
+	}
+	otherSessionMessage := domain.Message{
+		MessageID: "msg_history_other",
+		AgentID:   agentResp.Agent.AgentID,
+		SessionID: "sess-other",
+		Source:    domain.MessageSourceACPTunnel,
+		Direction: domain.MessageDirectionAgentToUser,
+	}
+	if err := srv.store.UpsertMessage(t.Context(), &otherSessionMessage); err != nil {
+		t.Fatalf("upsert other history message: %v", err)
+	}
+
+	historyReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agents/"+agentResp.Agent.AgentID+"/sessions/sess_manager_1/history",
+		nil,
+	)
+	historyReq.Header.Set("X-User-Email", "todd@example.com")
+	historyRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(historyRec, historyReq)
+	if historyRec.Code != http.StatusOK {
+		t.Fatalf("history code = %d, body = %s", historyRec.Code, historyRec.Body.String())
+	}
+	got := decodeData[struct {
+		Messages []MessageWithParts `json:"messages"`
+	}](t, historyRec.Body.Bytes())
+	if len(got.Messages) != 2 {
+		t.Fatalf("history messages = %+v", got.Messages)
+	}
+	gotTextByID := make(map[string]string)
+	for _, message := range got.Messages {
+		if len(message.Parts) != 1 {
+			t.Fatalf("bad parts for history message: %+v", message)
+		}
+		gotTextByID[message.MessageID] = message.Parts[0].Text
+	}
+	if gotTextByID["msg_history_1"] != "hello from history" ||
+		gotTextByID["msg_history_native"] != "hello from native history" {
+		t.Fatalf("bad history response: %+v", got.Messages)
+	}
 }
 
 func testServer(t *testing.T, ownerEmail string) (*Server, string) {

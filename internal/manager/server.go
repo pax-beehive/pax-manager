@@ -43,6 +43,7 @@ type Server = Service
 func newServer(cfg Config, store Store) *Service {
 	cfg.AdminEmails = managerconfig.MergeAdminEmails(cfg.AdminEmails)
 	secrets := auth.Secrets{}
+	store = newCanonicalSessionStore(store)
 	s := &Service{
 		cfg:          cfg,
 		store:        store,
@@ -109,6 +110,11 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 
 	httprouter.GeneratedRegister(h)
 	registerIDLRoutes(h)
+	h.GET("/api/user/agents/:agentId/sessions/:sessionId/history", ListAgentSessionHistory)
+	h.GET(
+		"/api/v1/user/:user_id/agents/:agent_id/sessions/:session_id/history",
+		ListAgentSessionHistory,
+	)
 
 	h.GET("/openapi", OpenAPIUI)
 	h.GET("/openapi.json", OpenAPIJSON)

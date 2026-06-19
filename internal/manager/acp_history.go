@@ -51,6 +51,7 @@ func projectACPTransportMessage(
 	if !ok {
 		return nil
 	}
+	fields.SessionID = canonicalACPHistorySessionID(ctx, store, ownerUserID, agentID, fields.SessionID)
 	if fields.Role != "" {
 		role = fields.Role
 	}
@@ -81,6 +82,32 @@ func projectACPTransportMessage(
 		return err
 	}
 	return store.AppendMessagePartText(ctx, msg.MessageID, 0, fields.Content, nil)
+}
+
+func canonicalACPHistorySessionID(
+	ctx context.Context,
+	store domain.Store,
+	ownerUserID string,
+	agentID string,
+	sessionID string,
+) string {
+	if sessionID == "" {
+		return ""
+	}
+	sessions, err := store.ListAgentSessions(
+		ctx,
+		domain.UserPrincipal{User: domain.User{UserID: ownerUserID}},
+		agentID,
+	)
+	if err != nil {
+		return sessionID
+	}
+	for _, session := range sessions {
+		if session.SessionID == sessionID || session.NativeID == sessionID {
+			return session.SessionID
+		}
+	}
+	return sessionID
 }
 
 func acpHistoryLogicalKey(
