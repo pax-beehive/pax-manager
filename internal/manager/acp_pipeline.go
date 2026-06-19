@@ -101,13 +101,19 @@ func (m acpSessionIDMiddleware) HandleACPFrame(
 	if frame.agent == nil || frame.agent.sessionID == "" {
 		return next(ctx, frame)
 	}
-	targetSessionID := frame.agent.sessionID
+	targetSessionID := ""
 	if frame.direction == acpUserToAgent {
 		nativeID, err := m.nativeSessionID(ctx, frame.agent)
 		if err != nil {
 			return err
 		}
 		targetSessionID = nativeID
+	} else {
+		managerID, err := m.managerSessionID(ctx, frame.agent, frameSessionID(frame.frame))
+		if err != nil {
+			return err
+		}
+		targetSessionID = managerID
 	}
 	payload, ok, err := rewriteACPFrameSessionID(frame.payload, targetSessionID)
 	if err != nil {
@@ -118,6 +124,39 @@ func (m acpSessionIDMiddleware) HandleACPFrame(
 		_ = json.Unmarshal(payload, &frame.frame)
 	}
 	return next(ctx, frame)
+}
+
+func (m acpSessionIDMiddleware) managerSessionID(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+	frameSessionID string,
+) (string, error) {
+	if m.store == nil {
+		return firstNonEmpty(frameSessionID, agent.sessionID), nil
+	}
+	targets := map[string]struct{}{}
+	for _, sessionID := range []string{frameSessionID, agent.sessionID} {
+		if sessionID != "" {
+			targets[sessionID] = struct{}{}
+		}
+	}
+	sessions, err := m.store.ListAgentSessions(
+		ctx,
+		domain.UserPrincipal{User: domain.User{UserID: agent.ownerUserID}},
+		agent.agentID,
+	)
+	if err != nil {
+		return firstNonEmpty(frameSessionID, agent.sessionID), nil
+	}
+	for _, session := range sessions {
+		if _, ok := targets[session.SessionID]; ok {
+			return session.SessionID, nil
+		}
+		if _, ok := targets[session.NativeID]; ok {
+			return session.SessionID, nil
+		}
+	}
+	return firstNonEmpty(frameSessionID, agent.sessionID), nil
 }
 
 func (m acpSessionIDMiddleware) nativeSessionID(
@@ -141,6 +180,26 @@ func (m acpSessionIDMiddleware) nativeSessionID(
 		}
 	}
 	return agent.sessionID, nil
+}
+
+func frameSessionID(frame acpJSONRPCMessage) string {
+	for _, raw := range []json.RawMessage{frame.Params, frame.Result} {
+		if sessionID := findStringFromRaw(raw, "sessionId", "session_id"); sessionID != "" {
+			return sessionID
+		}
+	}
+	return ""
+}
+
+func findStringFromRaw(raw json.RawMessage, keys ...string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	return findString(value, keys...)
 }
 
 func rewriteACPFrameSessionID(payload []byte, sessionID string) ([]byte, bool, error) {
