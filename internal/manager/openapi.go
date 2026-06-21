@@ -253,11 +253,48 @@ func addPaxdArtifactPaths(doc map[string]any) {
 		"bearerFormat": "Google ID token",
 		"description":  "Google-signed identity token for an allowed IAM principal.",
 	})
+	paths["/api/v1/public/artifacts/download"] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"artifacts"},
+			"summary":     "Get signed artifact download URL",
+			"description": "Returns a short-lived signed GCS URL for the newest binary matching the requested product, platform, and tags.",
+			"parameters": []map[string]any{
+				{
+					"name":        "product",
+					"in":          "query",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "Product such as paxd or paxl.",
+				},
+				{
+					"name":        "platform",
+					"in":          "query",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "Platform such as linux/amd64 or darwin/arm64.",
+				},
+				{
+					"name":     "tags",
+					"in":       "query",
+					"required": false,
+					"schema": map[string]any{
+						"type":  "array",
+						"items": map[string]string{"type": "string"},
+					},
+					"description": "Required tags. Multiple values use AND semantics.",
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Signed download URL."},
+				"404": map[string]string{"description": "No matching artifact."},
+			},
+		},
+	}
 	paths["/api/v1/public/paxd/download"] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"paxd"},
 			"summary":     "Get signed paxd download URL",
-			"description": "Returns a short-lived signed GCS URL for the newest paxd binary matching the requested platform and tags.",
+			"description": "Compatibility alias for the generic artifact resolver with product=paxd.",
 			"parameters": []map[string]any{
 				{
 					"name":        "platform",
@@ -283,6 +320,36 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			},
 		},
 	}
+	paths["/api/v1/public/paxl/download"] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"paxl"},
+			"summary":     "Get signed paxl download URL",
+			"description": "Friendly alias for the generic artifact resolver with product=paxl.",
+			"parameters": []map[string]any{
+				{
+					"name":        "platform",
+					"in":          "query",
+					"required":    true,
+					"schema":      map[string]string{"type": "string"},
+					"description": "Platform such as linux/amd64 or darwin/arm64.",
+				},
+				{
+					"name":     "tags",
+					"in":       "query",
+					"required": false,
+					"schema": map[string]any{
+						"type":  "array",
+						"items": map[string]string{"type": "string"},
+					},
+					"description": "Required tags. Multiple values use AND semantics.",
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Signed download URL."},
+				"404": map[string]string{"description": "No matching paxl artifact."},
+			},
+		},
+	}
 	paths["/api/v1/public/paxd/install.sh"] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"paxd"},
@@ -297,7 +364,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 		"post": map[string]any{
 			"tags":        []string{"paxd"},
 			"summary":     "Publish paxd artifact metadata",
-			"description": "Records metadata for a paxd binary already uploaded to GCS. The caller must present a Google-signed identity token for an allowed IAM principal.",
+			"description": "Compatibility alias for the generic artifact publish endpoint with product=paxd. The caller must present a Google-signed identity token for an allowed IAM principal.",
 			"security":    []map[string][]string{{"googleIam": {}}},
 			"requestBody": map[string]any{
 				"required": true,
@@ -318,6 +385,32 @@ func addPaxdArtifactPaths(doc map[string]any) {
 					"description": "Missing or invalid Google identity token.",
 				},
 				"403": map[string]string{"description": "IAM principal is not allowed."},
+			},
+		},
+	}
+	paths["/api/v1/admin/artifacts"] = map[string]any{
+		"post": map[string]any{
+			"tags":        []string{"artifacts"},
+			"summary":     "Publish artifact metadata",
+			"description": "Records metadata for a product binary already uploaded to GCS. The caller must present a Google-signed identity token for an allowed IAM principal.",
+			"security":    []map[string][]string{{"googleIam": {}}},
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{
+							"type": "object",
+							"required": []string{
+								"product", "platform", "version", "bucket", "object", "sha256",
+							},
+						},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Artifact metadata recorded."},
+				"401": map[string]string{"description": "Missing or invalid bearer token."},
+				"403": map[string]string{"description": "Principal is not allowed."},
 			},
 		},
 	}

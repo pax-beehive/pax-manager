@@ -14,9 +14,14 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 )
 
-const defaultPaxdArtifactDownloadTTL = 15 * time.Minute
+const (
+	defaultPaxdArtifactDownloadTTL = 15 * time.Minute
+	paxdArtifactProduct            = "paxd"
+	paxlArtifactProduct            = "paxl"
+)
 
 var (
+	paxdProductPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 	paxdPlatformPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._/-]*$`)
 	paxdTagPattern      = regexp.MustCompile(`^[a-z0-9][a-z0-9._+-]*$`)
 	paxdSHA256Pattern   = regexp.MustCompile(`^[a-f0-9]{64}$`)
@@ -40,7 +45,23 @@ type paxdArtifactObjectAttrs struct {
 }
 
 func (s *Service) handleDownloadPaxdArtifact(c context.Context, ctx *app.RequestContext) {
-	req, err := paxdArtifactDownloadRequest(ctx)
+	s.handleDownloadArtifact(c, ctx, paxdArtifactProduct)
+}
+
+func (s *Service) handleDownloadPaxlArtifact(c context.Context, ctx *app.RequestContext) {
+	s.handleDownloadArtifact(c, ctx, paxlArtifactProduct)
+}
+
+func (s *Service) handleDownloadGenericArtifact(c context.Context, ctx *app.RequestContext) {
+	s.handleDownloadArtifact(c, ctx, "")
+}
+
+func (s *Service) handleDownloadArtifact(
+	c context.Context,
+	ctx *app.RequestContext,
+	routeProduct string,
+) {
+	req, err := paxdArtifactDownloadRequest(ctx, routeProduct)
 	if err != nil {
 		writeEndpointError(ctx, err)
 		return
@@ -63,6 +84,7 @@ func (s *Service) handleDownloadPaxdArtifact(c context.Context, ctx *app.Request
 		SHA256:     artifact.SHA256,
 		SizeBytes:  artifact.SizeBytes,
 		Version:    artifact.Version,
+		Product:    artifact.Product,
 		Platform:   artifact.Platform,
 		Tags:       artifact.Tags,
 		Generation: artifact.Generation,
@@ -81,6 +103,7 @@ func (s *Service) handleDownloadPaxdInstaller(c context.Context, ctx *app.Reques
 	}
 	expiresAt := s.clock().UTC().Add(s.paxdArtifactDownloadTTL())
 	url, err := s.paxdArtifacts.SignDownloadURL(c, PaxdArtifact{
+		Product:     paxdArtifactProduct,
 		Platform:    "script",
 		Tags:        []string{"installer"},
 		Version:     "latest",
@@ -96,6 +119,18 @@ func (s *Service) handleDownloadPaxdInstaller(c context.Context, ctx *app.Reques
 }
 
 func (s *Service) handlePublishPaxdArtifact(c context.Context, ctx *app.RequestContext) {
+	s.handlePublishArtifact(c, ctx, paxdArtifactProduct)
+}
+
+func (s *Service) handlePublishGenericArtifact(c context.Context, ctx *app.RequestContext) {
+	s.handlePublishArtifact(c, ctx, "")
+}
+
+func (s *Service) handlePublishArtifact(
+	c context.Context,
+	ctx *app.RequestContext,
+	routeProduct string,
+) {
 	principal, err := s.authenticatePaxdArtifactUploader(c, ctx)
 	if err != nil {
 		writeEndpointError(ctx, err)
@@ -107,7 +142,7 @@ func (s *Service) handlePublishPaxdArtifact(c context.Context, ctx *app.RequestC
 		writeError(ctx, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	req, err = normalizeCreatePaxdArtifactRequest(req)
+	req, err = normalizeCreatePaxdArtifactRequest(req, routeProduct)
 	if err != nil {
 		writeEndpointError(ctx, err)
 		return
@@ -137,7 +172,17 @@ func (s *Service) handlePublishPaxdArtifact(c context.Context, ctx *app.RequestC
 	writeEndpointResult(ctx, http.StatusOK, map[string]any{"artifact": artifact}, err)
 }
 
-func paxdArtifactDownloadRequest(ctx *app.RequestContext) (FindPaxdArtifactRequest, error) {
+func paxdArtifactDownloadRequest(
+	ctx *app.RequestContext,
+	routeProduct string,
+) (FindPaxdArtifactRequest, error) {
+	product, err := normalizeArtifactProduct(
+		routeProduct,
+		string(ctx.QueryArgs().Peek("product")),
+	)
+	if err != nil {
+		return FindPaxdArtifactRequest{}, err
+	}
 	platform := normalizePaxdPlatform(string(ctx.QueryArgs().Peek("platform")))
 	if platform == "" {
 		return FindPaxdArtifactRequest{}, apperr.Error{
@@ -149,7 +194,7 @@ func paxdArtifactDownloadRequest(ctx *app.RequestContext) (FindPaxdArtifactReque
 	if err != nil {
 		return FindPaxdArtifactRequest{}, err
 	}
-	return FindPaxdArtifactRequest{Platform: platform, Tags: tags}, nil
+	return FindPaxdArtifactRequest{Product: product, Platform: platform, Tags: tags}, nil
 }
 
 func (s *Service) authenticatePaxdArtifactUploader(
@@ -182,7 +227,13 @@ func (s *Service) authenticatePaxdArtifactUploader(
 
 func normalizeCreatePaxdArtifactRequest(
 	req CreatePaxdArtifactRequest,
+	routeProduct string,
 ) (CreatePaxdArtifactRequest, error) {
+	product, err := normalizeArtifactProduct(routeProduct, req.Product)
+	if err != nil {
+		return CreatePaxdArtifactRequest{}, err
+	}
+	req.Product = product
 	req.Platform = normalizePaxdPlatform(req.Platform)
 	if req.Platform == "" {
 		return CreatePaxdArtifactRequest{}, apperr.Error{
@@ -226,6 +277,32 @@ func normalizeCreatePaxdArtifactRequest(
 		}
 	}
 	return req, nil
+}
+
+func normalizeArtifactProduct(routeProduct string, requestProduct string) (string, error) {
+	product := strings.ToLower(strings.TrimSpace(routeProduct))
+	if product == "" {
+		product = strings.ToLower(strings.TrimSpace(requestProduct))
+	}
+	if product == "" {
+		return "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "product is required",
+		}
+	}
+	if !paxdProductPattern.MatchString(product) {
+		return "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "product contains an invalid value",
+		}
+	}
+	if product != paxdArtifactProduct && product != paxlArtifactProduct {
+		return "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "product is not supported",
+		}
+	}
+	return product, nil
 }
 
 func normalizePaxdPlatform(platform string) string {

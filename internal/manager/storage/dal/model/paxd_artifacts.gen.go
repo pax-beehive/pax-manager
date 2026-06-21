@@ -15,6 +15,7 @@ const TableNamePaxdArtifact = "paxd_artifacts"
 // PaxdArtifact mapped from table <paxd_artifacts>
 type PaxdArtifact struct {
 	ArtifactID  string         `gorm:"column:artifact_id;type:text;primaryKey" json:"artifact_id"`
+	Product     string         `gorm:"column:product;type:text;not null;index:idx_paxd_artifacts_product_platform_created,priority:1;default:paxd" json:"product"`
 	Platform    string         `gorm:"column:platform;type:text;not null;index:idx_paxd_artifacts_platform_created,priority:1" json:"platform"`
 	Tags        *string        `gorm:"column:tags;type:text[];not null;index:idx_paxd_artifacts_tags,priority:1;default:{}" json:"tags"`
 	Version     string         `gorm:"column:version;type:text;not null" json:"version"`
@@ -26,7 +27,7 @@ type PaxdArtifact struct {
 	SizeBytes   int64          `gorm:"column:size_bytes;type:bigint;not null" json:"size_bytes"`
 	ContentType string         `gorm:"column:content_type;type:text;not null" json:"content_type"`
 	CreatedBy   string         `gorm:"column:created_by;type:text;not null" json:"created_by"`
-	CreatedAt   *time.Time     `gorm:"column:created_at;type:timestamp with time zone;not null;index:idx_paxd_artifacts_platform_created,priority:2;default:now()" json:"created_at"`
+	CreatedAt   *time.Time     `gorm:"column:created_at;type:timestamp with time zone;not null;index:idx_paxd_artifacts_platform_created,priority:2;index:idx_paxd_artifacts_product_platform_created,priority:3;default:now()" json:"created_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"column:deleted_at;type:timestamp with time zone" json:"deleted_at"`
 }
 

@@ -77,47 +77,44 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	if len(doc.Servers) != 1 || doc.Servers[0].URL != "https://api.example.com" {
 		t.Fatalf("servers = %+v", doc.Servers)
 	}
-	if _, ok := doc.Paths["/api/v1/user/{user_id}/api-keys"]; !ok {
-		t.Fatalf("missing /api/v1/user/{user_id}/api-keys path")
-	}
-	if _, ok := doc.Paths["/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages"]; !ok {
-		t.Fatalf("missing /api/v1 user node agent session messages path")
-	}
-	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history"]; !ok {
-		t.Fatalf("missing /api/v1 user agent session history path")
-	}
-	if _, ok := doc.Paths["/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}"]; !ok {
-		t.Fatalf("missing /api/v1 user node agent session path")
-	}
-	if _, ok := doc.Paths["/api/v1/agent/tunnel"]; !ok {
-		t.Fatalf("missing /api/v1/agent/tunnel websocket path")
-	}
-	if _, ok := doc.Paths["/api/v1/node/agents/register"]; !ok {
-		t.Fatalf("missing /api/v1/node/agents/register path")
-	}
-	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/tunnel"]; !ok {
-		t.Fatalf("missing /api/v1/user/{user_id}/agents/{agent_id}/tunnel websocket path")
-	}
-	if _, ok := doc.Paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel"]; !ok {
-		t.Fatalf("missing /api/v1/user session ACP tunnel websocket path")
-	}
-	if _, ok := doc.Paths["/api/v1/public/paxd/download"]; !ok {
-		t.Fatalf("missing /api/v1/public/paxd/download path")
-	}
-	if _, ok := doc.Paths["/api/v1/public/paxd/install.sh"]; !ok {
-		t.Fatalf("missing /api/v1/public/paxd/install.sh path")
-	}
-	if _, ok := doc.Paths["/api/v1/admin/paxd/artifacts"]; !ok {
-		t.Fatalf("missing /api/v1/admin/paxd/artifacts path")
-	}
-	for _, removed := range []string{
+	requireOpenAPIPaths(t, doc.Paths, []string{
+		"/api/v1/user/{user_id}/api-keys",
+		"/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages",
+		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history",
+		"/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}",
+		"/api/v1/agent/tunnel",
+		"/api/v1/node/agents/register",
+		"/api/v1/user/{user_id}/agents/{agent_id}/tunnel",
+		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel",
+		"/api/v1/public/artifacts/download",
+		"/api/v1/public/paxd/download",
+		"/api/v1/public/paxl/download",
+		"/api/v1/public/paxd/install.sh",
+		"/api/v1/admin/artifacts",
+		"/api/v1/admin/paxd/artifacts",
+	})
+	requireOpenAPIPathsAbsent(t, doc.Paths, []string{
 		"/api/user/sessions/{sessionId}",
 		"/api/user/sessions/{sessionId}/messages",
 		"/api/user/message",
 		"/api/user/mailbox",
-	} {
-		if _, ok := doc.Paths[removed]; ok {
-			t.Fatalf("removed path still present: %s", removed)
+	})
+}
+
+func requireOpenAPIPaths(t *testing.T, paths map[string]any, want []string) {
+	t.Helper()
+	for _, path := range want {
+		if _, ok := paths[path]; !ok {
+			t.Fatalf("missing %s path", path)
+		}
+	}
+}
+
+func requireOpenAPIPathsAbsent(t *testing.T, paths map[string]any, removed []string) {
+	t.Helper()
+	for _, path := range removed {
+		if _, ok := paths[path]; ok {
+			t.Fatalf("removed path still present: %s", path)
 		}
 	}
 }
@@ -386,6 +383,9 @@ func TestPaxdArtifactPublishAndDownload(t *testing.T) {
 	if published.Artifact.Platform != "linux/amd64" {
 		t.Fatalf("platform = %q", published.Artifact.Platform)
 	}
+	if published.Artifact.Product != "paxd" {
+		t.Fatalf("product = %q", published.Artifact.Product)
+	}
 	if published.Artifact.Generation != 12345 || published.Artifact.SizeBytes != 4096 {
 		t.Fatalf("artifact attrs = %+v", published.Artifact)
 	}
@@ -410,8 +410,124 @@ func TestPaxdArtifactPublishAndDownload(t *testing.T) {
 	if !download.ExpiresAt.Equal(srv.clock().UTC().Add(time.Minute)) {
 		t.Fatalf("expires_at = %s", download.ExpiresAt)
 	}
+	if download.Product != "paxd" || download.Artifact.Product != "paxd" {
+		t.Fatalf("download product = %q artifact = %+v", download.Product, download.Artifact)
+	}
 	if fakeBackend.signedArtifact.ArtifactID != published.Artifact.ArtifactID {
 		t.Fatalf("signed artifact = %+v", fakeBackend.signedArtifact)
+	}
+}
+
+func TestGenericArtifactResolverSeparatesProducts(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	srv.cfg.PaxdArtifactUploadAudience = "https://manager.example.com"
+	srv.cfg.PaxdArtifactUploadPrincipals = map[string]bool{
+		"release-bot@example.iam.gserviceaccount.com": true,
+	}
+	srv.cfg.PaxdArtifactDownloadTTL = time.Minute
+	fakeBackend := &fakePaxdArtifactBackend{
+		principal: "release-bot@example.iam.gserviceaccount.com",
+		attrs: paxdArtifactObjectAttrs{
+			Generation:  12345,
+			SizeBytes:   4096,
+			ContentType: "application/octet-stream",
+		},
+	}
+	srv.paxdArtifacts = fakeBackend
+
+	publish := func(path string, body string) PaxdArtifact {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader([]byte(body)))
+		setJSON(req)
+		req.Header.Set("Authorization", "Bearer valid-token")
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("publish %s code = %d, body = %s", path, rec.Code, rec.Body.String())
+		}
+		published := decodeData[struct {
+			Artifact PaxdArtifact `json:"artifact"`
+		}](t, rec.Body.Bytes())
+		return published.Artifact
+	}
+
+	paxd := publish(
+		"/api/v1/admin/paxd/artifacts",
+		`{
+			"platform":"darwin/arm64",
+			"tags":["stable"],
+			"version":"0.1.2",
+			"bucket":"pax-tech-bucket",
+			"object":"paxd/releases/0.1.2/paxd_0.1.2_darwin_arm64",
+			"sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+		}`,
+	)
+	paxl := publish(
+		"/api/v1/admin/artifacts",
+		`{
+			"product":"paxl",
+			"platform":"darwin/arm64",
+			"tags":["stable"],
+			"version":"0.1.0",
+			"bucket":"pax-tech-bucket",
+			"object":"paxl/releases/0.1.0/paxl_0.1.0_darwin_arm64",
+			"sha256":"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+		}`,
+	)
+	if paxd.Product != "paxd" || paxl.Product != "paxl" {
+		t.Fatalf("products = paxd:%q paxl:%q", paxd.Product, paxl.Product)
+	}
+
+	downloadReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/public/artifacts/download?product=paxl&platform=darwin/arm64&tags=stable",
+		nil,
+	)
+	downloadRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(downloadRec, downloadReq)
+	if downloadRec.Code != http.StatusOK {
+		t.Fatalf(
+			"generic paxl download code = %d, body = %s",
+			downloadRec.Code,
+			downloadRec.Body.String(),
+		)
+	}
+	download := decodeData[PaxdArtifactDownloadResponse](t, downloadRec.Body.Bytes())
+	if download.Artifact.ArtifactID != paxl.ArtifactID {
+		t.Fatalf("generic paxl artifact = %+v, want %+v", download.Artifact, paxl)
+	}
+	if download.Product != "paxl" {
+		t.Fatalf("generic paxl product = %q", download.Product)
+	}
+
+	aliasReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/public/paxl/download?platform=darwin/arm64&tags=stable",
+		nil,
+	)
+	aliasRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(aliasRec, aliasReq)
+	if aliasRec.Code != http.StatusOK {
+		t.Fatalf("paxl alias download code = %d, body = %s", aliasRec.Code, aliasRec.Body.String())
+	}
+	aliasDownload := decodeData[PaxdArtifactDownloadResponse](t, aliasRec.Body.Bytes())
+	if aliasDownload.Artifact.ArtifactID != paxl.ArtifactID {
+		t.Fatalf("paxl alias artifact = %+v, want %+v", aliasDownload.Artifact, paxl)
+	}
+
+	paxdReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/public/artifacts/download?product=paxd&platform=darwin/arm64&tags=stable",
+		nil,
+	)
+	paxdRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(paxdRec, paxdReq)
+	if paxdRec.Code != http.StatusOK {
+		t.Fatalf("generic paxd download code = %d, body = %s", paxdRec.Code, paxdRec.Body.String())
+	}
+	paxdDownload := decodeData[PaxdArtifactDownloadResponse](t, paxdRec.Body.Bytes())
+	if paxdDownload.Artifact.ArtifactID != paxd.ArtifactID {
+		t.Fatalf("generic paxd artifact = %+v, want %+v", paxdDownload.Artifact, paxd)
 	}
 }
 
@@ -574,7 +690,7 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 		t.Fatalf("user session response leaked native_id: %s", rec.Body.String())
 	}
 	session := got.Sessions[0]
-	if session.SessionID == "" || session.SessionID == "sess-1" || session.AgentType != "hermes" ||
+	if session.SessionID != "sess-1" || session.AgentType != "hermes" ||
 		session.TokenTotal != 123 {
 		t.Fatalf("unexpected session: %+v", session)
 	}

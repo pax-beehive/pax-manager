@@ -376,6 +376,7 @@ func scanPaxdArtifact(row rowScanner) (PaxdArtifact, error) {
 	var tags []byte
 	if err := row.Scan(
 		&artifact.ArtifactID,
+		&artifact.Product,
 		&artifact.Platform,
 		&tags,
 		&artifact.Version,

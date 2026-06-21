@@ -376,6 +376,7 @@ CREATE INDEX IF NOT EXISTS idx_secret_access_events_secret_created
 
 CREATE TABLE IF NOT EXISTS paxd_artifacts (
     artifact_id TEXT PRIMARY KEY,
+    product TEXT NOT NULL DEFAULT 'paxd',
     platform TEXT NOT NULL,
     tags TEXT[] NOT NULL DEFAULT '{}'::text[],
     version TEXT NOT NULL,
@@ -392,6 +393,7 @@ CREATE TABLE IF NOT EXISTS paxd_artifacts (
     UNIQUE(bucket, object, generation)
 );
 
+ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS product TEXT NOT NULL DEFAULT 'paxd';
 ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS build_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS generation BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS sha256 TEXT NOT NULL DEFAULT '';
@@ -402,6 +404,9 @@ ALTER TABLE paxd_artifacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_paxd_artifacts_platform_created
     ON paxd_artifacts(platform, created_at DESC)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_paxd_artifacts_product_platform_created
+    ON paxd_artifacts(product, platform, created_at DESC)
     WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_paxd_artifacts_tags
     ON paxd_artifacts USING GIN(tags)
