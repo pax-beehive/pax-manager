@@ -11,6 +11,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/storage"
 )
 
+//nolint:gocyclo // This regression fixture keeps the observed frame boundary cases together.
 func TestACPHistoryProjectsInboundResultBoundariesIntoExpectedMessageRows(t *testing.T) {
 	ctx := context.Background()
 	store := storage.NewMemoryStore(func() time.Time {
@@ -239,7 +240,9 @@ func TestACPHistoryProjectsUserPrompt(t *testing.T) {
 	err := projectACPUserPrompt(
 		ctx,
 		agent,
-		[]byte(`{"jsonrpc":"2.0","id":7,"method":"session/prompt","params":{"sessionId":"sess_15e5718ff7125f2077253247f61742f173d39957ece9827d","prompt":[{"type":"text","text":"hello from user"}]}}`),
+		[]byte(
+			`{"jsonrpc":"2.0","id":7,"method":"session/prompt","params":{"sessionId":"sess_15e5718ff7125f2077253247f61742f173d39957ece9827d","prompt":[{"type":"text","text":"hello from user"}]}}`,
+		),
 	)
 	if err != nil {
 		t.Fatalf("project user prompt: %v", err)
@@ -326,8 +329,12 @@ func TestACPHistoryStoresManagerSessionID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list native session messages: %v", err)
 	}
-	if len(nativeMessages) != 0 {
-		t.Fatalf("native session messages = %+v, want none", nativeMessages)
+	if len(nativeMessages) != 1 || nativeMessages[0].SessionID != session.SessionID {
+		t.Fatalf(
+			"native session messages = %+v, want mapped manager session id %q",
+			nativeMessages,
+			session.SessionID,
+		)
 	}
 }
 
@@ -413,8 +420,14 @@ func TestACPHistoryPreservesToolCallRawPayload(t *testing.T) {
 	}
 	if len(parts) != 1 ||
 		parts[0].PartType != domain.MessagePartRawJSON ||
-		!strings.Contains(string(parts[0].PayloadJSON), `"title":"mcp_linkedin_connect_with_person"`) ||
-		!strings.Contains(string(parts[0].PayloadJSON), `"rawInput":{"linkedin_username":"test_user_debug"}`) ||
+		!strings.Contains(
+			string(parts[0].PayloadJSON),
+			`"title":"mcp_linkedin_connect_with_person"`,
+		) ||
+		!strings.Contains(
+			string(parts[0].PayloadJSON),
+			`"rawInput":{"linkedin_username":"test_user_debug"}`,
+		) ||
 		parts[0].Text != "" {
 		t.Fatalf("parts = %+v, want raw tool call payload", parts)
 	}

@@ -510,7 +510,7 @@ func (s *PostgresStore) RecordSecretAccess(
 }
 
 const paxdArtifactSelectSQL = `
-	SELECT artifact_id, platform, array_to_json(tags), version, build_id, bucket, object,
+	SELECT artifact_id, product, platform, array_to_json(tags), version, build_id, bucket, object,
 		generation, sha256, size_bytes, content_type, created_by, created_at, deleted_at
 	FROM paxd_artifacts
 `
@@ -526,15 +526,16 @@ func (s *PostgresStore) CreatePaxdArtifact(
 	}
 	row := s.db.QueryRowContext(ctx, `
 		INSERT INTO paxd_artifacts (
-			artifact_id, platform, tags, version, build_id, bucket, object, generation,
+			artifact_id, product, platform, tags, version, build_id, bucket, object, generation,
 			sha256, size_bytes, content_type, created_by, created_at
 		)
 		VALUES (
-			$1, $2,
-			CASE WHEN $3 = '' THEN '{}'::text[] ELSE string_to_array($3, ',')::text[] END,
-			$4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+			$1, $2, $3,
+			CASE WHEN $4 = '' THEN '{}'::text[] ELSE string_to_array($4, ',')::text[] END,
+			$5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 		)
 		ON CONFLICT (bucket, object, generation) DO UPDATE SET
+			product = EXCLUDED.product,
 			platform = EXCLUDED.platform,
 			tags = EXCLUDED.tags,
 			version = EXCLUDED.version,
@@ -544,9 +545,9 @@ func (s *PostgresStore) CreatePaxdArtifact(
 			content_type = EXCLUDED.content_type,
 			created_by = EXCLUDED.created_by,
 			deleted_at = NULL
-		RETURNING artifact_id, platform, array_to_json(tags), version, build_id, bucket, object,
+		RETURNING artifact_id, product, platform, array_to_json(tags), version, build_id, bucket, object,
 			generation, sha256, size_bytes, content_type, created_by, created_at, deleted_at
-	`, artifactID, req.Platform, paxdArtifactTagList(req.Tags), req.Version, req.BuildID,
+	`, artifactID, req.Product, req.Platform, paxdArtifactTagList(req.Tags), req.Version, req.BuildID,
 		req.Bucket, req.Object, req.Generation, req.SHA256, req.SizeBytes, req.ContentType,
 		createdBy, s.now().UTC())
 	return scanPaxdArtifact(row)
@@ -557,15 +558,16 @@ func (s *PostgresStore) FindPaxdArtifact(
 	req FindPaxdArtifactRequest,
 ) (PaxdArtifact, error) {
 	row := s.db.QueryRowContext(ctx, paxdArtifactSelectSQL+`
-		WHERE platform = $1
+		WHERE product = $1
+			AND platform = $2
 			AND tags @> CASE
-				WHEN $2 = '' THEN '{}'::text[]
-				ELSE string_to_array($2, ',')::text[]
+				WHEN $3 = '' THEN '{}'::text[]
+				ELSE string_to_array($3, ',')::text[]
 			END
 			AND deleted_at IS NULL
 		ORDER BY created_at DESC, artifact_id DESC
 		LIMIT 1
-	`, req.Platform, paxdArtifactTagList(req.Tags))
+	`, req.Product, req.Platform, paxdArtifactTagList(req.Tags))
 	return scanPaxdArtifact(row)
 }
 

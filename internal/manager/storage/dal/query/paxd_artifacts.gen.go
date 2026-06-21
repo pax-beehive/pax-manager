@@ -29,6 +29,7 @@ func newPaxdArtifact(db *gorm.DB, opts ...gen.DOOption) paxdArtifact {
 	tableName := _paxdArtifact.paxdArtifactDo.TableName()
 	_paxdArtifact.ALL = field.NewAsterisk(tableName)
 	_paxdArtifact.ArtifactID = field.NewString(tableName, "artifact_id")
+	_paxdArtifact.Product = field.NewString(tableName, "product")
 	_paxdArtifact.Platform = field.NewString(tableName, "platform")
 	_paxdArtifact.Tags = field.NewString(tableName, "tags")
 	_paxdArtifact.Version = field.NewString(tableName, "version")
@@ -53,6 +54,7 @@ type paxdArtifact struct {
 
 	ALL         field.Asterisk
 	ArtifactID  field.String
+	Product     field.String
 	Platform    field.String
 	Tags        field.String
 	Version     field.String
@@ -83,6 +85,7 @@ func (p paxdArtifact) As(alias string) *paxdArtifact {
 func (p *paxdArtifact) updateTableName(table string) *paxdArtifact {
 	p.ALL = field.NewAsterisk(table)
 	p.ArtifactID = field.NewString(table, "artifact_id")
+	p.Product = field.NewString(table, "product")
 	p.Platform = field.NewString(table, "platform")
 	p.Tags = field.NewString(table, "tags")
 	p.Version = field.NewString(table, "version")
@@ -124,8 +127,9 @@ func (p *paxdArtifact) GetFieldByName(fieldName string) (field.OrderExpr, bool) 
 }
 
 func (p *paxdArtifact) fillFieldMap() {
-	p.fieldMap = make(map[string]field.Expr, 14)
+	p.fieldMap = make(map[string]field.Expr, 15)
 	p.fieldMap["artifact_id"] = p.ArtifactID
+	p.fieldMap["product"] = p.Product
 	p.fieldMap["platform"] = p.Platform
 	p.fieldMap["tags"] = p.Tags
 	p.fieldMap["version"] = p.Version

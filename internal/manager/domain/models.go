@@ -577,6 +577,7 @@ type SecretAccessEvent struct {
 
 type PaxdArtifact struct {
 	ArtifactID  string     `json:"artifact_id"`
+	Product     string     `json:"product"`
 	Platform    string     `json:"platform"`
 	Tags        []string   `json:"tags"`
 	Version     string     `json:"version"`
@@ -593,6 +594,7 @@ type PaxdArtifact struct {
 }
 
 type CreatePaxdArtifactRequest struct {
+	Product     string   `json:"product"`
 	Platform    string   `json:"platform"`
 	Tags        []string `json:"tags"`
 	Version     string   `json:"version"`
@@ -606,6 +608,7 @@ type CreatePaxdArtifactRequest struct {
 }
 
 type FindPaxdArtifactRequest struct {
+	Product  string
 	Platform string
 	Tags     []string
 }
@@ -617,6 +620,7 @@ type PaxdArtifactDownloadResponse struct {
 	SHA256     string       `json:"sha256"`
 	SizeBytes  int64        `json:"size_bytes"`
 	Version    string       `json:"version"`
+	Product    string       `json:"product"`
 	Platform   string       `json:"platform"`
 	Tags       []string     `json:"tags"`
 	Generation int64        `json:"generation"`

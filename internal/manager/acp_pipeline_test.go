@@ -377,7 +377,9 @@ func TestACPSessionLifecycleMiddlewareBindsSessionNewResponse(t *testing.T) {
 		acpSessionIDMiddleware{store: store},
 	)
 
-	requestPayload := []byte(`{"jsonrpc":"2.0","id":7,"method":"session/new","params":{"cwd":"/tmp"}}`)
+	requestPayload := []byte(
+		`{"jsonrpc":"2.0","id":7,"method":"session/new","params":{"cwd":"/tmp"}}`,
+	)
 	requestFrame := newACPFrameContext(
 		agent,
 		acpUserToAgent,
@@ -406,7 +408,11 @@ func TestACPSessionLifecycleMiddlewareBindsSessionNewResponse(t *testing.T) {
 		t.Fatalf("session/new response pipeline: %v", err)
 	}
 
-	sessions, err := store.ListAgentSessions(ctx, domain.UserPrincipal{User: user}, agentModel.AgentID)
+	sessions, err := store.ListAgentSessions(
+		ctx,
+		domain.UserPrincipal{User: user},
+		agentModel.AgentID,
+	)
 	if err != nil {
 		t.Fatalf("list sessions: %v", err)
 	}
@@ -458,6 +464,11 @@ func assertFrameResultSessionID(t *testing.T, payload []byte, want string) {
 		t.Fatal(err)
 	}
 	if got.Result.SessionID != want {
-		t.Fatalf("frame result sessionId = %q, want %q; payload=%s", got.Result.SessionID, want, payload)
+		t.Fatalf(
+			"frame result sessionId = %q, want %q; payload=%s",
+			got.Result.SessionID,
+			want,
+			payload,
+		)
 	}
 }

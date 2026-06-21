@@ -445,6 +445,7 @@ func (s *MemoryStore) CreatePaxdArtifact(
 	}
 	artifact := PaxdArtifact{
 		ArtifactID:  artifactID,
+		Product:     req.Product,
 		Platform:    req.Platform,
 		Tags:        append([]string(nil), req.Tags...),
 		Version:     req.Version,
@@ -476,6 +477,7 @@ func (s *MemoryStore) FindPaxdArtifact(
 	var found PaxdArtifact
 	for _, artifact := range s.paxdArtifacts {
 		if artifact.DeletedAt != nil ||
+			artifact.Product != req.Product ||
 			artifact.Platform != req.Platform ||
 			!paxdArtifactHasTags(artifact.Tags, req.Tags) {
 			continue
@@ -899,7 +901,15 @@ func (s *MemoryStore) CreateNodeAgent(
 		return Agent{}, MailboxMessage{}, ErrNotFound
 	}
 	now := s.now().UTC()
-	agent, err := s.createNodeAgentLocked(node, req.Name, req.AgentType, "pending", false, req.Metadata, now)
+	agent, err := s.createNodeAgentLocked(
+		node,
+		req.Name,
+		req.AgentType,
+		"pending",
+		false,
+		req.Metadata,
+		now,
+	)
 	if err != nil {
 		return Agent{}, MailboxMessage{}, err
 	}
@@ -1777,7 +1787,15 @@ func (s *MemoryStore) upsertNodeAgentLocked(
 		}
 	}
 	status := reportedAgentStatus(input)
-	return s.createNodeAgentLocked(node, input.Name, input.AgentType, status, status == "online", input.Metadata, now)
+	return s.createNodeAgentLocked(
+		node,
+		input.Name,
+		input.AgentType,
+		status,
+		status == "online",
+		input.Metadata,
+		now,
+	)
 }
 
 func (s *MemoryStore) createNodeAgentLocked(

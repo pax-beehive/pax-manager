@@ -285,7 +285,11 @@ func acpHistoryRawLogicalKey(
 		agentID,
 		stream,
 		firstNonEmpty(fields.SessionID, "_"),
-		firstNonEmpty(fields.SessionUpdate, strings.Trim(fields.EntityType+":"+fields.EventType, ":"), "_"),
+		firstNonEmpty(
+			fields.SessionUpdate,
+			strings.Trim(fields.EntityType+":"+fields.EventType, ":"),
+			"_",
+		),
 		seq,
 	)
 }
