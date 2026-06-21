@@ -165,6 +165,7 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/public/paxd/download", s.handleDownloadPaxdArtifact)
 	h.GET("/api/v1/public/paxl/download", s.handleDownloadPaxlArtifact)
 	h.GET("/api/v1/public/paxd/install.sh", s.handleDownloadPaxdInstaller)
+	h.GET("/api/v1/public/paxl/install.sh", s.handleDownloadPaxlInstaller)
 	h.POST("/api/v1/admin/artifacts", s.handlePublishGenericArtifact)
 	h.POST("/api/v1/admin/paxd/artifacts", s.handlePublishPaxdArtifact)
 

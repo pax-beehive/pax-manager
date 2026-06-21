@@ -14,6 +14,7 @@ const paxdArtifactUploader = "release-bot@example.iam.gserviceaccount.com"
 
 type paxdArtifact struct {
 	ArtifactID string   `json:"artifact_id"`
+	Product    string   `json:"product"`
 	Platform   string   `json:"platform"`
 	Tags       []string `json:"tags"`
 	Version    string   `json:"version"`
@@ -91,6 +92,72 @@ func TestPaxdArtifactPublishAndDownloadIntegration(t *testing.T) {
 	)
 	if secondDownload.URL == firstDownload.URL {
 		t.Fatalf("download url did not update: %s", secondDownload.URL)
+	}
+}
+
+func TestPaxlInstallerPublishAndRedirectIntegration(t *testing.T) {
+	fixture := newIntegrationFixture(t)
+	fixture.waitForHealth(t)
+	testTag := "itest-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	object := "paxl/" + testTag + "/v0.1.0/install.sh"
+	generation := int64(2001)
+
+	published := postJSON[publishPaxdArtifactResponse](
+		t,
+		fixture,
+		"/api/v1/admin/artifacts",
+		map[string]any{
+			"product":      "paxl",
+			"platform":     "script",
+			"tags":         []string{"stable", "installer", testTag},
+			"version":      "v0.1.0",
+			"build_id":     "build-v0.1.0",
+			"bucket":       "paxl-releases",
+			"object":       object,
+			"generation":   generation,
+			"sha256":       "3333333333333333333333333333333333333333333333333333333333333333",
+			"size_bytes":   1024,
+			"content_type": "text/x-shellscript",
+		},
+		map[string]string{"Authorization": "Bearer mock-gcs:" + paxdArtifactUploader},
+		http.StatusOK,
+	)
+	if published.Artifact.Product != "paxl" ||
+		published.Artifact.Platform != "script" ||
+		published.Artifact.Object != object {
+		t.Fatalf("published installer artifact = %+v", published.Artifact)
+	}
+
+	client := *fixture.client
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	req := fixture.newRequest(t, http.MethodGet, "/api/v1/public/paxl/install.sh", nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("get paxl installer: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_ = readAll(t, resp)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("paxl installer status = %d, want %d", resp.StatusCode, http.StatusFound)
+	}
+
+	location := resp.Header.Get("Location")
+	signedURL, err := url.Parse(location)
+	if err != nil {
+		t.Fatalf("parse installer location: %v", err)
+	}
+	if signedURL.Host != "mock-gcs.local" ||
+		signedURL.Query().Get("object") != object ||
+		signedURL.Query().Get("generation") != strconv.FormatInt(generation, 10) {
+		t.Fatalf(
+			"unexpected installer location: host=%q object=%q generation=%q url=%s",
+			signedURL.Host,
+			signedURL.Query().Get("object"),
+			signedURL.Query().Get("generation"),
+			location,
+		)
 	}
 }
 

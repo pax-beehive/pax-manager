@@ -33,8 +33,6 @@ type Config struct {
 	PaxdArtifactUploadPrincipals      map[string]bool
 	PaxdArtifactSigningServiceAccount string
 	PaxdArtifactGCSMock               bool
-	PaxdInstallerBucket               string
-	PaxdInstallerObject               string
 	PaxdVerificationBaseURL           string
 }
 
@@ -66,11 +64,6 @@ func Load() Config {
 		),
 		PaxdArtifactSigningServiceAccount: os.Getenv("PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT"),
 		PaxdArtifactGCSMock:               parseBool(os.Getenv("PAXD_ARTIFACT_GCS_MOCK")),
-		PaxdInstallerBucket:               envDefault("PAXD_INSTALLER_BUCKET", "pax-tech-bucket"),
-		PaxdInstallerObject: envDefault(
-			"PAXD_INSTALLER_OBJECT",
-			"script/installer.sh",
-		),
 		PaxdVerificationBaseURL: envDefault(
 			"PAXD_VERIFICATION_BASE_URL",
 			DefaultPaxdVerificationBaseURL,
