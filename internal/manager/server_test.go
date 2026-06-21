@@ -1156,6 +1156,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -1270,6 +1271,7 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -1425,6 +1427,7 @@ func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial first agent tunnel: %v", err)
 	}
+	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -1522,6 +1525,7 @@ func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
 		t.Fatalf("dial agent tunnel a: %v", err)
 	}
 	defer func() { _ = agentWSA.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-a")
 	agentWSB, _, err := websocket.DefaultDialer.Dial(
 		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-b",
 		agentHeader,
@@ -1530,6 +1534,7 @@ func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
 		t.Fatalf("dial agent tunnel b: %v", err)
 	}
 	defer func() { _ = agentWSB.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-b")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWSA, _, err := websocket.DefaultDialer.Dial(
@@ -1607,6 +1612,7 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-approval")
 
 	userWS, _, err := websocket.DefaultDialer.Dial(
 		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel?session_id=sess-approval",
@@ -1776,6 +1782,7 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -1930,6 +1937,29 @@ func waitTransportStatus(
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("transport status = %q, want %q", got, status)
+}
+
+func waitACPTunnelAgentRegistered(
+	t *testing.T,
+	srv *Server,
+	agentID string,
+	sessionID string,
+) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		srv.acpTunnels.mu.RLock()
+		conn := srv.acpTunnels.agents[acpTunnelKey{
+			agentID:   agentID,
+			sessionID: sessionID,
+		}]
+		srv.acpTunnels.mu.RUnlock()
+		if conn != nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("agent tunnel %s/%s was not registered", agentID, sessionID)
 }
 
 func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
