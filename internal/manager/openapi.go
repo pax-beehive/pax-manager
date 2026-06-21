@@ -354,7 +354,17 @@ func addPaxdArtifactPaths(doc map[string]any) {
 		"get": map[string]any{
 			"tags":        []string{"paxd"},
 			"summary":     "Redirect to paxd installer script",
-			"description": "Redirects to a short-lived signed GCS URL for the paxd installer shell script.",
+			"description": "Redirects to a short-lived signed GCS URL for the latest stable paxd installer shell script.",
+			"responses": map[string]any{
+				"302": map[string]string{"description": "Redirect to signed installer URL."},
+			},
+		},
+	}
+	paths["/api/v1/public/paxl/install.sh"] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"paxl"},
+			"summary":     "Redirect to paxl installer script",
+			"description": "Redirects to a short-lived signed GCS URL for the latest stable paxl installer shell script.",
 			"responses": map[string]any{
 				"302": map[string]string{"description": "Redirect to signed installer URL."},
 			},

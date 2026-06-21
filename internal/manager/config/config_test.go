@@ -23,8 +23,6 @@ func TestLoad(t *testing.T) {
 			require.False(t, cfg.CloudflareAccessDisabled)
 			require.Equal(t, int64(1<<20), cfg.MaxBodyBytes)
 			require.Equal(t, 15*time.Minute, cfg.PaxdArtifactDownloadTTL)
-			require.Equal(t, "pax-tech-bucket", cfg.PaxdInstallerBucket)
-			require.Equal(t, "script/installer.sh", cfg.PaxdInstallerObject)
 			require.Equal(t, "https://ws.paxtech.net", cfg.PaxdVerificationBaseURL)
 			require.True(t, cfg.AdminEmails["toddzheng024@gmail.com"])
 			require.True(t, cfg.AdminEmails["gengcongkai456789@gmail.com"])
@@ -62,8 +60,6 @@ func TestLoad(t *testing.T) {
 				"signer@example.iam.gserviceaccount.com",
 			)
 			t.Setenv("PAXD_ARTIFACT_GCS_MOCK", "true")
-			t.Setenv("PAXD_INSTALLER_BUCKET", "installer-bucket")
-			t.Setenv("PAXD_INSTALLER_OBJECT", "custom/install.sh")
 			t.Setenv("PAXD_VERIFICATION_BASE_URL", "https://app.example.com")
 
 			cfg := config.Load()
@@ -97,8 +93,6 @@ func TestLoad(t *testing.T) {
 				cfg.PaxdArtifactSigningServiceAccount,
 			)
 			require.True(t, cfg.PaxdArtifactGCSMock)
-			require.Equal(t, "installer-bucket", cfg.PaxdInstallerBucket)
-			require.Equal(t, "custom/install.sh", cfg.PaxdInstallerObject)
 			require.Equal(t, "https://app.example.com", cfg.PaxdVerificationBaseURL)
 		},
 	)
@@ -141,8 +135,6 @@ func clearConfigEnv(t *testing.T) {
 		"PAXD_ARTIFACT_UPLOAD_PRINCIPALS",
 		"PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT",
 		"PAXD_ARTIFACT_GCS_MOCK",
-		"PAXD_INSTALLER_BUCKET",
-		"PAXD_INSTALLER_OBJECT",
 		"PAXD_VERIFICATION_BASE_URL",
 	} {
 		t.Setenv(key, "")

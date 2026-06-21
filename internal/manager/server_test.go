@@ -90,6 +90,7 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/v1/public/paxd/download",
 		"/api/v1/public/paxl/download",
 		"/api/v1/public/paxd/install.sh",
+		"/api/v1/public/paxl/install.sh",
 		"/api/v1/admin/artifacts",
 		"/api/v1/admin/paxd/artifacts",
 	})
@@ -531,32 +532,83 @@ func TestGenericArtifactResolverSeparatesProducts(t *testing.T) {
 	}
 }
 
-func TestPaxdInstallerRedirect(t *testing.T) {
+func TestInstallerRedirectUsesArtifactResolver(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	srv.cfg.PaxdArtifactDownloadTTL = time.Minute
-	srv.cfg.PaxdInstallerBucket = "pax-tech-bucket"
-	srv.cfg.PaxdInstallerObject = "script/installer.sh"
 	fakeBackend := &fakePaxdArtifactBackend{}
 	srv.paxdArtifacts = fakeBackend
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/public/paxd/install.sh", nil)
+	publishTestArtifact(t, srv, CreatePaxdArtifactRequest{
+		Product:     "paxd",
+		Platform:    "script",
+		Tags:        []string{"installer", "stable"},
+		Version:     "v0.1.2",
+		Bucket:      "pax-tech-bucket",
+		Object:      "paxd/releases/v0.1.2/install.sh",
+		Generation:  1001,
+		SHA256:      "1111111111111111111111111111111111111111111111111111111111111111",
+		SizeBytes:   2048,
+		ContentType: "text/x-shellscript",
+	})
+	paxlInstaller := publishTestArtifact(t, srv, CreatePaxdArtifactRequest{
+		Product:     "paxl",
+		Platform:    "script",
+		Tags:        []string{"stable", "installer"},
+		Version:     "v0.1.0",
+		Bucket:      "pax-tech-bucket",
+		Object:      "paxl/releases/v0.1.0/install.sh",
+		Generation:  1002,
+		SHA256:      "2222222222222222222222222222222222222222222222222222222222222222",
+		SizeBytes:   1024,
+		ContentType: "text/x-shellscript",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/public/paxl/install.sh", nil)
 	rec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(rec, req)
 	if rec.Code != http.StatusFound {
-		t.Fatalf("installer code = %d, body = %s", rec.Code, rec.Body.String())
+		t.Fatalf("paxl installer code = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if got := rec.Header().Get("Location"); got != "https://signed.example/script/installer.sh" {
+	if got := rec.Header().Get("Location"); got != "https://signed.example/paxl/releases/v0.1.0/install.sh" {
 		t.Fatalf("location = %q", got)
 	}
-	if fakeBackend.signedArtifact.Bucket != "pax-tech-bucket" {
-		t.Fatalf("signed bucket = %q", fakeBackend.signedArtifact.Bucket)
+	if fakeBackend.signedArtifact.ArtifactID != paxlInstaller.ArtifactID {
+		t.Fatalf("signed artifact = %+v, want %+v", fakeBackend.signedArtifact, paxlInstaller)
 	}
-	if fakeBackend.signedArtifact.Object != "script/installer.sh" {
-		t.Fatalf("signed object = %q", fakeBackend.signedArtifact.Object)
+	if fakeBackend.signedArtifact.Product != "paxl" ||
+		fakeBackend.signedArtifact.Platform != "script" {
+		t.Fatalf("signed installer product/platform = %+v", fakeBackend.signedArtifact)
 	}
 	if !fakeBackend.expiresAt.Equal(srv.clock().UTC().Add(time.Minute)) {
 		t.Fatalf("expires_at = %s", fakeBackend.expiresAt)
 	}
+
+	paxdReq := httptest.NewRequest(http.MethodGet, "/api/v1/public/paxd/install.sh", nil)
+	paxdRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(paxdRec, paxdReq)
+	if paxdRec.Code != http.StatusFound {
+		t.Fatalf("paxd installer code = %d, body = %s", paxdRec.Code, paxdRec.Body.String())
+	}
+	if got := paxdRec.Header().Get("Location"); got != "https://signed.example/paxd/releases/v0.1.2/install.sh" {
+		t.Fatalf("paxd location = %q", got)
+	}
+	if fakeBackend.signedArtifact.Product != "paxd" ||
+		fakeBackend.signedArtifact.Platform != "script" {
+		t.Fatalf("signed paxd installer product/platform = %+v", fakeBackend.signedArtifact)
+	}
+}
+
+func publishTestArtifact(
+	t *testing.T,
+	srv *Server,
+	req CreatePaxdArtifactRequest,
+) PaxdArtifact {
+	t.Helper()
+	artifact, err := srv.store.CreatePaxdArtifact(context.Background(), req, "test-release-bot")
+	if err != nil {
+		t.Fatalf("create artifact: %v", err)
+	}
+	return artifact
 }
 
 func TestPaxdArtifactPublishRequiresBearerToken(t *testing.T) {
@@ -1104,6 +1156,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -1218,6 +1271,7 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -1373,6 +1427,7 @@ func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial first agent tunnel: %v", err)
 	}
+	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -1470,6 +1525,7 @@ func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
 		t.Fatalf("dial agent tunnel a: %v", err)
 	}
 	defer func() { _ = agentWSA.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-a")
 	agentWSB, _, err := websocket.DefaultDialer.Dial(
 		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-b",
 		agentHeader,
@@ -1478,6 +1534,7 @@ func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
 		t.Fatalf("dial agent tunnel b: %v", err)
 	}
 	defer func() { _ = agentWSB.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-b")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWSA, _, err := websocket.DefaultDialer.Dial(
@@ -1555,6 +1612,7 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-approval")
 
 	userWS, _, err := websocket.DefaultDialer.Dial(
 		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel?session_id=sess-approval",
@@ -1724,6 +1782,7 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -1878,6 +1937,29 @@ func waitTransportStatus(
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("transport status = %q, want %q", got, status)
+}
+
+func waitACPTunnelAgentRegistered(
+	t *testing.T,
+	srv *Server,
+	agentID string,
+	sessionID string,
+) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		srv.acpTunnels.mu.RLock()
+		conn := srv.acpTunnels.agents[acpTunnelKey{
+			agentID:   agentID,
+			sessionID: sessionID,
+		}]
+		srv.acpTunnels.mu.RUnlock()
+		if conn != nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("agent tunnel %s/%s was not registered", agentID, sessionID)
 }
 
 func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {

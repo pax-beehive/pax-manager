@@ -52,6 +52,14 @@ func (s *Service) handleDownloadPaxlArtifact(c context.Context, ctx *app.Request
 	s.handleDownloadArtifact(c, ctx, paxlArtifactProduct)
 }
 
+func (s *Service) handleDownloadPaxdInstaller(c context.Context, ctx *app.RequestContext) {
+	s.handleDownloadInstaller(c, ctx, paxdArtifactProduct)
+}
+
+func (s *Service) handleDownloadPaxlInstaller(c context.Context, ctx *app.RequestContext) {
+	s.handleDownloadInstaller(c, ctx, paxlArtifactProduct)
+}
+
 func (s *Service) handleDownloadGenericArtifact(c context.Context, ctx *app.RequestContext) {
 	s.handleDownloadArtifact(c, ctx, "")
 }
@@ -91,26 +99,22 @@ func (s *Service) handleDownloadArtifact(
 	})
 }
 
-func (s *Service) handleDownloadPaxdInstaller(c context.Context, ctx *app.RequestContext) {
-	bucket := strings.TrimSpace(s.cfg.PaxdInstallerBucket)
-	object := strings.TrimSpace(s.cfg.PaxdInstallerObject)
-	if bucket == "" || object == "" {
-		writeEndpointError(ctx, apperr.Error{
-			Status:  http.StatusInternalServerError,
-			Message: "paxd installer object is not configured",
-		})
+func (s *Service) handleDownloadInstaller(
+	c context.Context,
+	ctx *app.RequestContext,
+	routeProduct string,
+) {
+	artifact, err := s.store.FindPaxdArtifact(c, FindPaxdArtifactRequest{
+		Product:  routeProduct,
+		Platform: "script",
+		Tags:     []string{"installer", "stable"},
+	})
+	if err != nil {
+		writeEndpointError(ctx, err)
 		return
 	}
 	expiresAt := s.clock().UTC().Add(s.paxdArtifactDownloadTTL())
-	url, err := s.paxdArtifacts.SignDownloadURL(c, PaxdArtifact{
-		Product:     paxdArtifactProduct,
-		Platform:    "script",
-		Tags:        []string{"installer"},
-		Version:     "latest",
-		Bucket:      bucket,
-		Object:      object,
-		ContentType: "text/x-shellscript",
-	}, expiresAt)
+	url, err := s.paxdArtifacts.SignDownloadURL(c, artifact, expiresAt)
 	if err != nil {
 		writeEndpointError(ctx, err)
 		return
