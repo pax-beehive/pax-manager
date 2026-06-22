@@ -152,7 +152,7 @@ func TestNodeRegistrationSessionConnectsNodeAfterUserApproval(t *testing.T) {
 	if len(start.PairCode) != 6 || start.PollToken == "" || start.RegistrationID == "" {
 		t.Fatalf("bad start response: %+v", start)
 	}
-	if start.VerificationURI != "https://console.paxtech.net/connect.html" {
+	if start.VerificationURI != "https://ws.paxtech.net/connect.html" {
 		t.Fatalf("verification uri = %q", start.VerificationURI)
 	}
 
@@ -1107,7 +1107,7 @@ func startPaxlDeviceLoginTest(t *testing.T, srv *Server) StartPaxlDeviceLoginRes
 	if len(start.UserCode) != 6 || start.LoginID == "" || start.PollToken == "" {
 		t.Fatalf("bad start response: %+v", start)
 	}
-	if start.VerificationURI != "https://console.paxtech.net/paxl-login.html" {
+	if start.VerificationURI != "https://ws.paxtech.net/paxl-login.html" {
 		t.Fatalf("verification uri = %q", start.VerificationURI)
 	}
 	return start
