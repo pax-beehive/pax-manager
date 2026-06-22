@@ -90,6 +90,25 @@ type Store interface {
 		pollTokenHash string,
 		apiKeyHash string,
 	) (Node, error)
+	CreatePaxlDeviceLoginSession(ctx context.Context, session PaxlDeviceLoginSession) error
+	DeleteStalePaxlDeviceLoginSessions(ctx context.Context, cutoff time.Time) error
+	ApprovePaxlDeviceLoginSession(
+		ctx context.Context,
+		principal UserPrincipal,
+		userCode string,
+		userAPIKey UserAPIKey,
+		apiKey string,
+	) (PaxlDeviceLoginSession, error)
+	PollPaxlDeviceLoginSession(
+		ctx context.Context,
+		loginID string,
+		pollTokenHash string,
+	) (PaxlDeviceLoginSession, error)
+	ConsumePaxlDeviceLoginSession(
+		ctx context.Context,
+		loginID string,
+		pollTokenHash string,
+	) (PaxlDeviceLoginSession, error)
 	AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error)
 	UpsertNodeStatus(ctx context.Context, node Node, report NodeStatusReport) error
 	ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error)

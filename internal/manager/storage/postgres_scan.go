@@ -99,6 +99,27 @@ func scanNodeRegistrationSession(row rowScanner) (NodeRegistrationSession, error
 	return session, nil
 }
 
+func scanPaxlDeviceLoginSession(row rowScanner) (PaxlDeviceLoginSession, error) {
+	var session PaxlDeviceLoginSession
+	if err := row.Scan(
+		&session.LoginID,
+		&session.UserCode,
+		&session.PollTokenHash,
+		&session.Status,
+		&session.ClientName,
+		&session.OwnerUserID,
+		&session.UserAPIKeyID,
+		&session.APIKey,
+		&session.ExpiresAt,
+		&session.CreatedAt,
+		&session.ApprovedAt,
+		&session.ConsumedAt,
+	); err != nil {
+		return PaxlDeviceLoginSession{}, mapSQLError(err)
+	}
+	return session, nil
+}
+
 func scanNodes(rows *sql.Rows) ([]Node, error) {
 	out := make([]Node, 0)
 	for rows.Next() {

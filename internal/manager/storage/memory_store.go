@@ -25,6 +25,8 @@ type MemoryStore struct {
 	regTokens                 map[string]registrationToken
 	nodeRegistrations         map[string]NodeRegistrationSession
 	nodeRegistrationPairCodes map[string]string
+	paxlDeviceLogins          map[string]PaxlDeviceLoginSession
+	paxlDeviceLoginUserCodes  map[string]string
 	userAPIKeys               map[string]UserAPIKey
 	userAPIKeyHashes          map[string]string
 	sessions                  map[string]AgentSession
@@ -60,6 +62,8 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		regTokens:                 make(map[string]registrationToken),
 		nodeRegistrations:         make(map[string]NodeRegistrationSession),
 		nodeRegistrationPairCodes: make(map[string]string),
+		paxlDeviceLogins:          make(map[string]PaxlDeviceLoginSession),
+		paxlDeviceLoginUserCodes:  make(map[string]string),
 		userAPIKeys:               make(map[string]UserAPIKey),
 		userAPIKeyHashes:          make(map[string]string),
 		sessions:                  make(map[string]AgentSession),
@@ -765,6 +769,121 @@ func (s *MemoryStore) ConsumeNodeRegistrationSession(
 	session.ConsumedAt = &now
 	s.nodeRegistrations[registrationID] = session
 	return node, nil
+}
+
+func (s *MemoryStore) CreatePaxlDeviceLoginSession(
+	ctx context.Context,
+	session PaxlDeviceLoginSession,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.paxlDeviceLogins[session.LoginID]; ok {
+		return ErrConflict
+	}
+	if _, ok := s.paxlDeviceLoginUserCodes[session.UserCode]; ok {
+		return ErrConflict
+	}
+	s.paxlDeviceLogins[session.LoginID] = session
+	s.paxlDeviceLoginUserCodes[session.UserCode] = session.LoginID
+	return nil
+}
+
+func (s *MemoryStore) DeleteStalePaxlDeviceLoginSessions(
+	ctx context.Context,
+	cutoff time.Time,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for loginID, session := range s.paxlDeviceLogins {
+		if session.ExpiresAt.After(cutoff) &&
+			session.Status != domain.PaxlDeviceLoginStatusConsumed &&
+			session.Status != domain.PaxlDeviceLoginStatusExpired {
+			continue
+		}
+		delete(s.paxlDeviceLogins, loginID)
+		delete(s.paxlDeviceLoginUserCodes, session.UserCode)
+	}
+	return nil
+}
+
+func (s *MemoryStore) ApprovePaxlDeviceLoginSession(
+	ctx context.Context,
+	principal UserPrincipal,
+	userCode string,
+	userAPIKey UserAPIKey,
+	apiKey string,
+) (PaxlDeviceLoginSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	loginID, ok := s.paxlDeviceLoginUserCodes[userCode]
+	if !ok {
+		return PaxlDeviceLoginSession{}, ErrNotFound
+	}
+	session := s.paxlDeviceLogins[loginID]
+	if session.Status != domain.PaxlDeviceLoginStatusPending {
+		return PaxlDeviceLoginSession{}, ErrConflict
+	}
+	now := s.now().UTC()
+	if !session.ExpiresAt.After(now) {
+		session.Status = domain.PaxlDeviceLoginStatusExpired
+		s.paxlDeviceLogins[loginID] = session
+		return PaxlDeviceLoginSession{}, ErrUnauthorized
+	}
+	session.Status = domain.PaxlDeviceLoginStatusApproved
+	session.OwnerUserID = principal.User.UserID
+	session.UserAPIKeyID = userAPIKey.KeyID
+	session.APIKey = apiKey
+	session.ApprovedAt = &now
+	s.paxlDeviceLogins[loginID] = session
+	return session, nil
+}
+
+func (s *MemoryStore) PollPaxlDeviceLoginSession(
+	ctx context.Context,
+	loginID string,
+	pollTokenHash string,
+) (PaxlDeviceLoginSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session, ok := s.paxlDeviceLogins[loginID]
+	if !ok || session.PollTokenHash != pollTokenHash {
+		return PaxlDeviceLoginSession{}, ErrUnauthorized
+	}
+	if session.Status == domain.PaxlDeviceLoginStatusPending &&
+		!session.ExpiresAt.After(s.now().UTC()) {
+		session.Status = domain.PaxlDeviceLoginStatusExpired
+		s.paxlDeviceLogins[loginID] = session
+	}
+	return session, nil
+}
+
+func (s *MemoryStore) ConsumePaxlDeviceLoginSession(
+	ctx context.Context,
+	loginID string,
+	pollTokenHash string,
+) (PaxlDeviceLoginSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session, ok := s.paxlDeviceLogins[loginID]
+	if !ok || session.PollTokenHash != pollTokenHash {
+		return PaxlDeviceLoginSession{}, ErrUnauthorized
+	}
+	if session.Status != domain.PaxlDeviceLoginStatusApproved ||
+		session.OwnerUserID == "" || session.APIKey == "" {
+		return PaxlDeviceLoginSession{}, ErrConflict
+	}
+	now := s.now().UTC()
+	if !session.ExpiresAt.After(now) {
+		session.Status = domain.PaxlDeviceLoginStatusExpired
+		s.paxlDeviceLogins[loginID] = session
+		return PaxlDeviceLoginSession{}, ErrUnauthorized
+	}
+	returned := session
+	session.Status = domain.PaxlDeviceLoginStatusConsumed
+	session.APIKey = ""
+	session.ConsumedAt = &now
+	s.paxlDeviceLogins[loginID] = session
+	return returned, nil
 }
 
 func (s *MemoryStore) AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error) {

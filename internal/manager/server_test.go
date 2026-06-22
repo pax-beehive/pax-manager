@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -1052,6 +1053,143 @@ func TestUserAPIKeyCanBeCreatedListedAndRevoked(t *testing.T) {
 		t.Fatalf("revoke api key code = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
+	if _, err := srv.store.AuthenticateUserAPIKey(req.Context(), hashSecret(created.Key)); !errors.Is(
+		err,
+		ErrUnauthorized,
+	) {
+		t.Fatalf("auth after revoke err = %v, want unauthorized", err)
+	}
+}
+
+func TestPaxlDeviceLoginIssuesBearerTokenForCLI(t *testing.T) {
+	srv, _ := testServer(t, "owner@example.com")
+
+	start := startPaxlDeviceLoginTest(t, srv)
+	pending := pollPaxlDeviceLoginTest(t, srv, start.LoginID, start.PollToken)
+	if pending.Status != "pending" || pending.APIKey != "" {
+		t.Fatalf("pending poll = %+v", pending)
+	}
+	approved := approvePaxlDeviceLoginTest(t, srv, start.UserCode)
+	if approved.Status != "approved" || approved.LoginID != start.LoginID {
+		t.Fatalf("approve response = %+v", approved)
+	}
+	cliLogin := pollPaxlDeviceLoginTest(t, srv, start.LoginID, start.PollToken)
+	if cliLogin.Status != "approved" || cliLogin.APIKey == "" ||
+		cliLogin.User == nil || cliLogin.User.Email != "cli@example.com" ||
+		cliLogin.UserAPIKey == nil || cliLogin.UserAPIKey.KeyID == "" {
+		t.Fatalf("bad approved poll response: %+v", cliLogin)
+	}
+	requirePaxlBearerWhoami(t, srv, cliLogin.APIKey, http.StatusOK)
+	secondPoll := pollPaxlDeviceLoginTest(t, srv, start.LoginID, start.PollToken)
+	if secondPoll.Status != "consumed" || secondPoll.APIKey != "" {
+		t.Fatalf("second poll = %+v", secondPoll)
+	}
+	revokePaxlBearerTest(t, srv, cliLogin.APIKey, cliLogin.UserAPIKey.KeyID)
+	requirePaxlBearerWhoami(t, srv, cliLogin.APIKey, http.StatusUnauthorized)
+}
+
+func startPaxlDeviceLoginTest(t *testing.T, srv *Server) StartPaxlDeviceLoginResponse {
+	t.Helper()
+	startReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/paxl/device-login/start",
+		bytes.NewReader([]byte(`{"client_name":"paxl test"}`)),
+	)
+	startReq.Host = "pax.example.com"
+	startReq.Header.Set("X-Forwarded-Proto", "https")
+	setJSON(startReq)
+	startRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(startRec, startReq)
+	if startRec.Code != http.StatusOK {
+		t.Fatalf("start code = %d, body = %s", startRec.Code, startRec.Body.String())
+	}
+	start := decodeData[StartPaxlDeviceLoginResponse](t, startRec.Body.Bytes())
+	if len(start.UserCode) != 6 || start.LoginID == "" || start.PollToken == "" {
+		t.Fatalf("bad start response: %+v", start)
+	}
+	if start.VerificationURI != "https://ws.paxtech.net/paxl-login.html" {
+		t.Fatalf("verification uri = %q", start.VerificationURI)
+	}
+	return start
+}
+
+func pollPaxlDeviceLoginTest(
+	t *testing.T,
+	srv *Server,
+	loginID string,
+	pollToken string,
+) PollPaxlDeviceLoginResponse {
+	t.Helper()
+	pollBody := []byte(
+		`{"login_id":"` + loginID + `","poll_token":"` + pollToken + `"}`,
+	)
+	pollReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/paxl/device-login/poll",
+		bytes.NewReader(pollBody),
+	)
+	setJSON(pollReq)
+	pollRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(pollRec, pollReq)
+	if pollRec.Code != http.StatusOK {
+		t.Fatalf("poll code = %d, body = %s", pollRec.Code, pollRec.Body.String())
+	}
+	return decodeData[PollPaxlDeviceLoginResponse](t, pollRec.Body.Bytes())
+}
+
+func approvePaxlDeviceLoginTest(
+	t *testing.T,
+	srv *Server,
+	userCode string,
+) ApprovePaxlDeviceLoginResponse {
+	t.Helper()
+	approveReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/paxl/device-logins/"+userCode+"/approve",
+		nil,
+	)
+	approveReq.Header.Set("X-User-Email", "CLI@Example.com")
+	approveRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(approveRec, approveReq)
+	if approveRec.Code != http.StatusOK {
+		t.Fatalf("approve code = %d, body = %s", approveRec.Code, approveRec.Body.String())
+	}
+	return decodeData[ApprovePaxlDeviceLoginResponse](t, approveRec.Body.Bytes())
+}
+
+func requirePaxlBearerWhoami(t *testing.T, srv *Server, apiKey string, wantStatus int) {
+	t.Helper()
+	meReq := httptest.NewRequest(http.MethodGet, "/api/v1/user/self/me", nil)
+	meReq.Header.Set("Authorization", "Bearer "+apiKey)
+	meRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(meRec, meReq)
+	if meRec.Code != wantStatus {
+		t.Fatalf("whoami code = %d, body = %s", meRec.Code, meRec.Body.String())
+	}
+	if wantStatus != http.StatusOK {
+		return
+	}
+	me := decodeData[struct {
+		User map[string]any `json:"user"`
+	}](t, meRec.Body.Bytes())
+	if me.User["email"] != "cli@example.com" {
+		t.Fatalf("whoami user = %+v", me.User)
+	}
+}
+
+func revokePaxlBearerTest(t *testing.T, srv *Server, apiKey string, keyID string) {
+	t.Helper()
+	revokeReq := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/user/self/api-keys/"+keyID,
+		nil,
+	)
+	revokeReq.Header.Set("Authorization", "Bearer "+apiKey)
+	revokeRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(revokeRec, revokeReq)
+	if revokeRec.Code != http.StatusOK {
+		t.Fatalf("revoke code = %d, body = %s", revokeRec.Code, revokeRec.Body.String())
+	}
 }
 
 func TestAgentWebsocketAuthenticatesOwnerAndProcessesMailboxFrames(t *testing.T) {

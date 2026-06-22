@@ -427,6 +427,62 @@ type NodeRegistrationPreviewResponse struct {
 	CreatedAt      string                         `json:"created_at"`
 }
 
+const (
+	PaxlDeviceLoginStatusPending  = "pending"
+	PaxlDeviceLoginStatusApproved = "approved"
+	PaxlDeviceLoginStatusExpired  = "expired"
+	PaxlDeviceLoginStatusConsumed = "consumed"
+)
+
+type PaxlDeviceLoginSession struct {
+	LoginID       string     `json:"login_id"`
+	UserCode      string     `json:"user_code"`
+	PollTokenHash string     `json:"-"`
+	Status        string     `json:"status"`
+	ClientName    string     `json:"client_name,omitempty"`
+	OwnerUserID   string     `json:"owner_user_id,omitempty"`
+	UserAPIKeyID  string     `json:"user_api_key_id,omitempty"`
+	APIKey        string     `json:"-"`
+	ExpiresAt     time.Time  `json:"expires_at"`
+	CreatedAt     time.Time  `json:"created_at"`
+	ApprovedAt    *time.Time `json:"approved_at,omitempty"`
+	ConsumedAt    *time.Time `json:"consumed_at,omitempty"`
+}
+
+type StartPaxlDeviceLoginRequest struct {
+	ClientName string `json:"client_name,omitempty"`
+}
+
+type StartPaxlDeviceLoginResponse struct {
+	LoginID                 string `json:"login_id"`
+	UserCode                string `json:"user_code"`
+	PollToken               string `json:"poll_token"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURIComplete string `json:"verification_uri_complete"`
+	ExpiresIn               int64  `json:"expires_in"`
+	Interval                int64  `json:"interval"`
+	ExpiresAt               string `json:"expires_at"`
+}
+
+type PollPaxlDeviceLoginRequest struct {
+	LoginID   string `json:"login_id"`
+	PollToken string `json:"poll_token"`
+}
+
+type PollPaxlDeviceLoginResponse struct {
+	Status     string      `json:"status"`
+	APIKey     string      `json:"api_key,omitempty"`
+	UserAPIKey *UserAPIKey `json:"api_key_meta,omitempty"`
+	User       *User       `json:"user,omitempty"`
+}
+
+type ApprovePaxlDeviceLoginResponse struct {
+	LoginID   string `json:"login_id"`
+	UserCode  string `json:"user_code"`
+	Status    string `json:"status"`
+	ExpiresAt string `json:"expires_at"`
+}
+
 type RegisterNodeAgentRequest struct {
 	Node  RegisterNodeRequest `json:"node"`
 	Agent CreateAgentRequest  `json:"agent"`
