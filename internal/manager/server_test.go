@@ -2015,15 +2015,31 @@ func writeAgentDataFrame(
 
 func readAgentAck(t *testing.T, agentWS *websocket.Conn, stream string, seq int64) {
 	t.Helper()
-	messageType, payload, err := agentWS.ReadMessage()
-	if err != nil {
-		t.Fatalf("read agent ack seq=%d: %v", seq, err)
+	if err := agentWS.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("set agent ack read deadline seq=%d: %v", seq, err)
 	}
-	ack := decodeACPTunnelEnvelope(t, payload)
-	if messageType != websocket.TextMessage ||
-		ack.Type != acpTunnelTypeAck ||
-		ack.Stream != stream ||
-		ack.Seq != seq {
+	defer func() {
+		if err := agentWS.SetReadDeadline(time.Time{}); err != nil {
+			t.Fatalf("clear agent ack read deadline seq=%d: %v", seq, err)
+		}
+	}()
+	for attempt := 0; attempt < 8; attempt++ {
+		messageType, payload, err := agentWS.ReadMessage()
+		if err != nil {
+			t.Fatalf("read agent ack seq=%d: %v", seq, err)
+		}
+		ack := decodeACPTunnelEnvelope(t, payload)
+		if messageType == websocket.TextMessage &&
+			ack.Type == acpTunnelTypeAck &&
+			ack.Stream == stream &&
+			ack.Seq == seq {
+			return
+		}
+		if messageType == websocket.TextMessage &&
+			ack.Type == acpTunnelTypeData &&
+			ack.Stream == acpTunnelStreamManagerToPaxd {
+			continue
+		}
 		t.Fatalf(
 			"agent ack type=%d payload=%s, want stream=%s seq=%d",
 			messageType,
@@ -2032,6 +2048,7 @@ func readAgentAck(t *testing.T, agentWS *websocket.Conn, stream string, seq int6
 			seq,
 		)
 	}
+	t.Fatalf("agent ack stream=%s seq=%d was not received", stream, seq)
 }
 
 func mustMarshalACPTunnelEnvelope(t *testing.T, env acpTunnelEnvelope) []byte {
