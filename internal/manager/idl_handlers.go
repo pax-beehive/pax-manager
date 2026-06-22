@@ -282,7 +282,11 @@ func (s *Service) CreateUserAPIKey(
 	ctx *app.RequestContext,
 	req *hzapi.CreateUserAPIKeyRequest,
 ) {
-	s.handleCreateUserAPIKey(c, ctx, CreateUserAPIKeyRequest{Name: req.GetName()})
+	name := ""
+	if req != nil {
+		name = req.GetName()
+	}
+	s.handleCreateUserAPIKey(c, ctx, CreateUserAPIKeyRequest{Name: name})
 }
 
 func (s *Service) RevokeUserAPIKey(
@@ -290,9 +294,15 @@ func (s *Service) RevokeUserAPIKey(
 	ctx *app.RequestContext,
 	req *hzapi.RevokeUserAPIKeyRequest,
 ) {
-	keyID := req.GetKeyID()
+	keyID := ""
+	if req != nil {
+		keyID = req.GetKeyID()
+	}
 	if keyID == "" {
 		keyID = ctx.Param("keyId")
+	}
+	if keyID == "" {
+		keyID = ctx.Param("key_id")
 	}
 	s.handleRevokeUserAPIKey(c, ctx, keyID)
 }

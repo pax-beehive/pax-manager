@@ -78,6 +78,38 @@ func TestPrincipal(t *testing.T) {
 			require.ErrorIs(t, err, domain.ErrUnauthorized)
 		},
 	)
+
+	t.Run(
+		"Given a paxl bearer token when resolving a principal then it authenticates the stored user api key",
+		func(t *testing.T) {
+			ctx := context.Background()
+			users := &fakeAPIKeyUserStore{
+				wantHash: auth.HashSecret("paxu_test"),
+				user: domain.User{
+					UserID: "usr_cli",
+					Email:  "cli@example.com",
+					Role:   "user",
+				},
+			}
+			admins := authmocks.NewMockAdminPolicy(t)
+			admins.EXPECT().IsAdmin("cli@example.com").Return(false).Once()
+			svc := auth.NewService(
+				users,
+				authmocks.NewMockRegistrationTokenStore(t),
+				admins,
+				auth.Secrets{},
+				auth.Config{},
+			)
+
+			principal, err := svc.Principal(ctx, auth.NewRequestMetadata(map[string]string{
+				"Authorization": "Bearer paxu_test",
+			}))
+
+			require.NoError(t, err)
+			require.Equal(t, "usr_cli", principal.User.UserID)
+			require.False(t, principal.IsAdmin)
+		},
+	)
 }
 
 type fakeIdentityVerifier struct {
@@ -90,6 +122,30 @@ func (v fakeIdentityVerifier) Verify(ctx context.Context, token string) (auth.Us
 		return auth.UserIdentity{}, v.err
 	}
 	return auth.UserIdentity{Email: v.email}, nil
+}
+
+type fakeAPIKeyUserStore struct {
+	wantHash string
+	user     domain.User
+}
+
+func (s *fakeAPIKeyUserStore) EnsureUser(
+	ctx context.Context,
+	email string,
+	displayName string,
+	role string,
+) (domain.User, error) {
+	return domain.User{}, errors.New("EnsureUser should not be called")
+}
+
+func (s *fakeAPIKeyUserStore) AuthenticateUserAPIKey(
+	ctx context.Context,
+	keyHash string,
+) (domain.User, error) {
+	if keyHash != s.wantHash {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+	return s.user, nil
 }
 
 func TestRegistrationOwner(t *testing.T) {

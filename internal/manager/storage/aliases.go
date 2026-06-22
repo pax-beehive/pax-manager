@@ -27,6 +27,7 @@ type AgentApproval = domain.AgentApproval
 type RegisterNodeRequest = domain.RegisterNodeRequest
 type NodeRegistrationSession = domain.NodeRegistrationSession
 type NodeRegistrationPreviewResponse = domain.NodeRegistrationPreviewResponse
+type PaxlDeviceLoginSession = domain.PaxlDeviceLoginSession
 type RegisterAgentRequest = domain.RegisterAgentRequest
 type UserAPIKey = domain.UserAPIKey
 type Secret = domain.Secret

@@ -879,6 +879,162 @@ func (s *PostgresStore) ConsumeNodeRegistrationSession(
 	return node, nil
 }
 
+func (s *PostgresStore) CreatePaxlDeviceLoginSession(
+	ctx context.Context,
+	session PaxlDeviceLoginSession,
+) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO paxl_device_login_sessions (
+			login_id, user_code, poll_token_hash, status, client_name, expires_at, created_at
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+	`, session.LoginID, session.UserCode, session.PollTokenHash, session.Status,
+		session.ClientName, session.ExpiresAt, session.CreatedAt)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrConflict
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *PostgresStore) DeleteStalePaxlDeviceLoginSessions(
+	ctx context.Context,
+	cutoff time.Time,
+) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM paxl_device_login_sessions
+		WHERE expires_at <= $1 OR status IN ($2, $3)
+	`, cutoff, domain.PaxlDeviceLoginStatusConsumed, domain.PaxlDeviceLoginStatusExpired)
+	return err
+}
+
+func (s *PostgresStore) ApprovePaxlDeviceLoginSession(
+	ctx context.Context,
+	principal UserPrincipal,
+	userCode string,
+	userAPIKey UserAPIKey,
+	apiKey string,
+) (PaxlDeviceLoginSession, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	session, err := scanPaxlDeviceLoginSession(tx.QueryRowContext(ctx, paxlDeviceLoginSelectSQL+`
+		WHERE user_code = $1
+		FOR UPDATE
+	`, userCode))
+	if err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
+	if session.Status != domain.PaxlDeviceLoginStatusPending {
+		return PaxlDeviceLoginSession{}, ErrConflict
+	}
+	now := s.now().UTC()
+	if !session.ExpiresAt.After(now) {
+		_, _ = tx.ExecContext(ctx, `
+			UPDATE paxl_device_login_sessions SET status = $2 WHERE login_id = $1
+		`, session.LoginID, domain.PaxlDeviceLoginStatusExpired)
+		return PaxlDeviceLoginSession{}, ErrUnauthorized
+	}
+	_, err = tx.ExecContext(ctx, `
+		UPDATE paxl_device_login_sessions
+		SET status = $2, owner_user_id = $3, user_api_key_id = $4, api_key = $5, approved_at = $6
+		WHERE login_id = $1
+	`, session.LoginID, domain.PaxlDeviceLoginStatusApproved, principal.User.UserID,
+		userAPIKey.KeyID, apiKey, now)
+	if err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
+	session, err = scanPaxlDeviceLoginSession(tx.QueryRowContext(ctx, paxlDeviceLoginSelectSQL+`
+		WHERE login_id = $1
+	`, session.LoginID))
+	if err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
+	return session, nil
+}
+
+func (s *PostgresStore) PollPaxlDeviceLoginSession(
+	ctx context.Context,
+	loginID string,
+	pollTokenHash string,
+) (PaxlDeviceLoginSession, error) {
+	session, err := scanPaxlDeviceLoginSession(s.db.QueryRowContext(ctx, paxlDeviceLoginSelectSQL+`
+		WHERE login_id = $1 AND poll_token_hash = $2
+	`, loginID, pollTokenHash))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return PaxlDeviceLoginSession{}, ErrUnauthorized
+		}
+		return PaxlDeviceLoginSession{}, err
+	}
+	if session.Status == domain.PaxlDeviceLoginStatusPending &&
+		!session.ExpiresAt.After(s.now().UTC()) {
+		session.Status = domain.PaxlDeviceLoginStatusExpired
+		_, _ = s.db.ExecContext(ctx, `
+			UPDATE paxl_device_login_sessions SET status = $2 WHERE login_id = $1
+		`, loginID, domain.PaxlDeviceLoginStatusExpired)
+	}
+	return session, nil
+}
+
+func (s *PostgresStore) ConsumePaxlDeviceLoginSession(
+	ctx context.Context,
+	loginID string,
+	pollTokenHash string,
+) (PaxlDeviceLoginSession, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	session, err := scanPaxlDeviceLoginSession(tx.QueryRowContext(ctx, paxlDeviceLoginSelectSQL+`
+		WHERE login_id = $1 AND poll_token_hash = $2
+		FOR UPDATE
+	`, loginID, pollTokenHash))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return PaxlDeviceLoginSession{}, ErrUnauthorized
+		}
+		return PaxlDeviceLoginSession{}, err
+	}
+	if session.Status != domain.PaxlDeviceLoginStatusApproved ||
+		session.OwnerUserID == "" || session.APIKey == "" {
+		return PaxlDeviceLoginSession{}, ErrConflict
+	}
+	now := s.now().UTC()
+	if !session.ExpiresAt.After(now) {
+		_, _ = tx.ExecContext(ctx, `
+			UPDATE paxl_device_login_sessions SET status = $2 WHERE login_id = $1
+		`, session.LoginID, domain.PaxlDeviceLoginStatusExpired)
+		return PaxlDeviceLoginSession{}, ErrUnauthorized
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE paxl_device_login_sessions
+		SET status = $2, api_key = NULL, consumed_at = $3
+		WHERE login_id = $1
+	`, session.LoginID, domain.PaxlDeviceLoginStatusConsumed, now); err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
+	return session, nil
+}
+
+const paxlDeviceLoginSelectSQL = `
+	SELECT login_id, user_code, poll_token_hash, status, client_name,
+		COALESCE(owner_user_id, ''), COALESCE(user_api_key_id, ''), COALESCE(api_key, ''),
+		expires_at, created_at, approved_at, consumed_at
+	FROM paxl_device_login_sessions
+`
+
 func (s *PostgresStore) AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT node_id, owner_user_id, name, hostname, machine_type, os, arch, paxd_version,

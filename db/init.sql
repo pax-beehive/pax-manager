@@ -307,6 +307,30 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_owner ON user_api_keys(owner_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_hash ON user_api_keys(key_hash);
 
+CREATE TABLE IF NOT EXISTS paxl_device_login_sessions (
+    login_id TEXT PRIMARY KEY,
+    user_code TEXT UNIQUE NOT NULL,
+    poll_token_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    client_name TEXT NOT NULL DEFAULT '',
+    owner_user_id TEXT REFERENCES users(user_id),
+    user_api_key_id TEXT REFERENCES user_api_keys(key_id),
+    api_key TEXT,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    approved_at TIMESTAMPTZ,
+    consumed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_paxl_device_login_sessions_poll
+    ON paxl_device_login_sessions(login_id, poll_token_hash);
+CREATE INDEX IF NOT EXISTS idx_paxl_device_login_sessions_user_code
+    ON paxl_device_login_sessions(user_code);
+CREATE INDEX IF NOT EXISTS idx_paxl_device_login_sessions_owner
+    ON paxl_device_login_sessions(owner_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_paxl_device_login_sessions_expires
+    ON paxl_device_login_sessions(expires_at);
+
 CREATE TABLE IF NOT EXISTS secrets (
     secret_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

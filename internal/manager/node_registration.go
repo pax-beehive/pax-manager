@@ -232,11 +232,15 @@ func (s *Service) PollNodeRegistration(
 }
 
 func newNodePairCode() (string, error) {
+	return newNodePairCodeWithLength(nodePairCodeLength)
+}
+
+func newNodePairCodeWithLength(length int) (string, error) {
 	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	var b strings.Builder
-	b.Grow(nodePairCodeLength)
+	b.Grow(length)
 	max := big.NewInt(int64(len(alphabet)))
-	for i := 0; i < nodePairCodeLength; i++ {
+	for i := 0; i < length; i++ {
 		n, err := rand.Int(rand.Reader, max)
 		if err != nil {
 			return "", err

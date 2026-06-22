@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -18,6 +19,10 @@ type UserStore interface {
 
 type RegistrationTokenStore interface {
 	ResolveRegistrationToken(ctx context.Context, tokenHash string) (domain.User, error)
+}
+
+type UserAPIKeyStore interface {
+	AuthenticateUserAPIKey(ctx context.Context, keyHash string) (domain.User, error)
 }
 
 type Service struct {
@@ -64,6 +69,20 @@ func (s *Service) Principal(
 	ctx context.Context,
 	meta RequestMetadata,
 ) (domain.UserPrincipal, error) {
+	if token := bearerToken(meta); token != "" {
+		users, ok := s.users.(UserAPIKeyStore)
+		if !ok {
+			return domain.UserPrincipal{}, domain.ErrUnauthorized
+		}
+		user, err := users.AuthenticateUserAPIKey(ctx, s.secrets.Hash(token))
+		if err != nil {
+			return domain.UserPrincipal{}, err
+		}
+		return domain.UserPrincipal{
+			User:    user,
+			IsAdmin: s.admins.IsAdmin(user.Email),
+		}, nil
+	}
 	email, err := s.userEmail(ctx, meta)
 	if err != nil {
 		return domain.UserPrincipal{}, err
@@ -120,4 +139,12 @@ func (s *Service) userEmail(ctx context.Context, meta RequestMetadata) (string, 
 		}
 	}
 	return "", domain.ErrUnauthorized
+}
+
+func bearerToken(meta RequestMetadata) string {
+	token := strings.TrimSpace(meta.Header("Authorization"))
+	if token == "" {
+		return ""
+	}
+	return BearerToken(token)
 }

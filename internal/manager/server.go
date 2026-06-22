@@ -144,6 +144,12 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/node/registration/poll", PollNodeRegistration)
 	h.GET("/api/v1/user/:user_id/node-registrations/:pair_code", GetNodeRegistration)
 	h.POST("/api/v1/user/:user_id/node-registrations/:pair_code/approve", ApproveNodeRegistration)
+	h.POST("/api/v1/paxl/device-login/start", StartPaxlDeviceLogin)
+	h.POST("/api/v1/paxl/device-login/poll", PollPaxlDeviceLogin)
+	h.POST(
+		"/api/v1/user/:user_id/paxl/device-logins/:user_code/approve",
+		ApprovePaxlDeviceLogin,
+	)
 	h.GET(
 		"/api/agent/ws",
 		AgentWSAuthPreflight(),
