@@ -23,7 +23,7 @@ func TestLoad(t *testing.T) {
 			require.False(t, cfg.CloudflareAccessDisabled)
 			require.Equal(t, int64(1<<20), cfg.MaxBodyBytes)
 			require.Equal(t, 15*time.Minute, cfg.PaxdArtifactDownloadTTL)
-			require.Equal(t, "https://console.paxtech.net", cfg.PaxdVerificationBaseURL)
+			require.Equal(t, "https://ws.paxtech.net", cfg.PaxdVerificationBaseURL)
 			require.True(t, cfg.AdminEmails["toddzheng024@gmail.com"])
 			require.True(t, cfg.AdminEmails["gengcongkai456789@gmail.com"])
 			require.True(t, cfg.AdminEmails["zhangjiahang0725@gmail.com"])
