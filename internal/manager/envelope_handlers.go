@@ -24,9 +24,10 @@ func ListEnvelopes(c context.Context, ctx *app.RequestContext) {
 		c,
 		requestMetadata(ctx),
 		domain.ListEnvelopesFilter{
-			Status: string(ctx.QueryArgs().Peek("status")),
-			Limit:  queryInt(ctx, "limit"),
-			Cursor: string(ctx.QueryArgs().Peek("cursor")),
+			Status:    string(ctx.QueryArgs().Peek("status")),
+			Direction: string(ctx.QueryArgs().Peek("direction")),
+			Limit:     queryInt(ctx, "limit"),
+			Cursor:    string(ctx.QueryArgs().Peek("cursor")),
 		},
 	)
 	writeEndpointResult(ctx, status, data, err)

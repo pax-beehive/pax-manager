@@ -42,7 +42,7 @@ func (s *MemoryStore) ListEnvelopes(
 	defer s.mu.Unlock()
 	out := make([]Envelope, 0)
 	for _, envelope := range s.envelopes {
-		if !canReceiveEnvelope(filter.Principal, recipientEmail, envelope) {
+		if !canViewEnvelope(filter.Principal, recipientEmail, filter.Direction, envelope) {
 			continue
 		}
 		if filter.Status != "" && envelope.Status != filter.Status {
@@ -67,7 +67,7 @@ func (s *MemoryStore) GetEnvelope(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	envelope, ok := s.envelopes[envelopeID]
-	if !ok || !canReceiveEnvelope(principal, normalizeEmail(principal.User.Email), envelope) {
+	if !ok || !canReadEnvelope(principal, normalizeEmail(principal.User.Email), envelope) {
 		return Envelope{}, ErrNotFound
 	}
 	return envelope, nil
@@ -122,4 +122,29 @@ func (s *MemoryStore) updateRecipientEnvelope(
 func canReceiveEnvelope(principal UserPrincipal, recipientEmail string, envelope Envelope) bool {
 	return envelope.RecipientUserID == principal.User.UserID ||
 		(envelope.RecipientUserID == "" && normalizeEmail(envelope.RecipientEmail) == recipientEmail)
+}
+
+func canSendEnvelope(principal UserPrincipal, envelope Envelope) bool {
+	return envelope.SenderUserID == principal.User.UserID
+}
+
+func canViewEnvelope(
+	principal UserPrincipal,
+	recipientEmail string,
+	direction string,
+	envelope Envelope,
+) bool {
+	switch direction {
+	case domain.EnvelopeDirectionSent:
+		return canSendEnvelope(principal, envelope)
+	case "", domain.EnvelopeDirectionReceived:
+		return canReceiveEnvelope(principal, recipientEmail, envelope)
+	default:
+		return false
+	}
+}
+
+func canReadEnvelope(principal UserPrincipal, recipientEmail string, envelope Envelope) bool {
+	return canSendEnvelope(principal, envelope) ||
+		canReceiveEnvelope(principal, recipientEmail, envelope)
 }

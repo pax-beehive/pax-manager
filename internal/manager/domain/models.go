@@ -261,6 +261,7 @@ type CreateEnvelopeRequest struct {
 type ListEnvelopesFilter struct {
 	Principal UserPrincipal
 	Status    string
+	Direction string
 	Limit     int
 	Cursor    string
 }
@@ -273,6 +274,11 @@ const (
 
 	FriendDirectionSent     = "sent"
 	FriendDirectionReceived = "received"
+)
+
+const (
+	EnvelopeDirectionSent     = "sent"
+	EnvelopeDirectionReceived = "received"
 )
 
 type Friend struct {
