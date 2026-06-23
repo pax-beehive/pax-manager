@@ -263,6 +263,11 @@ type Store interface {
 	) (Envelope, error)
 	CreateFriend(ctx context.Context, friend Friend) (Friend, error)
 	ListFriends(ctx context.Context, filter ListFriendsFilter) ([]Friend, error)
+	GetAcceptedFriendByEmail(
+		ctx context.Context,
+		principal UserPrincipal,
+		email string,
+	) (Friend, error)
 	GetFriend(ctx context.Context, principal UserPrincipal, friendID string) (Friend, error)
 	AcceptFriend(
 		ctx context.Context,

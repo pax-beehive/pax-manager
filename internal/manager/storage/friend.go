@@ -139,6 +139,36 @@ func (s *PostgresStore) ListFriends(
 	return friendsFromModels(rows), nil
 }
 
+func (s *PostgresStore) GetAcceptedFriendByEmail(
+	ctx context.Context,
+	principal UserPrincipal,
+	email string,
+) (Friend, error) {
+	principalEmail := normalizeEmail(principal.User.Email)
+	counterpartyEmail := normalizeEmail(email)
+	var row friendRow
+	err := s.gormDB.WithContext(ctx).
+		Model(&friendRow{}).
+		Where("status = ?", domain.FriendStatusAccepted).
+		Where(
+			`(
+				(requester_user_id = ? AND recipient_email = ?) OR
+				((recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?)) AND requester_email = ?)
+			)`,
+			principal.User.UserID,
+			counterpartyEmail,
+			principal.User.UserID,
+			principalEmail,
+			counterpartyEmail,
+		).
+		First(&row).
+		Error
+	if err != nil {
+		return Friend{}, mapGormError(err)
+	}
+	return friendFromModel(&row), nil
+}
+
 func (s *PostgresStore) GetFriend(
 	ctx context.Context,
 	principal UserPrincipal,

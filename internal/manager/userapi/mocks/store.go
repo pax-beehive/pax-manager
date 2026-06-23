@@ -903,6 +903,64 @@ func (_c *MockStore_CreateUserAPIKey_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
+// GetAcceptedFriendByEmail provides a mock function with given fields: ctx, principal, email
+func (_m *MockStore) GetAcceptedFriendByEmail(ctx context.Context, principal domain.UserPrincipal, email string) (domain.Friend, error) {
+	ret := _m.Called(ctx, principal, email)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAcceptedFriendByEmail")
+	}
+
+	var r0 domain.Friend
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) (domain.Friend, error)); ok {
+		return rf(ctx, principal, email)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) domain.Friend); ok {
+		r0 = rf(ctx, principal, email)
+	} else {
+		r0 = ret.Get(0).(domain.Friend)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, email)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetAcceptedFriendByEmail_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAcceptedFriendByEmail'
+type MockStore_GetAcceptedFriendByEmail_Call struct {
+	*mock.Call
+}
+
+// GetAcceptedFriendByEmail is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - email string
+func (_e *MockStore_Expecter) GetAcceptedFriendByEmail(ctx interface{}, principal interface{}, email interface{}) *MockStore_GetAcceptedFriendByEmail_Call {
+	return &MockStore_GetAcceptedFriendByEmail_Call{Call: _e.mock.On("GetAcceptedFriendByEmail", ctx, principal, email)}
+}
+
+func (_c *MockStore_GetAcceptedFriendByEmail_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, email string)) *MockStore_GetAcceptedFriendByEmail_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetAcceptedFriendByEmail_Call) Return(_a0 domain.Friend, _a1 error) *MockStore_GetAcceptedFriendByEmail_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetAcceptedFriendByEmail_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Friend, error)) *MockStore_GetAcceptedFriendByEmail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetAgent provides a mock function with given fields: ctx, principal, agentID
 func (_m *MockStore) GetAgent(ctx context.Context, principal domain.UserPrincipal, agentID string) (domain.Agent, error) {
 	ret := _m.Called(ctx, principal, agentID)

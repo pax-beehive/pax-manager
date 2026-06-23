@@ -145,6 +145,11 @@ type Store interface {
 		ctx context.Context,
 		filter domain.ListFriendsFilter,
 	) ([]domain.Friend, error)
+	GetAcceptedFriendByEmail(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		email string,
+	) (domain.Friend, error)
 	GetFriend(
 		ctx context.Context,
 		principal domain.UserPrincipal,

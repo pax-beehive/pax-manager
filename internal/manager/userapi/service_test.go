@@ -835,14 +835,24 @@ func TestEnvelopeFlow(t *testing.T) {
 	t.Run("Given a capsule payload then it creates a pending envelope", func(t *testing.T) {
 		ctx := context.Background()
 		principal := userPrincipal("usr_sender", false)
-		recipient := domain.User{UserID: "usr_recipient", Email: "recipient@example.com"}
+		friend := domain.Friend{
+			FriendID:        "fr_1",
+			RequesterUserID: "usr_sender",
+			RequesterEmail:  "sender@example.com",
+			RecipientUserID: "usr_recipient",
+			RecipientEmail:  "recipient@example.com",
+			Status:          domain.FriendStatusAccepted,
+		}
 		payload := json.RawMessage(`{"capsule":{"capsule_id":"kcap_1","title":"handoff"}}`)
 		store := userapimocks.NewMockStore(t)
 		principals := userapimocks.NewMockPrincipalResolver(t)
 		secrets := userapimocks.NewMockSecretIssuer(t)
 
 		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
-		store.EXPECT().GetUserByEmail(ctx, "recipient@example.com").Return(recipient, nil).Once()
+		store.EXPECT().
+			GetAcceptedFriendByEmail(ctx, principal, "recipient@example.com").
+			Return(friend, nil).
+			Once()
 		secrets.EXPECT().New("env").Return("env_1", nil).Once()
 		store.EXPECT().CreateEnvelope(
 			ctx,
@@ -874,6 +884,46 @@ func TestEnvelopeFlow(t *testing.T) {
 		require.Equal(t, http.StatusOK, status)
 		require.Equal(t, "env_1", data.(map[string]any)["envelope"].(domain.Envelope).EnvelopeID)
 	})
+
+	t.Run(
+		"Given a recipient without an accepted friend then it rejects the envelope",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_sender", false)
+			payload := json.RawMessage(`{"capsule":{"capsule_id":"kcap_1","title":"handoff"}}`)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetAcceptedFriendByEmail(ctx, principal, "recipient@example.com").
+				Return(domain.Friend{}, domain.ErrNotFound).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, _, err := svc.CreateEnvelope(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateEnvelopeRequest{
+					RecipientEmail: "recipient@example.com",
+					PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
+					PayloadJSON:    payload,
+				},
+			)
+
+			require.Error(t, err)
+			require.Zero(t, status)
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusForbidden, appErr.Status)
+			require.Contains(t, err.Error(), "recipient must be an accepted friend")
+		},
+	)
 
 	t.Run("Given a recipient principal then it accepts the envelope", func(t *testing.T) {
 		ctx := context.Background()

@@ -59,17 +59,21 @@ func (s *Service) CreateEnvelope(
 	if len(message) > envelopeMessageLimit {
 		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "message is too long"}
 	}
+	friend, err := s.store.GetAcceptedFriendByEmail(c, principal, recipientEmail)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusForbidden,
+				Message: "recipient must be an accepted friend",
+			}
+		}
+		return 0, nil, err
+	}
 	envelopeID, err := s.secrets.New("env")
 	if err != nil {
 		return 0, nil, err
 	}
-	recipientUserID := ""
-	recipient, err := s.store.GetUserByEmail(c, recipientEmail)
-	if err == nil {
-		recipientUserID = recipient.UserID
-	} else if !errors.Is(err, domain.ErrNotFound) {
-		return 0, nil, err
-	}
+	recipientUserID := friendCounterpartyUserID(principal, friend)
 	envelope, err := s.store.CreateEnvelope(c, domain.Envelope{
 		EnvelopeID:      envelopeID,
 		SenderUserID:    principal.User.UserID,
@@ -86,6 +90,16 @@ func (s *Service) CreateEnvelope(
 		return 0, nil, err
 	}
 	return http.StatusOK, map[string]any{"envelope": envelope}, nil
+}
+
+func friendCounterpartyUserID(principal domain.UserPrincipal, friend domain.Friend) string {
+	if friend.RequesterUserID == principal.User.UserID {
+		return friend.RecipientUserID
+	}
+	if friend.RecipientUserID == principal.User.UserID {
+		return friend.RequesterUserID
+	}
+	return ""
 }
 
 func (s *Service) ListEnvelopes(

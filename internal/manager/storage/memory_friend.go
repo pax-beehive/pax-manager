@@ -78,6 +78,26 @@ func (s *MemoryStore) GetFriend(
 	return friend, nil
 }
 
+func (s *MemoryStore) GetAcceptedFriendByEmail(
+	ctx context.Context,
+	principal UserPrincipal,
+	email string,
+) (Friend, error) {
+	principalEmail := normalizeEmail(principal.User.Email)
+	counterpartyEmail := normalizeEmail(email)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, friend := range s.friends {
+		if friend.Status != domain.FriendStatusAccepted {
+			continue
+		}
+		if friendCounterpartyMatches(principal, principalEmail, friend, counterpartyEmail) {
+			return friend, nil
+		}
+	}
+	return Friend{}, ErrNotFound
+}
+
 func (s *MemoryStore) AcceptFriend(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -184,6 +204,21 @@ func friendMatchesAlias(
 	}
 	if friendReceivedByPrincipal(principal, principalEmail, friend) {
 		return normalizeFriendAlias(friend.RecipientAlias) == alias
+	}
+	return false
+}
+
+func friendCounterpartyMatches(
+	principal UserPrincipal,
+	principalEmail string,
+	friend Friend,
+	counterpartyEmail string,
+) bool {
+	if friend.RequesterUserID == principal.User.UserID {
+		return normalizeEmail(friend.RecipientEmail) == counterpartyEmail
+	}
+	if friendReceivedByPrincipal(principal, principalEmail, friend) {
+		return normalizeEmail(friend.RequesterEmail) == counterpartyEmail
 	}
 	return false
 }
