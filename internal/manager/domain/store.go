@@ -246,6 +246,21 @@ type Store interface {
 		ctx context.Context,
 		filter ListKnowledgeInjectionsFilter,
 	) ([]SessionKnowledgeInjection, error)
+	CreateEnvelope(ctx context.Context, envelope Envelope) (Envelope, error)
+	ListEnvelopes(ctx context.Context, filter ListEnvelopesFilter) ([]Envelope, error)
+	GetEnvelope(ctx context.Context, principal UserPrincipal, envelopeID string) (Envelope, error)
+	AcceptEnvelope(
+		ctx context.Context,
+		principal UserPrincipal,
+		envelopeID string,
+		acceptedAt time.Time,
+	) (Envelope, error)
+	ArchiveEnvelope(
+		ctx context.Context,
+		principal UserPrincipal,
+		envelopeID string,
+		archivedAt time.Time,
+	) (Envelope, error)
 	AppendMessagePartText(
 		ctx context.Context,
 		messageID string,

@@ -228,6 +228,43 @@ type SessionKnowledgeInjection struct {
 	Error               string     `json:"error,omitempty"`
 }
 
+const (
+	EnvelopePayloadKnowledgeCapsule = "knowledge_capsule"
+
+	EnvelopeStatusPending  = "pending"
+	EnvelopeStatusAccepted = "accepted"
+	EnvelopeStatusArchived = "archived"
+)
+
+type Envelope struct {
+	EnvelopeID      string          `json:"envelope_id"`
+	SenderUserID    string          `json:"sender_user_id"`
+	SenderEmail     string          `json:"sender_email"`
+	RecipientUserID string          `json:"recipient_user_id,omitempty"`
+	RecipientEmail  string          `json:"recipient_email"`
+	PayloadType     string          `json:"payload_type"`
+	PayloadJSON     json.RawMessage `json:"payload_json"`
+	Message         string          `json:"message,omitempty"`
+	Status          string          `json:"status"`
+	CreatedAt       time.Time       `json:"created_at"`
+	AcceptedAt      *time.Time      `json:"accepted_at,omitempty"`
+	ArchivedAt      *time.Time      `json:"archived_at,omitempty"`
+}
+
+type CreateEnvelopeRequest struct {
+	RecipientEmail string          `json:"recipient_email"`
+	PayloadType    string          `json:"payload_type"`
+	PayloadJSON    json.RawMessage `json:"payload_json"`
+	Message        string          `json:"message,omitempty"`
+}
+
+type ListEnvelopesFilter struct {
+	Principal UserPrincipal
+	Status    string
+	Limit     int
+	Cursor    string
+}
+
 type CreateKnowledgeCapsuleRequest struct {
 	Keyword string `json:"keyword"`
 }

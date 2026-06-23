@@ -2,6 +2,7 @@ package userapi_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -828,6 +829,84 @@ func TestKnowledgeCapsuleFlow(t *testing.T) {
 			)
 		},
 	)
+}
+
+func TestEnvelopeFlow(t *testing.T) {
+	t.Run("Given a capsule payload then it creates a pending envelope", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_sender", false)
+		recipient := domain.User{UserID: "usr_recipient", Email: "recipient@example.com"}
+		payload := json.RawMessage(`{"capsule":{"capsule_id":"kcap_1","title":"handoff"}}`)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		secrets := userapimocks.NewMockSecretIssuer(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetUserByEmail(ctx, "recipient@example.com").Return(recipient, nil).Once()
+		secrets.EXPECT().New("env").Return("env_1", nil).Once()
+		store.EXPECT().CreateEnvelope(
+			ctx,
+			mock.MatchedBy(func(envelope domain.Envelope) bool {
+				require.Equal(t, "env_1", envelope.EnvelopeID)
+				require.Equal(t, "usr_sender", envelope.SenderUserID)
+				require.Equal(t, "usr_recipient", envelope.RecipientUserID)
+				require.Equal(t, "recipient@example.com", envelope.RecipientEmail)
+				require.Equal(t, domain.EnvelopePayloadKnowledgeCapsule, envelope.PayloadType)
+				require.Equal(t, domain.EnvelopeStatusPending, envelope.Status)
+				require.JSONEq(t, string(payload), string(envelope.PayloadJSON))
+				return true
+			}),
+		).Return(domain.Envelope{EnvelopeID: "env_1"}, nil).Once()
+
+		svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+		status, data, err := svc.CreateEnvelope(
+			ctx,
+			auth.RequestMetadata{},
+			domain.CreateEnvelopeRequest{
+				RecipientEmail: " Recipient@Example.com ",
+				PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
+				PayloadJSON:    payload,
+				Message:        "please review",
+			},
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, "env_1", data.(map[string]any)["envelope"].(domain.Envelope).EnvelopeID)
+	})
+
+	t.Run("Given a recipient principal then it accepts the envelope", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_recipient", false)
+		accepted := domain.Envelope{
+			EnvelopeID:      "env_1",
+			RecipientUserID: "usr_recipient",
+			Status:          domain.EnvelopeStatusAccepted,
+		}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().AcceptEnvelope(ctx, principal, "env_1", fixedUserNow()).
+			Return(accepted, nil).
+			Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, data, err := svc.AcceptEnvelope(ctx, auth.RequestMetadata{}, "env_1")
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(
+			t,
+			domain.EnvelopeStatusAccepted,
+			data.(map[string]any)["envelope"].(domain.Envelope).Status,
+		)
+	})
 }
 
 func userPrincipal(userID string, admin bool) domain.UserPrincipal {

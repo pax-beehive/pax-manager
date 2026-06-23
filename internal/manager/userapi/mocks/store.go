@@ -23,6 +23,124 @@ func (_m *MockStore) EXPECT() *MockStore_Expecter {
 	return &MockStore_Expecter{mock: &_m.Mock}
 }
 
+// AcceptEnvelope provides a mock function with given fields: ctx, principal, envelopeID, acceptedAt
+func (_m *MockStore) AcceptEnvelope(ctx context.Context, principal domain.UserPrincipal, envelopeID string, acceptedAt time.Time) (domain.Envelope, error) {
+	ret := _m.Called(ctx, principal, envelopeID, acceptedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AcceptEnvelope")
+	}
+
+	var r0 domain.Envelope
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) (domain.Envelope, error)); ok {
+		return rf(ctx, principal, envelopeID, acceptedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) domain.Envelope); ok {
+		r0 = rf(ctx, principal, envelopeID, acceptedAt)
+	} else {
+		r0 = ret.Get(0).(domain.Envelope)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, envelopeID, acceptedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_AcceptEnvelope_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AcceptEnvelope'
+type MockStore_AcceptEnvelope_Call struct {
+	*mock.Call
+}
+
+// AcceptEnvelope is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - envelopeID string
+//   - acceptedAt time.Time
+func (_e *MockStore_Expecter) AcceptEnvelope(ctx interface{}, principal interface{}, envelopeID interface{}, acceptedAt interface{}) *MockStore_AcceptEnvelope_Call {
+	return &MockStore_AcceptEnvelope_Call{Call: _e.mock.On("AcceptEnvelope", ctx, principal, envelopeID, acceptedAt)}
+}
+
+func (_c *MockStore_AcceptEnvelope_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, envelopeID string, acceptedAt time.Time)) *MockStore_AcceptEnvelope_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_AcceptEnvelope_Call) Return(_a0 domain.Envelope, _a1 error) *MockStore_AcceptEnvelope_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_AcceptEnvelope_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, time.Time) (domain.Envelope, error)) *MockStore_AcceptEnvelope_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ArchiveEnvelope provides a mock function with given fields: ctx, principal, envelopeID, archivedAt
+func (_m *MockStore) ArchiveEnvelope(ctx context.Context, principal domain.UserPrincipal, envelopeID string, archivedAt time.Time) (domain.Envelope, error) {
+	ret := _m.Called(ctx, principal, envelopeID, archivedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ArchiveEnvelope")
+	}
+
+	var r0 domain.Envelope
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) (domain.Envelope, error)); ok {
+		return rf(ctx, principal, envelopeID, archivedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) domain.Envelope); ok {
+		r0 = rf(ctx, principal, envelopeID, archivedAt)
+	} else {
+		r0 = ret.Get(0).(domain.Envelope)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, envelopeID, archivedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ArchiveEnvelope_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ArchiveEnvelope'
+type MockStore_ArchiveEnvelope_Call struct {
+	*mock.Call
+}
+
+// ArchiveEnvelope is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - envelopeID string
+//   - archivedAt time.Time
+func (_e *MockStore_Expecter) ArchiveEnvelope(ctx interface{}, principal interface{}, envelopeID interface{}, archivedAt interface{}) *MockStore_ArchiveEnvelope_Call {
+	return &MockStore_ArchiveEnvelope_Call{Call: _e.mock.On("ArchiveEnvelope", ctx, principal, envelopeID, archivedAt)}
+}
+
+func (_c *MockStore_ArchiveEnvelope_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, envelopeID string, archivedAt time.Time)) *MockStore_ArchiveEnvelope_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_ArchiveEnvelope_Call) Return(_a0 domain.Envelope, _a1 error) *MockStore_ArchiveEnvelope_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ArchiveEnvelope_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, time.Time) (domain.Envelope, error)) *MockStore_ArchiveEnvelope_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ArchiveKnowledgeCapsule provides a mock function with given fields: ctx, principal, capsuleID, archivedAt
 func (_m *MockStore) ArchiveKnowledgeCapsule(ctx context.Context, principal domain.UserPrincipal, capsuleID string, archivedAt time.Time) (domain.KnowledgeCapsule, error) {
 	ret := _m.Called(ctx, principal, capsuleID, archivedAt)
@@ -78,6 +196,63 @@ func (_c *MockStore_ArchiveKnowledgeCapsule_Call) Return(_a0 domain.KnowledgeCap
 }
 
 func (_c *MockStore_ArchiveKnowledgeCapsule_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, time.Time) (domain.KnowledgeCapsule, error)) *MockStore_ArchiveKnowledgeCapsule_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateEnvelope provides a mock function with given fields: ctx, envelope
+func (_m *MockStore) CreateEnvelope(ctx context.Context, envelope domain.Envelope) (domain.Envelope, error) {
+	ret := _m.Called(ctx, envelope)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateEnvelope")
+	}
+
+	var r0 domain.Envelope
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Envelope) (domain.Envelope, error)); ok {
+		return rf(ctx, envelope)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Envelope) domain.Envelope); ok {
+		r0 = rf(ctx, envelope)
+	} else {
+		r0 = ret.Get(0).(domain.Envelope)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.Envelope) error); ok {
+		r1 = rf(ctx, envelope)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateEnvelope_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateEnvelope'
+type MockStore_CreateEnvelope_Call struct {
+	*mock.Call
+}
+
+// CreateEnvelope is a helper method to define mock.On call
+//   - ctx context.Context
+//   - envelope domain.Envelope
+func (_e *MockStore_Expecter) CreateEnvelope(ctx interface{}, envelope interface{}) *MockStore_CreateEnvelope_Call {
+	return &MockStore_CreateEnvelope_Call{Call: _e.mock.On("CreateEnvelope", ctx, envelope)}
+}
+
+func (_c *MockStore_CreateEnvelope_Call) Run(run func(ctx context.Context, envelope domain.Envelope)) *MockStore_CreateEnvelope_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.Envelope))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateEnvelope_Call) Return(_a0 domain.Envelope, _a1 error) *MockStore_CreateEnvelope_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateEnvelope_Call) RunAndReturn(run func(context.Context, domain.Envelope) (domain.Envelope, error)) *MockStore_CreateEnvelope_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -610,6 +785,64 @@ func (_c *MockStore_GetAgent_Call) RunAndReturn(run func(context.Context, domain
 	return _c
 }
 
+// GetEnvelope provides a mock function with given fields: ctx, principal, envelopeID
+func (_m *MockStore) GetEnvelope(ctx context.Context, principal domain.UserPrincipal, envelopeID string) (domain.Envelope, error) {
+	ret := _m.Called(ctx, principal, envelopeID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetEnvelope")
+	}
+
+	var r0 domain.Envelope
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) (domain.Envelope, error)); ok {
+		return rf(ctx, principal, envelopeID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) domain.Envelope); ok {
+		r0 = rf(ctx, principal, envelopeID)
+	} else {
+		r0 = ret.Get(0).(domain.Envelope)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, envelopeID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetEnvelope_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetEnvelope'
+type MockStore_GetEnvelope_Call struct {
+	*mock.Call
+}
+
+// GetEnvelope is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - envelopeID string
+func (_e *MockStore_Expecter) GetEnvelope(ctx interface{}, principal interface{}, envelopeID interface{}) *MockStore_GetEnvelope_Call {
+	return &MockStore_GetEnvelope_Call{Call: _e.mock.On("GetEnvelope", ctx, principal, envelopeID)}
+}
+
+func (_c *MockStore_GetEnvelope_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, envelopeID string)) *MockStore_GetEnvelope_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetEnvelope_Call) Return(_a0 domain.Envelope, _a1 error) *MockStore_GetEnvelope_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetEnvelope_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Envelope, error)) *MockStore_GetEnvelope_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetKnowledgeCapsule provides a mock function with given fields: ctx, principal, capsuleID
 func (_m *MockStore) GetKnowledgeCapsule(ctx context.Context, principal domain.UserPrincipal, capsuleID string) (domain.KnowledgeCapsule, error) {
 	ret := _m.Called(ctx, principal, capsuleID)
@@ -1071,6 +1304,65 @@ func (_c *MockStore_ListAgents_Call) Return(_a0 []domain.Agent, _a1 error) *Mock
 }
 
 func (_c *MockStore_ListAgents_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal) ([]domain.Agent, error)) *MockStore_ListAgents_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListEnvelopes provides a mock function with given fields: ctx, filter
+func (_m *MockStore) ListEnvelopes(ctx context.Context, filter domain.ListEnvelopesFilter) ([]domain.Envelope, error) {
+	ret := _m.Called(ctx, filter)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListEnvelopes")
+	}
+
+	var r0 []domain.Envelope
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.ListEnvelopesFilter) ([]domain.Envelope, error)); ok {
+		return rf(ctx, filter)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.ListEnvelopesFilter) []domain.Envelope); ok {
+		r0 = rf(ctx, filter)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.Envelope)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.ListEnvelopesFilter) error); ok {
+		r1 = rf(ctx, filter)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListEnvelopes_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListEnvelopes'
+type MockStore_ListEnvelopes_Call struct {
+	*mock.Call
+}
+
+// ListEnvelopes is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filter domain.ListEnvelopesFilter
+func (_e *MockStore_Expecter) ListEnvelopes(ctx interface{}, filter interface{}) *MockStore_ListEnvelopes_Call {
+	return &MockStore_ListEnvelopes_Call{Call: _e.mock.On("ListEnvelopes", ctx, filter)}
+}
+
+func (_c *MockStore_ListEnvelopes_Call) Run(run func(ctx context.Context, filter domain.ListEnvelopesFilter)) *MockStore_ListEnvelopes_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.ListEnvelopesFilter))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListEnvelopes_Call) Return(_a0 []domain.Envelope, _a1 error) *MockStore_ListEnvelopes_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListEnvelopes_Call) RunAndReturn(run func(context.Context, domain.ListEnvelopesFilter) ([]domain.Envelope, error)) *MockStore_ListEnvelopes_Call {
 	_c.Call.Return(run)
 	return _c
 }

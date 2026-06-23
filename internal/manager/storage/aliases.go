@@ -63,6 +63,8 @@ type KnowledgeCapsule = domain.KnowledgeCapsule
 type SessionKnowledgeInjection = domain.SessionKnowledgeInjection
 type ListKnowledgeCapsulesFilter = domain.ListKnowledgeCapsulesFilter
 type ListKnowledgeInjectionsFilter = domain.ListKnowledgeInjectionsFilter
+type Envelope = domain.Envelope
+type ListEnvelopesFilter = domain.ListEnvelopesFilter
 type TransportFrame = domain.TransportFrame
 
 func newSecret(prefix string) (string, error) {

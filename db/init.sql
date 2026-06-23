@@ -486,6 +486,41 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_capsules_source_session
 CREATE INDEX IF NOT EXISTS idx_knowledge_capsules_keyword
     ON knowledge_capsules(owner_user_id, keyword, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS envelopes (
+    envelope_id TEXT PRIMARY KEY,
+    sender_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    sender_email TEXT NOT NULL,
+    recipient_user_id TEXT REFERENCES users(user_id),
+    recipient_email TEXT NOT NULL,
+    payload_type TEXT NOT NULL,
+    payload_json JSONB NOT NULL,
+    message TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    accepted_at TIMESTAMPTZ,
+    archived_at TIMESTAMPTZ
+);
+
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS sender_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS sender_email TEXT NOT NULL DEFAULT '';
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS recipient_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS recipient_email TEXT NOT NULL DEFAULT '';
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS payload_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS payload_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS message TEXT NOT NULL DEFAULT '';
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_envelopes_recipient_user_status
+    ON envelopes(recipient_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_envelopes_recipient_email_status
+    ON envelopes(recipient_email, status, created_at DESC)
+    WHERE recipient_user_id IS NULL OR recipient_user_id = '';
+CREATE INDEX IF NOT EXISTS idx_envelopes_sender_created
+    ON envelopes(sender_user_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS session_knowledge_injections (
     injection_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

@@ -136,6 +136,11 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		"/api/v1/user/:user_id/sessions/:session_id/knowledge-injections",
 		ListKnowledgeInjections,
 	)
+	h.POST("/api/v1/user/:user_id/envelopes", CreateEnvelope)
+	h.GET("/api/v1/user/:user_id/envelopes", ListEnvelopes)
+	h.GET("/api/v1/user/:user_id/envelopes/:envelope_id", GetEnvelope)
+	h.POST("/api/v1/user/:user_id/envelopes/:envelope_id/accept", AcceptEnvelope)
+	h.POST("/api/v1/user/:user_id/envelopes/:envelope_id/archive", ArchiveEnvelope)
 
 	h.GET("/openapi", OpenAPIUI)
 	h.GET("/openapi.json", OpenAPIJSON)

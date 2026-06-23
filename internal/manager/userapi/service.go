@@ -118,6 +118,28 @@ type Store interface {
 		ctx context.Context,
 		filter domain.ListKnowledgeInjectionsFilter,
 	) ([]domain.SessionKnowledgeInjection, error)
+	CreateEnvelope(ctx context.Context, envelope domain.Envelope) (domain.Envelope, error)
+	ListEnvelopes(
+		ctx context.Context,
+		filter domain.ListEnvelopesFilter,
+	) ([]domain.Envelope, error)
+	GetEnvelope(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		envelopeID string,
+	) (domain.Envelope, error)
+	AcceptEnvelope(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		envelopeID string,
+		acceptedAt time.Time,
+	) (domain.Envelope, error)
+	ArchiveEnvelope(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		envelopeID string,
+		archivedAt time.Time,
+	) (domain.Envelope, error)
 	CreateMailboxMessage(
 		ctx context.Context,
 		principal domain.UserPrincipal,
