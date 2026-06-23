@@ -141,6 +141,12 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/user/:user_id/envelopes/:envelope_id", GetEnvelope)
 	h.POST("/api/v1/user/:user_id/envelopes/:envelope_id/accept", AcceptEnvelope)
 	h.POST("/api/v1/user/:user_id/envelopes/:envelope_id/archive", ArchiveEnvelope)
+	h.POST("/api/v1/user/:user_id/friends", CreateFriend)
+	h.GET("/api/v1/user/:user_id/friends", ListFriends)
+	h.GET("/api/v1/user/:user_id/friends/:friend_id", GetFriend)
+	h.POST("/api/v1/user/:user_id/friends/:friend_id/accept", AcceptFriend)
+	h.POST("/api/v1/user/:user_id/friends/:friend_id/remove", RemoveFriend)
+	h.POST("/api/v1/user/:user_id/friends/:friend_id/block", BlockFriend)
 
 	h.GET("/openapi", OpenAPIUI)
 	h.GET("/openapi.json", OpenAPIJSON)

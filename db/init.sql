@@ -521,6 +521,47 @@ CREATE INDEX IF NOT EXISTS idx_envelopes_recipient_email_status
 CREATE INDEX IF NOT EXISTS idx_envelopes_sender_created
     ON envelopes(sender_user_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS friends (
+    friend_id TEXT PRIMARY KEY,
+    requester_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    requester_email TEXT NOT NULL DEFAULT '',
+    requester_alias TEXT NOT NULL DEFAULT '',
+    recipient_user_id TEXT REFERENCES users(user_id),
+    recipient_email TEXT NOT NULL DEFAULT '',
+    recipient_alias TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    accepted_at TIMESTAMPTZ,
+    removed_at TIMESTAMPTZ,
+    blocked_at TIMESTAMPTZ
+);
+
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS requester_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS requester_email TEXT NOT NULL DEFAULT '';
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS requester_alias TEXT NOT NULL DEFAULT '';
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS recipient_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS recipient_email TEXT NOT NULL DEFAULT '';
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS recipient_alias TEXT NOT NULL DEFAULT '';
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS removed_at TIMESTAMPTZ;
+ALTER TABLE friends ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_friends_requester_status
+    ON friends(requester_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_friends_recipient_user_status
+    ON friends(recipient_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_friends_recipient_email_status
+    ON friends(recipient_email, status, created_at DESC)
+    WHERE recipient_user_id IS NULL OR recipient_user_id = '';
+CREATE INDEX IF NOT EXISTS idx_friends_requester_alias
+    ON friends(requester_user_id, requester_alias)
+    WHERE status = 'accepted';
+CREATE INDEX IF NOT EXISTS idx_friends_recipient_alias
+    ON friends(recipient_user_id, recipient_alias)
+    WHERE status = 'accepted';
+
 CREATE TABLE IF NOT EXISTS session_knowledge_injections (
     injection_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

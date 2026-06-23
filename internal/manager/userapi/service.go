@@ -140,6 +140,35 @@ type Store interface {
 		envelopeID string,
 		archivedAt time.Time,
 	) (domain.Envelope, error)
+	CreateFriend(ctx context.Context, friend domain.Friend) (domain.Friend, error)
+	ListFriends(
+		ctx context.Context,
+		filter domain.ListFriendsFilter,
+	) ([]domain.Friend, error)
+	GetFriend(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		friendID string,
+	) (domain.Friend, error)
+	AcceptFriend(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		friendID string,
+		alias string,
+		acceptedAt time.Time,
+	) (domain.Friend, error)
+	RemoveFriend(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		friendID string,
+		removedAt time.Time,
+	) (domain.Friend, error)
+	BlockFriend(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		friendID string,
+		blockedAt time.Time,
+	) (domain.Friend, error)
 	CreateMailboxMessage(
 		ctx context.Context,
 		principal domain.UserPrincipal,

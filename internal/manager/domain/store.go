@@ -261,6 +261,28 @@ type Store interface {
 		envelopeID string,
 		archivedAt time.Time,
 	) (Envelope, error)
+	CreateFriend(ctx context.Context, friend Friend) (Friend, error)
+	ListFriends(ctx context.Context, filter ListFriendsFilter) ([]Friend, error)
+	GetFriend(ctx context.Context, principal UserPrincipal, friendID string) (Friend, error)
+	AcceptFriend(
+		ctx context.Context,
+		principal UserPrincipal,
+		friendID string,
+		alias string,
+		acceptedAt time.Time,
+	) (Friend, error)
+	RemoveFriend(
+		ctx context.Context,
+		principal UserPrincipal,
+		friendID string,
+		removedAt time.Time,
+	) (Friend, error)
+	BlockFriend(
+		ctx context.Context,
+		principal UserPrincipal,
+		friendID string,
+		blockedAt time.Time,
+	) (Friend, error)
 	AppendMessagePartText(
 		ctx context.Context,
 		messageID string,

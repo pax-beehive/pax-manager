@@ -42,6 +42,7 @@ type MemoryStore struct {
 	knowledgeCapsules         map[string]KnowledgeCapsule
 	knowledgeInjections       map[string]SessionKnowledgeInjection
 	envelopes                 map[string]Envelope
+	friends                   map[string]Friend
 	approvals                 map[string]AgentApproval
 	secrets                   map[string]Secret
 	secretVersions            map[string]SecretVersion
@@ -77,6 +78,7 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		knowledgeCapsules:         make(map[string]KnowledgeCapsule),
 		knowledgeInjections:       make(map[string]SessionKnowledgeInjection),
 		envelopes:                 make(map[string]Envelope),
+		friends:                   make(map[string]Friend),
 		approvals:                 make(map[string]AgentApproval),
 		secrets:                   make(map[string]Secret),
 		secretVersions:            make(map[string]SecretVersion),

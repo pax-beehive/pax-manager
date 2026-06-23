@@ -82,6 +82,66 @@ func (_c *MockStore_AcceptEnvelope_Call) RunAndReturn(run func(context.Context, 
 	return _c
 }
 
+// AcceptFriend provides a mock function with given fields: ctx, principal, friendID, alias, acceptedAt
+func (_m *MockStore) AcceptFriend(ctx context.Context, principal domain.UserPrincipal, friendID string, alias string, acceptedAt time.Time) (domain.Friend, error) {
+	ret := _m.Called(ctx, principal, friendID, alias, acceptedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AcceptFriend")
+	}
+
+	var r0 domain.Friend
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string, time.Time) (domain.Friend, error)); ok {
+		return rf(ctx, principal, friendID, alias, acceptedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string, time.Time) domain.Friend); ok {
+		r0 = rf(ctx, principal, friendID, alias, acceptedAt)
+	} else {
+		r0 = ret.Get(0).(domain.Friend)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, friendID, alias, acceptedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_AcceptFriend_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AcceptFriend'
+type MockStore_AcceptFriend_Call struct {
+	*mock.Call
+}
+
+// AcceptFriend is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - friendID string
+//   - alias string
+//   - acceptedAt time.Time
+func (_e *MockStore_Expecter) AcceptFriend(ctx interface{}, principal interface{}, friendID interface{}, alias interface{}, acceptedAt interface{}) *MockStore_AcceptFriend_Call {
+	return &MockStore_AcceptFriend_Call{Call: _e.mock.On("AcceptFriend", ctx, principal, friendID, alias, acceptedAt)}
+}
+
+func (_c *MockStore_AcceptFriend_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, friendID string, alias string, acceptedAt time.Time)) *MockStore_AcceptFriend_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(string), args[4].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_AcceptFriend_Call) Return(_a0 domain.Friend, _a1 error) *MockStore_AcceptFriend_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_AcceptFriend_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string, time.Time) (domain.Friend, error)) *MockStore_AcceptFriend_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ArchiveEnvelope provides a mock function with given fields: ctx, principal, envelopeID, archivedAt
 func (_m *MockStore) ArchiveEnvelope(ctx context.Context, principal domain.UserPrincipal, envelopeID string, archivedAt time.Time) (domain.Envelope, error) {
 	ret := _m.Called(ctx, principal, envelopeID, archivedAt)
@@ -200,6 +260,65 @@ func (_c *MockStore_ArchiveKnowledgeCapsule_Call) RunAndReturn(run func(context.
 	return _c
 }
 
+// BlockFriend provides a mock function with given fields: ctx, principal, friendID, blockedAt
+func (_m *MockStore) BlockFriend(ctx context.Context, principal domain.UserPrincipal, friendID string, blockedAt time.Time) (domain.Friend, error) {
+	ret := _m.Called(ctx, principal, friendID, blockedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BlockFriend")
+	}
+
+	var r0 domain.Friend
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) (domain.Friend, error)); ok {
+		return rf(ctx, principal, friendID, blockedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) domain.Friend); ok {
+		r0 = rf(ctx, principal, friendID, blockedAt)
+	} else {
+		r0 = ret.Get(0).(domain.Friend)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, friendID, blockedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_BlockFriend_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'BlockFriend'
+type MockStore_BlockFriend_Call struct {
+	*mock.Call
+}
+
+// BlockFriend is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - friendID string
+//   - blockedAt time.Time
+func (_e *MockStore_Expecter) BlockFriend(ctx interface{}, principal interface{}, friendID interface{}, blockedAt interface{}) *MockStore_BlockFriend_Call {
+	return &MockStore_BlockFriend_Call{Call: _e.mock.On("BlockFriend", ctx, principal, friendID, blockedAt)}
+}
+
+func (_c *MockStore_BlockFriend_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, friendID string, blockedAt time.Time)) *MockStore_BlockFriend_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_BlockFriend_Call) Return(_a0 domain.Friend, _a1 error) *MockStore_BlockFriend_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_BlockFriend_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, time.Time) (domain.Friend, error)) *MockStore_BlockFriend_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateEnvelope provides a mock function with given fields: ctx, envelope
 func (_m *MockStore) CreateEnvelope(ctx context.Context, envelope domain.Envelope) (domain.Envelope, error) {
 	ret := _m.Called(ctx, envelope)
@@ -253,6 +372,63 @@ func (_c *MockStore_CreateEnvelope_Call) Return(_a0 domain.Envelope, _a1 error) 
 }
 
 func (_c *MockStore_CreateEnvelope_Call) RunAndReturn(run func(context.Context, domain.Envelope) (domain.Envelope, error)) *MockStore_CreateEnvelope_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateFriend provides a mock function with given fields: ctx, friend
+func (_m *MockStore) CreateFriend(ctx context.Context, friend domain.Friend) (domain.Friend, error) {
+	ret := _m.Called(ctx, friend)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateFriend")
+	}
+
+	var r0 domain.Friend
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Friend) (domain.Friend, error)); ok {
+		return rf(ctx, friend)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Friend) domain.Friend); ok {
+		r0 = rf(ctx, friend)
+	} else {
+		r0 = ret.Get(0).(domain.Friend)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.Friend) error); ok {
+		r1 = rf(ctx, friend)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateFriend_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateFriend'
+type MockStore_CreateFriend_Call struct {
+	*mock.Call
+}
+
+// CreateFriend is a helper method to define mock.On call
+//   - ctx context.Context
+//   - friend domain.Friend
+func (_e *MockStore_Expecter) CreateFriend(ctx interface{}, friend interface{}) *MockStore_CreateFriend_Call {
+	return &MockStore_CreateFriend_Call{Call: _e.mock.On("CreateFriend", ctx, friend)}
+}
+
+func (_c *MockStore_CreateFriend_Call) Run(run func(ctx context.Context, friend domain.Friend)) *MockStore_CreateFriend_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.Friend))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateFriend_Call) Return(_a0 domain.Friend, _a1 error) *MockStore_CreateFriend_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateFriend_Call) RunAndReturn(run func(context.Context, domain.Friend) (domain.Friend, error)) *MockStore_CreateFriend_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -843,6 +1019,64 @@ func (_c *MockStore_GetEnvelope_Call) RunAndReturn(run func(context.Context, dom
 	return _c
 }
 
+// GetFriend provides a mock function with given fields: ctx, principal, friendID
+func (_m *MockStore) GetFriend(ctx context.Context, principal domain.UserPrincipal, friendID string) (domain.Friend, error) {
+	ret := _m.Called(ctx, principal, friendID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetFriend")
+	}
+
+	var r0 domain.Friend
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) (domain.Friend, error)); ok {
+		return rf(ctx, principal, friendID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) domain.Friend); ok {
+		r0 = rf(ctx, principal, friendID)
+	} else {
+		r0 = ret.Get(0).(domain.Friend)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, friendID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetFriend_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetFriend'
+type MockStore_GetFriend_Call struct {
+	*mock.Call
+}
+
+// GetFriend is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - friendID string
+func (_e *MockStore_Expecter) GetFriend(ctx interface{}, principal interface{}, friendID interface{}) *MockStore_GetFriend_Call {
+	return &MockStore_GetFriend_Call{Call: _e.mock.On("GetFriend", ctx, principal, friendID)}
+}
+
+func (_c *MockStore_GetFriend_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, friendID string)) *MockStore_GetFriend_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetFriend_Call) Return(_a0 domain.Friend, _a1 error) *MockStore_GetFriend_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetFriend_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Friend, error)) *MockStore_GetFriend_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetKnowledgeCapsule provides a mock function with given fields: ctx, principal, capsuleID
 func (_m *MockStore) GetKnowledgeCapsule(ctx context.Context, principal domain.UserPrincipal, capsuleID string) (domain.KnowledgeCapsule, error) {
 	ret := _m.Called(ctx, principal, capsuleID)
@@ -1363,6 +1597,65 @@ func (_c *MockStore_ListEnvelopes_Call) Return(_a0 []domain.Envelope, _a1 error)
 }
 
 func (_c *MockStore_ListEnvelopes_Call) RunAndReturn(run func(context.Context, domain.ListEnvelopesFilter) ([]domain.Envelope, error)) *MockStore_ListEnvelopes_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListFriends provides a mock function with given fields: ctx, filter
+func (_m *MockStore) ListFriends(ctx context.Context, filter domain.ListFriendsFilter) ([]domain.Friend, error) {
+	ret := _m.Called(ctx, filter)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListFriends")
+	}
+
+	var r0 []domain.Friend
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.ListFriendsFilter) ([]domain.Friend, error)); ok {
+		return rf(ctx, filter)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.ListFriendsFilter) []domain.Friend); ok {
+		r0 = rf(ctx, filter)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.Friend)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.ListFriendsFilter) error); ok {
+		r1 = rf(ctx, filter)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListFriends_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListFriends'
+type MockStore_ListFriends_Call struct {
+	*mock.Call
+}
+
+// ListFriends is a helper method to define mock.On call
+//   - ctx context.Context
+//   - filter domain.ListFriendsFilter
+func (_e *MockStore_Expecter) ListFriends(ctx interface{}, filter interface{}) *MockStore_ListFriends_Call {
+	return &MockStore_ListFriends_Call{Call: _e.mock.On("ListFriends", ctx, filter)}
+}
+
+func (_c *MockStore_ListFriends_Call) Run(run func(ctx context.Context, filter domain.ListFriendsFilter)) *MockStore_ListFriends_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.ListFriendsFilter))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListFriends_Call) Return(_a0 []domain.Friend, _a1 error) *MockStore_ListFriends_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListFriends_Call) RunAndReturn(run func(context.Context, domain.ListFriendsFilter) ([]domain.Friend, error)) *MockStore_ListFriends_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1957,6 +2250,65 @@ func (_c *MockStore_ListUserAPIKeys_Call) Return(_a0 []domain.UserAPIKey, _a1 er
 }
 
 func (_c *MockStore_ListUserAPIKeys_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal) ([]domain.UserAPIKey, error)) *MockStore_ListUserAPIKeys_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RemoveFriend provides a mock function with given fields: ctx, principal, friendID, removedAt
+func (_m *MockStore) RemoveFriend(ctx context.Context, principal domain.UserPrincipal, friendID string, removedAt time.Time) (domain.Friend, error) {
+	ret := _m.Called(ctx, principal, friendID, removedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RemoveFriend")
+	}
+
+	var r0 domain.Friend
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) (domain.Friend, error)); ok {
+		return rf(ctx, principal, friendID, removedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) domain.Friend); ok {
+		r0 = rf(ctx, principal, friendID, removedAt)
+	} else {
+		r0 = ret.Get(0).(domain.Friend)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, friendID, removedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_RemoveFriend_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveFriend'
+type MockStore_RemoveFriend_Call struct {
+	*mock.Call
+}
+
+// RemoveFriend is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - friendID string
+//   - removedAt time.Time
+func (_e *MockStore_Expecter) RemoveFriend(ctx interface{}, principal interface{}, friendID interface{}, removedAt interface{}) *MockStore_RemoveFriend_Call {
+	return &MockStore_RemoveFriend_Call{Call: _e.mock.On("RemoveFriend", ctx, principal, friendID, removedAt)}
+}
+
+func (_c *MockStore_RemoveFriend_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, friendID string, removedAt time.Time)) *MockStore_RemoveFriend_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_RemoveFriend_Call) Return(_a0 domain.Friend, _a1 error) *MockStore_RemoveFriend_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_RemoveFriend_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, time.Time) (domain.Friend, error)) *MockStore_RemoveFriend_Call {
 	_c.Call.Return(run)
 	return _c
 }
