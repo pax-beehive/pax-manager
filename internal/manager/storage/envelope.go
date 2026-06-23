@@ -100,13 +100,20 @@ func (s *PostgresStore) ListEnvelopes(
 	recipientEmail := normalizeEmail(filter.Principal.User.Email)
 	query := s.gormDB.WithContext(ctx).
 		Model(&envelopeRow{}).
-		Where(
+		Order("created_at DESC").
+		Limit(limit)
+	switch filter.Direction {
+	case domain.EnvelopeDirectionSent:
+		query = query.Where("sender_user_id = ?", filter.Principal.User.UserID)
+	case "", domain.EnvelopeDirectionReceived:
+		query = query.Where(
 			"recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?)",
 			filter.Principal.User.UserID,
 			recipientEmail,
-		).
-		Order("created_at DESC").
-		Limit(limit)
+		)
+	default:
+		return []Envelope{}, nil
+	}
 	if filter.Status != "" {
 		query = query.Where("status = ?", filter.Status)
 	}
@@ -170,7 +177,8 @@ func (s *PostgresStore) readableEnvelopeQuery(
 	return s.gormDB.WithContext(ctx).
 		Model(&envelopeRow{}).
 		Where(
-			"recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?)",
+			"sender_user_id = ? OR recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?)",
+			principal.User.UserID,
 			principal.User.UserID,
 			recipientEmail,
 		)
