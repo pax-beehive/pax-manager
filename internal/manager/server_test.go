@@ -1760,6 +1760,7 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 		t.Fatalf("dial user tunnel: %v", err)
 	}
 	defer func() { _ = userWS.Close() }()
+	waitACPTunnelUserAttached(t, srv, agentID, "sess-approval")
 
 	requestPayload := []byte(`{
 		"jsonrpc":"2.0",
@@ -2115,6 +2116,29 @@ func waitACPTunnelAgentRegistered(
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("agent tunnel %s/%s was not registered", agentID, sessionID)
+}
+
+func waitACPTunnelUserAttached(
+	t *testing.T,
+	srv *Server,
+	agentID string,
+	sessionID string,
+) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		srv.acpTunnels.mu.RLock()
+		conn := srv.acpTunnels.agents[acpTunnelKey{
+			agentID:   agentID,
+			sessionID: sessionID,
+		}]
+		srv.acpTunnels.mu.RUnlock()
+		if conn != nil && conn.currentUser() != nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("user tunnel %s/%s was not attached", agentID, sessionID)
 }
 
 func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {

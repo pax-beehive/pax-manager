@@ -228,6 +228,86 @@ type SessionKnowledgeInjection struct {
 	Error               string     `json:"error,omitempty"`
 }
 
+const (
+	EnvelopePayloadKnowledgeCapsule = "knowledge_capsule"
+
+	EnvelopeStatusPending  = "pending"
+	EnvelopeStatusAccepted = "accepted"
+	EnvelopeStatusArchived = "archived"
+)
+
+type Envelope struct {
+	EnvelopeID      string          `json:"envelope_id"`
+	SenderUserID    string          `json:"sender_user_id"`
+	SenderEmail     string          `json:"sender_email"`
+	RecipientUserID string          `json:"recipient_user_id,omitempty"`
+	RecipientEmail  string          `json:"recipient_email"`
+	PayloadType     string          `json:"payload_type"`
+	PayloadJSON     json.RawMessage `json:"payload_json"`
+	Message         string          `json:"message,omitempty"`
+	Status          string          `json:"status"`
+	CreatedAt       time.Time       `json:"created_at"`
+	AcceptedAt      *time.Time      `json:"accepted_at,omitempty"`
+	ArchivedAt      *time.Time      `json:"archived_at,omitempty"`
+}
+
+type CreateEnvelopeRequest struct {
+	RecipientEmail string          `json:"recipient_email"`
+	PayloadType    string          `json:"payload_type"`
+	PayloadJSON    json.RawMessage `json:"payload_json"`
+	Message        string          `json:"message,omitempty"`
+}
+
+type ListEnvelopesFilter struct {
+	Principal UserPrincipal
+	Status    string
+	Limit     int
+	Cursor    string
+}
+
+const (
+	FriendStatusPending  = "pending"
+	FriendStatusAccepted = "accepted"
+	FriendStatusRemoved  = "removed"
+	FriendStatusBlocked  = "blocked"
+
+	FriendDirectionSent     = "sent"
+	FriendDirectionReceived = "received"
+)
+
+type Friend struct {
+	FriendID        string     `json:"friend_id"`
+	RequesterUserID string     `json:"requester_user_id"`
+	RequesterEmail  string     `json:"requester_email"`
+	RequesterAlias  string     `json:"requester_alias,omitempty"`
+	RecipientUserID string     `json:"recipient_user_id,omitempty"`
+	RecipientEmail  string     `json:"recipient_email"`
+	RecipientAlias  string     `json:"recipient_alias,omitempty"`
+	Status          string     `json:"status"`
+	CreatedAt       time.Time  `json:"created_at"`
+	AcceptedAt      *time.Time `json:"accepted_at,omitempty"`
+	RemovedAt       *time.Time `json:"removed_at,omitempty"`
+	BlockedAt       *time.Time `json:"blocked_at,omitempty"`
+}
+
+type CreateFriendRequest struct {
+	Email string `json:"email"`
+	Alias string `json:"alias,omitempty"`
+}
+
+type AcceptFriendRequest struct {
+	Alias string `json:"alias,omitempty"`
+}
+
+type ListFriendsFilter struct {
+	Principal UserPrincipal
+	Status    string
+	Direction string
+	Alias     string
+	Limit     int
+	Cursor    string
+}
+
 type CreateKnowledgeCapsuleRequest struct {
 	Keyword string `json:"keyword"`
 }

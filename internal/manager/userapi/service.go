@@ -118,6 +118,62 @@ type Store interface {
 		ctx context.Context,
 		filter domain.ListKnowledgeInjectionsFilter,
 	) ([]domain.SessionKnowledgeInjection, error)
+	CreateEnvelope(ctx context.Context, envelope domain.Envelope) (domain.Envelope, error)
+	ListEnvelopes(
+		ctx context.Context,
+		filter domain.ListEnvelopesFilter,
+	) ([]domain.Envelope, error)
+	GetEnvelope(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		envelopeID string,
+	) (domain.Envelope, error)
+	AcceptEnvelope(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		envelopeID string,
+		acceptedAt time.Time,
+	) (domain.Envelope, error)
+	ArchiveEnvelope(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		envelopeID string,
+		archivedAt time.Time,
+	) (domain.Envelope, error)
+	CreateFriend(ctx context.Context, friend domain.Friend) (domain.Friend, error)
+	ListFriends(
+		ctx context.Context,
+		filter domain.ListFriendsFilter,
+	) ([]domain.Friend, error)
+	GetAcceptedFriendByEmail(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		email string,
+	) (domain.Friend, error)
+	GetFriend(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		friendID string,
+	) (domain.Friend, error)
+	AcceptFriend(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		friendID string,
+		alias string,
+		acceptedAt time.Time,
+	) (domain.Friend, error)
+	RemoveFriend(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		friendID string,
+		removedAt time.Time,
+	) (domain.Friend, error)
+	BlockFriend(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		friendID string,
+		blockedAt time.Time,
+	) (domain.Friend, error)
 	CreateMailboxMessage(
 		ctx context.Context,
 		principal domain.UserPrincipal,

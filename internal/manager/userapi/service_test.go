@@ -2,6 +2,7 @@ package userapi_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -828,6 +829,211 @@ func TestKnowledgeCapsuleFlow(t *testing.T) {
 			)
 		},
 	)
+}
+
+func TestEnvelopeFlow(t *testing.T) {
+	t.Run("Given a capsule payload then it creates a pending envelope", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_sender", false)
+		friend := domain.Friend{
+			FriendID:        "fr_1",
+			RequesterUserID: "usr_sender",
+			RequesterEmail:  "sender@example.com",
+			RecipientUserID: "usr_recipient",
+			RecipientEmail:  "recipient@example.com",
+			Status:          domain.FriendStatusAccepted,
+		}
+		payload := json.RawMessage(`{"capsule":{"capsule_id":"kcap_1","title":"handoff"}}`)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		secrets := userapimocks.NewMockSecretIssuer(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().
+			GetAcceptedFriendByEmail(ctx, principal, "recipient@example.com").
+			Return(friend, nil).
+			Once()
+		secrets.EXPECT().New("env").Return("env_1", nil).Once()
+		store.EXPECT().CreateEnvelope(
+			ctx,
+			mock.MatchedBy(func(envelope domain.Envelope) bool {
+				require.Equal(t, "env_1", envelope.EnvelopeID)
+				require.Equal(t, "usr_sender", envelope.SenderUserID)
+				require.Equal(t, "usr_recipient", envelope.RecipientUserID)
+				require.Equal(t, "recipient@example.com", envelope.RecipientEmail)
+				require.Equal(t, domain.EnvelopePayloadKnowledgeCapsule, envelope.PayloadType)
+				require.Equal(t, domain.EnvelopeStatusPending, envelope.Status)
+				require.JSONEq(t, string(payload), string(envelope.PayloadJSON))
+				return true
+			}),
+		).Return(domain.Envelope{EnvelopeID: "env_1"}, nil).Once()
+
+		svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+		status, data, err := svc.CreateEnvelope(
+			ctx,
+			auth.RequestMetadata{},
+			domain.CreateEnvelopeRequest{
+				RecipientEmail: " Recipient@Example.com ",
+				PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
+				PayloadJSON:    payload,
+				Message:        "please review",
+			},
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, "env_1", data.(map[string]any)["envelope"].(domain.Envelope).EnvelopeID)
+	})
+
+	t.Run(
+		"Given a recipient without an accepted friend then it rejects the envelope",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_sender", false)
+			payload := json.RawMessage(`{"capsule":{"capsule_id":"kcap_1","title":"handoff"}}`)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetAcceptedFriendByEmail(ctx, principal, "recipient@example.com").
+				Return(domain.Friend{}, domain.ErrNotFound).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, _, err := svc.CreateEnvelope(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateEnvelopeRequest{
+					RecipientEmail: "recipient@example.com",
+					PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
+					PayloadJSON:    payload,
+				},
+			)
+
+			require.Error(t, err)
+			require.Zero(t, status)
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusForbidden, appErr.Status)
+			require.Contains(t, err.Error(), "recipient must be an accepted friend")
+		},
+	)
+
+	t.Run("Given a recipient principal then it accepts the envelope", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_recipient", false)
+		accepted := domain.Envelope{
+			EnvelopeID:      "env_1",
+			RecipientUserID: "usr_recipient",
+			Status:          domain.EnvelopeStatusAccepted,
+		}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().AcceptEnvelope(ctx, principal, "env_1", fixedUserNow()).
+			Return(accepted, nil).
+			Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, data, err := svc.AcceptEnvelope(ctx, auth.RequestMetadata{}, "env_1")
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(
+			t,
+			domain.EnvelopeStatusAccepted,
+			data.(map[string]any)["envelope"].(domain.Envelope).Status,
+		)
+	})
+}
+
+func TestFriendFlow(t *testing.T) {
+	t.Run("Given a recipient email then it creates a pending friend request", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_sender", false)
+		recipient := domain.User{UserID: "usr_recipient", Email: "recipient@example.com"}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		secrets := userapimocks.NewMockSecretIssuer(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetUserByEmail(ctx, "recipient@example.com").Return(recipient, nil).Once()
+		secrets.EXPECT().New("fr").Return("fr_1", nil).Once()
+		store.EXPECT().CreateFriend(
+			ctx,
+			mock.MatchedBy(func(friend domain.Friend) bool {
+				require.Equal(t, "fr_1", friend.FriendID)
+				require.Equal(t, "usr_sender", friend.RequesterUserID)
+				require.Equal(t, "usr_recipient", friend.RecipientUserID)
+				require.Equal(t, "recipient@example.com", friend.RecipientEmail)
+				require.Equal(t, "buddy", friend.RequesterAlias)
+				require.Equal(t, domain.FriendStatusPending, friend.Status)
+				return true
+			}),
+		).Return(domain.Friend{FriendID: "fr_1"}, nil).Once()
+
+		svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+		status, data, err := svc.CreateFriend(
+			ctx,
+			auth.RequestMetadata{},
+			domain.CreateFriendRequest{Email: " Recipient@Example.com ", Alias: "@buddy"},
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, "fr_1", data.(map[string]any)["friend"].(domain.Friend).FriendID)
+	})
+
+	t.Run("Given a recipient principal then it accepts the friend request", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_recipient", false)
+		accepted := domain.Friend{
+			FriendID:        "fr_1",
+			RecipientUserID: "usr_recipient",
+			RecipientAlias:  "sender",
+			Status:          domain.FriendStatusAccepted,
+		}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().AcceptFriend(ctx, principal, "fr_1", "sender", fixedUserNow()).
+			Return(accepted, nil).
+			Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, data, err := svc.AcceptFriend(
+			ctx,
+			auth.RequestMetadata{},
+			"fr_1",
+			domain.AcceptFriendRequest{Alias: "@sender"},
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(
+			t,
+			domain.FriendStatusAccepted,
+			data.(map[string]any)["friend"].(domain.Friend).Status,
+		)
+	})
 }
 
 func userPrincipal(userID string, admin bool) domain.UserPrincipal {

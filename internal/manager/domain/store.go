@@ -246,6 +246,48 @@ type Store interface {
 		ctx context.Context,
 		filter ListKnowledgeInjectionsFilter,
 	) ([]SessionKnowledgeInjection, error)
+	CreateEnvelope(ctx context.Context, envelope Envelope) (Envelope, error)
+	ListEnvelopes(ctx context.Context, filter ListEnvelopesFilter) ([]Envelope, error)
+	GetEnvelope(ctx context.Context, principal UserPrincipal, envelopeID string) (Envelope, error)
+	AcceptEnvelope(
+		ctx context.Context,
+		principal UserPrincipal,
+		envelopeID string,
+		acceptedAt time.Time,
+	) (Envelope, error)
+	ArchiveEnvelope(
+		ctx context.Context,
+		principal UserPrincipal,
+		envelopeID string,
+		archivedAt time.Time,
+	) (Envelope, error)
+	CreateFriend(ctx context.Context, friend Friend) (Friend, error)
+	ListFriends(ctx context.Context, filter ListFriendsFilter) ([]Friend, error)
+	GetAcceptedFriendByEmail(
+		ctx context.Context,
+		principal UserPrincipal,
+		email string,
+	) (Friend, error)
+	GetFriend(ctx context.Context, principal UserPrincipal, friendID string) (Friend, error)
+	AcceptFriend(
+		ctx context.Context,
+		principal UserPrincipal,
+		friendID string,
+		alias string,
+		acceptedAt time.Time,
+	) (Friend, error)
+	RemoveFriend(
+		ctx context.Context,
+		principal UserPrincipal,
+		friendID string,
+		removedAt time.Time,
+	) (Friend, error)
+	BlockFriend(
+		ctx context.Context,
+		principal UserPrincipal,
+		friendID string,
+		blockedAt time.Time,
+	) (Friend, error)
 	AppendMessagePartText(
 		ctx context.Context,
 		messageID string,
