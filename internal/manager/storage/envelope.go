@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -184,26 +183,22 @@ func (s *PostgresStore) updateRecipientEnvelope(
 	values map[string]any,
 ) (Envelope, error) {
 	recipientEmail := normalizeEmail(principal.User.Email)
-	var row envelopeRow
-	err := s.gormDB.WithContext(ctx).
+	result := s.gormDB.WithContext(ctx).
 		Model(&envelopeRow{}).
-		Clauses(clause.Returning{}).
 		Where(
 			"envelope_id = ? AND (recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?))",
 			envelopeID,
 			principal.User.UserID,
 			recipientEmail,
 		).
-		Updates(values).
-		Scan(&row).
-		Error
-	if err != nil {
-		return Envelope{}, mapGormError(err)
+		Updates(values)
+	if result.Error != nil {
+		return Envelope{}, mapGormError(result.Error)
 	}
-	if row.EnvelopeID == "" {
+	if result.RowsAffected == 0 {
 		return Envelope{}, ErrNotFound
 	}
-	return envelopeFromModel(&row), nil
+	return s.GetEnvelope(ctx, principal, envelopeID)
 }
 
 func envelopeRecipientUserID(value *string) string {

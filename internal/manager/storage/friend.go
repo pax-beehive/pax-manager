@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -246,10 +245,8 @@ func (s *PostgresStore) updateReceivedFriend(
 	values map[string]any,
 ) (Friend, error) {
 	principalEmail := normalizeEmail(principal.User.Email)
-	var row friendRow
-	err := s.gormDB.WithContext(ctx).
+	result := s.gormDB.WithContext(ctx).
 		Model(&friendRow{}).
-		Clauses(clause.Returning{}).
 		Where(
 			"friend_id = ? AND status = ? AND (recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?))",
 			friendID,
@@ -257,16 +254,14 @@ func (s *PostgresStore) updateReceivedFriend(
 			principal.User.UserID,
 			principalEmail,
 		).
-		Updates(values).
-		Scan(&row).
-		Error
-	if err != nil {
-		return Friend{}, mapGormError(err)
+		Updates(values)
+	if result.Error != nil {
+		return Friend{}, mapGormError(result.Error)
 	}
-	if row.FriendID == "" {
+	if result.RowsAffected == 0 {
 		return Friend{}, ErrNotFound
 	}
-	return friendFromModel(&row), nil
+	return s.GetFriend(ctx, principal, friendID)
 }
 
 func (s *PostgresStore) updateVisibleFriend(
@@ -276,10 +271,8 @@ func (s *PostgresStore) updateVisibleFriend(
 	values map[string]any,
 ) (Friend, error) {
 	principalEmail := normalizeEmail(principal.User.Email)
-	var row friendRow
-	err := s.gormDB.WithContext(ctx).
+	result := s.gormDB.WithContext(ctx).
 		Model(&friendRow{}).
-		Clauses(clause.Returning{}).
 		Where(
 			"friend_id = ? AND (requester_user_id = ? OR recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?))",
 			friendID,
@@ -287,16 +280,14 @@ func (s *PostgresStore) updateVisibleFriend(
 			principal.User.UserID,
 			principalEmail,
 		).
-		Updates(values).
-		Scan(&row).
-		Error
-	if err != nil {
-		return Friend{}, mapGormError(err)
+		Updates(values)
+	if result.Error != nil {
+		return Friend{}, mapGormError(result.Error)
 	}
-	if row.FriendID == "" {
+	if result.RowsAffected == 0 {
 		return Friend{}, ErrNotFound
 	}
-	return friendFromModel(&row), nil
+	return s.GetFriend(ctx, principal, friendID)
 }
 
 func friendRecipientUserID(value *string) string {
