@@ -4,18 +4,41 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
 
 const (
 	envelopeMessageLimit = 1000
 	envelopePayloadLimit = 128 * 1024
+
+	paxlKnowledgeCapsuleEnvelopePayloadVersion = "paxl.envelope_payload.knowledge_capsule.v1"
 )
+
+type paxlKnowledgeCapsuleEnvelopePayload struct {
+	SchemaVersion string                             `json:"schema_version"`
+	Capsule       paxlKnowledgeCapsulePayloadCapsule `json:"capsule"`
+}
+
+type paxlKnowledgeCapsulePayloadCapsule struct {
+	CapsuleID              string `json:"capsule_id"`
+	SourceNodeID           string `json:"source_node_id,omitempty"`
+	SourceSessionID        string `json:"source_session_id"`
+	SourceAgent            string `json:"source_agent"`
+	Keyword                string `json:"keyword"`
+	Title                  string `json:"title"`
+	Summary                string `json:"summary"`
+	Content                string `json:"content"`
+	Status                 string `json:"status"`
+	Truncated              bool   `json:"truncated"`
+	OriginalEstimatedChars int64  `json:"original_estimated_chars"`
+}
 
 func (s *Service) CreateEnvelope(
 	c context.Context,
@@ -89,7 +112,103 @@ func (s *Service) CreateEnvelope(
 	if err != nil {
 		return 0, nil, err
 	}
+	s.scheduleEnvelopeCapsuleUnpack(c, envelope)
 	return http.StatusOK, map[string]any{"envelope": envelope}, nil
+}
+
+func (s *Service) scheduleEnvelopeCapsuleUnpack(ctx context.Context, envelope domain.Envelope) {
+	if envelope.PayloadType != domain.EnvelopePayloadKnowledgeCapsule ||
+		len(envelope.PayloadJSON) == 0 ||
+		strings.TrimSpace(envelope.RecipientUserID) == "" {
+		return
+	}
+	s.backgroundRunner(ctx, func(taskCtx context.Context) {
+		if err := s.unpackEnvelopeCapsule(taskCtx, envelope); err != nil {
+			logging.Warn(
+				taskCtx,
+				"auto-unpack envelope knowledge capsule failed",
+				slog.String("envelope_id", envelope.EnvelopeID),
+				slog.String("recipient_user_id", envelope.RecipientUserID),
+				logging.Err(err),
+			)
+		}
+	})
+}
+
+func (s *Service) unpackEnvelopeCapsule(
+	ctx context.Context,
+	envelope domain.Envelope,
+) error {
+	var payload paxlKnowledgeCapsuleEnvelopePayload
+	if err := json.Unmarshal(envelope.PayloadJSON, &payload); err != nil {
+		return err
+	}
+	if payload.SchemaVersion != paxlKnowledgeCapsuleEnvelopePayloadVersion {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "unsupported envelope payload schema",
+		}
+	}
+	capsuleID, err := s.secrets.New("kcap")
+	if err != nil {
+		return err
+	}
+	now := s.clock().UTC()
+	capsulePayload := payload.Capsule
+	sourceSessionID := strings.TrimSpace(capsulePayload.SourceSessionID)
+	if sourceSessionID == "" {
+		sourceSessionID = "remote_envelope:" + envelope.EnvelopeID
+	}
+	capsule := domain.KnowledgeCapsule{
+		CapsuleID:       capsuleID,
+		OwnerUserID:     envelope.RecipientUserID,
+		SourceSessionID: sourceSessionID,
+		SourceAgentID:   strings.TrimSpace(capsulePayload.SourceAgent),
+		SourceNodeID:    strings.TrimSpace(capsulePayload.SourceNodeID),
+		CreatedByUserID: envelope.SenderUserID,
+		Keyword: truncateString(
+			strings.TrimSpace(capsulePayload.Keyword),
+			knowledgeKeywordLimit,
+		),
+		Title: truncateString(
+			strings.TrimSpace(capsulePayload.Title),
+			knowledgeTitleLimit,
+		),
+		Summary: truncateString(
+			strings.TrimSpace(capsulePayload.Summary),
+			knowledgeSummaryLimit,
+		),
+		Content: truncateString(
+			strings.TrimSpace(capsulePayload.Content),
+			knowledgeContentLimit,
+		),
+		SuggestedSkills:        json.RawMessage(defaultKnowledgeArrayString),
+		References:             json.RawMessage(defaultKnowledgeArrayString),
+		OpenQuestions:          json.RawMessage(defaultKnowledgeArrayString),
+		Risks:                  json.RawMessage(defaultKnowledgeArrayString),
+		Redactions:             json.RawMessage(defaultKnowledgeArrayString),
+		Status:                 domain.KnowledgeCapsuleStatusActive,
+		Truncated:              capsulePayload.Truncated,
+		OriginalEstimatedChars: capsulePayload.OriginalEstimatedChars,
+		CreatedAt:              now,
+	}
+	if capsule.SourceAgentID == "" {
+		capsule.SourceAgentID = "paxl"
+	}
+	if capsule.Keyword == "" {
+		capsule.Keyword = "shared"
+	}
+	if capsule.Title == "" {
+		capsule.Title = "Shared knowledge capsule"
+	}
+	if capsule.Summary == "" {
+		capsule.Summary = "Imported from a shared paxl envelope."
+	}
+	if capsule.Content == "" {
+		capsule.Content = capsule.Summary
+	}
+	_, err = s.store.CreateKnowledgeCapsule(ctx, capsule)
+	return err
 }
 
 func friendCounterpartyUserID(principal domain.UserPrincipal, friend domain.Friend) string {

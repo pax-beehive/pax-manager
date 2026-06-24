@@ -193,11 +193,12 @@ type SecretIssuer interface {
 }
 
 type Service struct {
-	store     Store
-	clock     func() time.Time
-	principal PrincipalResolver
-	secrets   SecretIssuer
-	vault     *vaultsecrets.Cipher
+	store            Store
+	clock            func() time.Time
+	principal        PrincipalResolver
+	secrets          SecretIssuer
+	vault            *vaultsecrets.Cipher
+	backgroundRunner func(context.Context, func(context.Context))
 }
 
 func NewService(
@@ -207,13 +208,39 @@ func NewService(
 	secrets SecretIssuer,
 	vault ...*vaultsecrets.Cipher,
 ) *Service {
+	return NewServiceWithBackgroundRunner(
+		store,
+		clock,
+		principal,
+		secrets,
+		func(ctx context.Context, task func(context.Context)) {
+			go task(context.WithoutCancel(ctx))
+		},
+		vault...,
+	)
+}
+
+func NewServiceWithBackgroundRunner(
+	store Store,
+	clock func() time.Time,
+	principal PrincipalResolver,
+	secrets SecretIssuer,
+	backgroundRunner func(context.Context, func(context.Context)),
+	vault ...*vaultsecrets.Cipher,
+) *Service {
 	cipher := firstVaultCipher(vault)
+	if backgroundRunner == nil {
+		backgroundRunner = func(ctx context.Context, task func(context.Context)) {
+			go task(context.WithoutCancel(ctx))
+		}
+	}
 	return &Service{
-		store:     store,
-		clock:     clock,
-		principal: principal,
-		secrets:   secrets,
-		vault:     cipher,
+		store:            store,
+		clock:            clock,
+		principal:        principal,
+		secrets:          secrets,
+		vault:            cipher,
+		backgroundRunner: backgroundRunner,
 	}
 }
 
