@@ -149,7 +149,7 @@ func (s *PostgresStore) AcceptEnvelope(
 	envelopeID string,
 	acceptedAt time.Time,
 ) (Envelope, error) {
-	return s.updateRecipientEnvelope(ctx, principal, envelopeID, map[string]any{
+	return s.updatePendingRecipientEnvelope(ctx, principal, envelopeID, map[string]any{
 		"recipient_user_id": principal.User.UserID,
 		"status":            domain.EnvelopeStatusAccepted,
 		"accepted_at":       acceptedAt,
@@ -196,6 +196,32 @@ func (s *PostgresStore) updateRecipientEnvelope(
 		Where(
 			"envelope_id = ? AND (recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?))",
 			envelopeID,
+			principal.User.UserID,
+			recipientEmail,
+		).
+		Updates(values)
+	if result.Error != nil {
+		return Envelope{}, mapGormError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return Envelope{}, ErrNotFound
+	}
+	return s.GetEnvelope(ctx, principal, envelopeID)
+}
+
+func (s *PostgresStore) updatePendingRecipientEnvelope(
+	ctx context.Context,
+	principal UserPrincipal,
+	envelopeID string,
+	values map[string]any,
+) (Envelope, error) {
+	recipientEmail := normalizeEmail(principal.User.Email)
+	result := s.gormDB.WithContext(ctx).
+		Model(&envelopeRow{}).
+		Where(
+			"envelope_id = ? AND status = ? AND (recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?))",
+			envelopeID,
+			domain.EnvelopeStatusPending,
 			principal.User.UserID,
 			recipientEmail,
 		).

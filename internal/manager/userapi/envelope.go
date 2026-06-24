@@ -112,7 +112,6 @@ func (s *Service) CreateEnvelope(
 	if err != nil {
 		return 0, nil, err
 	}
-	s.scheduleEnvelopeCapsuleUnpack(c, envelope)
 	return http.StatusOK, map[string]any{"envelope": envelope}, nil
 }
 
@@ -267,6 +266,7 @@ func (s *Service) AcceptEnvelope(
 	if err != nil {
 		return 0, nil, err
 	}
+	s.scheduleEnvelopeCapsuleUnpack(c, envelope)
 	return http.StatusOK, map[string]any{"envelope": envelope}, nil
 }
 

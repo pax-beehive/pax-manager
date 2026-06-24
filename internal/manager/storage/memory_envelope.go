@@ -79,11 +79,19 @@ func (s *MemoryStore) AcceptEnvelope(
 	envelopeID string,
 	acceptedAt time.Time,
 ) (Envelope, error) {
-	return s.updateRecipientEnvelope(ctx, principal, envelopeID, func(envelope Envelope) Envelope {
-		envelope.Status = domain.EnvelopeStatusAccepted
-		envelope.AcceptedAt = &acceptedAt
-		return envelope
-	})
+	return s.updateRecipientEnvelope(
+		ctx,
+		principal,
+		envelopeID,
+		func(envelope Envelope) (Envelope, error) {
+			if envelope.Status != domain.EnvelopeStatusPending {
+				return Envelope{}, ErrNotFound
+			}
+			envelope.Status = domain.EnvelopeStatusAccepted
+			envelope.AcceptedAt = &acceptedAt
+			return envelope, nil
+		},
+	)
 }
 
 func (s *MemoryStore) ArchiveEnvelope(
@@ -92,18 +100,23 @@ func (s *MemoryStore) ArchiveEnvelope(
 	envelopeID string,
 	archivedAt time.Time,
 ) (Envelope, error) {
-	return s.updateRecipientEnvelope(ctx, principal, envelopeID, func(envelope Envelope) Envelope {
-		envelope.Status = domain.EnvelopeStatusArchived
-		envelope.ArchivedAt = &archivedAt
-		return envelope
-	})
+	return s.updateRecipientEnvelope(
+		ctx,
+		principal,
+		envelopeID,
+		func(envelope Envelope) (Envelope, error) {
+			envelope.Status = domain.EnvelopeStatusArchived
+			envelope.ArchivedAt = &archivedAt
+			return envelope, nil
+		},
+	)
 }
 
 func (s *MemoryStore) updateRecipientEnvelope(
 	ctx context.Context,
 	principal UserPrincipal,
 	envelopeID string,
-	update func(Envelope) Envelope,
+	update func(Envelope) (Envelope, error),
 ) (Envelope, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -111,7 +124,10 @@ func (s *MemoryStore) updateRecipientEnvelope(
 	if !ok || !canReceiveEnvelope(principal, normalizeEmail(principal.User.Email), envelope) {
 		return Envelope{}, ErrNotFound
 	}
-	envelope = update(envelope)
+	envelope, err := update(envelope)
+	if err != nil {
+		return Envelope{}, err
+	}
 	if envelope.RecipientUserID == "" {
 		envelope.RecipientUserID = principal.User.UserID
 	}
