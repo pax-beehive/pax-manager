@@ -886,7 +886,7 @@ func TestEnvelopeFlow(t *testing.T) {
 	})
 
 	t.Run(
-		"Given a paxl capsule envelope then it imports a recipient knowledge capsule",
+		"Given a paxl capsule envelope then it creates without importing a recipient knowledge capsule",
 		func(t *testing.T) {
 			ctx := context.Background()
 			principal := userPrincipal("usr_sender", false)
@@ -933,6 +933,74 @@ func TestEnvelopeFlow(t *testing.T) {
 			).RunAndReturn(func(_ context.Context, envelope domain.Envelope) (domain.Envelope, error) {
 				return envelope, nil
 			}).Once()
+
+			svc := userapi.NewServiceWithBackgroundRunner(
+				store,
+				fixedUserClock,
+				principals,
+				secrets,
+				func(taskCtx context.Context, task func(context.Context)) {
+					task(taskCtx)
+				},
+			)
+			status, data, err := svc.CreateEnvelope(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateEnvelopeRequest{
+					RecipientEmail: " Recipient@Example.com ",
+					PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
+					PayloadJSON:    payload,
+					Message:        "please review",
+				},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(
+				t,
+				"env_1",
+				data.(map[string]any)["envelope"].(domain.Envelope).EnvelopeID,
+			)
+		},
+	)
+
+	t.Run(
+		"Given a paxl capsule envelope when accepted then it imports a recipient knowledge capsule",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_recipient", false)
+			payload := json.RawMessage(`{
+				"schema_version":"paxl.envelope_payload.knowledge_capsule.v1",
+				"capsule":{
+					"capsule_id":"kcap_local",
+					"source_node_id":"local-node",
+					"source_session_id":"codex-session",
+					"source_agent":"codex",
+					"keyword":"release",
+					"title":"Release handoff",
+					"summary":"Release summary",
+					"content":"Release context",
+					"status":"active",
+					"truncated":true,
+					"original_estimated_chars":42
+				}
+			}`)
+			accepted := domain.Envelope{
+				EnvelopeID:      "env_1",
+				SenderUserID:    "usr_sender",
+				RecipientUserID: "usr_recipient",
+				PayloadType:     domain.EnvelopePayloadKnowledgeCapsule,
+				PayloadJSON:     payload,
+				Status:          domain.EnvelopeStatusAccepted,
+			}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			secrets := userapimocks.NewMockSecretIssuer(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().AcceptEnvelope(ctx, principal, "env_1", fixedUserNow()).
+				Return(accepted, nil).
+				Once()
 			secrets.EXPECT().New("kcap").Return("kcap_imported", nil).Once()
 			store.EXPECT().CreateKnowledgeCapsule(
 				mock.Anything,
@@ -963,23 +1031,14 @@ func TestEnvelopeFlow(t *testing.T) {
 					task(taskCtx)
 				},
 			)
-			status, data, err := svc.CreateEnvelope(
-				ctx,
-				auth.RequestMetadata{},
-				domain.CreateEnvelopeRequest{
-					RecipientEmail: " Recipient@Example.com ",
-					PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
-					PayloadJSON:    payload,
-					Message:        "please review",
-				},
-			)
+			status, data, err := svc.AcceptEnvelope(ctx, auth.RequestMetadata{}, "env_1")
 
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, status)
 			require.Equal(
 				t,
-				"env_1",
-				data.(map[string]any)["envelope"].(domain.Envelope).EnvelopeID,
+				domain.EnvelopeStatusAccepted,
+				data.(map[string]any)["envelope"].(domain.Envelope).Status,
 			)
 		},
 	)
