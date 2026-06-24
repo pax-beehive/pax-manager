@@ -199,6 +199,12 @@ type FriendStore interface {
 		alias string,
 		acceptedAt time.Time,
 	) (domain.Friend, error)
+	UpdateFriendAlias(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		friendID string,
+		alias string,
+	) (domain.Friend, error)
 	RemoveFriend(
 		ctx context.Context,
 		principal domain.UserPrincipal,

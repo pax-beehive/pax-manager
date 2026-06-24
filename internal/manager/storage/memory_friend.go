@@ -120,6 +120,36 @@ func (s *MemoryStore) AcceptFriend(
 	})
 }
 
+func (s *MemoryStore) UpdateFriendAlias(
+	ctx context.Context,
+	principal UserPrincipal,
+	friendID string,
+	alias string,
+) (Friend, error) {
+	return s.updateVisibleFriend(ctx, principal, friendID, func(friend Friend) (Friend, error) {
+		if !friendStatusAllowsAliasUpdate(friend.Status) {
+			return Friend{}, ErrNotFound
+		}
+		column, ok := friendAliasColumnForPrincipal(
+			principal,
+			normalizeEmail(principal.User.Email),
+			friend,
+		)
+		if !ok {
+			return Friend{}, ErrNotFound
+		}
+		switch column {
+		case "requester_alias":
+			friend.RequesterAlias = alias
+		case "recipient_alias":
+			friend.RecipientAlias = alias
+		default:
+			return Friend{}, ErrNotFound
+		}
+		return friend, nil
+	})
+}
+
 func (s *MemoryStore) RemoveFriend(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -225,4 +255,22 @@ func friendCounterpartyMatches(
 
 func normalizeFriendAlias(alias string) string {
 	return normalizeEmail(alias)
+}
+
+func friendStatusAllowsAliasUpdate(status string) bool {
+	return status == domain.FriendStatusPending || status == domain.FriendStatusAccepted
+}
+
+func friendAliasColumnForPrincipal(
+	principal UserPrincipal,
+	principalEmail string,
+	friend Friend,
+) (string, bool) {
+	if friend.RequesterUserID == principal.User.UserID {
+		return "requester_alias", true
+	}
+	if friendReceivedByPrincipal(principal, principalEmail, friend) {
+		return "recipient_alias", true
+	}
+	return "", false
 }

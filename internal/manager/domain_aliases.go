@@ -30,6 +30,7 @@ type CreateEnvelopeRequest = domain.CreateEnvelopeRequest
 type ListEnvelopesFilter = domain.ListEnvelopesFilter
 type CreateFriendRequest = domain.CreateFriendRequest
 type AcceptFriendRequest = domain.AcceptFriendRequest
+type UpdateFriendAliasRequest = domain.UpdateFriendAliasRequest
 type ListFriendsFilter = domain.ListFriendsFilter
 type ApprovalOption = domain.ApprovalOption
 type AgentApproval = domain.AgentApproval

@@ -142,6 +142,7 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.GET(routeListFriends, ListFriends)
 	h.GET(routeGetFriend, GetFriend)
 	h.POST(routeAcceptFriend, AcceptFriend)
+	h.POST(routeAliasFriend, UpdateFriendAlias)
 	h.POST(routeRemoveFriend, RemoveFriend)
 	h.POST(routeBlockFriend, BlockFriend)
 

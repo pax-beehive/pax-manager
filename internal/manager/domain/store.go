@@ -276,6 +276,12 @@ type Store interface {
 		alias string,
 		acceptedAt time.Time,
 	) (Friend, error)
+	UpdateFriendAlias(
+		ctx context.Context,
+		principal UserPrincipal,
+		friendID string,
+		alias string,
+	) (Friend, error)
 	RemoveFriend(
 		ctx context.Context,
 		principal UserPrincipal,

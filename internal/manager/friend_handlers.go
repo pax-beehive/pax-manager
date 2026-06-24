@@ -55,6 +55,18 @@ func AcceptFriend(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func UpdateFriendAlias(c context.Context, ctx *app.RequestContext) {
+	var req UpdateFriendAliasRequest
+	decodeBody(ctx, &req)
+	status, data, err := serviceFromContext(ctx).userapi.UpdateFriendAlias(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("friend_id"),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func RemoveFriend(c context.Context, ctx *app.RequestContext) {
 	status, data, err := serviceFromContext(ctx).userapi.RemoveFriend(
 		c,

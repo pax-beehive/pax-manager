@@ -117,6 +117,30 @@ func (s *Service) AcceptFriend(
 	return http.StatusOK, map[string]any{"friend": friend}, nil
 }
 
+func (s *Service) UpdateFriendAlias(
+	c context.Context,
+	meta auth.RequestMetadata,
+	friendID string,
+	req domain.UpdateFriendAliasRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	alias, err := normalizeFriendAlias(req.Alias, "")
+	if err != nil {
+		return 0, nil, err
+	}
+	if alias == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "alias is required"}
+	}
+	friend, err := s.store.UpdateFriendAlias(c, principal, friendID, alias)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"friend": friend}, nil
+}
+
 func (s *Service) RemoveFriend(
 	c context.Context,
 	meta auth.RequestMetadata,

@@ -121,6 +121,61 @@ func requireOpenAPIPathsAbsent(t *testing.T, paths map[string]any, removed []str
 	}
 }
 
+func TestFriendAliasEndpointUpdatesCallerAlias(t *testing.T) {
+	srv, _ := testServer(t, "alice@example.com")
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/friends",
+		bytes.NewReader([]byte(`{"email":"bob@example.com","alias":"bob-old"}`)),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", "alice@example.com")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("friend request code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	created := decodeData[struct {
+		Friend Friend `json:"friend"`
+	}](t, rec.Body.Bytes())
+
+	req = httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/friends/"+created.Friend.FriendID+"/accept",
+		bytes.NewReader([]byte(`{"alias":"alice-old"}`)),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", "bob@example.com")
+	rec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("friend accept code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/friends/"+created.Friend.FriendID+"/alias",
+		bytes.NewReader([]byte(`{"alias":"@alice-new"}`)),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", "bob@example.com")
+	rec = httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("friend alias code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	updated := decodeData[struct {
+		Friend Friend `json:"friend"`
+	}](t, rec.Body.Bytes())
+	if updated.Friend.RequesterAlias != "bob-old" || updated.Friend.RecipientAlias != "alice-new" {
+		t.Fatalf("friend aliases = requester %q recipient %q",
+			updated.Friend.RequesterAlias,
+			updated.Friend.RecipientAlias,
+		)
+	}
+}
+
 func TestNodeRegistrationSessionConnectsNodeAfterUserApproval(t *testing.T) {
 	srv, _ := testServer(t, "owner@example.com")
 
