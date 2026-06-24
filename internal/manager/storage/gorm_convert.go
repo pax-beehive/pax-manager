@@ -104,6 +104,7 @@ func nodeFromModel(row *dbmodel.Node) Node {
 	node := Node{
 		NodeID:        row.NodeID,
 		OwnerUserID:   row.OwnerUserID,
+		Kind:          firstNonEmpty(row.Kind, "paxd"),
 		Name:          row.Name,
 		Hostname:      row.Hostname,
 		MachineType:   row.MachineType,

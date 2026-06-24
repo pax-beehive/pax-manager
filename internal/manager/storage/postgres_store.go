@@ -619,6 +619,7 @@ func (s *PostgresStore) RegisterNode(
 	row := dbmodel.Node{
 		NodeID:        nodeID,
 		OwnerUserID:   owner.UserID,
+		Kind:          "paxd",
 		Name:          defaultNodeName(req),
 		Hostname:      req.Hostname,
 		MachineType:   req.MachineType,
@@ -841,6 +842,7 @@ func (s *PostgresStore) ConsumeNodeRegistrationSession(
 		nodeRow := dbmodel.Node{
 			NodeID:        nodeID,
 			OwnerUserID:   session.OwnerUserID,
+			Kind:          "paxd",
 			Name:          defaultNodeName(session.Request),
 			Hostname:      session.Request.Hostname,
 			MachineType:   session.Request.MachineType,
@@ -939,12 +941,27 @@ func (s *PostgresStore) ApprovePaxlDeviceLoginSession(
 		`, session.LoginID, domain.PaxlDeviceLoginStatusExpired)
 		return PaxlDeviceLoginSession{}, ErrUnauthorized
 	}
+	nodeID, err := newSecret("node")
+	if err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
+	nodeName := firstNonEmpty(session.ClientName, "paxl")
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO nodes (
+			node_id, owner_user_id, kind, name, hostname, machine_type, os, arch,
+			paxd_version, api_endpoint, api_key_hash, status, registered_at, metadata
+		)
+		VALUES ($1,$2,'paxl',$3,$3,'','unknown','','','',$4,'offline',$5,$6)
+	`, nodeID, principal.User.UserID, nodeName, "paxl-device:"+nodeID, now,
+		nullRaw(json.RawMessage(`{"kind":"paxl"}`))); err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
 	_, err = tx.ExecContext(ctx, `
 		UPDATE paxl_device_login_sessions
-		SET status = $2, owner_user_id = $3, user_api_key_id = $4, api_key = $5, approved_at = $6
+		SET status = $2, owner_user_id = $3, user_api_key_id = $4, api_key = $5, node_id = $6, approved_at = $7
 		WHERE login_id = $1
 	`, session.LoginID, domain.PaxlDeviceLoginStatusApproved, principal.User.UserID,
-		userAPIKey.KeyID, apiKey, now)
+		userAPIKey.KeyID, apiKey, nodeID, now)
 	if err != nil {
 		return PaxlDeviceLoginSession{}, err
 	}
@@ -1030,14 +1047,15 @@ func (s *PostgresStore) ConsumePaxlDeviceLoginSession(
 
 const paxlDeviceLoginSelectSQL = `
 	SELECT login_id, user_code, poll_token_hash, status, client_name,
-		COALESCE(owner_user_id, ''), COALESCE(user_api_key_id, ''), COALESCE(api_key, ''),
+		COALESCE(owner_user_id, ''), COALESCE(user_api_key_id, ''), COALESCE(node_id, ''),
+		COALESCE(api_key, ''),
 		expires_at, created_at, approved_at, consumed_at
 	FROM paxl_device_login_sessions
 `
 
 func (s *PostgresStore) AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT node_id, owner_user_id, name, hostname, machine_type, os, arch, paxd_version,
+		SELECT node_id, owner_user_id, COALESCE(kind, 'paxd'), name, hostname, machine_type, os, arch, paxd_version,
 			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at,
 			COALESCE(metadata, '{}'::jsonb)
 		FROM nodes
@@ -1177,7 +1195,7 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 
 func (s *PostgresStore) ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error) {
 	query := `
-		SELECT node_id, owner_user_id, name, hostname, machine_type, os, arch, paxd_version,
+		SELECT node_id, owner_user_id, COALESCE(kind, 'paxd'), name, hostname, machine_type, os, arch, paxd_version,
 			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at,
 			COALESCE(metadata, '{}'::jsonb)
 		FROM nodes
@@ -1199,7 +1217,7 @@ func (s *PostgresStore) GetNode(
 	nodeID string,
 ) (Node, error) {
 	query := `
-		SELECT node_id, owner_user_id, name, hostname, machine_type, os, arch, paxd_version,
+		SELECT node_id, owner_user_id, COALESCE(kind, 'paxd'), name, hostname, machine_type, os, arch, paxd_version,
 			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at,
 			COALESCE(metadata, '{}'::jsonb)
 		FROM nodes

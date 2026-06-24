@@ -1076,8 +1076,20 @@ func TestPaxlDeviceLoginIssuesBearerTokenForCLI(t *testing.T) {
 	cliLogin := pollPaxlDeviceLoginTest(t, srv, start.LoginID, start.PollToken)
 	if cliLogin.Status != "approved" || cliLogin.APIKey == "" ||
 		cliLogin.User == nil || cliLogin.User.Email != "cli@example.com" ||
-		cliLogin.UserAPIKey == nil || cliLogin.UserAPIKey.KeyID == "" {
+		cliLogin.UserAPIKey == nil || cliLogin.UserAPIKey.KeyID == "" ||
+		cliLogin.NodeID == "" {
 		t.Fatalf("bad approved poll response: %+v", cliLogin)
+	}
+	node, err := srv.store.GetNode(
+		context.Background(),
+		domain.UserPrincipal{User: *cliLogin.User},
+		cliLogin.NodeID,
+	)
+	if err != nil {
+		t.Fatalf("get paxl login node: %v", err)
+	}
+	if node.Kind != "paxl" {
+		t.Fatalf("paxl login node kind = %q, want paxl", node.Kind)
 	}
 	requirePaxlBearerWhoami(t, srv, cliLogin.APIKey, http.StatusOK)
 	secondPoll := pollPaxlDeviceLoginTest(t, srv, start.LoginID, start.PollToken)

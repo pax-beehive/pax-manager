@@ -547,6 +547,7 @@ func (s *MemoryStore) RegisterAgent(
 	node := Node{
 		NodeID:        nodeID,
 		OwnerUserID:   owner.UserID,
+		Kind:          "paxd",
 		Name:          defaultAgentName(req),
 		Hostname:      req.Hostname,
 		MachineType:   req.MachineType,
@@ -602,6 +603,7 @@ func (s *MemoryStore) RegisterNode(
 	node := Node{
 		NodeID:        nodeID,
 		OwnerUserID:   owner.UserID,
+		Kind:          "paxd",
 		Name:          defaultNodeName(req),
 		Hostname:      req.Hostname,
 		MachineType:   req.MachineType,
@@ -753,6 +755,7 @@ func (s *MemoryStore) ConsumeNodeRegistrationSession(
 	node := Node{
 		NodeID:        nodeID,
 		OwnerUserID:   owner.UserID,
+		Kind:          "paxd",
 		Name:          defaultNodeName(session.Request),
 		Hostname:      session.Request.Hostname,
 		MachineType:   session.Request.MachineType,
@@ -836,8 +839,24 @@ func (s *MemoryStore) ApprovePaxlDeviceLoginSession(
 	session.Status = domain.PaxlDeviceLoginStatusApproved
 	session.OwnerUserID = principal.User.UserID
 	session.UserAPIKeyID = userAPIKey.KeyID
+	nodeID, err := newSecret("node")
+	if err != nil {
+		return PaxlDeviceLoginSession{}, err
+	}
+	session.NodeID = nodeID
 	session.APIKey = apiKey
 	session.ApprovedAt = &now
+	s.nodes[nodeID] = Node{
+		NodeID:       nodeID,
+		OwnerUserID:  principal.User.UserID,
+		Kind:         "paxl",
+		Name:         firstNonEmpty(session.ClientName, "paxl"),
+		Hostname:     firstNonEmpty(session.ClientName, "paxl"),
+		OS:           "unknown",
+		APIEndpoint:  "",
+		Status:       "offline",
+		RegisteredAt: now,
+	}
 	s.paxlDeviceLogins[loginID] = session
 	return session, nil
 }

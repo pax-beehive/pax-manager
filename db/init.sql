@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS agents (
 CREATE TABLE IF NOT EXISTS nodes (
     node_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id),
+    kind TEXT NOT NULL DEFAULT 'paxd',
     name TEXT NOT NULL DEFAULT '',
     hostname TEXT NOT NULL,
     machine_type TEXT NOT NULL DEFAULT '',
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS nodes (
 
 CREATE INDEX IF NOT EXISTS idx_nodes_owner ON nodes(owner_user_id);
 
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'paxd';
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS owner_user_id TEXT REFERENCES users(user_id);
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(node_id);
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
@@ -315,12 +317,15 @@ CREATE TABLE IF NOT EXISTS paxl_device_login_sessions (
     client_name TEXT NOT NULL DEFAULT '',
     owner_user_id TEXT REFERENCES users(user_id),
     user_api_key_id TEXT REFERENCES user_api_keys(key_id),
+    node_id TEXT REFERENCES nodes(node_id),
     api_key TEXT,
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     approved_at TIMESTAMPTZ,
     consumed_at TIMESTAMPTZ
 );
+
+ALTER TABLE paxl_device_login_sessions ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(node_id);
 
 CREATE INDEX IF NOT EXISTS idx_paxl_device_login_sessions_poll
     ON paxl_device_login_sessions(login_id, poll_token_hash);

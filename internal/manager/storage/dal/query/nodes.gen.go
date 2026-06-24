@@ -30,6 +30,7 @@ func newNode(db *gorm.DB, opts ...gen.DOOption) node {
 	_node.ALL = field.NewAsterisk(tableName)
 	_node.NodeID = field.NewString(tableName, "node_id")
 	_node.OwnerUserID = field.NewString(tableName, "owner_user_id")
+	_node.Kind = field.NewString(tableName, "kind")
 	_node.Name = field.NewString(tableName, "name")
 	_node.Hostname = field.NewString(tableName, "hostname")
 	_node.MachineType = field.NewString(tableName, "machine_type")
@@ -54,6 +55,7 @@ type node struct {
 	ALL           field.Asterisk
 	NodeID        field.String
 	OwnerUserID   field.String
+	Kind          field.String
 	Name          field.String
 	Hostname      field.String
 	MachineType   field.String
@@ -84,6 +86,7 @@ func (n *node) updateTableName(table string) *node {
 	n.ALL = field.NewAsterisk(table)
 	n.NodeID = field.NewString(table, "node_id")
 	n.OwnerUserID = field.NewString(table, "owner_user_id")
+	n.Kind = field.NewString(table, "kind")
 	n.Name = field.NewString(table, "name")
 	n.Hostname = field.NewString(table, "hostname")
 	n.MachineType = field.NewString(table, "machine_type")
@@ -120,9 +123,10 @@ func (n *node) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (n *node) fillFieldMap() {
-	n.fieldMap = make(map[string]field.Expr, 14)
+	n.fieldMap = make(map[string]field.Expr, 15)
 	n.fieldMap["node_id"] = n.NodeID
 	n.fieldMap["owner_user_id"] = n.OwnerUserID
+	n.fieldMap["kind"] = n.Kind
 	n.fieldMap["name"] = n.Name
 	n.fieldMap["hostname"] = n.Hostname
 	n.fieldMap["machine_type"] = n.MachineType

@@ -14,6 +14,7 @@ const TableNameNode = "nodes"
 type Node struct {
 	NodeID        string     `gorm:"column:node_id;type:text;primaryKey" json:"node_id"`
 	OwnerUserID   string     `gorm:"column:owner_user_id;type:text;not null;index:idx_nodes_owner,priority:1" json:"owner_user_id"`
+	Kind          string     `gorm:"column:kind;type:text;not null;default:paxd" json:"kind"`
 	Name          string     `gorm:"column:name;type:text;not null" json:"name"`
 	Hostname      string     `gorm:"column:hostname;type:text;not null" json:"hostname"`
 	MachineType   string     `gorm:"column:machine_type;type:text;not null" json:"machine_type"`

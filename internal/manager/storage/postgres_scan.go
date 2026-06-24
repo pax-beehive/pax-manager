@@ -48,6 +48,7 @@ func scanNode(row rowScanner) (Node, error) {
 	if err := row.Scan(
 		&node.NodeID,
 		&node.OwnerUserID,
+		&node.Kind,
 		&node.Name,
 		&node.Hostname,
 		&node.MachineType,
@@ -109,6 +110,7 @@ func scanPaxlDeviceLoginSession(row rowScanner) (PaxlDeviceLoginSession, error) 
 		&session.ClientName,
 		&session.OwnerUserID,
 		&session.UserAPIKeyID,
+		&session.NodeID,
 		&session.APIKey,
 		&session.ExpiresAt,
 		&session.CreatedAt,

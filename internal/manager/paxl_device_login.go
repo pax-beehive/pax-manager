@@ -147,6 +147,7 @@ func (s *Service) ApprovePaxlDeviceLogin(
 		LoginID:   session.LoginID,
 		UserCode:  session.UserCode,
 		Status:    session.Status,
+		NodeID:    session.NodeID,
 		ExpiresAt: session.ExpiresAt.Format(time.RFC3339),
 	}, nil
 }
@@ -198,6 +199,7 @@ func (s *Service) PollPaxlDeviceLogin(
 	return http.StatusOK, domain.PollPaxlDeviceLoginResponse{
 		Status:     domain.PaxlDeviceLoginStatusApproved,
 		APIKey:     consumed.APIKey,
+		NodeID:     consumed.NodeID,
 		UserAPIKey: keyMeta,
 		User:       &user,
 	}, nil

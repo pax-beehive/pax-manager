@@ -48,6 +48,7 @@ type Agent struct {
 type Node struct {
 	NodeID        string          `json:"node_id"`
 	OwnerUserID   string          `json:"owner_user_id"`
+	Kind          string          `json:"kind,omitempty"`
 	Name          string          `json:"name,omitempty"`
 	Hostname      string          `json:"hostname"`
 	MachineType   string          `json:"machine_type,omitempty"`
@@ -528,6 +529,7 @@ type PaxlDeviceLoginSession struct {
 	ClientName    string     `json:"client_name,omitempty"`
 	OwnerUserID   string     `json:"owner_user_id,omitempty"`
 	UserAPIKeyID  string     `json:"user_api_key_id,omitempty"`
+	NodeID        string     `json:"node_id,omitempty"`
 	APIKey        string     `json:"-"`
 	ExpiresAt     time.Time  `json:"expires_at"`
 	CreatedAt     time.Time  `json:"created_at"`
@@ -558,6 +560,7 @@ type PollPaxlDeviceLoginRequest struct {
 type PollPaxlDeviceLoginResponse struct {
 	Status     string      `json:"status"`
 	APIKey     string      `json:"api_key,omitempty"`
+	NodeID     string      `json:"node_id,omitempty"`
 	UserAPIKey *UserAPIKey `json:"api_key_meta,omitempty"`
 	User       *User       `json:"user,omitempty"`
 }
@@ -566,6 +569,7 @@ type ApprovePaxlDeviceLoginResponse struct {
 	LoginID   string `json:"login_id"`
 	UserCode  string `json:"user_code"`
 	Status    string `json:"status"`
+	NodeID    string `json:"node_id,omitempty"`
 	ExpiresAt string `json:"expires_at"`
 }
 
