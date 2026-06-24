@@ -14,14 +14,33 @@ import (
 )
 
 type Store interface {
+	UserStore
+	UserAPIKeyStore
+	RegistrationTokenStore
+	SecretStore
+	FleetStore
+	SessionHistoryStore
+	KnowledgeStore
+	EnvelopeStore
+	FriendStore
+	MailboxStore
+}
+
+type UserStore interface {
 	GetUser(ctx context.Context, userID string) (domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
+}
+
+type RegistrationTokenStore interface {
 	CreateRegistrationToken(
 		ctx context.Context,
 		ownerUserID string,
 		tokenHash string,
 		expiresAt *time.Time,
 	) error
+}
+
+type UserAPIKeyStore interface {
 	CreateUserAPIKey(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -34,6 +53,9 @@ type Store interface {
 		principal domain.UserPrincipal,
 	) ([]domain.UserAPIKey, error)
 	RevokeUserAPIKey(ctx context.Context, principal domain.UserPrincipal, keyID string) error
+}
+
+type SecretStore interface {
 	CreateSecret(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -46,6 +68,9 @@ type Store interface {
 		principal domain.UserPrincipal,
 		secretID string,
 	) (domain.Secret, error)
+}
+
+type FleetStore interface {
 	ListAgents(ctx context.Context, principal domain.UserPrincipal) ([]domain.Agent, error)
 	ListNodes(ctx context.Context, principal domain.UserPrincipal) ([]domain.Node, error)
 	GetNode(ctx context.Context, principal domain.UserPrincipal, nodeID string) (domain.Node, error)
@@ -84,6 +109,9 @@ type Store interface {
 		principal domain.UserPrincipal,
 		sessionID string,
 	) ([]domain.MailboxMessage, error)
+}
+
+type SessionHistoryStore interface {
 	ListMessages(
 		ctx context.Context,
 		agentID string,
@@ -91,6 +119,9 @@ type Store interface {
 		limit int,
 	) ([]domain.Message, error)
 	ListMessageParts(ctx context.Context, messageID string) ([]domain.MessagePart, error)
+}
+
+type KnowledgeStore interface {
 	CreateKnowledgeCapsule(
 		ctx context.Context,
 		capsule domain.KnowledgeCapsule,
@@ -118,6 +149,9 @@ type Store interface {
 		ctx context.Context,
 		filter domain.ListKnowledgeInjectionsFilter,
 	) ([]domain.SessionKnowledgeInjection, error)
+}
+
+type EnvelopeStore interface {
 	CreateEnvelope(ctx context.Context, envelope domain.Envelope) (domain.Envelope, error)
 	ListEnvelopes(
 		ctx context.Context,
@@ -140,6 +174,9 @@ type Store interface {
 		envelopeID string,
 		archivedAt time.Time,
 	) (domain.Envelope, error)
+}
+
+type FriendStore interface {
 	CreateFriend(ctx context.Context, friend domain.Friend) (domain.Friend, error)
 	ListFriends(
 		ctx context.Context,
@@ -174,6 +211,9 @@ type Store interface {
 		friendID string,
 		blockedAt time.Time,
 	) (domain.Friend, error)
+}
+
+type MailboxStore interface {
 	CreateMailboxMessage(
 		ctx context.Context,
 		principal domain.UserPrincipal,

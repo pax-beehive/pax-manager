@@ -113,78 +113,75 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 
 	httprouter.GeneratedRegister(h)
 	registerIDLRoutes(h)
-	h.GET("/api/user/agents/:agentId/sessions/:sessionId/history", ListAgentSessionHistory)
-	h.GET(
-		"/api/v1/user/:user_id/agents/:agent_id/sessions/:session_id/history",
-		ListAgentSessionHistory,
-	)
+	h.GET(routeLegacySessionHistory, ListAgentSessionHistory)
+	h.GET(routeSessionHistory, ListAgentSessionHistory)
 	h.POST(
-		"/api/v1/user/:user_id/sessions/:session_id/knowledge-capsules",
+		routeCreateKnowledgeCapsule,
 		CreateKnowledgeCapsule,
 	)
-	h.GET("/api/v1/user/:user_id/knowledge-capsules", ListKnowledgeCapsules)
-	h.GET("/api/v1/user/:user_id/knowledge-capsules/:capsule_id", GetKnowledgeCapsule)
+	h.GET(routeListKnowledgeCapsules, ListKnowledgeCapsules)
+	h.GET(routeGetKnowledgeCapsule, GetKnowledgeCapsule)
 	h.POST(
-		"/api/v1/user/:user_id/knowledge-capsules/:capsule_id/archive",
+		routeArchiveKnowledgeCapsule,
 		ArchiveKnowledgeCapsule,
 	)
 	h.POST(
-		"/api/v1/user/:user_id/sessions/:session_id/knowledge-injections",
+		routeInjectKnowledgeCapsule,
 		InjectKnowledgeCapsule,
 	)
 	h.GET(
-		"/api/v1/user/:user_id/sessions/:session_id/knowledge-injections",
+		routeListKnowledgeInjections,
 		ListKnowledgeInjections,
 	)
-	h.POST("/api/v1/user/:user_id/envelopes", CreateEnvelope)
-	h.GET("/api/v1/user/:user_id/envelopes", ListEnvelopes)
-	h.GET("/api/v1/user/:user_id/envelopes/:envelope_id", GetEnvelope)
-	h.POST("/api/v1/user/:user_id/envelopes/:envelope_id/accept", AcceptEnvelope)
-	h.POST("/api/v1/user/:user_id/envelopes/:envelope_id/archive", ArchiveEnvelope)
-	h.POST("/api/v1/user/:user_id/friends", CreateFriend)
-	h.GET("/api/v1/user/:user_id/friends", ListFriends)
-	h.GET("/api/v1/user/:user_id/friends/:friend_id", GetFriend)
-	h.POST("/api/v1/user/:user_id/friends/:friend_id/accept", AcceptFriend)
-	h.POST("/api/v1/user/:user_id/friends/:friend_id/remove", RemoveFriend)
-	h.POST("/api/v1/user/:user_id/friends/:friend_id/block", BlockFriend)
+	h.POST(routeCreateEnvelope, CreateEnvelope)
+	h.GET(routeListEnvelopes, ListEnvelopes)
+	h.GET(routeGetEnvelope, GetEnvelope)
+	h.POST(routeAcceptEnvelope, AcceptEnvelope)
+	h.POST(routeArchiveEnvelope, ArchiveEnvelope)
+	h.POST(routeCreateFriend, CreateFriend)
+	h.GET(routeListFriends, ListFriends)
+	h.GET(routeGetFriend, GetFriend)
+	h.POST(routeAcceptFriend, AcceptFriend)
+	h.POST(routeRemoveFriend, RemoveFriend)
+	h.POST(routeBlockFriend, BlockFriend)
 
-	h.GET("/openapi", OpenAPIUI)
-	h.GET("/openapi.json", OpenAPIJSON)
-	h.POST("/api/echo", Echo)
-	h.POST("/api/v1/node/registration/start", StartNodeRegistration)
-	h.POST("/api/v1/node/registration/poll", PollNodeRegistration)
-	h.GET("/api/v1/user/:user_id/node-registrations/:pair_code", GetNodeRegistration)
-	h.POST("/api/v1/user/:user_id/node-registrations/:pair_code/approve", ApproveNodeRegistration)
-	h.POST("/api/v1/paxl/device-login/start", StartPaxlDeviceLogin)
-	h.POST("/api/v1/paxl/device-login/poll", PollPaxlDeviceLogin)
+	h.GET(routeOpenAPI, OpenAPIUI)
+	h.GET(routeOpenAPIJSON, OpenAPIJSON)
+	h.POST(routeEcho, Echo)
+	h.POST(routeStartNodeRegistration, StartNodeRegistration)
+	h.POST(routePollNodeRegistration, PollNodeRegistration)
+	h.GET(routeGetNodeRegistration, GetNodeRegistration)
+	h.POST(routeApproveNodeRegistration, ApproveNodeRegistration)
+	h.POST(routeStartPaxlDeviceLogin, StartPaxlDeviceLogin)
+	h.POST(routePollPaxlDeviceLogin, PollPaxlDeviceLogin)
 	h.POST(
-		"/api/v1/user/:user_id/paxl/device-logins/:user_code/approve",
+		routeApprovePaxlDeviceLogin,
 		ApprovePaxlDeviceLogin,
 	)
 	h.GET(
-		"/api/agent/ws",
+		routeLegacyAgentWS,
 		AgentWSAuthPreflight(),
 		adaptor.HertzHandler(http.HandlerFunc(s.handleAgentWS)),
 	)
 	h.GET(
-		"/api/v1/agent/tunnel",
+		routeAgentACPTunnel,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleAgentACPTunnel)),
 	)
 	h.GET(
-		"/api/v1/user/:userID/agents/:agentID/tunnel",
+		routeUserACPTunnel,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleUserACPTunnel)),
 	)
 	h.GET(
-		"/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/tunnel",
+		routeUserSessionACPTunnel,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleUserACPTunnel)),
 	)
-	h.GET("/api/v1/public/artifacts/download", s.handleDownloadGenericArtifact)
-	h.GET("/api/v1/public/paxd/download", s.handleDownloadPaxdArtifact)
-	h.GET("/api/v1/public/paxl/download", s.handleDownloadPaxlArtifact)
-	h.GET("/api/v1/public/paxd/install.sh", s.handleDownloadPaxdInstaller)
-	h.GET("/api/v1/public/paxl/install.sh", s.handleDownloadPaxlInstaller)
-	h.POST("/api/v1/admin/artifacts", s.handlePublishGenericArtifact)
-	h.POST("/api/v1/admin/paxd/artifacts", s.handlePublishPaxdArtifact)
+	h.GET(routeDownloadGenericArtifact, s.handleDownloadGenericArtifact)
+	h.GET(routeDownloadPaxdArtifact, s.handleDownloadPaxdArtifact)
+	h.GET(routeDownloadPaxlArtifact, s.handleDownloadPaxlArtifact)
+	h.GET(routeDownloadPaxdInstaller, s.handleDownloadPaxdInstaller)
+	h.GET(routeDownloadPaxlInstaller, s.handleDownloadPaxlInstaller)
+	h.POST(routePublishGenericArtifact, s.handlePublishGenericArtifact)
+	h.POST(routePublishPaxdArtifact, s.handlePublishPaxdArtifact)
 
 	h.Static("/", "static")
 }
