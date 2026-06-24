@@ -72,7 +72,7 @@ func addSessionHistoryPath(doc map[string]any) {
 		paths = map[string]any{}
 		doc["paths"] = paths
 	}
-	paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history"] = map[string]any{
+	paths[openAPISessionHistoryPath] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"user"},
 			"summary":     "List agent session history",
@@ -160,7 +160,7 @@ func addACPWebSocketPaths(doc map[string]any) {
 			},
 		},
 	}
-	paths["/api/v1/agent/tunnel"] = agentTunnelPath
+	paths[routeAgentACPTunnel] = agentTunnelPath
 
 	v1UserTunnelGET := map[string]any{
 		"get": map[string]any{
@@ -199,7 +199,7 @@ func addACPWebSocketPaths(doc map[string]any) {
 			},
 		},
 	}
-	paths["/api/v1/user/{user_id}/agents/{agent_id}/tunnel"] = v1UserTunnelGET
+	paths[openAPIUserACPTunnelPath] = v1UserTunnelGET
 
 	v1UserSessionTunnelGET := map[string]any{
 		"get": map[string]any{
@@ -238,7 +238,7 @@ func addACPWebSocketPaths(doc map[string]any) {
 			},
 		},
 	}
-	paths["/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel"] = v1UserSessionTunnelGET
+	paths[openAPIUserSessionACPTunnelPath] = v1UserSessionTunnelGET
 }
 
 func addPaxdArtifactPaths(doc map[string]any) {
@@ -253,7 +253,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 		"bearerFormat": "Google ID token",
 		"description":  "Google-signed identity token for an allowed IAM principal.",
 	})
-	paths["/api/v1/public/artifacts/download"] = map[string]any{
+	paths[routeDownloadGenericArtifact] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"artifacts"},
 			"summary":     "Get signed artifact download URL",
@@ -290,7 +290,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			},
 		},
 	}
-	paths["/api/v1/public/paxd/download"] = map[string]any{
+	paths[routeDownloadPaxdArtifact] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"paxd"},
 			"summary":     "Get signed paxd download URL",
@@ -320,7 +320,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			},
 		},
 	}
-	paths["/api/v1/public/paxl/download"] = map[string]any{
+	paths[routeDownloadPaxlArtifact] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"paxl"},
 			"summary":     "Get signed paxl download URL",
@@ -350,7 +350,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			},
 		},
 	}
-	paths["/api/v1/public/paxd/install.sh"] = map[string]any{
+	paths[routeDownloadPaxdInstaller] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"paxd"},
 			"summary":     "Redirect to paxd installer script",
@@ -360,7 +360,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			},
 		},
 	}
-	paths["/api/v1/public/paxl/install.sh"] = map[string]any{
+	paths[routeDownloadPaxlInstaller] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"paxl"},
 			"summary":     "Redirect to paxl installer script",
@@ -370,7 +370,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			},
 		},
 	}
-	paths["/api/v1/admin/paxd/artifacts"] = map[string]any{
+	paths[routePublishPaxdArtifact] = map[string]any{
 		"post": map[string]any{
 			"tags":        []string{"paxd"},
 			"summary":     "Publish paxd artifact metadata",
@@ -398,7 +398,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			},
 		},
 	}
-	paths["/api/v1/admin/artifacts"] = map[string]any{
+	paths[routePublishGenericArtifact] = map[string]any{
 		"post": map[string]any{
 			"tags":        []string{"artifacts"},
 			"summary":     "Publish artifact metadata",

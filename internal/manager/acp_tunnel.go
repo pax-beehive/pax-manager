@@ -42,8 +42,8 @@ type ACPTunnelAgent struct {
 	paired            bool
 	userWS            *websocket.Conn
 	store             domain.Store
-	historyGroups     map[string]string
-	pendingSessionNew map[string]string
+	historyGroups     acpHistoryGroups
+	pendingSessionNew acpPendingSessionNews
 }
 
 type acpTunnelEnvelope struct {
@@ -184,29 +184,15 @@ func newManagerSessionID() (string, error) {
 }
 
 func (a *ACPTunnelAgent) trackSessionNew(requestID string, managerSessionID string) {
-	if requestID == "" || managerSessionID == "" {
-		return
-	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.pendingSessionNew == nil {
-		a.pendingSessionNew = make(map[string]string)
-	}
-	a.pendingSessionNew[requestID] = managerSessionID
+	a.pendingSessionNew.track(requestID, managerSessionID)
 }
 
 func (a *ACPTunnelAgent) takeSessionNew(requestID string) (string, bool) {
-	if requestID == "" {
-		return "", false
-	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.pendingSessionNew == nil {
-		return "", false
-	}
-	managerSessionID, ok := a.pendingSessionNew[requestID]
-	delete(a.pendingSessionNew, requestID)
-	return managerSessionID, ok
+	return a.pendingSessionNew.take(requestID)
 }
 
 // Tunnel reliability is a small durable outbox/inbox layered over WebSocket:
@@ -1017,40 +1003,15 @@ func (a *ACPTunnelAgent) wrapManagerToPaxd(
 }
 
 func (a *ACPTunnelAgent) historyGroupID(seq int64, payload json.RawMessage) string {
-	var rpc acpHistoryRPC
-	_ = json.Unmarshal(payload, &rpc)
-	fields := extractACPHistoryFields(payload, rpc)
-	fields, projection := classifyACPHistoryProjection(rpc, fields)
-	if projection != acpHistoryProjectionText {
-		return ""
-	}
-	key := firstNonEmpty(fields.SessionID, a.sessionID) + "\x00" +
-		firstNonEmpty(fields.SessionUpdate, "_") + "\x00" +
-		firstNonEmpty(fields.Role, "_")
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.historyGroups == nil {
-		a.historyGroups = make(map[string]string)
-	}
-	if groupID, ok := a.historyGroups[key]; ok {
-		return groupID
-	}
-	groupID := fmt.Sprintf("seq:%d", seq)
-	a.historyGroups[key] = groupID
-	return groupID
+	return a.historyGroups.groupID(seq, a.sessionID, payload)
 }
 
 func (a *ACPTunnelAgent) observeHistoryBoundary(payload json.RawMessage) {
-	var rpc acpJSONRPCMessage
-	if err := json.Unmarshal(payload, &rpc); err != nil {
-		return
-	}
-	if len(rpc.Result) == 0 && len(rpc.Error) == 0 {
-		return
-	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.historyGroups = nil
+	a.historyGroups.observeBoundary(payload)
 }
 
 func (a *ACPTunnelAgent) replayUnackedToAgent(ctx context.Context) error {
