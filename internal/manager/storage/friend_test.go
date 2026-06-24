@@ -112,4 +112,60 @@ func TestMemoryFriendStore(t *testing.T) {
 			require.ErrorIs(t, err, ErrNotFound)
 		},
 	)
+	t.Run("Given accepted friends then alias updates only the caller side", func(t *testing.T) {
+		ctx := context.Background()
+		now := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
+		store := NewMemoryStore(func() time.Time { return now })
+		alice, err := store.EnsureUser(ctx, "alice@example.com", "", "user")
+		require.NoError(t, err)
+		bob, err := store.EnsureUser(ctx, "bob@example.com", "", "user")
+		require.NoError(t, err)
+		_, err = store.CreateFriend(ctx, Friend{
+			FriendID:        "fr_1",
+			RequesterUserID: alice.UserID,
+			RequesterEmail:  alice.Email,
+			RequesterAlias:  "bob",
+			RecipientUserID: bob.UserID,
+			RecipientEmail:  bob.Email,
+			RecipientAlias:  "alice",
+			Status:          domain.FriendStatusAccepted,
+			CreatedAt:       now,
+		})
+		require.NoError(t, err)
+
+		got, err := store.UpdateFriendAlias(ctx, UserPrincipal{User: alice}, "fr_1", "teammate")
+		require.NoError(t, err)
+		require.Equal(t, "teammate", got.RequesterAlias)
+		require.Equal(t, "alice", got.RecipientAlias)
+
+		got, err = store.UpdateFriendAlias(ctx, UserPrincipal{User: bob}, "fr_1", "sender")
+		require.NoError(t, err)
+		require.Equal(t, "teammate", got.RequesterAlias)
+		require.Equal(t, "sender", got.RecipientAlias)
+	})
+	t.Run("Given removed friends then alias update returns not found", func(t *testing.T) {
+		ctx := context.Background()
+		now := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
+		store := NewMemoryStore(func() time.Time { return now })
+		alice, err := store.EnsureUser(ctx, "alice@example.com", "", "user")
+		require.NoError(t, err)
+		bob, err := store.EnsureUser(ctx, "bob@example.com", "", "user")
+		require.NoError(t, err)
+		_, err = store.CreateFriend(ctx, Friend{
+			FriendID:        "fr_1",
+			RequesterUserID: alice.UserID,
+			RequesterEmail:  alice.Email,
+			RequesterAlias:  "bob",
+			RecipientUserID: bob.UserID,
+			RecipientEmail:  bob.Email,
+			RecipientAlias:  "alice",
+			Status:          domain.FriendStatusRemoved,
+			CreatedAt:       now,
+		})
+		require.NoError(t, err)
+
+		_, err = store.UpdateFriendAlias(ctx, UserPrincipal{User: alice}, "fr_1", "teammate")
+
+		require.ErrorIs(t, err, ErrNotFound)
+	})
 }

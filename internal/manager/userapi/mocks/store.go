@@ -2419,6 +2419,65 @@ func (_c *MockStore_RevokeUserAPIKey_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
+// UpdateFriendAlias provides a mock function with given fields: ctx, principal, friendID, alias
+func (_m *MockStore) UpdateFriendAlias(ctx context.Context, principal domain.UserPrincipal, friendID string, alias string) (domain.Friend, error) {
+	ret := _m.Called(ctx, principal, friendID, alias)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateFriendAlias")
+	}
+
+	var r0 domain.Friend
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string) (domain.Friend, error)); ok {
+		return rf(ctx, principal, friendID, alias)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string) domain.Friend); ok {
+		r0 = rf(ctx, principal, friendID, alias)
+	} else {
+		r0 = ret.Get(0).(domain.Friend)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, string) error); ok {
+		r1 = rf(ctx, principal, friendID, alias)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_UpdateFriendAlias_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateFriendAlias'
+type MockStore_UpdateFriendAlias_Call struct {
+	*mock.Call
+}
+
+// UpdateFriendAlias is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - friendID string
+//   - alias string
+func (_e *MockStore_Expecter) UpdateFriendAlias(ctx interface{}, principal interface{}, friendID interface{}, alias interface{}) *MockStore_UpdateFriendAlias_Call {
+	return &MockStore_UpdateFriendAlias_Call{Call: _e.mock.On("UpdateFriendAlias", ctx, principal, friendID, alias)}
+}
+
+func (_c *MockStore_UpdateFriendAlias_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, friendID string, alias string)) *MockStore_UpdateFriendAlias_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_UpdateFriendAlias_Call) Return(_a0 domain.Friend, _a1 error) *MockStore_UpdateFriendAlias_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_UpdateFriendAlias_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string) (domain.Friend, error)) *MockStore_UpdateFriendAlias_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockStore creates a new instance of MockStore. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockStore(t interface {

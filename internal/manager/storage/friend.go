@@ -199,6 +199,32 @@ func (s *PostgresStore) AcceptFriend(
 	})
 }
 
+func (s *PostgresStore) UpdateFriendAlias(
+	ctx context.Context,
+	principal UserPrincipal,
+	friendID string,
+	alias string,
+) (Friend, error) {
+	friend, err := s.GetFriend(ctx, principal, friendID)
+	if err != nil {
+		return Friend{}, err
+	}
+	if !friendStatusAllowsAliasUpdate(friend.Status) {
+		return Friend{}, ErrNotFound
+	}
+	column, ok := friendAliasColumnForPrincipal(
+		principal,
+		normalizeEmail(principal.User.Email),
+		friend,
+	)
+	if !ok {
+		return Friend{}, ErrNotFound
+	}
+	return s.updateVisibleActiveFriend(ctx, principal, friendID, map[string]any{
+		column: alias,
+	})
+}
+
 func (s *PostgresStore) RemoveFriend(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -276,6 +302,33 @@ func (s *PostgresStore) updateVisibleFriend(
 		Where(
 			"friend_id = ? AND (requester_user_id = ? OR recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?))",
 			friendID,
+			principal.User.UserID,
+			principal.User.UserID,
+			principalEmail,
+		).
+		Updates(values)
+	if result.Error != nil {
+		return Friend{}, mapGormError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return Friend{}, ErrNotFound
+	}
+	return s.GetFriend(ctx, principal, friendID)
+}
+
+func (s *PostgresStore) updateVisibleActiveFriend(
+	ctx context.Context,
+	principal UserPrincipal,
+	friendID string,
+	values map[string]any,
+) (Friend, error) {
+	principalEmail := normalizeEmail(principal.User.Email)
+	result := s.gormDB.WithContext(ctx).
+		Model(&friendRow{}).
+		Where(
+			"friend_id = ? AND status IN ? AND (requester_user_id = ? OR recipient_user_id = ? OR (recipient_user_id IS NULL AND recipient_email = ?))",
+			friendID,
+			[]string{domain.FriendStatusPending, domain.FriendStatusAccepted},
 			principal.User.UserID,
 			principal.User.UserID,
 			principalEmail,

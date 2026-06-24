@@ -21,6 +21,7 @@ const (
 	routeListFriends  = "/api/v1/user/:user_id/friends"
 	routeGetFriend    = "/api/v1/user/:user_id/friends/:friend_id"
 	routeAcceptFriend = "/api/v1/user/:user_id/friends/:friend_id/accept"
+	routeAliasFriend  = "/api/v1/user/:user_id/friends/:friend_id/alias"
 	routeRemoveFriend = "/api/v1/user/:user_id/friends/:friend_id/remove"
 	routeBlockFriend  = "/api/v1/user/:user_id/friends/:friend_id/block"
 

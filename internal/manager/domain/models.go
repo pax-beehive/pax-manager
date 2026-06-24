@@ -306,6 +306,10 @@ type AcceptFriendRequest struct {
 	Alias string `json:"alias,omitempty"`
 }
 
+type UpdateFriendAliasRequest struct {
+	Alias string `json:"alias"`
+}
+
 type ListFriendsFilter struct {
 	Principal UserPrincipal
 	Status    string

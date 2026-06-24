@@ -1133,6 +1133,65 @@ func TestFriendFlow(t *testing.T) {
 			data.(map[string]any)["friend"].(domain.Friend).Status,
 		)
 	})
+
+	t.Run("Given a visible friend then it updates the caller alias", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_sender", false)
+		updated := domain.Friend{
+			FriendID:       "fr_1",
+			RequesterAlias: "teammate",
+			Status:         domain.FriendStatusAccepted,
+		}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().UpdateFriendAlias(ctx, principal, "fr_1", "teammate").
+			Return(updated, nil).
+			Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, data, err := svc.UpdateFriendAlias(
+			ctx,
+			auth.RequestMetadata{},
+			"fr_1",
+			domain.UpdateFriendAliasRequest{Alias: "@TeamMate"},
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, "teammate", data.(map[string]any)["friend"].(domain.Friend).RequesterAlias)
+	})
+
+	t.Run("Given an empty alias then it returns bad request", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_sender", false)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+		svc := userapi.NewService(
+			userapimocks.NewMockStore(t),
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		_, _, err := svc.UpdateFriendAlias(
+			ctx,
+			auth.RequestMetadata{},
+			"fr_1",
+			domain.UpdateFriendAliasRequest{},
+		)
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+	})
 }
 
 func userPrincipal(userID string, admin bool) domain.UserPrincipal {
