@@ -346,6 +346,7 @@ type ListKnowledgeInjectionsFilter struct {
 const (
 	TransportStreamManagerToPaxd = "manager_to_paxd"
 	TransportStreamPaxdToManager = "paxd_to_manager"
+	TransportStreamACP           = "acp"
 
 	TransportDirectionInbound  = "inbound"
 	TransportDirectionOutbound = "outbound"
@@ -356,26 +357,32 @@ const (
 	TransportStatusReceived = "received"
 	TransportStatusApplied  = "applied"
 	TransportStatusFailed   = "failed"
+	TransportStatusRejected = "rejected"
 )
 
 // TransportFrame is one durable frame in the manager<->paxd reliable transport
 // journal. PayloadJSON is the raw ACP JSON-RPC payload, not the tunnel envelope.
 type TransportFrame struct {
-	ID             int64           `json:"id"`
-	AgentID        string          `json:"agent_id"`
-	Stream         string          `json:"stream"`
-	Seq            int64           `json:"seq"`
-	LocalDirection string          `json:"local_direction"`
-	PayloadJSON    json.RawMessage `json:"payload_json"`
-	Status         string          `json:"status"`
-	Error          string          `json:"error,omitempty"`
-	RetryCount     int             `json:"retry_count"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	SentAt         *time.Time      `json:"sent_at,omitempty"`
-	ReceivedAt     *time.Time      `json:"received_at,omitempty"`
-	AckedAt        *time.Time      `json:"acked_at,omitempty"`
-	AppliedAt      *time.Time      `json:"applied_at,omitempty"`
+	ID             int64             `json:"id"`
+	QueueID        string            `json:"queue_id"`
+	AgentID        string            `json:"agent_id"`
+	Stream         string            `json:"stream"`
+	Seq            int64             `json:"seq"`
+	Direction      string            `json:"direction"`
+	LocalDirection string            `json:"local_direction"`
+	Kind           string            `json:"kind"`
+	PayloadJSON    json.RawMessage   `json:"payload_json"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	Status         string            `json:"status"`
+	ErrorMessage   string            `json:"error_message,omitempty"`
+	Error          string            `json:"error,omitempty"`
+	RetryCount     int               `json:"retry_count"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
+	SentAt         *time.Time        `json:"sent_at,omitempty"`
+	ReceivedAt     *time.Time        `json:"received_at,omitempty"`
+	AckedAt        *time.Time        `json:"acked_at,omitempty"`
+	AppliedAt      *time.Time        `json:"applied_at,omitempty"`
 }
 
 type ApprovalOption struct {

@@ -165,6 +165,10 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		adaptor.HertzHandler(http.HandlerFunc(s.handleAgentWS)),
 	)
 	h.GET(
+		routeNodeControlTunnel,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleNodeControlTunnel)),
+	)
+	h.GET(
 		routeAgentACPTunnel,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleAgentACPTunnel)),
 	)

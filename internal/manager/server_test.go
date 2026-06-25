@@ -17,7 +17,23 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
+	"github.com/pax-beehive/paxkit/reliablemq"
 )
+
+const (
+	acpTunnelTypeData            = string(reliablemq.EnvelopeTypeData)
+	acpTunnelTypeAck             = string(reliablemq.EnvelopeTypeAck)
+	acpTunnelStreamManagerToPaxd = domain.TransportStreamManagerToPaxd
+	acpTunnelStreamPaxdToManager = domain.TransportStreamPaxdToManager
+)
+
+type acpTunnelEnvelope struct {
+	Type    string          `json:"type"`
+	QueueID string          `json:"queue_id,omitempty"`
+	Stream  string          `json:"stream"`
+	Seq     int64           `json:"seq"`
+	Payload json.RawMessage `json:"payload,omitempty"`
+}
 
 func TestRequestLogIDHeaderIsPropagated(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
@@ -1399,9 +1415,10 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 		domain.TransportStatusSent,
 	)
 	requestAck := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
-		Type:   acpTunnelTypeAck,
-		Stream: acpTunnelStreamManagerToPaxd,
-		Seq:    1,
+		Type:    acpTunnelTypeAck,
+		QueueID: requestEnv.QueueID,
+		Stream:  acpTunnelStreamManagerToPaxd,
+		Seq:     1,
 	})
 	if err := agentWS.WriteMessage(websocket.TextMessage, requestAck); err != nil {
 		t.Fatalf("write agent request ack: %v", err)
@@ -1419,6 +1436,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 	responsePayload := []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`)
 	responseEnv := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
 		Type:    acpTunnelTypeData,
+		QueueID: requestEnv.QueueID,
 		Stream:  acpTunnelStreamPaxdToManager,
 		Seq:     1,
 		Payload: json.RawMessage(responsePayload),
@@ -1506,15 +1524,16 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("initialize envelope = %s", gotInitialize)
 	}
 	if err := agentWS.WriteMessage(websocket.TextMessage, mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
-		Type:   acpTunnelTypeAck,
-		Stream: acpTunnelStreamManagerToPaxd,
-		Seq:    initializeEnv.Seq,
+		Type:    acpTunnelTypeAck,
+		QueueID: initializeEnv.QueueID,
+		Stream:  acpTunnelStreamManagerToPaxd,
+		Seq:     initializeEnv.Seq,
 	})); err != nil {
 		t.Fatalf("write initialize ack: %v", err)
 	}
 
 	initializeResponse := json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`)
-	writeAgentDataFrame(t, agentWS, 1, initializeResponse)
+	writeAgentDataFrame(t, agentWS, initializeEnv.QueueID, 1, initializeResponse)
 	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 1)
 	_, gotInitializeResponse, err := userWS.ReadMessage()
 	if err != nil {
@@ -1533,7 +1552,7 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 	thoughtDelta := json.RawMessage(
 		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess-1","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"thinking"}}}}`,
 	)
-	writeAgentDataFrame(t, agentWS, 2, firstDelta)
+	writeAgentDataFrame(t, agentWS, initializeEnv.QueueID, 2, firstDelta)
 	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 2)
 	_, gotFirstDelta, err := userWS.ReadMessage()
 	if err != nil {
@@ -1542,7 +1561,7 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 	if string(gotFirstDelta) != string(firstDelta) {
 		t.Fatalf("first user delta = %s", gotFirstDelta)
 	}
-	writeAgentDataFrame(t, agentWS, 3, secondDelta)
+	writeAgentDataFrame(t, agentWS, initializeEnv.QueueID, 3, secondDelta)
 	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 3)
 	_, gotSecondDelta, err := userWS.ReadMessage()
 	if err != nil {
@@ -1551,7 +1570,7 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 	if string(gotSecondDelta) != string(secondDelta) {
 		t.Fatalf("second user delta = %s", gotSecondDelta)
 	}
-	writeAgentDataFrame(t, agentWS, 4, thoughtDelta)
+	writeAgentDataFrame(t, agentWS, initializeEnv.QueueID, 4, thoughtDelta)
 	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 4)
 	_, gotThoughtDelta, err := userWS.ReadMessage()
 	if err != nil {
@@ -1692,9 +1711,10 @@ func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 		t.Fatalf("replayed agent payload = %s", replayed)
 	}
 	replayAck := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
-		Type:   acpTunnelTypeAck,
-		Stream: acpTunnelStreamManagerToPaxd,
-		Seq:    replayEnv.Seq,
+		Type:    acpTunnelTypeAck,
+		QueueID: replayEnv.QueueID,
+		Stream:  acpTunnelStreamManagerToPaxd,
+		Seq:     replayEnv.Seq,
 	})
 	if err := secondAgentWS.WriteMessage(websocket.TextMessage, replayAck); err != nil {
 		t.Fatalf("write replay ack: %v", err)
@@ -1855,7 +1875,7 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 			}
 		}
 	}`)
-	writeAgentDataFrame(t, agentWS, 1, requestPayload)
+	writeAgentDataFrame(t, agentWS, agentID, 1, requestPayload)
 	if err := userWS.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatalf("set user read deadline: %v", err)
 	}
@@ -1937,7 +1957,7 @@ func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
 			}
 		}
 	}`)
-	writeAgentDataFrame(t, agentWS, 1, requestPayload)
+	writeAgentDataFrame(t, agentWS, agentID, 1, requestPayload)
 	if err := agentWS.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatalf("set agent read deadline: %v", err)
 	}
@@ -2056,22 +2076,34 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 
 func decodeACPTunnelEnvelope(t *testing.T, data []byte) acpTunnelEnvelope {
 	t.Helper()
-	var env acpTunnelEnvelope
-	if err := json.Unmarshal(data, &env); err != nil {
+	env, err := reliablemq.UnmarshalEnvelope(data)
+	if err != nil {
 		t.Fatalf("decode acp tunnel envelope %s: %v", data, err)
 	}
-	return env
+	stream := acpTunnelStreamManagerToPaxd
+	if env.Type == reliablemq.EnvelopeTypeAck {
+		stream = acpTunnelStreamPaxdToManager
+	}
+	return acpTunnelEnvelope{
+		Type:    string(env.Type),
+		QueueID: env.QueueID,
+		Stream:  stream,
+		Seq:     env.Seq,
+		Payload: env.Payload,
+	}
 }
 
 func writeAgentDataFrame(
 	t *testing.T,
 	agentWS *websocket.Conn,
+	queueID string,
 	seq int64,
 	payload json.RawMessage,
 ) {
 	t.Helper()
 	frame := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
 		Type:    acpTunnelTypeData,
+		QueueID: queueID,
 		Stream:  acpTunnelStreamPaxdToManager,
 		Seq:     seq,
 		Payload: payload,
@@ -2121,7 +2153,19 @@ func readAgentAck(t *testing.T, agentWS *websocket.Conn, stream string, seq int6
 
 func mustMarshalACPTunnelEnvelope(t *testing.T, env acpTunnelEnvelope) []byte {
 	t.Helper()
-	data, err := json.Marshal(env)
+	if env.QueueID == "" {
+		t.Fatalf("marshal acp tunnel envelope: queue_id is required")
+	}
+	data, err := reliablemq.MarshalEnvelope(reliablemq.Envelope{
+		Type:    reliablemq.EnvelopeType(env.Type),
+		QueueID: env.QueueID,
+		Stream:  reliablemq.StreamACP,
+		Seq:     env.Seq,
+		Payload: env.Payload,
+		Metadata: reliablemq.Metadata{
+			"agent_id": env.QueueID,
+		},
+	})
 	if err != nil {
 		t.Fatalf("marshal acp tunnel envelope: %v", err)
 	}

@@ -226,12 +226,17 @@ CREATE TABLE IF NOT EXISTS node_message_offsets (
 
 CREATE TABLE IF NOT EXISTS transport_journal (
     id BIGSERIAL PRIMARY KEY,
+    queue_id TEXT NOT NULL,
     agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
     stream TEXT NOT NULL,
     seq BIGINT NOT NULL,
+    direction TEXT NOT NULL,
     local_direction TEXT NOT NULL,
-    payload_json JSONB NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'data',
+    payload_json JSONB,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     status TEXT NOT NULL,
+    error_message TEXT NOT NULL DEFAULT '',
     error TEXT,
     retry_count INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -240,11 +245,43 @@ CREATE TABLE IF NOT EXISTS transport_journal (
     received_at TIMESTAMPTZ,
     acked_at TIMESTAMPTZ,
     applied_at TIMESTAMPTZ,
-    UNIQUE(agent_id, stream, seq, local_direction)
+    UNIQUE(queue_id, stream, seq, direction)
 );
 
+ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS queue_id TEXT;
+UPDATE transport_journal SET queue_id = agent_id WHERE queue_id IS NULL OR queue_id = '';
+ALTER TABLE transport_journal ALTER COLUMN queue_id SET NOT NULL;
+
+ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS direction TEXT;
+UPDATE transport_journal SET direction = local_direction WHERE direction IS NULL OR direction = '';
+ALTER TABLE transport_journal ALTER COLUMN direction SET NOT NULL;
+
+ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'data';
+ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS error_message TEXT NOT NULL DEFAULT '';
+UPDATE transport_journal SET error_message = COALESCE(error, '') WHERE error_message = '';
+ALTER TABLE transport_journal ALTER COLUMN payload_json DROP NOT NULL;
+UPDATE transport_journal
+SET stream = 'acp'
+WHERE stream IN ('manager_to_paxd', 'paxd_to_manager');
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'transport_journal_agent_id_stream_seq_local_direction_key'
+    ) THEN
+        ALTER TABLE transport_journal
+            DROP CONSTRAINT transport_journal_agent_id_stream_seq_local_direction_key;
+    END IF;
+END;
+$$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transport_journal_queue_unique
+    ON transport_journal(queue_id, stream, seq, direction);
+DROP INDEX IF EXISTS idx_transport_journal_pending;
 CREATE INDEX IF NOT EXISTS idx_transport_journal_pending
-    ON transport_journal(agent_id, stream, local_direction, status, seq);
+    ON transport_journal(queue_id, stream, direction, status, seq);
 CREATE INDEX IF NOT EXISTS idx_transport_journal_cleanup
     ON transport_journal(status, updated_at);
 
