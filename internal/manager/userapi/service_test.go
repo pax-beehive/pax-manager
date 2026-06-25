@@ -965,6 +965,201 @@ func TestEnvelopeFlow(t *testing.T) {
 	)
 
 	t.Run(
+		"Given a routed paxl capsule envelope then it preserves route metadata",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_sender", false)
+			friend := domain.Friend{
+				FriendID:        "fr_1",
+				RequesterUserID: "usr_sender",
+				RequesterEmail:  "sender@example.com",
+				RecipientUserID: "usr_recipient",
+				RecipientEmail:  "recipient@example.com",
+				Status:          domain.FriendStatusAccepted,
+			}
+			payload := json.RawMessage(`{
+			"schema_version":"paxl.envelope_payload.knowledge_capsule.v2",
+			"capsule":{
+				"capsule_id":"kcap_local",
+				"source_node_id":"local-node",
+				"source_session_id":"codex-session",
+				"source_agent":"codex",
+				"keyword":"routing",
+				"title":"Routing handoff",
+				"summary":"Routing summary",
+				"content":"Routing context",
+				"status":"active"
+			},
+			"route":{
+				"match_type":"project",
+				"match_value":"pax-manager",
+				"target_agent":"codex"
+			}
+		}`)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			secrets := userapimocks.NewMockSecretIssuer(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetAcceptedFriendByEmail(ctx, principal, "recipient@example.com").
+				Return(friend, nil).
+				Once()
+			secrets.EXPECT().New("env").Return("env_1", nil).Once()
+			store.EXPECT().CreateEnvelope(
+				ctx,
+				mock.MatchedBy(func(envelope domain.Envelope) bool {
+					require.Equal(t, "env_1", envelope.EnvelopeID)
+					require.JSONEq(t, string(payload), string(envelope.PayloadJSON))
+					return true
+				}),
+			).Return(domain.Envelope{EnvelopeID: "env_1"}, nil).Once()
+
+			svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+			status, data, err := svc.CreateEnvelope(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateEnvelopeRequest{
+					RecipientEmail: "recipient@example.com",
+					PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
+					PayloadJSON:    payload,
+				},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(
+				t,
+				"env_1",
+				data.(map[string]any)["envelope"].(domain.Envelope).EnvelopeID,
+			)
+		},
+	)
+
+	t.Run(
+		"Given a routed paxl capsule envelope with invalid match type then it rejects",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_sender", false)
+			payload := json.RawMessage(`{
+			"schema_version":"paxl.envelope_payload.knowledge_capsule.v2",
+			"capsule":{"capsule_id":"kcap_local","title":"Routing handoff"},
+			"route":{"match_type":"session","match_value":"local-session","target_agent":"codex"}
+		}`)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, _, err := svc.CreateEnvelope(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateEnvelopeRequest{
+					RecipientEmail: "recipient@example.com",
+					PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
+					PayloadJSON:    payload,
+				},
+			)
+
+			require.Error(t, err)
+			require.Zero(t, status)
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+			require.Contains(t, err.Error(), "unsupported route match_type")
+		},
+	)
+
+	t.Run(
+		"Given a routed paxl capsule envelope without a capsule then it rejects",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_sender", false)
+			payload := json.RawMessage(`{
+			"schema_version":"paxl.envelope_payload.knowledge_capsule.v2",
+			"route":{"match_type":"project","match_value":"pax-manager","target_agent":"codex"}
+		}`)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, _, err := svc.CreateEnvelope(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateEnvelopeRequest{
+					RecipientEmail: "recipient@example.com",
+					PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
+					PayloadJSON:    payload,
+				},
+			)
+
+			require.Error(t, err)
+			require.Zero(t, status)
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+			require.Contains(t, err.Error(), "capsule is required")
+		},
+	)
+
+	t.Run(
+		"Given a routed paxl capsule envelope without required route value then it rejects",
+		func(t *testing.T) {
+			for _, matchType := range []string{"project", "keyword"} {
+				t.Run(matchType, func(t *testing.T) {
+					ctx := context.Background()
+					principal := userPrincipal("usr_sender", false)
+					payload := json.RawMessage(`{
+					"schema_version":"paxl.envelope_payload.knowledge_capsule.v2",
+					"capsule":{"capsule_id":"kcap_local","title":"Routing handoff"},
+					"route":{"match_type":"` + matchType + `","target_agent":"codex"}
+				}`)
+					principals := userapimocks.NewMockPrincipalResolver(t)
+
+					principals.EXPECT().
+						Principal(ctx, auth.RequestMetadata{}).
+						Return(principal, nil).
+						Once()
+
+					svc := userapi.NewService(
+						userapimocks.NewMockStore(t),
+						fixedUserClock,
+						principals,
+						userapimocks.NewMockSecretIssuer(t),
+					)
+					status, _, err := svc.CreateEnvelope(
+						ctx,
+						auth.RequestMetadata{},
+						domain.CreateEnvelopeRequest{
+							RecipientEmail: "recipient@example.com",
+							PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
+							PayloadJSON:    payload,
+						},
+					)
+
+					require.Error(t, err)
+					require.Zero(t, status)
+					var appErr apperr.Error
+					require.ErrorAs(t, err, &appErr)
+					require.Equal(t, http.StatusBadRequest, appErr.Status)
+					require.Contains(t, err.Error(), "route match_value is required")
+				})
+			}
+		},
+	)
+
+	t.Run(
 		"Given a paxl capsule envelope when accepted then it imports a recipient knowledge capsule",
 		func(t *testing.T) {
 			ctx := context.Background()
@@ -1040,6 +1235,84 @@ func TestEnvelopeFlow(t *testing.T) {
 				domain.EnvelopeStatusAccepted,
 				data.(map[string]any)["envelope"].(domain.Envelope).Status,
 			)
+		},
+	)
+
+	t.Run(
+		"Given a routed paxl capsule envelope when accepted then it imports route metadata",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_recipient", false)
+			payload := json.RawMessage(`{
+				"schema_version":"paxl.envelope_payload.knowledge_capsule.v2",
+				"capsule":{
+					"capsule_id":"kcap_local",
+					"source_node_id":"local-node",
+					"source_session_id":"codex-session",
+					"source_agent":"codex",
+					"keyword":"routing",
+					"title":"Routing handoff",
+					"summary":"Routing summary",
+					"content":"Routing context",
+					"status":"active"
+				},
+				"route":{
+					"match_type":"project",
+					"match_value":"pax-manager",
+					"target_agent":"codex"
+				}
+			}`)
+			accepted := domain.Envelope{
+				EnvelopeID:      "env_1",
+				SenderUserID:    "usr_sender",
+				RecipientUserID: "usr_recipient",
+				PayloadType:     domain.EnvelopePayloadKnowledgeCapsule,
+				PayloadJSON:     payload,
+				Status:          domain.EnvelopeStatusAccepted,
+			}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			secrets := userapimocks.NewMockSecretIssuer(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().AcceptEnvelope(ctx, principal, "env_1", fixedUserNow()).
+				Return(accepted, nil).
+				Once()
+			secrets.EXPECT().New("kcap").Return("kcap_imported", nil).Once()
+			store.EXPECT().CreateKnowledgeCapsule(
+				mock.Anything,
+				mock.MatchedBy(func(capsule domain.KnowledgeCapsule) bool {
+					require.Equal(t, "kcap_imported", capsule.CapsuleID)
+					require.Equal(t, "usr_recipient", capsule.OwnerUserID)
+					require.JSONEq(
+						t,
+						`[{
+							"type":"paxl.envelope_route",
+							"envelope_id":"env_1",
+							"route_match_type":"project",
+							"route_match_value":"pax-manager",
+							"route_target_agent":"codex"
+						}]`,
+						string(capsule.References),
+					)
+					require.NotContains(t, string(capsule.References), "target_session_id")
+					return true
+				}),
+			).Return(domain.KnowledgeCapsule{CapsuleID: "kcap_imported"}, nil).Once()
+
+			svc := userapi.NewServiceWithBackgroundRunner(
+				store,
+				fixedUserClock,
+				principals,
+				secrets,
+				func(taskCtx context.Context, task func(context.Context)) {
+					task(taskCtx)
+				},
+			)
+			status, _, err := svc.AcceptEnvelope(ctx, auth.RequestMetadata{}, "env_1")
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
 		},
 	)
 
