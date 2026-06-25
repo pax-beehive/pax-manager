@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -36,10 +37,29 @@ func scanAgent(row rowScanner) (Agent, error) {
 	); err != nil {
 		return Agent{}, mapSQLError(err)
 	}
-	agent.Status = liveness
-	agent.Online = liveness == "online"
+	agent.Status = effectiveAgentStatus(agent.Status, liveness)
+	agent.Online = agent.Status == "online"
 	agent.Metadata = json.RawMessage(metadata)
 	return agent, nil
+}
+
+func effectiveAgentStatus(storedStatus string, heartbeatStatus string) string {
+	stored := strings.ToLower(strings.TrimSpace(storedStatus))
+	heartbeat := strings.ToLower(strings.TrimSpace(heartbeatStatus))
+	switch stored {
+	case "", "online", "pending":
+		if heartbeat != "" {
+			return heartbeat
+		}
+		if stored != "" {
+			return stored
+		}
+		return "offline"
+	case "offline", "stopped", "disabled", "failed", "error", "errored":
+		return stored
+	default:
+		return stored
+	}
 }
 
 func scanNode(row rowScanner) (Node, error) {
