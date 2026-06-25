@@ -20,6 +20,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      secrets:
+        - github_token
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,3 +45,7 @@ services:
 
 volumes:
   pax-manager-integration-postgres-data:
+
+secrets:
+  github_token:
+    environment: PAX_BEEHIVE_READ_TOKEN

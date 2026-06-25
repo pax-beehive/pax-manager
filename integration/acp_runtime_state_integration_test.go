@@ -58,7 +58,7 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 		},
 	)
 
-	writeAgentData(t, agentWS, 1, `{
+	writeAgentData(t, agentWS, createdAgent.Agent.AgentID, 1, `{
 		"jsonrpc":"2.0",
 		"id":"perm-1",
 		"method":"session/request_permission",
@@ -73,7 +73,7 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 			"options":[{"optionId":"allow","kind":"allow_once"}]
 		}
 	}`)
-	assertAgentAck(t, agentWS, 1)
+	assertAgentAck(t, agentWS, createdAgent.Agent.AgentID, 1)
 	assertRawWSContains(t, userWS, `"session/request_permission"`)
 	waitForRuntimeState(
 		t,
@@ -106,12 +106,12 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 		},
 	)
 
-	writeAgentData(t, agentWS, 2, `{
+	writeAgentData(t, agentWS, createdAgent.Agent.AgentID, 2, `{
 		"jsonrpc":"2.0",
 		"id":1,
 		"result":{"stopReason":"end_turn"}
 	}`)
-	assertAgentAck(t, agentWS, 2)
+	assertAgentAck(t, agentWS, createdAgent.Agent.AgentID, 2)
 	assertRawWSContains(t, userWS, `"stopReason"`)
 	waitForRuntimeState(
 		t,
@@ -185,16 +185,18 @@ func writeRawWS(t *testing.T, ws *websocket.Conn, raw string) {
 
 type acpTunnelEnvelope struct {
 	Type    string          `json:"type"`
+	QueueID string          `json:"queue_id,omitempty"`
 	Stream  string          `json:"stream"`
 	Seq     int64           `json:"seq"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
-func writeAgentData(t *testing.T, ws *websocket.Conn, seq int64, raw string) {
+func writeAgentData(t *testing.T, ws *websocket.Conn, queueID string, seq int64, raw string) {
 	t.Helper()
 	data, err := json.Marshal(acpTunnelEnvelope{
 		Type:    "data",
-		Stream:  "paxd_to_manager",
+		QueueID: queueID,
+		Stream:  "acp",
 		Seq:     seq,
 		Payload: json.RawMessage(raw),
 	})
@@ -207,24 +209,25 @@ func writeAgentData(t *testing.T, ws *websocket.Conn, seq int64, raw string) {
 func assertAgentDataContains(t *testing.T, ws *websocket.Conn, seq int64, want string) {
 	t.Helper()
 	env := readAgentEnvelope(t, ws)
-	if env.Type != "data" || env.Stream != "manager_to_paxd" || env.Seq != seq {
-		t.Fatalf("agent envelope = %+v, want data manager_to_paxd seq %d", env, seq)
+	if env.Type != "data" || env.QueueID == "" || env.Stream != "acp" || env.Seq != seq {
+		t.Fatalf("agent envelope = %+v, want data acp seq %d with queue_id", env, seq)
 	}
 	if !strings.Contains(string(env.Payload), want) {
 		t.Fatalf("agent envelope payload %s does not contain %s", env.Payload, want)
 	}
 	writeRawWS(t, ws, mustMarshalString(t, acpTunnelEnvelope{
-		Type:   "ack",
-		Stream: "manager_to_paxd",
-		Seq:    seq,
+		Type:    "ack",
+		QueueID: env.QueueID,
+		Stream:  "acp",
+		Seq:     seq,
 	}))
 }
 
-func assertAgentAck(t *testing.T, ws *websocket.Conn, seq int64) {
+func assertAgentAck(t *testing.T, ws *websocket.Conn, queueID string, seq int64) {
 	t.Helper()
 	env := readAgentEnvelope(t, ws)
-	if env.Type != "ack" || env.Stream != "paxd_to_manager" || env.Seq != seq {
-		t.Fatalf("agent ack envelope = %+v, want ack paxd_to_manager seq %d", env, seq)
+	if env.Type != "ack" || env.QueueID != queueID || env.Stream != "acp" || env.Seq != seq {
+		t.Fatalf("agent ack envelope = %+v, want ack acp queue %s seq %d", env, queueID, seq)
 	}
 }
 

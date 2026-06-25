@@ -7,8 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/paxkit/reliablemq"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 func (s *MemoryStore) AppendOutboundData(
@@ -20,9 +21,19 @@ func (s *MemoryStore) AppendOutboundData(
 ) (reliablemq.Frame, error) {
 	_ = ctx
 	if !json.Valid(payload) {
-		return reliablemq.Frame{}, fmt.Errorf("%w: payload must be valid JSON", reliablemq.ErrInvalidFrame)
+		return reliablemq.Frame{}, fmt.Errorf(
+			"%w: payload must be valid JSON",
+			reliablemq.ErrInvalidFrame,
+		)
 	}
-	return s.appendReliableOutbound(queueID, stream, reliablemq.FrameKindData, payload, "", metadata)
+	return s.appendReliableOutbound(
+		queueID,
+		stream,
+		reliablemq.FrameKindData,
+		payload,
+		"",
+		metadata,
+	)
 }
 
 func (s *MemoryStore) AppendOutboundTombstone(
@@ -33,7 +44,14 @@ func (s *MemoryStore) AppendOutboundTombstone(
 	metadata reliablemq.Metadata,
 ) (reliablemq.Frame, error) {
 	_ = ctx
-	return s.appendReliableOutbound(queueID, stream, reliablemq.FrameKindTombstone, nil, errorMessage, metadata)
+	return s.appendReliableOutbound(
+		queueID,
+		stream,
+		reliablemq.FrameKindTombstone,
+		nil,
+		errorMessage,
+		metadata,
+	)
 }
 
 func (s *MemoryStore) SaveInboundIfAbsent(
@@ -45,7 +63,11 @@ func (s *MemoryStore) SaveInboundIfAbsent(
 		return false, reliablemq.Frame{}, err
 	}
 	if frame.Key.Direction != reliablemq.DirectionInbound {
-		return false, reliablemq.Frame{}, fmt.Errorf("%w: inbound frame direction is %q", reliablemq.ErrInvalidFrame, frame.Key.Direction)
+		return false, reliablemq.Frame{}, fmt.Errorf(
+			"%w: inbound frame direction is %q",
+			reliablemq.ErrInvalidFrame,
+			frame.Key.Direction,
+		)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -72,10 +94,17 @@ func (s *MemoryStore) ListOutboundReplay(
 	stream reliablemq.Stream,
 	limit int,
 ) ([]reliablemq.Frame, error) {
-	return s.listReliableFrames(ctx, queueID, stream, reliablemq.DirectionOutbound, []reliablemq.Status{
-		reliablemq.StatusPending,
-		reliablemq.StatusSent,
-	}, limit)
+	return s.listReliableFrames(
+		ctx,
+		queueID,
+		stream,
+		reliablemq.DirectionOutbound,
+		[]reliablemq.Status{
+			reliablemq.StatusPending,
+			reliablemq.StatusSent,
+		},
+		limit,
+	)
 }
 
 func (s *MemoryStore) ListInboundReplay(
@@ -84,9 +113,16 @@ func (s *MemoryStore) ListInboundReplay(
 	stream reliablemq.Stream,
 	limit int,
 ) ([]reliablemq.Frame, error) {
-	return s.listReliableFrames(ctx, queueID, stream, reliablemq.DirectionInbound, []reliablemq.Status{
-		reliablemq.StatusReceived,
-	}, limit)
+	return s.listReliableFrames(
+		ctx,
+		queueID,
+		stream,
+		reliablemq.DirectionInbound,
+		[]reliablemq.Status{
+			reliablemq.StatusReceived,
+		},
+		limit,
+	)
 }
 
 func (s *MemoryStore) MarkSent(ctx context.Context, key reliablemq.FrameKey) error {
@@ -127,22 +163,38 @@ func (s *MemoryStore) MarkApplied(ctx context.Context, key reliablemq.FrameKey) 
 	return s.updateReliableStatus(key, reliablemq.StatusApplied, "")
 }
 
-func (s *MemoryStore) MarkRejected(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error {
+func (s *MemoryStore) MarkRejected(
+	ctx context.Context,
+	key reliablemq.FrameKey,
+	errorMessage string,
+) error {
 	_ = ctx
 	return s.updateReliableStatus(key, reliablemq.StatusRejected, errorMessage)
 }
 
-func (s *MemoryStore) RecordSendFailure(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error {
+func (s *MemoryStore) RecordSendFailure(
+	ctx context.Context,
+	key reliablemq.FrameKey,
+	errorMessage string,
+) error {
 	_ = ctx
 	return s.updateReliableError(key, errorMessage)
 }
 
-func (s *MemoryStore) RecordDispatchFailure(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error {
+func (s *MemoryStore) RecordDispatchFailure(
+	ctx context.Context,
+	key reliablemq.FrameKey,
+	errorMessage string,
+) error {
 	_ = ctx
 	return s.updateReliableError(key, errorMessage)
 }
 
-func (s *MemoryStore) UpdateMetadata(ctx context.Context, key reliablemq.FrameKey, metadata reliablemq.Metadata) error {
+func (s *MemoryStore) UpdateMetadata(
+	ctx context.Context,
+	key reliablemq.FrameKey,
+	metadata reliablemq.Metadata,
+) error {
 	_ = ctx
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -206,7 +258,11 @@ func (s *MemoryStore) NextTransportSeq(
 	_ = ctx
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.nextReliableSeqLocked(agentID, normalizeReliableStream(stream), reliablemq.Direction(direction)), nil
+	return s.nextReliableSeqLocked(
+		agentID,
+		normalizeReliableStream(stream),
+		reliablemq.Direction(direction),
+	), nil
 }
 
 func (s *MemoryStore) GetTransportFrame(
@@ -245,7 +301,14 @@ func (s *MemoryStore) ListTransportFrames(
 	for _, status := range statuses {
 		reliableStatuses = append(reliableStatuses, reliablemq.Status(status))
 	}
-	frames, err := s.listReliableFrames(ctx, agentID, normalizeReliableStream(stream), reliablemq.Direction(direction), reliableStatuses, limit)
+	frames, err := s.listReliableFrames(
+		ctx,
+		agentID,
+		normalizeReliableStream(stream),
+		reliablemq.Direction(direction),
+		reliableStatuses,
+		limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +391,10 @@ func (s *MemoryStore) appendReliableOutbound(
 	metadata reliablemq.Metadata,
 ) (reliablemq.Frame, error) {
 	if queueID == "" {
-		return reliablemq.Frame{}, fmt.Errorf("%w: queue_id is required", reliablemq.ErrInvalidFrame)
+		return reliablemq.Frame{}, fmt.Errorf(
+			"%w: queue_id is required",
+			reliablemq.ErrInvalidFrame,
+		)
 	}
 	if stream == "" {
 		return reliablemq.Frame{}, fmt.Errorf("%w: stream is required", reliablemq.ErrInvalidFrame)
@@ -381,7 +447,8 @@ func (s *MemoryStore) listReliableFrames(
 	defer s.mu.Unlock()
 	frames := make([]reliablemq.Frame, 0)
 	for key, frame := range s.transportJournal {
-		if key.QueueID != queueID || key.Stream != string(stream) || key.Direction != string(direction) {
+		if key.QueueID != queueID || key.Stream != string(stream) ||
+			key.Direction != string(direction) {
 			continue
 		}
 		if len(statusSet) > 0 && !statusSet[frame.Status] {
@@ -398,7 +465,11 @@ func (s *MemoryStore) listReliableFrames(
 	return frames, nil
 }
 
-func (s *MemoryStore) updateReliableStatus(key reliablemq.FrameKey, status reliablemq.Status, errMsg string) error {
+func (s *MemoryStore) updateReliableStatus(
+	key reliablemq.FrameKey,
+	status reliablemq.Status,
+	errMsg string,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	mapKey := makeReliableTransportFrameKey(key)
@@ -431,7 +502,11 @@ func (s *MemoryStore) updateReliableError(key reliablemq.FrameKey, errorMessage 
 	return nil
 }
 
-func (s *MemoryStore) nextReliableSeqLocked(queueID string, stream reliablemq.Stream, direction reliablemq.Direction) int64 {
+func (s *MemoryStore) nextReliableSeqLocked(
+	queueID string,
+	stream reliablemq.Stream,
+	direction reliablemq.Direction,
+) int64 {
 	var maxSeq int64
 	for key := range s.transportJournal {
 		if key.QueueID == queueID &&
@@ -482,7 +557,9 @@ func reliableFromTransportFrame(frame TransportFrame) reliablemq.Frame {
 			Seq:       frame.Seq,
 			Direction: reliablemq.Direction(firstNonEmpty(frame.Direction, frame.LocalDirection)),
 		},
-		Kind:         reliablemq.FrameKind(firstNonEmpty(frame.Kind, string(reliablemq.FrameKindData))),
+		Kind: reliablemq.FrameKind(
+			firstNonEmpty(frame.Kind, string(reliablemq.FrameKindData)),
+		),
 		Payload:      append(json.RawMessage(nil), frame.PayloadJSON...),
 		Metadata:     metadata,
 		Status:       reliablemq.Status(frame.Status),

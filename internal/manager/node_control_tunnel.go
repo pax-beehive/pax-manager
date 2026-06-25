@@ -123,7 +123,11 @@ type nodeControlAgentRuntime struct {
 	UpdatedAt    string `json:"updated_at"`
 }
 
-func (s *Server) handleNodeControlTunnelFrame(ctx context.Context, node Node, payload []byte) error {
+func (s *Server) handleNodeControlTunnelFrame(
+	ctx context.Context,
+	node Node,
+	payload []byte,
+) error {
 	var frame nodeControlFrame
 	if err := json.Unmarshal(payload, &frame); err != nil {
 		return fmt.Errorf("decode node control frame: %w", err)

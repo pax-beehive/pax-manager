@@ -24,10 +24,25 @@ type ReliableTransportJournal interface {
 		metadata reliablemq.Metadata,
 	) (reliablemq.Frame, error)
 	SaveInboundIfAbsent(ctx context.Context, frame reliablemq.Frame) (bool, reliablemq.Frame, error)
-	ListOutboundReplay(ctx context.Context, queueID string, stream reliablemq.Stream, limit int) ([]reliablemq.Frame, error)
-	ListInboundReplay(ctx context.Context, queueID string, stream reliablemq.Stream, limit int) ([]reliablemq.Frame, error)
+	ListOutboundReplay(
+		ctx context.Context,
+		queueID string,
+		stream reliablemq.Stream,
+		limit int,
+	) ([]reliablemq.Frame, error)
+	ListInboundReplay(
+		ctx context.Context,
+		queueID string,
+		stream reliablemq.Stream,
+		limit int,
+	) ([]reliablemq.Frame, error)
 	MarkSent(ctx context.Context, key reliablemq.FrameKey) error
-	AckOutboundThrough(ctx context.Context, queueID string, stream reliablemq.Stream, throughSeq int64) error
+	AckOutboundThrough(
+		ctx context.Context,
+		queueID string,
+		stream reliablemq.Stream,
+		throughSeq int64,
+	) error
 	MarkApplied(ctx context.Context, key reliablemq.FrameKey) error
 	MarkRejected(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error
 	RecordSendFailure(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error
