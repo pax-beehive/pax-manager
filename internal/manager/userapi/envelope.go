@@ -15,15 +15,18 @@ import (
 )
 
 const (
-	envelopeMessageLimit = 1000
-	envelopePayloadLimit = 128 * 1024
+	envelopeMessageLimit    = 1000
+	envelopePayloadLimit    = 128 * 1024
+	envelopeRouteValueLimit = 256
 
-	paxlKnowledgeCapsuleEnvelopePayloadVersion = "paxl.envelope_payload.knowledge_capsule.v1"
+	paxlKnowledgeCapsuleEnvelopePayloadVersionV1 = "paxl.envelope_payload.knowledge_capsule.v1"
+	paxlKnowledgeCapsuleEnvelopePayloadVersionV2 = "paxl.envelope_payload.knowledge_capsule.v2"
 )
 
 type paxlKnowledgeCapsuleEnvelopePayload struct {
 	SchemaVersion string                             `json:"schema_version"`
 	Capsule       paxlKnowledgeCapsulePayloadCapsule `json:"capsule"`
+	Route         *paxlKnowledgeCapsulePayloadRoute  `json:"route,omitempty"`
 }
 
 type paxlKnowledgeCapsulePayloadCapsule struct {
@@ -38,6 +41,12 @@ type paxlKnowledgeCapsulePayloadCapsule struct {
 	Status                 string `json:"status"`
 	Truncated              bool   `json:"truncated"`
 	OriginalEstimatedChars int64  `json:"original_estimated_chars"`
+}
+
+type paxlKnowledgeCapsulePayloadRoute struct {
+	MatchType   string `json:"match_type"`
+	MatchValue  string `json:"match_value,omitempty"`
+	TargetAgent string `json:"target_agent,omitempty"`
 }
 
 func (s *Service) CreateEnvelope(
@@ -77,6 +86,9 @@ func (s *Service) CreateEnvelope(
 			Status:  http.StatusBadRequest,
 			Message: "payload_json is too large",
 		}
+	}
+	if err := validateEnvelopePayload(payloadType, req.PayloadJSON); err != nil {
+		return 0, nil, err
 	}
 	message := strings.TrimSpace(req.Message)
 	if len(message) > envelopeMessageLimit {
@@ -142,11 +154,12 @@ func (s *Service) unpackEnvelopeCapsule(
 	if err := json.Unmarshal(envelope.PayloadJSON, &payload); err != nil {
 		return err
 	}
-	if payload.SchemaVersion != paxlKnowledgeCapsuleEnvelopePayloadVersion {
-		return apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "unsupported envelope payload schema",
-		}
+	payload.SchemaVersion = strings.TrimSpace(payload.SchemaVersion)
+	if payload.SchemaVersion == "" {
+		return nil
+	}
+	if err := validateKnowledgeCapsuleEnvelopePayload(payload); err != nil {
+		return err
 	}
 	capsuleID, err := s.secrets.New("kcap")
 	if err != nil {
@@ -182,7 +195,7 @@ func (s *Service) unpackEnvelopeCapsule(
 			knowledgeContentLimit,
 		),
 		SuggestedSkills:        json.RawMessage(defaultKnowledgeArrayString),
-		References:             json.RawMessage(defaultKnowledgeArrayString),
+		References:             envelopeCapsuleReferences(payload.Route, envelope.EnvelopeID),
 		OpenQuestions:          json.RawMessage(defaultKnowledgeArrayString),
 		Risks:                  json.RawMessage(defaultKnowledgeArrayString),
 		Redactions:             json.RawMessage(defaultKnowledgeArrayString),
@@ -208,6 +221,135 @@ func (s *Service) unpackEnvelopeCapsule(
 	}
 	_, err = s.store.CreateKnowledgeCapsule(ctx, capsule)
 	return err
+}
+
+func validateEnvelopePayload(payloadType string, raw json.RawMessage) error {
+	if payloadType != domain.EnvelopePayloadKnowledgeCapsule {
+		return nil
+	}
+	var envelope struct {
+		SchemaVersion string                            `json:"schema_version"`
+		Capsule       json.RawMessage                   `json:"capsule"`
+		Route         *paxlKnowledgeCapsulePayloadRoute `json:"route,omitempty"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "payload_json must be an object",
+		}
+	}
+	envelope.SchemaVersion = strings.TrimSpace(envelope.SchemaVersion)
+	if envelope.SchemaVersion == "" {
+		return nil
+	}
+	if envelope.SchemaVersion == paxlKnowledgeCapsuleEnvelopePayloadVersionV1 ||
+		envelope.SchemaVersion == paxlKnowledgeCapsuleEnvelopePayloadVersionV2 {
+		if !jsonRawValuePresent(envelope.Capsule) {
+			return apperr.Error{Status: http.StatusBadRequest, Message: "capsule is required"}
+		}
+	}
+	var payload paxlKnowledgeCapsuleEnvelopePayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return err
+	}
+	payload.SchemaVersion = envelope.SchemaVersion
+	payload.Route = envelope.Route
+	return validateKnowledgeCapsuleEnvelopePayload(payload)
+}
+
+func jsonRawValuePresent(value json.RawMessage) bool {
+	trimmed := strings.TrimSpace(string(value))
+	return trimmed != "" && trimmed != "null"
+}
+
+func validateKnowledgeCapsuleEnvelopePayload(
+	payload paxlKnowledgeCapsuleEnvelopePayload,
+) error {
+	switch strings.TrimSpace(payload.SchemaVersion) {
+	case paxlKnowledgeCapsuleEnvelopePayloadVersionV1:
+		return nil
+	case paxlKnowledgeCapsuleEnvelopePayloadVersionV2:
+		return validateKnowledgeCapsuleEnvelopeRoute(payload.Route)
+	default:
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "unsupported envelope payload schema",
+		}
+	}
+}
+
+func validateKnowledgeCapsuleEnvelopeRoute(route *paxlKnowledgeCapsulePayloadRoute) error {
+	if route == nil {
+		return apperr.Error{Status: http.StatusBadRequest, Message: "route is required"}
+	}
+	matchType := strings.TrimSpace(route.MatchType)
+	matchValue := strings.TrimSpace(route.MatchValue)
+	switch matchType {
+	case "any":
+		if matchValue != "" {
+			return apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "route match_value must be empty for any",
+			}
+		}
+	case "project", "keyword":
+		if matchValue == "" {
+			return apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "route match_value is required",
+			}
+		}
+	default:
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "unsupported route match_type",
+		}
+	}
+	if len(matchValue) > envelopeRouteValueLimit {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "route match_value is too long",
+		}
+	}
+	targetAgent := strings.TrimSpace(route.TargetAgent)
+	if targetAgent != "" && !isSupportedPaxlAgent(targetAgent) {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "unsupported route target_agent",
+		}
+	}
+	return nil
+}
+
+func isSupportedPaxlAgent(agent string) bool {
+	switch strings.TrimSpace(agent) {
+	case "codex", "claude", "gemini", "kiro", "pi":
+		return true
+	default:
+		return false
+	}
+}
+
+func envelopeCapsuleReferences(
+	route *paxlKnowledgeCapsulePayloadRoute,
+	envelopeID string,
+) json.RawMessage {
+	if route == nil {
+		return json.RawMessage(defaultKnowledgeArrayString)
+	}
+	references, err := json.Marshal([]map[string]string{
+		{
+			"type":               "paxl.envelope_route",
+			"envelope_id":        envelopeID,
+			"route_match_type":   strings.TrimSpace(route.MatchType),
+			"route_match_value":  strings.TrimSpace(route.MatchValue),
+			"route_target_agent": strings.TrimSpace(route.TargetAgent),
+		},
+	})
+	if err != nil {
+		return json.RawMessage(defaultKnowledgeArrayString)
+	}
+	return references
 }
 
 func friendCounterpartyUserID(principal domain.UserPrincipal, friend domain.Friend) string {
