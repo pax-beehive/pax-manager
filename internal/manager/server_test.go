@@ -15,9 +15,10 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/adaptor"
 	"github.com/gorilla/websocket"
 
+	"github.com/pax-beehive/paxkit/reliablemq"
+
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
-	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
 const (

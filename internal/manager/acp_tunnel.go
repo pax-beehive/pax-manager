@@ -14,11 +14,12 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/pax-beehive/paxkit/reliablemq"
+
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
-	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
 type ACPTunnelHub struct {
@@ -902,7 +903,12 @@ func (a *ACPTunnelAgent) observeHistoryBoundary(payload json.RawMessage) {
 }
 
 func (a *ACPTunnelAgent) replayUnackedToAgent(ctx context.Context) error {
-	engine := reliablemq.NewEngine(reliablemq.Config{}, a.store, a.reliableSender(websocket.TextMessage), nil)
+	engine := reliablemq.NewEngine(
+		reliablemq.Config{},
+		a.store,
+		a.reliableSender(websocket.TextMessage),
+		nil,
+	)
 	return engine.ReplayOutbound(ctx, a.queueID(), reliablemq.StreamACP, 1000)
 }
 

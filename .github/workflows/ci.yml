@@ -23,6 +23,7 @@ jobs:
     env:
       GOCACHE: /tmp/go-build
       GOLANGCI_LINT_CACHE: /tmp/golangci-lint-cache
+      GOPRIVATE: github.com/pax-beehive/*
 
     steps:
       - name: Checkout
@@ -33,6 +34,16 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Configure private module access
+        env:
+          PAX_BEEHIVE_READ_TOKEN: ${{ secrets.PAX_BEEHIVE_READ_TOKEN }}
+        run: |
+          if [ -z "$PAX_BEEHIVE_READ_TOKEN" ]; then
+            echo "PAX_BEEHIVE_READ_TOKEN is required to download private pax-beehive Go modules." >&2
+            exit 1
+          fi
+          git config --global url."https://x-access-token:${PAX_BEEHIVE_READ_TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Download dependencies
         run: go mod download
@@ -64,6 +75,8 @@ jobs:
     timeout-minutes: 30
     env:
       GOCACHE: /tmp/go-build
+      GOPRIVATE: github.com/pax-beehive/*
+      PAX_BEEHIVE_READ_TOKEN: ${{ secrets.PAX_BEEHIVE_READ_TOKEN }}
 
     steps:
       - name: Checkout
@@ -74,6 +87,14 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Configure private module access
+        run: |
+          if [ -z "$PAX_BEEHIVE_READ_TOKEN" ]; then
+            echo "PAX_BEEHIVE_READ_TOKEN is required to download private pax-beehive Go modules." >&2
+            exit 1
+          fi
+          git config --global url."https://x-access-token:${PAX_BEEHIVE_READ_TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Run integration tests
         run: make integration-test

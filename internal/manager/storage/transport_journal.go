@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/paxkit/reliablemq"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 func (s *PostgresStore) AppendOutboundData(
@@ -20,9 +21,20 @@ func (s *PostgresStore) AppendOutboundData(
 	metadata reliablemq.Metadata,
 ) (reliablemq.Frame, error) {
 	if !json.Valid(payload) {
-		return reliablemq.Frame{}, fmt.Errorf("%w: payload must be valid JSON", reliablemq.ErrInvalidFrame)
+		return reliablemq.Frame{}, fmt.Errorf(
+			"%w: payload must be valid JSON",
+			reliablemq.ErrInvalidFrame,
+		)
 	}
-	return s.appendOutboundReliableFrame(ctx, queueID, stream, reliablemq.FrameKindData, payload, "", metadata)
+	return s.appendOutboundReliableFrame(
+		ctx,
+		queueID,
+		stream,
+		reliablemq.FrameKindData,
+		payload,
+		"",
+		metadata,
+	)
 }
 
 func (s *PostgresStore) AppendOutboundTombstone(
@@ -32,7 +44,15 @@ func (s *PostgresStore) AppendOutboundTombstone(
 	errorMessage string,
 	metadata reliablemq.Metadata,
 ) (reliablemq.Frame, error) {
-	return s.appendOutboundReliableFrame(ctx, queueID, stream, reliablemq.FrameKindTombstone, nil, errorMessage, metadata)
+	return s.appendOutboundReliableFrame(
+		ctx,
+		queueID,
+		stream,
+		reliablemq.FrameKindTombstone,
+		nil,
+		errorMessage,
+		metadata,
+	)
 }
 
 func (s *PostgresStore) SaveInboundIfAbsent(
@@ -43,7 +63,11 @@ func (s *PostgresStore) SaveInboundIfAbsent(
 		return false, reliablemq.Frame{}, err
 	}
 	if frame.Key.Direction != reliablemq.DirectionInbound {
-		return false, reliablemq.Frame{}, fmt.Errorf("%w: inbound frame direction is %q", reliablemq.ErrInvalidFrame, frame.Key.Direction)
+		return false, reliablemq.Frame{}, fmt.Errorf(
+			"%w: inbound frame direction is %q",
+			reliablemq.ErrInvalidFrame,
+			frame.Key.Direction,
+		)
 	}
 	now := s.now().UTC()
 	frame = frame.Clone()
@@ -84,10 +108,17 @@ func (s *PostgresStore) ListOutboundReplay(
 	stream reliablemq.Stream,
 	limit int,
 ) ([]reliablemq.Frame, error) {
-	return s.listReliableFrames(ctx, queueID, stream, reliablemq.DirectionOutbound, []reliablemq.Status{
-		reliablemq.StatusPending,
-		reliablemq.StatusSent,
-	}, limit)
+	return s.listReliableFrames(
+		ctx,
+		queueID,
+		stream,
+		reliablemq.DirectionOutbound,
+		[]reliablemq.Status{
+			reliablemq.StatusPending,
+			reliablemq.StatusSent,
+		},
+		limit,
+	)
 }
 
 func (s *PostgresStore) ListInboundReplay(
@@ -96,9 +127,16 @@ func (s *PostgresStore) ListInboundReplay(
 	stream reliablemq.Stream,
 	limit int,
 ) ([]reliablemq.Frame, error) {
-	return s.listReliableFrames(ctx, queueID, stream, reliablemq.DirectionInbound, []reliablemq.Status{
-		reliablemq.StatusReceived,
-	}, limit)
+	return s.listReliableFrames(
+		ctx,
+		queueID,
+		stream,
+		reliablemq.DirectionInbound,
+		[]reliablemq.Status{
+			reliablemq.StatusReceived,
+		},
+		limit,
+	)
 }
 
 func (s *PostgresStore) MarkSent(ctx context.Context, key reliablemq.FrameKey) error {
@@ -125,19 +163,35 @@ func (s *PostgresStore) MarkApplied(ctx context.Context, key reliablemq.FrameKey
 	return s.updateReliableFrameStatus(ctx, key, reliablemq.StatusApplied, "")
 }
 
-func (s *PostgresStore) MarkRejected(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error {
+func (s *PostgresStore) MarkRejected(
+	ctx context.Context,
+	key reliablemq.FrameKey,
+	errorMessage string,
+) error {
 	return s.updateReliableFrameStatus(ctx, key, reliablemq.StatusRejected, errorMessage)
 }
 
-func (s *PostgresStore) RecordSendFailure(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error {
+func (s *PostgresStore) RecordSendFailure(
+	ctx context.Context,
+	key reliablemq.FrameKey,
+	errorMessage string,
+) error {
 	return s.updateReliableFrameError(ctx, key, errorMessage)
 }
 
-func (s *PostgresStore) RecordDispatchFailure(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error {
+func (s *PostgresStore) RecordDispatchFailure(
+	ctx context.Context,
+	key reliablemq.FrameKey,
+	errorMessage string,
+) error {
 	return s.updateReliableFrameError(ctx, key, errorMessage)
 }
 
-func (s *PostgresStore) UpdateMetadata(ctx context.Context, key reliablemq.FrameKey, metadata reliablemq.Metadata) error {
+func (s *PostgresStore) UpdateMetadata(
+	ctx context.Context,
+	key reliablemq.FrameKey,
+	metadata reliablemq.Metadata,
+) error {
 	now := s.now().UTC()
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE transport_journal
@@ -313,7 +367,10 @@ func (s *PostgresStore) appendOutboundReliableFrame(
 	metadata reliablemq.Metadata,
 ) (reliablemq.Frame, error) {
 	if queueID == "" {
-		return reliablemq.Frame{}, fmt.Errorf("%w: queue_id is required", reliablemq.ErrInvalidFrame)
+		return reliablemq.Frame{}, fmt.Errorf(
+			"%w: queue_id is required",
+			reliablemq.ErrInvalidFrame,
+		)
 	}
 	if stream == "" {
 		return reliablemq.Frame{}, fmt.Errorf("%w: stream is required", reliablemq.ErrInvalidFrame)
@@ -360,7 +417,10 @@ func (s *PostgresStore) appendOutboundReliableFrame(
 	return frame, nil
 }
 
-func (s *PostgresStore) insertReliableFrame(ctx context.Context, frame reliablemq.Frame) (reliablemq.Frame, error) {
+func (s *PostgresStore) insertReliableFrame(
+	ctx context.Context,
+	frame reliablemq.Frame,
+) (reliablemq.Frame, error) {
 	if err := reliablemq.ValidateFrame(frame); err != nil {
 		return reliablemq.Frame{}, err
 	}
@@ -416,7 +476,10 @@ func insertReliableFrameTx(ctx context.Context, tx *sql.Tx, frame reliablemq.Fra
 	return affected > 0, nil
 }
 
-func (s *PostgresStore) getReliableFrame(ctx context.Context, key reliablemq.FrameKey) (reliablemq.Frame, error) {
+func (s *PostgresStore) getReliableFrame(
+	ctx context.Context,
+	key reliablemq.FrameKey,
+) (reliablemq.Frame, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT `+reliableFrameReturningSQL+`
 		FROM transport_journal
@@ -566,7 +629,10 @@ func transportFrameToReliable(frame *TransportFrame) (reliablemq.Frame, error) {
 	queueID := firstNonEmpty(frame.QueueID, frame.AgentID)
 	direction := firstNonEmpty(frame.Direction, frame.LocalDirection)
 	kind := firstNonEmpty(frame.Kind, string(reliablemq.FrameKindData))
-	status := firstNonEmpty(frame.Status, string(reliablemq.DefaultStatus(reliablemq.Direction(direction))))
+	status := firstNonEmpty(
+		frame.Status,
+		string(reliablemq.DefaultStatus(reliablemq.Direction(direction))),
+	)
 	metadata := reliablemq.Metadata(frame.Metadata).Clone()
 	if metadata == nil {
 		metadata = reliablemq.Metadata{}
@@ -619,7 +685,10 @@ func transportFrameFromReliable(frame reliablemq.Frame, agentID string) Transpor
 
 func normalizeReliableStream(stream string) reliablemq.Stream {
 	switch stream {
-	case "", domain.TransportStreamACP, domain.TransportStreamManagerToPaxd, domain.TransportStreamPaxdToManager:
+	case "",
+		domain.TransportStreamACP,
+		domain.TransportStreamManagerToPaxd,
+		domain.TransportStreamPaxdToManager:
 		return reliablemq.StreamACP
 	default:
 		return reliablemq.Stream(stream)
