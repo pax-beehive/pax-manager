@@ -115,10 +115,11 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 }
 
 type agentWSInitialRequest struct {
-	AgentID     string
-	NodeID      string
-	OwnerUserID string
-	SessionID   string
+	AgentID      string
+	ConnectionID string
+	NodeID       string
+	OwnerUserID  string
+	SessionID    string
 }
 
 func (s *Server) authenticateAgentWS(r *http.Request) (User, Agent, agentWSInitialRequest, error) {
@@ -190,6 +191,16 @@ func websocketSessionID(r *http.Request) string {
 		return sessionID
 	}
 	return r.URL.Query().Get("sessionId")
+}
+
+func websocketConnectionID(r *http.Request, fallback string) string {
+	if connectionID := r.URL.Query().Get("connection_id"); connectionID != "" {
+		return connectionID
+	}
+	if connectionID := r.URL.Query().Get("connectionId"); connectionID != "" {
+		return connectionID
+	}
+	return fallback
 }
 
 type agentWSRequest struct {

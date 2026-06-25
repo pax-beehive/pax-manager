@@ -8,6 +8,7 @@ require (
 	github.com/cloudwego/hertz v0.10.5
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/pax-beehive/paxkit v0.0.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.21.0
 	google.golang.org/api v0.285.0
@@ -18,6 +19,8 @@ require (
 )
 
 replace github.com/apache/thrift => github.com/apache/thrift v0.13.0
+
+replace github.com/pax-beehive/paxkit => ../paxkit
 
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect

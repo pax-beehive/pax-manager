@@ -18,6 +18,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
+	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
 type ACPTunnelHub struct {
@@ -32,6 +33,7 @@ type acpTunnelKey struct {
 
 type ACPTunnelAgent struct {
 	agentID           string
+	connectionID      string
 	nodeID            string
 	ownerUserID       string
 	sessionID         string
@@ -45,20 +47,6 @@ type ACPTunnelAgent struct {
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
 }
-
-type acpTunnelEnvelope struct {
-	Type    string          `json:"type"`
-	Stream  string          `json:"stream"`
-	Seq     int64           `json:"seq"`
-	Payload json.RawMessage `json:"payload,omitempty"`
-}
-
-const (
-	acpTunnelTypeData            = "data"
-	acpTunnelTypeAck             = "ack"
-	acpTunnelStreamManagerToPaxd = "manager_to_paxd"
-	acpTunnelStreamPaxdToManager = "paxd_to_manager"
-)
 
 type acpUserTunnelMetadata struct {
 	ClientID string
@@ -204,29 +192,30 @@ func (a *ACPTunnelAgent) takeSessionNew(requestID string) (string, bool) {
 // business history; future message/message_part projectors can consume received
 // frames and mark them applied when the business write is complete.
 func (a *ACPTunnelAgent) writeToAgent(ctx context.Context, messageType int, payload []byte) error {
-	a.agentWriteMu.Lock()
-	defer a.agentWriteMu.Unlock()
-	enveloped, seq, err := a.wrapManagerToPaxd(ctx, payload)
+	var raw json.RawMessage
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return fmt.Errorf("wrap acp frame: payload must be JSON: %w", err)
+	}
+	engine := reliablemq.NewEngine(reliablemq.Config{}, a.store, a.reliableSender(messageType), nil)
+	_, err := engine.Send(ctx, reliablemq.OutboundMessage{
+		QueueID: a.queueID(),
+		Stream:  reliablemq.StreamACP,
+		Payload: append(json.RawMessage(nil), raw...),
+		Metadata: reliablemq.Metadata{
+			"agent_id": a.agentID,
+			"node_id":  a.nodeID,
+		},
+	})
 	if err != nil {
 		return err
 	}
-	if err := a.ws.WriteMessage(messageType, enveloped); err != nil {
-		return err
-	}
-	return a.store.UpdateTransportFrameStatus(
-		ctx,
-		a.agentID,
-		domain.TransportStreamManagerToPaxd,
-		seq,
-		domain.TransportDirectionOutbound,
-		domain.TransportStatusSent,
-		"",
-	)
+	return nil
 }
 
 func (a *ACPTunnelAgent) actorAttrs() []slog.Attr {
 	return []slog.Attr{
 		slog.String("agent_id", a.agentID),
+		slog.String("connection_id", a.queueID()),
 		slog.String("node_id", a.nodeID),
 		slog.String("owner_user_id", a.ownerUserID),
 		slog.String("session_id", a.sessionID),
@@ -254,6 +243,14 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 	ctx context.Context,
 	pipeline acpFramePipeline,
 ) error {
+	engine := reliablemq.NewEngine(
+		reliablemq.Config{},
+		a.store,
+		a.reliableSender(websocket.TextMessage),
+		reliablemq.DispatcherFunc(func(dispatchCtx context.Context, frame reliablemq.Frame) error {
+			return a.dispatchReliableACPFrame(dispatchCtx, pipeline, frame)
+		}),
+	)
 	for {
 		messageType, payload, err := a.ws.ReadMessage()
 		if err != nil {
@@ -262,106 +259,25 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
 			continue
 		}
-		env, ok, err := decodePaxdToManager(payload)
+		env, err := reliablemq.UnmarshalEnvelope(payload)
 		if err != nil {
 			return err
 		}
-		if !ok {
-			continue
+		if env.QueueID != a.queueID() {
+			return fmt.Errorf("unexpected reliablemq queue_id %q", env.QueueID)
 		}
-		if env.Type == acpTunnelTypeAck {
-			if err := a.store.AckOutboundTransportFrames(
-				ctx,
-				a.agentID,
-				domain.TransportStreamManagerToPaxd,
-				env.Seq,
-			); err != nil {
-				return err
-			}
-			continue
+		if env.Metadata == nil {
+			env.Metadata = reliablemq.Metadata{}
 		}
-		inserted, err := a.store.SaveTransportFrameIfAbsent(ctx, &domain.TransportFrame{
-			AgentID:        a.agentID,
-			Stream:         domain.TransportStreamPaxdToManager,
-			Seq:            env.Seq,
-			LocalDirection: domain.TransportDirectionInbound,
-			PayloadJSON:    append(json.RawMessage(nil), env.Payload...),
-			Status:         domain.TransportStatusReceived,
-		})
-		if err != nil {
+		if env.Metadata["agent_id"] == "" {
+			env.Metadata["agent_id"] = a.agentID
+		}
+		if env.Metadata["node_id"] == "" {
+			env.Metadata["node_id"] = a.nodeID
+		}
+		if err := engine.Receive(ctx, env); err != nil {
 			return err
 		}
-		if !inserted {
-			if err := a.writeAckToAgent(messageType, domain.TransportStreamPaxdToManager, env.Seq); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := projectACPTransportMessage(
-			ctx,
-			a.store,
-			a.agentID,
-			a.ownerUserID,
-			a.nodeID,
-			domain.TransportStreamPaxdToManager,
-			env.Seq,
-			a.historyGroupID(env.Seq, env.Payload),
-			env.Payload,
-		); err != nil {
-			return err
-		}
-		if err := a.writeAckToAgent(messageType, domain.TransportStreamPaxdToManager, env.Seq); err != nil {
-			return err
-		}
-
-		frame := newACPFrameContext(a, acpAgentToUser, messageType, []byte(env.Payload))
-		err = pipeline.Handle(ctx, frame, func(_ context.Context, frame *acpFrameContext) error {
-			userWS := a.currentUser()
-			if userWS == nil {
-				logging.Warn(
-					ctx,
-					"agent acp tunnel dropped frame without user",
-					slog.String("agent_id", a.agentID),
-					slog.String("session_id", a.sessionID),
-				)
-				return nil
-			}
-			a.userWriteMu.Lock()
-			defer a.userWriteMu.Unlock()
-			return userWS.WriteMessage(frame.messageType, frame.payload)
-		})
-		if err != nil {
-			logging.Error(
-				ctx,
-				"agent acp tunnel frame handling failed",
-				slog.String("agent_id", a.agentID),
-				slog.String("session_id", a.sessionID),
-				logging.Err(err),
-			)
-		}
-		if err != nil && !frame.handled {
-			logging.Error(
-				ctx,
-				"agent acp tunnel failed to write user frame",
-				slog.String("agent_id", a.agentID),
-				slog.String("session_id", a.sessionID),
-				logging.Err(err),
-			)
-			a.closeUser()
-			continue
-		}
-		if err := a.store.UpdateTransportFrameStatus(
-			ctx,
-			a.agentID,
-			domain.TransportStreamPaxdToManager,
-			env.Seq,
-			domain.TransportDirectionInbound,
-			domain.TransportStatusApplied,
-			"",
-		); err != nil {
-			return err
-		}
-		a.observeHistoryBoundary(env.Payload)
 	}
 }
 
@@ -409,12 +325,13 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	conn := &ACPTunnelAgent{
-		agentID:     initial.AgentID,
-		nodeID:      initial.NodeID,
-		ownerUserID: initial.OwnerUserID,
-		sessionID:   initial.SessionID,
-		ws:          ws,
-		store:       s.store,
+		agentID:      initial.AgentID,
+		connectionID: firstNonEmpty(initial.ConnectionID, initial.AgentID),
+		nodeID:       initial.NodeID,
+		ownerUserID:  initial.OwnerUserID,
+		sessionID:    initial.SessionID,
+		ws:           ws,
+		store:        s.store,
 	}
 	s.acpTunnels.add(initial.AgentID, initial.SessionID, conn)
 	logging.Info(ctx, "agent acp tunnel connected")
@@ -473,10 +390,11 @@ func (s *Server) authenticateAgentACPTunnel(
 			websocketSessionID(r),
 		)
 		return agentWSInitialRequest{
-			AgentID:     agent.AgentID,
-			NodeID:      agent.NodeID,
-			OwnerUserID: agent.OwnerUserID,
-			SessionID:   sessionID,
+			AgentID:      agent.AgentID,
+			ConnectionID: websocketConnectionID(r, agent.AgentID),
+			NodeID:       agent.NodeID,
+			OwnerUserID:  agent.OwnerUserID,
+			SessionID:    sessionID,
 		}, "agent_key", nil
 	}
 
@@ -517,10 +435,11 @@ func (s *Server) authenticateAgentACPTunnel(
 		websocketSessionID(r),
 	)
 	return agentWSInitialRequest{
-		AgentID:     agent.AgentID,
-		NodeID:      agent.NodeID,
-		OwnerUserID: agent.OwnerUserID,
-		SessionID:   sessionID,
+		AgentID:      agent.AgentID,
+		ConnectionID: websocketConnectionID(r, agent.AgentID),
+		NodeID:       agent.NodeID,
+		OwnerUserID:  agent.OwnerUserID,
+		SessionID:    sessionID,
 	}, "node_key", nil
 }
 
@@ -970,38 +889,6 @@ func relayUserFramesToAgent(
 	}
 }
 
-func (a *ACPTunnelAgent) wrapManagerToPaxd(
-	ctx context.Context,
-	payload []byte,
-) ([]byte, int64, error) {
-	var raw json.RawMessage
-	if err := json.Unmarshal(payload, &raw); err != nil {
-		return nil, 0, fmt.Errorf("wrap acp frame: payload must be JSON: %w", err)
-	}
-	seq, err := a.store.NextTransportSeq(
-		ctx,
-		a.agentID,
-		domain.TransportStreamManagerToPaxd,
-		domain.TransportDirectionOutbound,
-	)
-	if err != nil {
-		return nil, 0, err
-	}
-	frame := &domain.TransportFrame{
-		AgentID:        a.agentID,
-		Stream:         domain.TransportStreamManagerToPaxd,
-		Seq:            seq,
-		LocalDirection: domain.TransportDirectionOutbound,
-		PayloadJSON:    append(json.RawMessage(nil), raw...),
-		Status:         domain.TransportStatusPending,
-	}
-	if err := a.store.SaveTransportFrame(ctx, frame); err != nil {
-		return nil, 0, err
-	}
-	enveloped, err := marshalACPTunnelData(domain.TransportStreamManagerToPaxd, seq, raw)
-	return enveloped, seq, err
-}
-
 func (a *ACPTunnelAgent) historyGroupID(seq int64, payload json.RawMessage) string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -1015,94 +902,90 @@ func (a *ACPTunnelAgent) observeHistoryBoundary(payload json.RawMessage) {
 }
 
 func (a *ACPTunnelAgent) replayUnackedToAgent(ctx context.Context) error {
-	frames, err := a.store.ListTransportFrames(
+	engine := reliablemq.NewEngine(reliablemq.Config{}, a.store, a.reliableSender(websocket.TextMessage), nil)
+	return engine.ReplayOutbound(ctx, a.queueID(), reliablemq.StreamACP, 1000)
+}
+
+func (a *ACPTunnelAgent) dispatchReliableACPFrame(
+	ctx context.Context,
+	pipeline acpFramePipeline,
+	reliableFrame reliablemq.Frame,
+) error {
+	payload := reliableFrame.Payload
+	if err := projectACPTransportMessage(
 		ctx,
+		a.store,
 		a.agentID,
-		domain.TransportStreamManagerToPaxd,
-		domain.TransportDirectionOutbound,
-		[]string{
-			domain.TransportStatusPending,
-			domain.TransportStatusSent,
-			domain.TransportStatusFailed,
-		},
-		1000,
-	)
-	if err != nil {
+		a.ownerUserID,
+		a.nodeID,
+		domain.TransportStreamPaxdToManager,
+		reliableFrame.Key.Seq,
+		a.historyGroupID(reliableFrame.Key.Seq, payload),
+		payload,
+	); err != nil {
 		return err
 	}
-	for _, frame := range frames {
-		payload, err := marshalACPTunnelData(frame.Stream, frame.Seq, frame.PayloadJSON)
+
+	frame := newACPFrameContext(a, acpAgentToUser, websocket.TextMessage, []byte(payload))
+	err := pipeline.Handle(ctx, frame, func(_ context.Context, frame *acpFrameContext) error {
+		userWS := a.currentUser()
+		if userWS == nil {
+			logging.Warn(
+				ctx,
+				"agent acp tunnel dropped frame without user",
+				slog.String("agent_id", a.agentID),
+				slog.String("connection_id", a.queueID()),
+				slog.String("session_id", a.sessionID),
+			)
+			return nil
+		}
+		a.userWriteMu.Lock()
+		defer a.userWriteMu.Unlock()
+		return userWS.WriteMessage(frame.messageType, frame.payload)
+	})
+	if err != nil {
+		logging.Error(
+			ctx,
+			"agent acp tunnel frame handling failed",
+			slog.String("agent_id", a.agentID),
+			slog.String("connection_id", a.queueID()),
+			slog.String("session_id", a.sessionID),
+			logging.Err(err),
+		)
+	}
+	if err != nil && !frame.handled {
+		logging.Error(
+			ctx,
+			"agent acp tunnel failed to write user frame",
+			slog.String("agent_id", a.agentID),
+			slog.String("connection_id", a.queueID()),
+			slog.String("session_id", a.sessionID),
+			logging.Err(err),
+		)
+		a.closeUser()
+		return nil
+	}
+	a.observeHistoryBoundary(payload)
+	return nil
+}
+
+func (a *ACPTunnelAgent) reliableSender(messageType int) reliablemq.Sender {
+	return reliablemq.SenderFunc(func(ctx context.Context, env reliablemq.Envelope) error {
+		_ = ctx
+		data, err := reliablemq.MarshalEnvelope(env)
 		if err != nil {
 			return err
 		}
 		a.agentWriteMu.Lock()
-		err = a.ws.WriteMessage(websocket.TextMessage, payload)
-		a.agentWriteMu.Unlock()
-		if err != nil {
-			return err
-		}
-		if err := a.store.UpdateTransportFrameStatus(
-			ctx,
-			a.agentID,
-			frame.Stream,
-			frame.Seq,
-			domain.TransportDirectionOutbound,
-			domain.TransportStatusSent,
-			"",
-		); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func marshalACPTunnelData(stream string, seq int64, payload json.RawMessage) ([]byte, error) {
-	return json.Marshal(acpTunnelEnvelope{
-		Type:    acpTunnelTypeData,
-		Stream:  stream,
-		Seq:     seq,
-		Payload: payload,
+		defer a.agentWriteMu.Unlock()
+		return a.ws.WriteMessage(messageType, data)
 	})
 }
 
-func (a *ACPTunnelAgent) writeAckToAgent(messageType int, stream string, seq int64) error {
-	ack, err := json.Marshal(acpTunnelEnvelope{
-		Type:   acpTunnelTypeAck,
-		Stream: stream,
-		Seq:    seq,
-	})
-	if err != nil {
-		return err
-	}
-	a.agentWriteMu.Lock()
-	defer a.agentWriteMu.Unlock()
-	return a.ws.WriteMessage(messageType, ack)
-}
-
-func decodePaxdToManager(payload []byte) (acpTunnelEnvelope, bool, error) {
-	var env acpTunnelEnvelope
-	if err := json.Unmarshal(payload, &env); err != nil {
-		return acpTunnelEnvelope{}, false, fmt.Errorf("decode acp tunnel envelope: %w", err)
-	}
-	if env.Type != acpTunnelTypeData && env.Type != acpTunnelTypeAck {
-		return acpTunnelEnvelope{}, false, nil
-	}
-	if env.Type == acpTunnelTypeData && env.Stream != acpTunnelStreamPaxdToManager {
-		return acpTunnelEnvelope{}, false, fmt.Errorf("unexpected acp tunnel stream %q", env.Stream)
-	}
-	if env.Type == acpTunnelTypeAck && env.Stream != acpTunnelStreamManagerToPaxd {
-		return acpTunnelEnvelope{}, false, fmt.Errorf(
-			"unexpected acp tunnel ack stream %q",
-			env.Stream,
-		)
-	}
-	if env.Seq <= 0 {
-		return acpTunnelEnvelope{}, false, fmt.Errorf("invalid acp tunnel seq %d", env.Seq)
-	}
-	if env.Type == acpTunnelTypeData && len(env.Payload) == 0 {
-		return acpTunnelEnvelope{}, false, fmt.Errorf("missing acp tunnel payload")
-	}
-	return env, true, nil
+func (a *ACPTunnelAgent) queueID() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return firstNonEmpty(a.connectionID, a.agentID)
 }
 
 func isWebSocketCloseError(err error) bool {

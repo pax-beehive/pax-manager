@@ -2,10 +2,42 @@ package domain
 
 import (
 	"context"
+	"encoding/json"
 	"time"
+
+	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
+type ReliableTransportJournal interface {
+	AppendOutboundData(
+		ctx context.Context,
+		queueID string,
+		stream reliablemq.Stream,
+		payload json.RawMessage,
+		metadata reliablemq.Metadata,
+	) (reliablemq.Frame, error)
+	AppendOutboundTombstone(
+		ctx context.Context,
+		queueID string,
+		stream reliablemq.Stream,
+		errorMessage string,
+		metadata reliablemq.Metadata,
+	) (reliablemq.Frame, error)
+	SaveInboundIfAbsent(ctx context.Context, frame reliablemq.Frame) (bool, reliablemq.Frame, error)
+	ListOutboundReplay(ctx context.Context, queueID string, stream reliablemq.Stream, limit int) ([]reliablemq.Frame, error)
+	ListInboundReplay(ctx context.Context, queueID string, stream reliablemq.Stream, limit int) ([]reliablemq.Frame, error)
+	MarkSent(ctx context.Context, key reliablemq.FrameKey) error
+	AckOutboundThrough(ctx context.Context, queueID string, stream reliablemq.Stream, throughSeq int64) error
+	MarkApplied(ctx context.Context, key reliablemq.FrameKey) error
+	MarkRejected(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error
+	RecordSendFailure(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error
+	RecordDispatchFailure(ctx context.Context, key reliablemq.FrameKey, errorMessage string) error
+	UpdateMetadata(ctx context.Context, key reliablemq.FrameKey, metadata reliablemq.Metadata) error
+}
+
 type Store interface {
+	ReliableTransportJournal
+
 	EnsureUser(ctx context.Context, email string, displayName string, role string) (User, error)
 	GetUser(ctx context.Context, userID string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)

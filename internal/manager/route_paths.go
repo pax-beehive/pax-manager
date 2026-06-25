@@ -39,6 +39,7 @@ const (
 	routeApprovePaxlDeviceLogin = "/api/v1/user/:user_id/paxl/device-logins/:user_code/approve"
 
 	routeLegacyAgentWS        = "/api/agent/ws"
+	routeNodeControlTunnel    = "/api/v1/node/control"
 	routeAgentACPTunnel       = "/api/v1/agent/tunnel"
 	routeUserACPTunnel        = "/api/v1/user/:userID/agents/:agentID/tunnel"
 	routeUserSessionACPTunnel = "/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/tunnel"

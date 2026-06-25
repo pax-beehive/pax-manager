@@ -89,10 +89,10 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 }
 
 type transportFrameKey struct {
-	AgentID        string
-	Stream         string
-	Seq            int64
-	LocalDirection string
+	QueueID   string
+	Stream    string
+	Seq       int64
+	Direction string
 }
 
 type messagePartKey struct {

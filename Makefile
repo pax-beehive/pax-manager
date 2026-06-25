@@ -156,6 +156,7 @@ db-up: db-ensure
 .PHONY: db-ensure
 db-ensure:
 	docker compose up --build -d postgres
+	docker compose exec -T postgres sh -c 'until pg_isready -U "$$POSTGRES_USER" -d postgres >/dev/null 2>&1; do sleep 1; done'
 	docker compose exec -T postgres sh -c 'if ! psql -U "$$POSTGRES_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '\''$$POSTGRES_DB'\''" | grep -q 1; then createdb -U "$$POSTGRES_USER" "$$POSTGRES_DB"; fi'
 
 .PHONY: db-reset
