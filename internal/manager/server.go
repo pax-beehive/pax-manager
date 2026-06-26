@@ -180,6 +180,10 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		routeUserSessionACPTunnel,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleUserACPTunnel)),
 	)
+	h.POST(
+		routeUserConversation,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleConversation)),
+	)
 	h.GET(routeDownloadGenericArtifact, s.handleDownloadGenericArtifact)
 	h.GET(routeDownloadPaxdArtifact, s.handleDownloadPaxdArtifact)
 	h.GET(routeDownloadPaxlArtifact, s.handleDownloadPaxlArtifact)

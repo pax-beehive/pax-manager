@@ -44,6 +44,8 @@ type ACPTunnelAgent struct {
 	userWriteMu       sync.Mutex
 	paired            bool
 	userWS            *websocket.Conn
+	responseWaiters   map[string]chan []byte
+	sseSubscribers    map[*acpSSESubscriber]struct{}
 	store             domain.Store
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
@@ -53,6 +55,11 @@ type acpUserTunnelMetadata struct {
 	ClientID string
 	DeviceID string
 	TunnelID string
+}
+
+type acpSSESubscriber struct {
+	sessionID string
+	ch        chan []byte
 }
 
 func NewACPTunnelHub() *ACPTunnelHub {
@@ -137,6 +144,97 @@ func (a *ACPTunnelAgent) currentUser() *websocket.Conn {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.userWS
+}
+
+func (a *ACPTunnelAgent) addResponseWaiter(requestID string) (<-chan []byte, func()) {
+	ch := make(chan []byte, 1)
+	a.mu.Lock()
+	if a.responseWaiters == nil {
+		a.responseWaiters = make(map[string]chan []byte)
+	}
+	a.responseWaiters[requestID] = ch
+	a.mu.Unlock()
+	cancel := func() {
+		a.mu.Lock()
+		if current := a.responseWaiters[requestID]; current == ch {
+			delete(a.responseWaiters, requestID)
+		}
+		a.mu.Unlock()
+	}
+	return ch, cancel
+}
+
+func (a *ACPTunnelAgent) notifyResponseWaiter(requestID string, payload []byte) bool {
+	if requestID == "" {
+		return false
+	}
+	a.mu.Lock()
+	ch := a.responseWaiters[requestID]
+	if ch != nil {
+		delete(a.responseWaiters, requestID)
+	}
+	a.mu.Unlock()
+	if ch == nil {
+		return false
+	}
+	select {
+	case ch <- append([]byte(nil), payload...):
+	default:
+	}
+	return true
+}
+
+func (a *ACPTunnelAgent) subscribeSSE(sessionID string) *acpSSESubscriber {
+	sub := &acpSSESubscriber{
+		sessionID: sessionID,
+		ch:        make(chan []byte, 64),
+	}
+	a.mu.Lock()
+	if a.sseSubscribers == nil {
+		a.sseSubscribers = make(map[*acpSSESubscriber]struct{})
+	}
+	a.sseSubscribers[sub] = struct{}{}
+	a.mu.Unlock()
+	return sub
+}
+
+func (a *ACPTunnelAgent) unsubscribeSSE(sub *acpSSESubscriber) {
+	if sub == nil {
+		return
+	}
+	a.mu.Lock()
+	if _, ok := a.sseSubscribers[sub]; ok {
+		delete(a.sseSubscribers, sub)
+		close(sub.ch)
+	}
+	a.mu.Unlock()
+}
+
+func (a *ACPTunnelAgent) broadcastSSE(payload []byte) bool {
+	var rpc acpJSONRPCMessage
+	_ = json.Unmarshal(payload, &rpc)
+	sessionID := frameSessionID(rpc)
+	a.mu.Lock()
+	subs := make([]*acpSSESubscriber, 0, len(a.sseSubscribers))
+	for sub := range a.sseSubscribers {
+		if sub.sessionID == "" || sessionID == "" || sub.sessionID == sessionID {
+			subs = append(subs, sub)
+		}
+	}
+	a.mu.Unlock()
+	for _, sub := range subs {
+		select {
+		case sub.ch <- append([]byte(nil), payload...):
+		default:
+		}
+	}
+	return len(subs) > 0
+}
+
+func (a *ACPTunnelAgent) hasAsyncReceivers() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return len(a.responseWaiters) > 0 || len(a.sseSubscribers) > 0
 }
 
 func (a *ACPTunnelAgent) withSessionContext(sessionID string) func() {
@@ -934,15 +1032,20 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 
 	frame := newACPFrameContext(a, acpAgentToUser, websocket.TextMessage, []byte(payload))
 	err := pipeline.Handle(ctx, frame, func(_ context.Context, frame *acpFrameContext) error {
+		requestID := acpJSONRPCID(frame.frame)
+		deliveredWaiter := a.notifyResponseWaiter(requestID, frame.payload)
+		deliveredSSE := a.broadcastSSE(frame.payload)
 		userWS := a.currentUser()
 		if userWS == nil {
-			logging.Warn(
-				ctx,
-				"agent acp tunnel dropped frame without user",
-				slog.String("agent_id", a.agentID),
-				slog.String("connection_id", a.queueID()),
-				slog.String("session_id", a.sessionID),
-			)
+			if !deliveredWaiter && !deliveredSSE && !a.hasAsyncReceivers() {
+				logging.Warn(
+					ctx,
+					"agent acp tunnel dropped frame without user",
+					slog.String("agent_id", a.agentID),
+					slog.String("connection_id", a.queueID()),
+					slog.String("session_id", a.sessionID),
+				)
+			}
 			return nil
 		}
 		a.userWriteMu.Lock()

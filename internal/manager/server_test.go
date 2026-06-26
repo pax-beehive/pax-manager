@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -1633,6 +1634,370 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 	}
 }
 
+func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(t, httpServer.URL, fixture, `{"input":"hello from conversation"}`, respCh, errCh)
+
+	initializeEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, initializeEnv.Payload, "initialize")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		initializeEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
+	)
+
+	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
+	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "/tmp")
+	assertACPParamArray(t, sessionNewEnv.Payload, "mcpServers")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		initializeEnv.QueueID,
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"sessionId":"native-session-1"}}`),
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+	assertFrameSessionID(t, promptEnv.Payload, "native-session-1")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		initializeEnv.QueueID,
+		3,
+		json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello back"}}}}`),
+	)
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		initializeEnv.QueueID,
+		4,
+		json.RawMessage(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	if strings.Contains(string(body), "event:") {
+		t.Fatalf("conversation SSE used named events:\n%s", body)
+	}
+	events := decodeConversationEvents(t, body)
+	sessionEvent := requireConversationEvent(t, events, "session")
+	if !strings.HasPrefix(sessionEvent.SessionID, "sess_") {
+		t.Fatalf("session id = %q, want manager sess_*", sessionEvent.SessionID)
+	}
+	acpEvent := requireConversationEvent(t, events, "acp")
+	if !strings.Contains(string(acpEvent.Frame), "hello back") {
+		t.Fatalf("acp frame missing update: %+v body=%s", acpEvent, body)
+	}
+	if strings.Contains(string(body), "native-session-1") {
+		t.Fatalf("SSE body leaked native session id:\n%s", body)
+	}
+	requireConversationEvent(t, events, "done")
+}
+
+func TestConversationContinuesExistingSessionWithoutInitialize(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"continue","session_id":"sess-existing"}`,
+		respCh,
+		errCh,
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+	assertFrameSessionID(t, promptEnv.Payload, "native-existing")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		promptEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-existing","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"continued"}}}}`),
+	)
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		promptEnv.QueueID,
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	sessionEvent := requireConversationEvent(t, events, "session")
+	if sessionEvent.SessionID != "sess-existing" {
+		t.Fatalf("session event id = %q", sessionEvent.SessionID)
+	}
+	if strings.Contains(string(body), "native-existing") {
+		t.Fatalf("SSE body leaked native session id:\n%s", body)
+	}
+	requireConversationEvent(t, events, "done")
+}
+
+func TestConversationRejectsUnknownSession(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+
+	rec := postConversationRecorder(
+		t,
+		srv,
+		fixture,
+		`{"input":"hello","session_id":"sess-missing"}`,
+	)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestConversationRejectsSessionWithoutNativeID(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-no-native", "")
+
+	rec := postConversationRecorder(
+		t,
+		srv,
+		fixture,
+		`{"input":"hello","session_id":"sess-no-native"}`,
+	)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestConversationRejectsBusyAgent(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	conn := acpTunnelConn(t, srv, fixture.agentID, "")
+	conn.mu.Lock()
+	conn.paired = true
+	conn.mu.Unlock()
+
+	rec := postConversationRecorder(t, srv, fixture, `{"input":"hello"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestConversationRejectsInvalidRequestsBeforeClaim(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+
+	cases := []struct {
+		name   string
+		method string
+		body   string
+		path   string
+		want   int
+	}{
+		{
+			name:   "method not allowed",
+			method: http.MethodGet,
+			body:   `{"input":"hello"}`,
+			path: "/api/v1/user/self/nodes/" + fixture.nodeID +
+				"/agents/" + fixture.agentID + "/conversation",
+			want: http.StatusMethodNotAllowed,
+		},
+		{
+			name:   "invalid json body",
+			method: http.MethodPost,
+			body:   `{`,
+			path: "/api/v1/user/self/nodes/" + fixture.nodeID +
+				"/agents/" + fixture.agentID + "/conversation",
+			want: http.StatusBadRequest,
+		},
+		{
+			name:   "empty input",
+			method: http.MethodPost,
+			body:   `{"input":"   "}`,
+			path: "/api/v1/user/self/nodes/" + fixture.nodeID +
+				"/agents/" + fixture.agentID + "/conversation",
+			want: http.StatusBadRequest,
+		},
+		{
+			name:   "missing route ids",
+			method: http.MethodPost,
+			body:   `{"input":"hello"}`,
+			path:   "/api/v1/user/self/conversation",
+			want:   http.StatusBadRequest,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, bytes.NewBufferString(tc.body))
+			req.Header.Set("X-User-Email", fixture.userEmail)
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			srv.handleConversation(rec, req)
+			if rec.Code != tc.want {
+				t.Fatalf("code = %d, want %d body = %s", rec.Code, tc.want, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestConversationRejectsWrongNodeBeforeClaim(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	fixture.nodeID = "node_wrong"
+
+	rec := postConversationRecorder(t, srv, fixture, `{"input":"hello"}`)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestConversationReturnsHTTPErrorWhenSessionNewFailsBeforeStream(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(t, httpServer.URL, fixture, `{"input":"hello"}`, respCh, errCh)
+
+	initializeEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, initializeEnv.Payload, "initialize")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		initializeEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
+	)
+
+	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		initializeEnv.QueueID,
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"error":{"message":"session create failed"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusBadGateway)
+	if !strings.Contains(string(body), "session create failed") {
+		t.Fatalf("body = %s, want ACP error message", body)
+	}
+}
+
+func TestConversationHelpersCoverErrorBranches(t *testing.T) {
+	if got := acpErrorMessage(json.RawMessage(`{"message":"nope"}`)); got != "nope" {
+		t.Fatalf("acpErrorMessage = %q", got)
+	}
+	if got := acpErrorMessage(json.RawMessage(`{`)); got != "" {
+		t.Fatalf("acpErrorMessage invalid = %q", got)
+	}
+
+	conn := &ACPTunnelAgent{}
+	if conn.hasAsyncReceivers() {
+		t.Fatal("hasAsyncReceivers = true before registering receivers")
+	}
+	_, cancel := conn.addResponseWaiter("1")
+	if !conn.hasAsyncReceivers() {
+		t.Fatal("hasAsyncReceivers = false after response waiter")
+	}
+	cancel()
+	sub := conn.subscribeSSE("sess-1")
+	if !conn.hasAsyncReceivers() {
+		t.Fatal("hasAsyncReceivers = false after SSE subscriber")
+	}
+	conn.unsubscribeSSE(sub)
+	conn.unsubscribeSSE(nil)
+
+	rec := httptest.NewRecorder()
+	err := newServer(Config{}, NewMemoryStore(time.Now)).writeConversationEvent(
+		rec,
+		rec,
+		conversationEvent{Type: "acp", Frame: json.RawMessage(`{`)},
+	)
+	if err == nil {
+		t.Fatal("writeConversationEvent with invalid raw frame succeeded")
+	}
+}
+
 func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
@@ -2112,6 +2477,281 @@ func writeAgentDataFrame(
 	if err := agentWS.WriteMessage(websocket.TextMessage, frame); err != nil {
 		t.Fatalf("write agent data frame seq=%d: %v", seq, err)
 	}
+}
+
+type conversationTestFixture struct {
+	nodeID     string
+	agentID    string
+	nodeAPIKey string
+	userEmail  string
+}
+
+func testNodeAgent(t *testing.T, srv *Server, userEmail string) conversationTestFixture {
+	t.Helper()
+	tokenReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/node-registration-tokens",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	tokenReq.Header.Set("X-User-Email", userEmail)
+	setJSON(tokenReq)
+	tokenRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(tokenRec, tokenReq)
+	if tokenRec.Code != http.StatusOK {
+		t.Fatalf("node token code = %d, body = %s", tokenRec.Code, tokenRec.Body.String())
+	}
+	tokenResp := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
+
+	registerReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/register",
+		bytes.NewReader([]byte(`{"name":"node-a","hostname":"node-a","os":"linux","arch":"arm64"}`)),
+	)
+	setJSON(registerReq)
+	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
+	registerRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(registerRec, registerReq)
+	if registerRec.Code != http.StatusOK {
+		t.Fatalf("node register code = %d, body = %s", registerRec.Code, registerRec.Body.String())
+	}
+	registeredNode := decodeData[RegisterNodeResponse](t, registerRec.Body.Bytes())
+
+	createAgentReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+registeredNode.NodeID+"/agents",
+		bytes.NewReader([]byte(`{"name":"hermes-a","agent_type":"hermes"}`)),
+	)
+	createAgentReq.Header.Set("X-User-Email", userEmail)
+	setJSON(createAgentReq)
+	createAgentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createAgentRec, createAgentReq)
+	if createAgentRec.Code != http.StatusOK {
+		t.Fatalf("create node agent code = %d, body = %s", createAgentRec.Code, createAgentRec.Body.String())
+	}
+	agentResp := decodeData[struct {
+		Agent Agent `json:"agent"`
+	}](t, createAgentRec.Body.Bytes())
+
+	return conversationTestFixture{
+		nodeID:     registeredNode.NodeID,
+		agentID:    agentResp.Agent.AgentID,
+		nodeAPIKey: registeredNode.APIKey,
+		userEmail:  userEmail,
+	}
+}
+
+func createConversationTestSession(
+	t *testing.T,
+	srv *Server,
+	fixture conversationTestFixture,
+	sessionID string,
+	nativeID string,
+) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	principal, err := srv.auth.Principal(req.Context(), httpRequestMetadata(req))
+	if err != nil {
+		t.Fatalf("principal: %v", err)
+	}
+	_, err = srv.store.CreateNodeAgentSession(
+		t.Context(),
+		principal,
+		domain.CreateSessionRequest{
+			NodeID:    fixture.nodeID,
+			AgentID:   fixture.agentID,
+			SessionID: sessionID,
+			NativeID:  nativeID,
+			Source:    domain.MessageSourceACPTunnel,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create conversation session: %v", err)
+	}
+}
+
+func postConversation(
+	t *testing.T,
+	baseURL string,
+	fixture conversationTestFixture,
+	body string,
+	respCh chan<- *http.Response,
+	errCh chan<- error,
+) {
+	t.Helper()
+	req, err := http.NewRequest(
+		http.MethodPost,
+		baseURL+"/api/v1/user/self/nodes/"+fixture.nodeID+"/agents/"+fixture.agentID+"/conversation",
+		bytes.NewBufferString(body),
+	)
+	if err != nil {
+		errCh <- err
+		return
+	}
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		errCh <- err
+		return
+	}
+	respCh <- resp
+}
+
+func postConversationRecorder(
+	t *testing.T,
+	srv *Server,
+	fixture conversationTestFixture,
+	body string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+fixture.nodeID+"/agents/"+fixture.agentID+"/conversation",
+		bytes.NewBufferString(body),
+	)
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.handleConversation(rec, req)
+	return rec
+}
+
+func readConversationResponse(
+	t *testing.T,
+	respCh <-chan *http.Response,
+	errCh <-chan error,
+	wantStatus int,
+) []byte {
+	t.Helper()
+	var resp *http.Response
+	select {
+	case resp = <-respCh:
+	case err := <-errCh:
+		t.Fatalf("post conversation: %v", err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for conversation response")
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read conversation body: %v", err)
+	}
+	if resp.StatusCode != wantStatus {
+		t.Fatalf("conversation status = %d body=%s", resp.StatusCode, body)
+	}
+	return body
+}
+
+func decodeConversationEvents(t *testing.T, body []byte) []conversationEvent {
+	t.Helper()
+	var events []conversationEvent
+	for _, line := range strings.Split(string(body), "\n") {
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		var event conversationEvent
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &event); err != nil {
+			t.Fatalf("decode conversation event %q: %v", line, err)
+		}
+		events = append(events, event)
+	}
+	if len(events) == 0 {
+		t.Fatalf("no conversation events in body:\n%s", body)
+	}
+	return events
+}
+
+func requireConversationEvent(
+	t *testing.T,
+	events []conversationEvent,
+	eventType string,
+) conversationEvent {
+	t.Helper()
+	for _, event := range events {
+		if event.Type == eventType {
+			return event
+		}
+	}
+	t.Fatalf("missing conversation event %q in %+v", eventType, events)
+	return conversationEvent{}
+}
+
+func readNextManagerToAgentData(t *testing.T, agentWS *websocket.Conn) acpTunnelEnvelope {
+	t.Helper()
+	if err := agentWS.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("set agent read deadline: %v", err)
+	}
+	defer func() {
+		if err := agentWS.SetReadDeadline(time.Time{}); err != nil {
+			t.Fatalf("clear agent read deadline: %v", err)
+		}
+	}()
+	for {
+		messageType, payload, err := agentWS.ReadMessage()
+		if err != nil {
+			t.Fatalf("read manager-to-agent data: %v", err)
+		}
+		env := decodeACPTunnelEnvelope(t, payload)
+		if messageType == websocket.TextMessage &&
+			env.Type == acpTunnelTypeData &&
+			env.Stream == acpTunnelStreamManagerToPaxd {
+			return env
+		}
+	}
+}
+
+func assertACPMethod(t *testing.T, payload json.RawMessage, want string) {
+	t.Helper()
+	var got acpJSONRPCMessage
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatalf("decode ACP frame: %v", err)
+	}
+	if got.Method != want {
+		t.Fatalf("ACP method = %q, want %q; payload=%s", got.Method, want, payload)
+	}
+}
+
+func assertACPParamString(t *testing.T, payload json.RawMessage, key string, want string) {
+	t.Helper()
+	var got struct {
+		Params map[string]any `json:"params"`
+	}
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatalf("decode ACP frame: %v", err)
+	}
+	if got.Params[key] != want {
+		t.Fatalf("ACP param %s = %v, want %q; payload=%s", key, got.Params[key], want, payload)
+	}
+}
+
+func assertACPParamArray(t *testing.T, payload json.RawMessage, key string) {
+	t.Helper()
+	var got struct {
+		Params map[string]any `json:"params"`
+	}
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatalf("decode ACP frame: %v", err)
+	}
+	if _, ok := got.Params[key].([]any); !ok {
+		t.Fatalf("ACP param %s = %T, want array; payload=%s", key, got.Params[key], payload)
+	}
+}
+
+func acpTunnelConn(
+	t *testing.T,
+	srv *Server,
+	agentID string,
+	sessionID string,
+) *ACPTunnelAgent {
+	t.Helper()
+	srv.acpTunnels.mu.RLock()
+	conn := srv.acpTunnels.agents[acpTunnelKey{agentID: agentID, sessionID: sessionID}]
+	srv.acpTunnels.mu.RUnlock()
+	if conn == nil {
+		t.Fatalf("agent tunnel %s/%s not found", agentID, sessionID)
+	}
+	return conn
 }
 
 func readAgentAck(t *testing.T, agentWS *websocket.Conn, stream string, seq int64) {
