@@ -49,6 +49,7 @@ type ACPTunnelAgent struct {
 	store             domain.Store
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
+	managerRequestSeq int64
 }
 
 type acpUserTunnelMetadata struct {
@@ -280,6 +281,13 @@ func (a *ACPTunnelAgent) takeSessionNew(requestID string) (string, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.pendingSessionNew.take(requestID)
+}
+
+func (a *ACPTunnelAgent) nextManagerRequestID() int64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.managerRequestSeq++
+	return a.managerRequestSeq
 }
 
 // Tunnel reliability is a small durable outbox/inbox layered over WebSocket:
