@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -268,6 +269,55 @@ func TestACPHistoryProjectsUserPrompt(t *testing.T) {
 	}
 	if len(parts) != 1 || parts[0].Text != "hello from user" {
 		t.Fatalf("parts = %+v", parts)
+	}
+}
+
+func TestACPHistoryKeepsDistinctUserPromptIDs(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	agent := &ACPTunnelAgent{
+		agentID:     "agent-real",
+		ownerUserID: "user-real",
+		nodeID:      "node-real",
+		sessionID:   "sess_repeat",
+		store:       store,
+	}
+
+	for i, prompt := range []string{"first turn", "second turn"} {
+		payload := []byte(
+			`{"jsonrpc":"2.0","id":` +
+				fmt.Sprint(i+1) +
+				`,"method":"session/prompt","params":{"sessionId":"sess_repeat","prompt":[{"type":"text","text":"` +
+				prompt +
+				`"}]}}`,
+		)
+		if err := projectACPUserPrompt(ctx, agent, payload); err != nil {
+			t.Fatalf("project user prompt %q: %v", prompt, err)
+		}
+	}
+
+	messages, err := store.ListMessages(ctx, agent.agentID, agent.sessionID, 100)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("messages = %+v, want two user prompts with distinct request ids", messages)
+	}
+	gotText := map[string]bool{}
+	for _, msg := range messages {
+		parts, err := store.ListMessageParts(ctx, msg.MessageID)
+		if err != nil {
+			t.Fatalf("list parts: %v", err)
+		}
+		if len(parts) != 1 {
+			t.Fatalf("parts for %s = %+v", msg.MessageID, parts)
+		}
+		gotText[parts[0].Text] = true
+	}
+	if !gotText["first turn"] || !gotText["second turn"] {
+		t.Fatalf("message texts = %+v, want both prompts", gotText)
 	}
 }
 

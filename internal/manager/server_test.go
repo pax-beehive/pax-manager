@@ -1781,6 +1781,66 @@ func TestConversationContinuesExistingSessionWithoutInitialize(t *testing.T) {
 	requireConversationEvent(t, events, "done")
 }
 
+func TestConversationUsesAgentScopedRequestIDsAcrossHTTPRuns(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	if err != nil {
+		t.Fatalf("dial agent tunnel: %v", err)
+	}
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	for i, input := range []string{"first", "second"} {
+		wantID := i + 1
+		respCh := make(chan *http.Response, 1)
+		errCh := make(chan error, 1)
+		go postConversation(
+			t,
+			httpServer.URL,
+			fixture,
+			`{"input":"`+input+`","session_id":"sess-existing"}`,
+			respCh,
+			errCh,
+		)
+
+		promptEnv := readNextManagerToAgentData(t, agentWS)
+		assertACPMethod(t, promptEnv.Payload, "session/prompt")
+		assertACPID(t, promptEnv.Payload, wantID)
+		writeAgentDataFrame(
+			t,
+			agentWS,
+			promptEnv.QueueID,
+			int64(i*2+1),
+			json.RawMessage(
+				`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-existing","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"ok"}}}}`,
+			),
+		)
+		writeAgentDataFrame(
+			t,
+			agentWS,
+			promptEnv.QueueID,
+			int64(i*2+2),
+			json.RawMessage(
+				`{"jsonrpc":"2.0","id":`+strconv.Itoa(wantID)+`,"result":{"stopReason":"end_turn"}}`,
+			),
+		)
+		_ = readConversationResponse(t, respCh, errCh, http.StatusOK)
+	}
+}
+
 func TestConversationRejectsUnknownSession(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
@@ -2709,6 +2769,17 @@ func assertACPMethod(t *testing.T, payload json.RawMessage, want string) {
 	}
 	if got.Method != want {
 		t.Fatalf("ACP method = %q, want %q; payload=%s", got.Method, want, payload)
+	}
+}
+
+func assertACPID(t *testing.T, payload json.RawMessage, want int) {
+	t.Helper()
+	var got acpJSONRPCMessage
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatalf("decode ACP frame: %v", err)
+	}
+	if string(got.ID) != strconv.Itoa(want) {
+		t.Fatalf("ACP id = %s, want %d; payload=%s", got.ID, want, payload)
 	}
 }
 

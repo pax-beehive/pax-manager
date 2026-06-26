@@ -38,7 +38,6 @@ type conversationSession struct {
 type conversationRunner struct {
 	service   *Service
 	agentConn *ACPTunnelAgent
-	nextID    int
 }
 
 type conversationResponse struct {
@@ -98,7 +97,6 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 	runner := conversationRunner{
 		service:   s,
 		agentConn: agentConn,
-		nextID:    1,
 	}
 	if session.managerID == "" {
 		session, err = s.createConversationSession(r.Context(), &runner)
@@ -272,8 +270,7 @@ func (r *conversationRunner) request(
 	method string,
 	params map[string]any,
 ) (conversationResponse, error) {
-	requestID := r.nextID
-	r.nextID++
+	requestID := r.agentConn.nextManagerRequestID()
 	payload, err := json.Marshal(map[string]any{
 		"jsonrpc": "2.0",
 		"id":      requestID,
