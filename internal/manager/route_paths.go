@@ -43,6 +43,7 @@ const (
 	routeAgentACPTunnel       = "/api/v1/agent/tunnel"
 	routeUserACPTunnel        = "/api/v1/user/:userID/agents/:agentID/tunnel"
 	routeUserSessionACPTunnel = "/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/tunnel"
+	routeUserConversation     = "/api/v1/user/:userID/nodes/:nodeID/agents/:agentID/conversation"
 
 	routeDownloadGenericArtifact = "/api/v1/public/artifacts/download"
 	routeDownloadPaxdArtifact    = "/api/v1/public/paxd/download"
