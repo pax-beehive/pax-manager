@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -115,6 +116,53 @@ func (h *ACPTunnelHub) claimAny(agentID string, sessionIDs ...string) (*ACPTunne
 	}
 	conn.paired = true
 	return conn, nil
+}
+
+func (h *ACPTunnelHub) claimAnyWait(
+	ctx context.Context,
+	waitFor time.Duration,
+	interval time.Duration,
+	agentID string,
+	sessionIDs ...string,
+) (*ACPTunnelAgent, error) {
+	if waitFor <= 0 {
+		return h.claimAny(agentID, sessionIDs...)
+	}
+	if interval <= 0 {
+		interval = 50 * time.Millisecond
+	}
+
+	deadline := time.NewTimer(waitFor)
+	defer deadline.Stop()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		conn, err := h.claimAny(agentID, sessionIDs...)
+		if err == nil {
+			return conn, nil
+		}
+		if !isAgentTunnelNotConnected(err) {
+			return nil, err
+		}
+		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-deadline.C:
+			return nil, lastErr
+		case <-ticker.C:
+		}
+	}
+}
+
+func isAgentTunnelNotConnected(err error) bool {
+	var httpErr apperr.Error
+	return errors.As(err, &httpErr) &&
+		httpErr.Status == http.StatusNotFound &&
+		httpErr.Message == "agent tunnel not connected"
 }
 
 func (h *ACPTunnelHub) release(conn *ACPTunnelAgent) {
