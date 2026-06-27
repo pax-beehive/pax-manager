@@ -7,6 +7,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestACPTunnelHubClaimFallsBackToAgentTunnel(t *testing.T) {
@@ -53,6 +56,37 @@ func TestACPTunnelHubClaimAnyTriesNativeBeforeAgentTunnel(t *testing.T) {
 	if got != nativeConn {
 		t.Fatalf("claim returned %#v, want %#v", got, nativeConn)
 	}
+}
+
+func TestACPTunnelHubClaimAnyWaitRetriesUntilAgentTunnelReconnects(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		hub.add("agent-1", "", agentConn)
+	}()
+
+	got, err := hub.claimAnyWait(
+		context.Background(),
+		time.Second,
+		5*time.Millisecond,
+		"agent-1",
+		"",
+	)
+
+	require.NoError(t, err)
+	require.Same(t, agentConn, got)
+}
+
+func TestACPTunnelHubClaimAnyWaitStopsWhenContextIsCanceled(t *testing.T) {
+	hub := NewACPTunnelHub()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	got, err := hub.claimAnyWait(ctx, time.Second, 5*time.Millisecond, "agent-1", "")
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, got)
 }
 
 func TestACPTunnelAgentSessionContextRestoresPreviousSession(t *testing.T) {

@@ -14,7 +14,11 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
 
-const conversationRequestTimeout = 45 * time.Second
+const (
+	conversationRequestTimeout     = 45 * time.Second
+	conversationTunnelClaimTimeout = 2 * time.Second
+	conversationTunnelClaimTick    = 50 * time.Millisecond
+)
 
 type conversationRequest struct {
 	SessionID string `json:"session_id,omitempty"`
@@ -78,7 +82,13 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := s.resolveConversationSession(r.Context(), principal, nodeID, agentID, req.SessionID)
+	session, err := s.resolveConversationSession(
+		r.Context(),
+		principal,
+		nodeID,
+		agentID,
+		req.SessionID,
+	)
 	if err != nil {
 		writeHTTPEndpointError(w, err)
 		return
@@ -87,7 +97,13 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 	if session.managerID != "" {
 		claimSessionIDs = []string{session.managerID, session.nativeID, ""}
 	}
-	agentConn, err := s.acpTunnels.claimAny(agentID, claimSessionIDs...)
+	agentConn, err := s.acpTunnels.claimAnyWait(
+		r.Context(),
+		conversationTunnelClaimTimeout,
+		conversationTunnelClaimTick,
+		agentID,
+		claimSessionIDs...,
+	)
 	if err != nil {
 		writeHTTPEndpointError(w, err)
 		return

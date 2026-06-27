@@ -15,6 +15,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/common/adaptor"
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/require"
 
 	"github.com/pax-beehive/paxkit/reliablemq"
 
@@ -1657,7 +1658,14 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 
 	respCh := make(chan *http.Response, 1)
 	errCh := make(chan error, 1)
-	go postConversation(t, httpServer.URL, fixture, `{"input":"hello from conversation"}`, respCh, errCh)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"hello from conversation"}`,
+		respCh,
+		errCh,
+	)
 
 	initializeEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, initializeEnv.Payload, "initialize")
@@ -1689,7 +1697,9 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 		agentWS,
 		initializeEnv.QueueID,
 		3,
-		json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello back"}}}}`),
+		json.RawMessage(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello back"}}}}`,
+		),
 	)
 	writeAgentDataFrame(
 		t,
@@ -1715,6 +1725,89 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	if strings.Contains(string(body), "native-session-1") {
 		t.Fatalf("SSE body leaked native session id:\n%s", body)
 	}
+	requireConversationEvent(t, events, "done")
+}
+
+func TestConversationWaitsForAgentTunnelReconnect(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"hello after reconnect"}`,
+		respCh,
+		errCh,
+	)
+
+	time.Sleep(50 * time.Millisecond)
+	select {
+	case resp := <-respCh:
+		body, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		require.NoError(t, readErr)
+		t.Fatalf(
+			"conversation returned before agent reconnect: status=%d body=%s",
+			resp.StatusCode,
+			body,
+		)
+	case err := <-errCh:
+		t.Fatalf("conversation request failed before agent reconnect: %v", err)
+	default:
+	}
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	initializeEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, initializeEnv.Payload, "initialize")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		initializeEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
+	)
+
+	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		sessionNewEnv.QueueID,
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"sessionId":"native-session-1"}}`),
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+	assertFrameSessionID(t, promptEnv.Payload, "native-session-1")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		promptEnv.QueueID,
+		3,
+		json.RawMessage(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	requireConversationEvent(t, events, "session")
 	requireConversationEvent(t, events, "done")
 }
 
@@ -1759,7 +1852,9 @@ func TestConversationContinuesExistingSessionWithoutInitialize(t *testing.T) {
 		agentWS,
 		promptEnv.QueueID,
 		1,
-		json.RawMessage(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-existing","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"continued"}}}}`),
+		json.RawMessage(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-existing","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"continued"}}}}`,
+		),
 	)
 	writeAgentDataFrame(
 		t,
@@ -1834,7 +1929,9 @@ func TestConversationUsesAgentScopedRequestIDsAcrossHTTPRuns(t *testing.T) {
 			promptEnv.QueueID,
 			int64(i*2+2),
 			json.RawMessage(
-				`{"jsonrpc":"2.0","id":`+strconv.Itoa(wantID)+`,"result":{"stopReason":"end_turn"}}`,
+				`{"jsonrpc":"2.0","id":`+strconv.Itoa(
+					wantID,
+				)+`,"result":{"stopReason":"end_turn"}}`,
 			),
 		)
 		_ = readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -2565,7 +2662,9 @@ func testNodeAgent(t *testing.T, srv *Server, userEmail string) conversationTest
 	registerReq := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/node/register",
-		bytes.NewReader([]byte(`{"name":"node-a","hostname":"node-a","os":"linux","arch":"arm64"}`)),
+		bytes.NewReader(
+			[]byte(`{"name":"node-a","hostname":"node-a","os":"linux","arch":"arm64"}`),
+		),
 	)
 	setJSON(registerReq)
 	registerReq.Header.Set("X-Registration-Token", tokenResp.Token)
@@ -2586,7 +2685,11 @@ func testNodeAgent(t *testing.T, srv *Server, userEmail string) conversationTest
 	createAgentRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(createAgentRec, createAgentReq)
 	if createAgentRec.Code != http.StatusOK {
-		t.Fatalf("create node agent code = %d, body = %s", createAgentRec.Code, createAgentRec.Body.String())
+		t.Fatalf(
+			"create node agent code = %d, body = %s",
+			createAgentRec.Code,
+			createAgentRec.Body.String(),
+		)
 	}
 	agentResp := decodeData[struct {
 		Agent Agent `json:"agent"`
