@@ -114,7 +114,7 @@ cannot distinguish missing records from records owned by another user.
 - API routes use per-client in-memory rate limits. Defaults are 300 requests per
   minute with burst 60 for `/api/*`, and 30 requests per minute with burst 10
   for `/api/agent/register`.
-- Cloud Build deploys set Cloud Run `max-instances` to 1 because ACP tunnel
-  WebSockets are tracked in process memory. Do not scale pax-manager above one
-  instance until ACP tunnels have a cross-instance backplane. Use Cloud Armor in
-  front of Cloud Run for network-edge rate limits and path rules.
+- Cloud Build deploys set Cloud Run `max-instances` to 2 as an operational
+  compromise because ACP tunnel WebSockets are tracked in process memory. Keep
+  pax-manager scale low until ACP tunnels have a cross-instance backplane. Use
+  Cloud Armor in front of Cloud Run for network-edge rate limits and path rules.

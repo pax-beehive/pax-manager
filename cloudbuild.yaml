@@ -8,9 +8,9 @@ substitutions:
   _CLOUDFLARE_ACCESS_ISSUER: "https://billowing-dream-9314.cloudflareaccess.com"
   _CLOUDFLARE_ACCESS_AUD: "1a59397a05310415570607d5dbfa973e1bcfb74a7a4617c9bc859112cfa0efca"
   _CLOUDFLARE_ACCESS_JWKS_URL: "https://billowing-dream-9314.cloudflareaccess.com/cdn-cgi/access/certs"
-  # ACP tunnels are process-local WebSockets; keep one Cloud Run instance until
+  # ACP tunnels are process-local WebSockets; keep Cloud Run scale low until
   # manager has a cross-instance tunnel backplane.
-  _MAX_INSTANCES: "1"
+  _MAX_INSTANCES: "2"
   _TIMEOUT: "300s"
 
 steps:
