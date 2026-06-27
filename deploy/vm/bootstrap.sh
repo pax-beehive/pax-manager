@@ -17,6 +17,10 @@ chmod 0777 /cloudsql
 
 docker pull gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
 docker rm -f pax-manager-cloud-sql-proxy >/dev/null 2>&1 || true
+mkdir -p "/cloudsql/${CLOUD_SQL_INSTANCE}"
+rm -f \
+  "/cloudsql/${CLOUD_SQL_INSTANCE}/.s.PGSQL.5432" \
+  "/cloudsql/${CLOUD_SQL_INSTANCE}/.s.PGSQL.5432.lock"
 docker run -d \
   --name pax-manager-cloud-sql-proxy \
   --restart=always \
