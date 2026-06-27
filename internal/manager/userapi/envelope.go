@@ -171,6 +171,7 @@ func (s *Service) unpackEnvelopeCapsule(
 	if sourceSessionID == "" {
 		sourceSessionID = "remote_envelope:" + envelope.EnvelopeID
 	}
+	content, truncated, originalEstimatedChars := importedEnvelopeCapsuleContent(capsulePayload)
 	capsule := domain.KnowledgeCapsule{
 		CapsuleID:       capsuleID,
 		OwnerUserID:     envelope.RecipientUserID,
@@ -190,18 +191,15 @@ func (s *Service) unpackEnvelopeCapsule(
 			strings.TrimSpace(capsulePayload.Summary),
 			knowledgeSummaryLimit,
 		),
-		Content: truncateString(
-			strings.TrimSpace(capsulePayload.Content),
-			knowledgeContentLimit,
-		),
+		Content:                content,
 		SuggestedSkills:        json.RawMessage(defaultKnowledgeArrayString),
 		References:             envelopeCapsuleReferences(payload.Route, envelope.EnvelopeID),
 		OpenQuestions:          json.RawMessage(defaultKnowledgeArrayString),
 		Risks:                  json.RawMessage(defaultKnowledgeArrayString),
 		Redactions:             json.RawMessage(defaultKnowledgeArrayString),
 		Status:                 domain.KnowledgeCapsuleStatusActive,
-		Truncated:              capsulePayload.Truncated,
-		OriginalEstimatedChars: capsulePayload.OriginalEstimatedChars,
+		Truncated:              truncated,
+		OriginalEstimatedChars: originalEstimatedChars,
 		CreatedAt:              now,
 	}
 	if capsule.SourceAgentID == "" {
@@ -221,6 +219,23 @@ func (s *Service) unpackEnvelopeCapsule(
 	}
 	_, err = s.store.CreateKnowledgeCapsule(ctx, capsule)
 	return err
+}
+
+func importedEnvelopeCapsuleContent(
+	capsulePayload paxlKnowledgeCapsulePayloadCapsule,
+) (string, bool, int64) {
+	rawContent := strings.TrimSpace(capsulePayload.Content)
+	contentTruncated := stringExceedsLimit(rawContent, knowledgeContentLimit)
+	originalEstimatedChars := capsulePayload.OriginalEstimatedChars
+	if contentTruncated {
+		rawContentChars := int64(runeLen(rawContent))
+		if rawContentChars > originalEstimatedChars {
+			originalEstimatedChars = rawContentChars
+		}
+	}
+	return truncateString(rawContent, knowledgeContentLimit),
+		capsulePayload.Truncated || contentTruncated,
+		originalEstimatedChars
 }
 
 func validateEnvelopePayload(payloadType string, raw json.RawMessage) error {

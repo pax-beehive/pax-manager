@@ -16,10 +16,10 @@ const (
 	knowledgeKeywordLimit       = 80
 	knowledgeTitleLimit         = 120
 	knowledgeSummaryLimit       = 1200
-	knowledgeContentLimit       = 6000
-	knowledgeDeliveryLimit      = 4000
+	knowledgeContentLimit       = 32000
+	knowledgeDeliveryLimit      = 8000
 	knowledgeHistoryScanLimit   = 1000
-	knowledgeExtractLineLimit   = 40
+	knowledgeExtractLineLimit   = 120
 	redactedSecretPlaceholder   = "[redacted]"
 	defaultKnowledgeArrayString = "[]"
 )
@@ -136,7 +136,7 @@ func (s *Service) InjectKnowledgeCapsule(
 	if capsule.Status != domain.KnowledgeCapsuleStatusActive {
 		return 0, nil, apperr.Error{Status: http.StatusConflict, Message: "capsule is not active"}
 	}
-	message := renderKnowledgeHandoff(capsule, knowledgeDeliveryLimit)
+	message, deliveryTruncated := renderKnowledgeHandoff(capsule, knowledgeDeliveryLimit)
 	payload, err := json.Marshal(map[string]any{
 		"label":              domain.MessageTypeSystemHandoff,
 		"capsule_id":         capsule.CapsuleID,
@@ -145,7 +145,7 @@ func (s *Service) InjectKnowledgeCapsule(
 		"source_agent_id":    capsule.SourceAgentID,
 		"target_session_id":  target.SessionID,
 		"delivery_method":    domain.KnowledgeInjectionDeliveryMailboxSteer,
-		"delivery_truncated": len(message) >= knowledgeDeliveryLimit,
+		"delivery_truncated": deliveryTruncated,
 	})
 	if err != nil {
 		return 0, nil, err
@@ -285,6 +285,7 @@ func extractKnowledgeContent(
 	needle := strings.ToLower(keyword)
 	var builder strings.Builder
 	originalChars := 0
+	contentChars := 0
 	lines := 0
 	for _, item := range history {
 		messageText := messageSearchText(item)
@@ -300,14 +301,23 @@ func extractKnowledgeContent(
 			item.CreatedAt.UTC().Format("2006-01-02 15:04:05Z"),
 			redactKnowledgeSecrets(strings.TrimSpace(messageText)),
 		)
-		originalChars += len(line)
-		if builder.Len()+len(line)+1 > knowledgeContentLimit {
+		lineChars := runeLen(line)
+		originalChars += lineChars
+		separatorChars := 0
+		if builder.Len() > 0 {
+			separatorChars = 1
+		}
+		if contentChars+separatorChars+lineChars > knowledgeContentLimit {
+			if contentChars == 0 {
+				return truncateString(line, knowledgeContentLimit), originalChars, true
+			}
 			return builder.String(), originalChars, true
 		}
 		if builder.Len() > 0 {
 			builder.WriteByte('\n')
 		}
 		builder.WriteString(line)
+		contentChars += separatorChars + lineChars
 		lines++
 	}
 	truncated := lines >= knowledgeExtractLineLimit
@@ -330,7 +340,7 @@ func messageSearchText(item domain.MessageWithParts) string {
 	return strings.Join(segments, " ")
 }
 
-func renderKnowledgeHandoff(capsule domain.KnowledgeCapsule, limit int) string {
+func renderKnowledgeHandoff(capsule domain.KnowledgeCapsule, limit int) (string, bool) {
 	body := fmt.Sprintf(
 		"system_handoff\n\nTitle: %s\nKeyword: %s\nSource session: %s\n\nSummary:\n%s\n\nContent:\n%s",
 		capsule.Title,
@@ -339,7 +349,7 @@ func renderKnowledgeHandoff(capsule domain.KnowledgeCapsule, limit int) string {
 		capsule.Summary,
 		capsule.Content,
 	)
-	return truncateString(body, limit)
+	return truncateString(body, limit), stringExceedsLimit(body, limit)
 }
 
 func redactKnowledgeSecrets(input string) string {
@@ -358,11 +368,20 @@ func redactKnowledgeSecrets(input string) string {
 }
 
 func truncateString(input string, limit int) string {
-	if limit <= 0 || len(input) <= limit {
+	runes := []rune(input)
+	if limit <= 0 || len(runes) <= limit {
 		return input
 	}
 	if limit <= 3 {
-		return input[:limit]
+		return string(runes[:limit])
 	}
-	return input[:limit-3] + "..."
+	return string(runes[:limit-3]) + "..."
+}
+
+func stringExceedsLimit(input string, limit int) bool {
+	return limit > 0 && runeLen(input) > limit
+}
+
+func runeLen(input string) int {
+	return len([]rune(input))
 }
