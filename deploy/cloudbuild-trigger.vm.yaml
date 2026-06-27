@@ -1,0 +1,8 @@
+name: pax-manager
+github:
+  owner: pax-beehive
+  name: pax-manager
+  push:
+    branch: ^main$
+filename: cloudbuild.vm.yaml
+serviceAccount: projects/pax-tech-499219/serviceAccounts/548727007198-compute@developer.gserviceaccount.com

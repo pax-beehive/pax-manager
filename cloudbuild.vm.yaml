@@ -1,0 +1,82 @@
+substitutions:
+  _REGION: us-west1
+  _REPOSITORY: pax-manager
+  _IMAGE: pax-manager
+  _VM_NAME: pax-manager-monolithic
+  _VM_ZONE: us-west1-b
+  _CLOUD_SQL_INSTANCE: pax-tech-499219:us-west1:pax-manager-postgres
+  _DB_SECRET: pax-manager-database-url
+  _DEPLOY_SCRIPT: /opt/pax-manager/deploy.sh
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
+      - .
+
+  - id: push-sha
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
+
+  - id: prepare-vm
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - compute
+      - ssh
+      - ${_VM_NAME}
+      - --zone
+      - ${_VM_ZONE}
+      - --command
+      - mkdir -p /tmp/pax-manager-vm
+
+  - id: copy-vm-scripts
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - compute
+      - scp
+      - deploy/vm/bootstrap.sh
+      - deploy/vm/deploy.sh
+      - ${_VM_NAME}:/tmp/pax-manager-vm/
+      - --zone
+      - ${_VM_ZONE}
+
+  - id: bootstrap-vm
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - compute
+      - ssh
+      - ${_VM_NAME}
+      - --zone
+      - ${_VM_ZONE}
+      - --command
+      - >
+        sudo install -d -m 0755 /opt/pax-manager;
+        sudo install -m 0755 /tmp/pax-manager-vm/bootstrap.sh /opt/pax-manager/bootstrap.sh;
+        sudo install -m 0755 /tmp/pax-manager-vm/deploy.sh /opt/pax-manager/deploy.sh;
+        sudo /opt/pax-manager/bootstrap.sh ${_CLOUD_SQL_INSTANCE}
+
+  - id: deploy-vm
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - compute
+      - ssh
+      - ${_VM_NAME}
+      - --zone
+      - ${_VM_ZONE}
+      - --command
+      - sudo ${_DEPLOY_SCRIPT} ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA} ${_DB_SECRET}
+
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
+
+options:
+  logging: CLOUD_LOGGING_ONLY
