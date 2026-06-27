@@ -27,5 +27,8 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 
+docker ps -a --filter name=pax-manager
+docker ps -a --filter name=pax-manager-cloud-sql-proxy
 docker logs --tail=120 pax-manager || true
+docker logs --tail=120 pax-manager-cloud-sql-proxy || true
 exit 1
