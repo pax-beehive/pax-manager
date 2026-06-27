@@ -1248,22 +1248,32 @@ func (s *PostgresStore) ListNodeAgents(
 	principal UserPrincipal,
 	nodeID string,
 ) ([]Agent, error) {
-	if _, err := s.GetNode(ctx, principal, nodeID); err != nil {
-		return nil, err
-	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type,
 			machine_type, os, hermes_version, api_endpoint, status, computed_status(last_heartbeat),
 			last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
 		WHERE node_id = $1
+			AND (
+				owner_user_id = $2
+				OR `+teamAgentAccessSQL("agents.agent_id", "$2")+`
+			)
 		ORDER BY registered_at ASC
-	`, nodeID)
+	`, nodeID, principal.User.UserID)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	return scanAgents(rows)
+	agents, err := scanAgents(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(agents) == 0 {
+		if _, err := s.GetNode(ctx, principal, nodeID); err != nil {
+			return nil, err
+		}
+	}
+	return agents, nil
 }
 
 func (s *PostgresStore) CreateNodeAgent(
@@ -1327,9 +1337,6 @@ func (s *PostgresStore) CreateNodeAgentSession(
 		}
 		req.SessionID = generated
 	}
-	if _, err := s.GetNode(ctx, principal, req.NodeID); err != nil {
-		return AgentSession{}, err
-	}
 	var ownerUserID string
 	if err := s.db.QueryRowContext(ctx, `
 		SELECT owner_user_id FROM agents WHERE agent_id = $1 AND node_id = $2
@@ -1337,6 +1344,12 @@ func (s *PostgresStore) CreateNodeAgentSession(
 		return AgentSession{}, mapSQLError(err)
 	}
 	if !canAccessOwner(principal, ownerUserID) {
+		_, err := s.GetAgent(ctx, principal, req.AgentID)
+		if err != nil {
+			return AgentSession{}, ErrNotFound
+		}
+	}
+	if req.NodeID == "" {
 		return AgentSession{}, ErrNotFound
 	}
 	now := s.now().UTC()
@@ -1364,6 +1377,7 @@ func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal)
 			api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
 		WHERE owner_user_id = $1
+			OR ` + teamAgentAccessSQL("agents.agent_id", "$1") + `
 	`
 	args := []any{principal.User.UserID}
 	query += ` ORDER BY registered_at ASC`
@@ -1385,7 +1399,10 @@ func (s *PostgresStore) GetAgent(
 			api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
 		FROM agents
 		WHERE agent_id = $1
-			AND owner_user_id = $2
+			AND (
+				owner_user_id = $2
+				OR ` + teamAgentAccessSQL("agents.agent_id", "$2") + `
+			)
 	`
 	args := []any{agentID, principal.User.UserID}
 	row := s.db.QueryRowContext(ctx, query, args...)
@@ -1398,7 +1415,10 @@ func (s *PostgresStore) ListAgentSessions(
 	agentID string,
 ) ([]AgentSession, error) {
 	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.agent_id = $1`
-	query += ` AND a.owner_user_id = $2`
+	query += ` AND (
+		a.owner_user_id = $2
+		OR ` + teamAgentAccessSQL("a.agent_id", "$2") + `
+	)`
 	args := []any{agentID, principal.User.UserID}
 	query += ` ORDER BY agent_sessions.updated_at DESC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -1415,7 +1435,10 @@ func (s *PostgresStore) GetSession(
 	sessionID string,
 ) (AgentSession, error) {
 	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.session_id = $1`
-	query += ` AND a.owner_user_id = $2`
+	query += ` AND (
+		a.owner_user_id = $2
+		OR ` + teamAgentAccessSQL("a.agent_id", "$2") + `
+	)`
 	args := []any{sessionID, principal.User.UserID}
 	query += ` ORDER BY agent_sessions.updated_at DESC LIMIT 1`
 	row := s.db.QueryRowContext(ctx, query, args...)
@@ -1469,7 +1492,10 @@ func (s *PostgresStore) ListSessionMessages(
 	sessionID string,
 ) ([]MailboxMessage, error) {
 	query := mailboxSelectSQL + ` WHERE session_id = $1`
-	query += ` AND owner_user_id = $2`
+	query += ` AND (
+		owner_user_id = $2
+		OR ` + teamAgentAccessSQL("mailbox.agent_id", "$2") + `
+	)`
 	args := []any{sessionID, principal.User.UserID}
 	query += ` ORDER BY id ASC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -1506,7 +1532,9 @@ func (s *PostgresStore) CreateMailboxMessage(
 		return MailboxMessage{}, mapSQLError(err)
 	}
 	if !canAccessOwner(principal, ownerUserID) {
-		return MailboxMessage{}, ErrNotFound
+		if _, err := s.GetAgent(ctx, principal, req.AgentID); err != nil {
+			return MailboxMessage{}, ErrNotFound
+		}
 	}
 	if req.SessionID != "" {
 		var sessionNodeID string

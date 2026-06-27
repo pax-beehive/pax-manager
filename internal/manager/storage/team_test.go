@@ -187,6 +187,141 @@ func TestMemoryTeamStore(t *testing.T) {
 			require.ErrorIs(t, err, ErrUnauthorized)
 		},
 	)
+
+	t.Run("Given a team agent then active members can access user agent paths", func(t *testing.T) {
+		ctx := context.Background()
+		now := time.Date(2026, 6, 27, 10, 0, 0, 0, time.UTC)
+		store := NewMemoryStore(func() time.Time { return now })
+		owner, _, member := seedTeamUsers(t, ctx, store)
+		teamID := "team_1"
+		seedTeam(t, ctx, store, teamID, owner, map[string]User{
+			domain.TeamRoleMember: member,
+		}, now)
+		store.nodes["node_1"] = Node{
+			NodeID:      "node_1",
+			OwnerUserID: owner.UserID,
+			Status:      "online",
+		}
+		store.agents["agent_owner"] = Agent{
+			AgentID:      "agent_owner",
+			NodeID:       "node_1",
+			OwnerUserID:  owner.UserID,
+			Status:       "online",
+			RegisteredAt: now,
+		}
+		session, err := store.CreateNodeAgentSession(
+			ctx,
+			UserPrincipal{User: owner},
+			CreateSessionRequest{
+				NodeID:    "node_1",
+				AgentID:   "agent_owner",
+				SessionID: "sess_1",
+			},
+		)
+		require.NoError(t, err)
+		_, err = store.CreateMailboxMessage(ctx, UserPrincipal{User: owner}, CreateMailboxRequest{
+			NodeID:    "node_1",
+			AgentID:   "agent_owner",
+			SessionID: "sess_1",
+			Message:   "hello",
+		})
+		require.NoError(t, err)
+
+		_, err = store.GetAgent(ctx, UserPrincipal{User: member}, "agent_owner")
+		require.ErrorIs(t, err, ErrNotFound)
+		_, err = store.ListNodeAgents(ctx, UserPrincipal{User: member}, "node_1")
+		require.ErrorIs(t, err, ErrNotFound)
+
+		_, err = store.AddTeamAgent(ctx, UserPrincipal{User: owner}, teamID, "agent_owner", now)
+		require.NoError(t, err)
+
+		agents, err := store.ListAgents(ctx, UserPrincipal{User: member})
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		require.Equal(t, "agent_owner", agents[0].AgentID)
+		nodeAgents, err := store.ListNodeAgents(ctx, UserPrincipal{User: member}, "node_1")
+		require.NoError(t, err)
+		require.Len(t, nodeAgents, 1)
+		require.Equal(t, "agent_owner", nodeAgents[0].AgentID)
+		agent, err := store.GetAgent(ctx, UserPrincipal{User: member}, "agent_owner")
+		require.NoError(t, err)
+		require.Equal(t, owner.UserID, agent.OwnerUserID)
+		sessions, err := store.ListAgentSessions(ctx, UserPrincipal{User: member}, "agent_owner")
+		require.NoError(t, err)
+		require.Len(t, sessions, 1)
+		require.Equal(t, session.SessionID, sessions[0].SessionID)
+		visibleSession, err := store.GetSession(ctx, UserPrincipal{User: member}, "sess_1")
+		require.NoError(t, err)
+		require.Equal(t, session.SessionID, visibleSession.SessionID)
+		messages, err := store.ListSessionMessages(ctx, UserPrincipal{User: member}, "sess_1")
+		require.NoError(t, err)
+		require.Len(t, messages, 1)
+		require.Equal(t, "hello", messages[0].Message)
+		sharedSession, err := store.CreateNodeAgentSession(
+			ctx,
+			UserPrincipal{User: member},
+			CreateSessionRequest{
+				NodeID:    "node_1",
+				AgentID:   "agent_owner",
+				SessionID: "sess_shared",
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, "sess_shared", sharedSession.SessionID)
+		sharedMessage, err := store.CreateMailboxMessage(
+			ctx,
+			UserPrincipal{User: member},
+			CreateMailboxRequest{
+				NodeID:    "node_1",
+				AgentID:   "agent_owner",
+				SessionID: "sess_shared",
+				Message:   "from member",
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, member.UserID, sharedMessage.UserID)
+		require.Equal(t, owner.UserID, sharedMessage.OwnerUserID)
+
+		_, err = store.RemoveTeamMember(
+			ctx,
+			UserPrincipal{User: owner},
+			teamID,
+			member.UserID,
+			now.Add(time.Minute),
+		)
+		require.NoError(t, err)
+		agents, err = store.ListAgents(ctx, UserPrincipal{User: member})
+		require.NoError(t, err)
+		require.Empty(t, agents)
+		_, err = store.ListNodeAgents(ctx, UserPrincipal{User: member}, "node_1")
+		require.ErrorIs(t, err, ErrNotFound)
+		_, err = store.GetAgent(ctx, UserPrincipal{User: member}, "agent_owner")
+		require.ErrorIs(t, err, ErrNotFound)
+		_, err = store.ListAgentSessions(ctx, UserPrincipal{User: member}, "agent_owner")
+		require.ErrorIs(t, err, ErrNotFound)
+		_, err = store.GetSession(ctx, UserPrincipal{User: member}, "sess_1")
+		require.ErrorIs(t, err, ErrNotFound)
+		messages, err = store.ListSessionMessages(ctx, UserPrincipal{User: member}, "sess_1")
+		require.NoError(t, err)
+		require.Empty(t, messages)
+		_, err = store.CreateNodeAgentSession(
+			ctx,
+			UserPrincipal{User: member},
+			CreateSessionRequest{
+				NodeID:    "node_1",
+				AgentID:   "agent_owner",
+				SessionID: "sess_denied",
+			},
+		)
+		require.ErrorIs(t, err, ErrNotFound)
+		_, err = store.CreateMailboxMessage(ctx, UserPrincipal{User: member}, CreateMailboxRequest{
+			NodeID:    "node_1",
+			AgentID:   "agent_owner",
+			SessionID: "sess_1",
+			Message:   "denied",
+		})
+		require.ErrorIs(t, err, ErrNotFound)
+	})
 }
 
 func seedTeamUsers(t *testing.T, ctx context.Context, store *MemoryStore) (User, User, User) {

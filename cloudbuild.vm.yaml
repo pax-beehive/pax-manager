@@ -11,8 +11,14 @@ substitutions:
 steps:
   - id: build
     name: gcr.io/cloud-builders/docker
+    env:
+      - DOCKER_BUILDKIT=1
+    secretEnv:
+      - PAX_BEEHIVE_READ_TOKEN
     args:
       - build
+      - --secret
+      - id=github_token,env=PAX_BEEHIVE_READ_TOKEN
       - -t
       - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
       - .
@@ -77,6 +83,11 @@ steps:
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/${PROJECT_ID}/secrets/PAX_BEEHIVE_READ_TOKEN/versions/latest
+      env: PAX_BEEHIVE_READ_TOKEN
 
 options:
   logging: CLOUD_LOGGING_ONLY
