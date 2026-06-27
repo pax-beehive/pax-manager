@@ -1034,14 +1034,17 @@ func (s *MemoryStore) ListNodeAgents(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	node, ok := s.nodes[nodeID]
-	if !ok || !canAccessOwner(principal, node.OwnerUserID) {
+	if !ok {
 		return nil, ErrNotFound
 	}
 	out := make([]Agent, 0)
 	for _, agent := range s.agents {
-		if agent.NodeID == nodeID {
+		if agent.NodeID == nodeID && s.canAccessAgentLocked(principal, agent) {
 			out = append(out, agent)
 		}
+	}
+	if len(out) == 0 && !canAccessOwner(principal, node.OwnerUserID) {
+		return nil, ErrNotFound
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].RegisteredAt.Before(out[j].RegisteredAt)
@@ -1099,7 +1102,7 @@ func (s *MemoryStore) CreateNodeAgentSession(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	agent, ok := s.agents[req.AgentID]
-	if !ok || agent.NodeID != req.NodeID || !canAccessOwner(principal, agent.OwnerUserID) {
+	if !ok || agent.NodeID != req.NodeID || !s.canAccessAgentLocked(principal, agent) {
 		return AgentSession{}, ErrNotFound
 	}
 	now := s.now().UTC()
@@ -1177,7 +1180,7 @@ func (s *MemoryStore) ListAgents(ctx context.Context, principal UserPrincipal) (
 
 	out := make([]Agent, 0, len(s.agents))
 	for _, agent := range s.agents {
-		if !canAccessOwner(principal, agent.OwnerUserID) {
+		if !s.canAccessAgentLocked(principal, agent) {
 			continue
 		}
 		out = append(out, agent)
@@ -1197,7 +1200,7 @@ func (s *MemoryStore) GetAgent(
 	defer s.mu.Unlock()
 
 	agent, ok := s.agents[agentID]
-	if !ok || !canAccessOwner(principal, agent.OwnerUserID) {
+	if !ok || !s.canAccessAgentLocked(principal, agent) {
 		return Agent{}, ErrNotFound
 	}
 	return agent, nil
@@ -1212,7 +1215,7 @@ func (s *MemoryStore) ListAgentSessions(
 	defer s.mu.Unlock()
 
 	agent, ok := s.agents[agentID]
-	if !ok || !canAccessOwner(principal, agent.OwnerUserID) {
+	if !ok || !s.canAccessAgentLocked(principal, agent) {
 		return nil, ErrNotFound
 	}
 	out := make([]AgentSession, 0)
@@ -1238,7 +1241,7 @@ func (s *MemoryStore) GetSession(
 	for _, session := range s.sessions {
 		if session.SessionID == sessionID {
 			agent, ok := s.agents[session.AgentID]
-			if !ok || !canAccessOwner(principal, agent.OwnerUserID) {
+			if !ok || !s.canAccessAgentLocked(principal, agent) {
 				return AgentSession{}, ErrNotFound
 			}
 			return session, nil
@@ -1304,7 +1307,8 @@ func (s *MemoryStore) ListSessionMessages(
 	out := make([]MailboxMessage, 0)
 	for _, msg := range s.mailbox {
 		if msg.SessionID == sessionID {
-			if !canAccessOwner(principal, msg.OwnerUserID) {
+			agent, ok := s.agents[msg.AgentID]
+			if !ok || !s.canAccessAgentLocked(principal, agent) {
 				continue
 			}
 			out = append(out, msg)
@@ -1316,6 +1320,29 @@ func (s *MemoryStore) ListSessionMessages(
 	return out, nil
 }
 
+func (s *MemoryStore) canAccessAgentLocked(principal UserPrincipal, agent Agent) bool {
+	if canAccessOwner(principal, agent.OwnerUserID) {
+		return true
+	}
+	for _, teamAgent := range s.teamAgents {
+		if teamAgent.AgentID != agent.AgentID || teamAgent.RemovedAt != nil {
+			continue
+		}
+		team, ok := s.teams[teamAgent.TeamID]
+		if !ok || team.Status != domain.TeamStatusActive {
+			continue
+		}
+		member, ok := s.teamMembers[teamMemberKey{
+			TeamID: teamAgent.TeamID,
+			UserID: principal.User.UserID,
+		}]
+		if ok && member.Status == domain.TeamMemberStatusActive {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *MemoryStore) CreateMailboxMessage(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -1325,7 +1352,7 @@ func (s *MemoryStore) CreateMailboxMessage(
 	defer s.mu.Unlock()
 
 	agent, ok := s.agents[req.AgentID]
-	if !ok || !canAccessOwner(principal, agent.OwnerUserID) {
+	if !ok || !s.canAccessAgentLocked(principal, agent) {
 		return MailboxMessage{}, ErrNotFound
 	}
 	if req.NodeID != "" && agent.NodeID != req.NodeID {

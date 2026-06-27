@@ -899,9 +899,6 @@ func (s *Service) nodeAgentTarget(
 	nodeID string,
 	agentID string,
 ) (domain.Agent, error) {
-	if _, err := s.store.GetNode(c, principal, nodeID); err != nil {
-		return domain.Agent{}, err
-	}
 	agent, err := s.store.GetAgent(c, principal, agentID)
 	if err != nil {
 		return domain.Agent{}, err

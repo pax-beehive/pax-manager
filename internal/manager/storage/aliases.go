@@ -98,6 +98,20 @@ func canAccessOwner(principal UserPrincipal, ownerUserID string) bool {
 	return domain.CanAccessOwner(principal, ownerUserID)
 }
 
+func teamAgentAccessSQL(agentIDExpr string, userIDParam string) string {
+	return `EXISTS (
+		SELECT 1
+		FROM team_agents ta
+		JOIN team_members tm ON tm.team_id = ta.team_id
+		JOIN teams t ON t.team_id = ta.team_id
+		WHERE ta.agent_id = ` + agentIDExpr + `
+			AND ta.removed_at IS NULL
+			AND tm.user_id = ` + userIDParam + `
+			AND tm.status = '` + domain.TeamMemberStatusActive + `'
+			AND t.status = '` + domain.TeamStatusActive + `'
+	)`
+}
+
 func isManagerSessionID(sessionID string) bool {
 	return strings.HasPrefix(sessionID, "sess_") || strings.HasPrefix(sessionID, "sess-")
 }

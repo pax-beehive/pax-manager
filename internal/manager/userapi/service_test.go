@@ -275,10 +275,6 @@ func TestAgents(t *testing.T) {
 
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 			store.EXPECT().
-				GetNode(ctx, principal, "node_2").
-				Return(domain.Node{NodeID: "node_2", OwnerUserID: "usr_self"}, nil).
-				Once()
-			store.EXPECT().
 				GetAgent(ctx, principal, "agent_1").
 				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
 				Once()
@@ -373,10 +369,6 @@ func TestAgents(t *testing.T) {
 
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 			store.EXPECT().
-				GetNode(ctx, principal, "node_1").
-				Return(domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
-				Once()
-			store.EXPECT().
 				GetAgent(ctx, principal, "agent_1").
 				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
 				Once()
@@ -411,10 +403,6 @@ func TestAgents(t *testing.T) {
 			principals := userapimocks.NewMockPrincipalResolver(t)
 
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
-			store.EXPECT().
-				GetNode(ctx, principal, "node_1").
-				Return(domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
-				Once()
 			store.EXPECT().
 				GetAgent(ctx, principal, "agent_1").
 				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
@@ -460,10 +448,6 @@ func TestAgents(t *testing.T) {
 			}
 
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
-			store.EXPECT().
-				GetNode(ctx, principal, "node_1").
-				Return(domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
-				Once()
 			store.EXPECT().
 				GetAgent(ctx, principal, "agent_1").
 				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
@@ -643,10 +627,6 @@ func TestMailbox(t *testing.T) {
 
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 			store.EXPECT().
-				GetNode(ctx, principal, "node_2").
-				Return(domain.Node{NodeID: "node_2", OwnerUserID: "usr_self"}, nil).
-				Once()
-			store.EXPECT().
 				GetAgent(ctx, principal, "agent_1").
 				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
 				Once()
@@ -685,10 +665,6 @@ func TestMailbox(t *testing.T) {
 			principals := userapimocks.NewMockPrincipalResolver(t)
 
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
-			store.EXPECT().
-				GetNode(ctx, principal, "node_1").
-				Return(domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
-				Once()
 			store.EXPECT().
 				GetAgent(ctx, principal, "agent_1").
 				Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
