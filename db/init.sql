@@ -604,6 +604,103 @@ CREATE INDEX IF NOT EXISTS idx_friends_recipient_alias
     ON friends(recipient_user_id, recipient_alias)
     WHERE status = 'accepted';
 
+CREATE TABLE IF NOT EXISTS teams (
+    team_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    archived_at TIMESTAMPTZ
+);
+
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS owner_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_teams_owner_status
+    ON teams(owner_user_id, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS team_members (
+    team_id TEXT NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    invited_by_user_id TEXT REFERENCES users(user_id),
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    removed_at TIMESTAMPTZ,
+    removed_by_user_id TEXT REFERENCES users(user_id),
+    PRIMARY KEY (team_id, user_id)
+);
+
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member';
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS invited_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS removed_at TIMESTAMPTZ;
+ALTER TABLE team_members ADD COLUMN IF NOT EXISTS removed_by_user_id TEXT REFERENCES users(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_team_members_user_status
+    ON team_members(user_id, status, joined_at DESC);
+CREATE INDEX IF NOT EXISTS idx_team_members_team_status
+    ON team_members(team_id, status, joined_at);
+
+CREATE TABLE IF NOT EXISTS team_invites (
+    invite_id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    recipient_user_id TEXT REFERENCES users(user_id),
+    role TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    invited_by_user_id TEXT NOT NULL REFERENCES users(user_id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    accepted_at TIMESTAMPTZ,
+    declined_at TIMESTAMPTZ
+);
+
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS team_id TEXT REFERENCES teams(team_id);
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS recipient_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member';
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS invited_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS declined_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_team_invites_recipient_user_status
+    ON team_invites(recipient_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_team_invites_email_status
+    ON team_invites(email, status, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_team_invites_pending_email
+    ON team_invites(team_id, email)
+    WHERE status = 'pending';
+
+CREATE TABLE IF NOT EXISTS team_agents (
+    team_id TEXT NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    agent_owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    added_by_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    removed_at TIMESTAMPTZ,
+    removed_by_user_id TEXT REFERENCES users(user_id),
+    PRIMARY KEY (team_id, agent_id)
+);
+
+ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS agent_owner_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS added_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS added_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS removed_at TIMESTAMPTZ;
+ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS removed_by_user_id TEXT REFERENCES users(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_team_agents_owner_active
+    ON team_agents(agent_owner_user_id, team_id)
+    WHERE removed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_team_agents_team_active
+    ON team_agents(team_id, added_at)
+    WHERE removed_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS session_knowledge_injections (
     injection_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

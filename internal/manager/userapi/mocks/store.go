@@ -142,6 +142,125 @@ func (_c *MockStore_AcceptFriend_Call) RunAndReturn(run func(context.Context, do
 	return _c
 }
 
+// AcceptTeamInvite provides a mock function with given fields: ctx, principal, inviteID, acceptedAt
+func (_m *MockStore) AcceptTeamInvite(ctx context.Context, principal domain.UserPrincipal, inviteID string, acceptedAt time.Time) (domain.TeamInvite, error) {
+	ret := _m.Called(ctx, principal, inviteID, acceptedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AcceptTeamInvite")
+	}
+
+	var r0 domain.TeamInvite
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) (domain.TeamInvite, error)); ok {
+		return rf(ctx, principal, inviteID, acceptedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) domain.TeamInvite); ok {
+		r0 = rf(ctx, principal, inviteID, acceptedAt)
+	} else {
+		r0 = ret.Get(0).(domain.TeamInvite)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, inviteID, acceptedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_AcceptTeamInvite_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AcceptTeamInvite'
+type MockStore_AcceptTeamInvite_Call struct {
+	*mock.Call
+}
+
+// AcceptTeamInvite is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - inviteID string
+//   - acceptedAt time.Time
+func (_e *MockStore_Expecter) AcceptTeamInvite(ctx interface{}, principal interface{}, inviteID interface{}, acceptedAt interface{}) *MockStore_AcceptTeamInvite_Call {
+	return &MockStore_AcceptTeamInvite_Call{Call: _e.mock.On("AcceptTeamInvite", ctx, principal, inviteID, acceptedAt)}
+}
+
+func (_c *MockStore_AcceptTeamInvite_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, inviteID string, acceptedAt time.Time)) *MockStore_AcceptTeamInvite_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_AcceptTeamInvite_Call) Return(_a0 domain.TeamInvite, _a1 error) *MockStore_AcceptTeamInvite_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_AcceptTeamInvite_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, time.Time) (domain.TeamInvite, error)) *MockStore_AcceptTeamInvite_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AddTeamAgent provides a mock function with given fields: ctx, principal, teamID, agentID, addedAt
+func (_m *MockStore) AddTeamAgent(ctx context.Context, principal domain.UserPrincipal, teamID string, agentID string, addedAt time.Time) (domain.TeamAgent, error) {
+	ret := _m.Called(ctx, principal, teamID, agentID, addedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AddTeamAgent")
+	}
+
+	var r0 domain.TeamAgent
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string, time.Time) (domain.TeamAgent, error)); ok {
+		return rf(ctx, principal, teamID, agentID, addedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string, time.Time) domain.TeamAgent); ok {
+		r0 = rf(ctx, principal, teamID, agentID, addedAt)
+	} else {
+		r0 = ret.Get(0).(domain.TeamAgent)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, teamID, agentID, addedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_AddTeamAgent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddTeamAgent'
+type MockStore_AddTeamAgent_Call struct {
+	*mock.Call
+}
+
+// AddTeamAgent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - teamID string
+//   - agentID string
+//   - addedAt time.Time
+func (_e *MockStore_Expecter) AddTeamAgent(ctx interface{}, principal interface{}, teamID interface{}, agentID interface{}, addedAt interface{}) *MockStore_AddTeamAgent_Call {
+	return &MockStore_AddTeamAgent_Call{Call: _e.mock.On("AddTeamAgent", ctx, principal, teamID, agentID, addedAt)}
+}
+
+func (_c *MockStore_AddTeamAgent_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, teamID string, agentID string, addedAt time.Time)) *MockStore_AddTeamAgent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(string), args[4].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_AddTeamAgent_Call) Return(_a0 domain.TeamAgent, _a1 error) *MockStore_AddTeamAgent_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_AddTeamAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string, time.Time) (domain.TeamAgent, error)) *MockStore_AddTeamAgent_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ArchiveEnvelope provides a mock function with given fields: ctx, principal, envelopeID, archivedAt
 func (_m *MockStore) ArchiveEnvelope(ctx context.Context, principal domain.UserPrincipal, envelopeID string, archivedAt time.Time) (domain.Envelope, error) {
 	ret := _m.Called(ctx, principal, envelopeID, archivedAt)
@@ -843,6 +962,122 @@ func (_c *MockStore_CreateSecret_Call) RunAndReturn(run func(context.Context, do
 	return _c
 }
 
+// CreateTeam provides a mock function with given fields: ctx, team, owner
+func (_m *MockStore) CreateTeam(ctx context.Context, team domain.Team, owner domain.TeamMember) (domain.Team, error) {
+	ret := _m.Called(ctx, team, owner)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateTeam")
+	}
+
+	var r0 domain.Team
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Team, domain.TeamMember) (domain.Team, error)); ok {
+		return rf(ctx, team, owner)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Team, domain.TeamMember) domain.Team); ok {
+		r0 = rf(ctx, team, owner)
+	} else {
+		r0 = ret.Get(0).(domain.Team)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.Team, domain.TeamMember) error); ok {
+		r1 = rf(ctx, team, owner)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTeam'
+type MockStore_CreateTeam_Call struct {
+	*mock.Call
+}
+
+// CreateTeam is a helper method to define mock.On call
+//   - ctx context.Context
+//   - team domain.Team
+//   - owner domain.TeamMember
+func (_e *MockStore_Expecter) CreateTeam(ctx interface{}, team interface{}, owner interface{}) *MockStore_CreateTeam_Call {
+	return &MockStore_CreateTeam_Call{Call: _e.mock.On("CreateTeam", ctx, team, owner)}
+}
+
+func (_c *MockStore_CreateTeam_Call) Run(run func(ctx context.Context, team domain.Team, owner domain.TeamMember)) *MockStore_CreateTeam_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.Team), args[2].(domain.TeamMember))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateTeam_Call) Return(_a0 domain.Team, _a1 error) *MockStore_CreateTeam_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateTeam_Call) RunAndReturn(run func(context.Context, domain.Team, domain.TeamMember) (domain.Team, error)) *MockStore_CreateTeam_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateTeamInvite provides a mock function with given fields: ctx, principal, invite
+func (_m *MockStore) CreateTeamInvite(ctx context.Context, principal domain.UserPrincipal, invite domain.TeamInvite) (domain.TeamInvite, error) {
+	ret := _m.Called(ctx, principal, invite)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateTeamInvite")
+	}
+
+	var r0 domain.TeamInvite
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.TeamInvite) (domain.TeamInvite, error)); ok {
+		return rf(ctx, principal, invite)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.TeamInvite) domain.TeamInvite); ok {
+		r0 = rf(ctx, principal, invite)
+	} else {
+		r0 = ret.Get(0).(domain.TeamInvite)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.TeamInvite) error); ok {
+		r1 = rf(ctx, principal, invite)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateTeamInvite_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTeamInvite'
+type MockStore_CreateTeamInvite_Call struct {
+	*mock.Call
+}
+
+// CreateTeamInvite is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - invite domain.TeamInvite
+func (_e *MockStore_Expecter) CreateTeamInvite(ctx interface{}, principal interface{}, invite interface{}) *MockStore_CreateTeamInvite_Call {
+	return &MockStore_CreateTeamInvite_Call{Call: _e.mock.On("CreateTeamInvite", ctx, principal, invite)}
+}
+
+func (_c *MockStore_CreateTeamInvite_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, invite domain.TeamInvite)) *MockStore_CreateTeamInvite_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.TeamInvite))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateTeamInvite_Call) Return(_a0 domain.TeamInvite, _a1 error) *MockStore_CreateTeamInvite_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateTeamInvite_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.TeamInvite) (domain.TeamInvite, error)) *MockStore_CreateTeamInvite_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateUserAPIKey provides a mock function with given fields: ctx, principal, name, keyHash, prefix
 func (_m *MockStore) CreateUserAPIKey(ctx context.Context, principal domain.UserPrincipal, name string, keyHash string, prefix string) (domain.UserAPIKey, error) {
 	ret := _m.Called(ctx, principal, name, keyHash, prefix)
@@ -899,6 +1134,65 @@ func (_c *MockStore_CreateUserAPIKey_Call) Return(_a0 domain.UserAPIKey, _a1 err
 }
 
 func (_c *MockStore_CreateUserAPIKey_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string, string) (domain.UserAPIKey, error)) *MockStore_CreateUserAPIKey_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeclineTeamInvite provides a mock function with given fields: ctx, principal, inviteID, declinedAt
+func (_m *MockStore) DeclineTeamInvite(ctx context.Context, principal domain.UserPrincipal, inviteID string, declinedAt time.Time) (domain.TeamInvite, error) {
+	ret := _m.Called(ctx, principal, inviteID, declinedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeclineTeamInvite")
+	}
+
+	var r0 domain.TeamInvite
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) (domain.TeamInvite, error)); ok {
+		return rf(ctx, principal, inviteID, declinedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, time.Time) domain.TeamInvite); ok {
+		r0 = rf(ctx, principal, inviteID, declinedAt)
+	} else {
+		r0 = ret.Get(0).(domain.TeamInvite)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, inviteID, declinedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_DeclineTeamInvite_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeclineTeamInvite'
+type MockStore_DeclineTeamInvite_Call struct {
+	*mock.Call
+}
+
+// DeclineTeamInvite is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - inviteID string
+//   - declinedAt time.Time
+func (_e *MockStore_Expecter) DeclineTeamInvite(ctx interface{}, principal interface{}, inviteID interface{}, declinedAt interface{}) *MockStore_DeclineTeamInvite_Call {
+	return &MockStore_DeclineTeamInvite_Call{Call: _e.mock.On("DeclineTeamInvite", ctx, principal, inviteID, declinedAt)}
+}
+
+func (_c *MockStore_DeclineTeamInvite_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, inviteID string, declinedAt time.Time)) *MockStore_DeclineTeamInvite_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_DeclineTeamInvite_Call) Return(_a0 domain.TeamInvite, _a1 error) *MockStore_DeclineTeamInvite_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_DeclineTeamInvite_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, time.Time) (domain.TeamInvite, error)) *MockStore_DeclineTeamInvite_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1363,6 +1657,64 @@ func (_c *MockStore_GetSession_Call) Return(_a0 domain.AgentSession, _a1 error) 
 }
 
 func (_c *MockStore_GetSession_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.AgentSession, error)) *MockStore_GetSession_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetTeam provides a mock function with given fields: ctx, principal, teamID
+func (_m *MockStore) GetTeam(ctx context.Context, principal domain.UserPrincipal, teamID string) (domain.Team, error) {
+	ret := _m.Called(ctx, principal, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetTeam")
+	}
+
+	var r0 domain.Team
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) (domain.Team, error)); ok {
+		return rf(ctx, principal, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) domain.Team); ok {
+		r0 = rf(ctx, principal, teamID)
+	} else {
+		r0 = ret.Get(0).(domain.Team)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetTeam_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTeam'
+type MockStore_GetTeam_Call struct {
+	*mock.Call
+}
+
+// GetTeam is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - teamID string
+func (_e *MockStore_Expecter) GetTeam(ctx interface{}, principal interface{}, teamID interface{}) *MockStore_GetTeam_Call {
+	return &MockStore_GetTeam_Call{Call: _e.mock.On("GetTeam", ctx, principal, teamID)}
+}
+
+func (_c *MockStore_GetTeam_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, teamID string)) *MockStore_GetTeam_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetTeam_Call) Return(_a0 domain.Team, _a1 error) *MockStore_GetTeam_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetTeam_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Team, error)) *MockStore_GetTeam_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -2253,6 +2605,244 @@ func (_c *MockStore_ListSessionMessages_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
+// ListTeamAgents provides a mock function with given fields: ctx, principal, teamID
+func (_m *MockStore) ListTeamAgents(ctx context.Context, principal domain.UserPrincipal, teamID string) ([]domain.TeamAgent, error) {
+	ret := _m.Called(ctx, principal, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListTeamAgents")
+	}
+
+	var r0 []domain.TeamAgent
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) ([]domain.TeamAgent, error)); ok {
+		return rf(ctx, principal, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) []domain.TeamAgent); ok {
+		r0 = rf(ctx, principal, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.TeamAgent)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListTeamAgents_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListTeamAgents'
+type MockStore_ListTeamAgents_Call struct {
+	*mock.Call
+}
+
+// ListTeamAgents is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - teamID string
+func (_e *MockStore_Expecter) ListTeamAgents(ctx interface{}, principal interface{}, teamID interface{}) *MockStore_ListTeamAgents_Call {
+	return &MockStore_ListTeamAgents_Call{Call: _e.mock.On("ListTeamAgents", ctx, principal, teamID)}
+}
+
+func (_c *MockStore_ListTeamAgents_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, teamID string)) *MockStore_ListTeamAgents_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListTeamAgents_Call) Return(_a0 []domain.TeamAgent, _a1 error) *MockStore_ListTeamAgents_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListTeamAgents_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) ([]domain.TeamAgent, error)) *MockStore_ListTeamAgents_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListTeamInvites provides a mock function with given fields: ctx, principal
+func (_m *MockStore) ListTeamInvites(ctx context.Context, principal domain.UserPrincipal) ([]domain.TeamInvite, error) {
+	ret := _m.Called(ctx, principal)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListTeamInvites")
+	}
+
+	var r0 []domain.TeamInvite
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal) ([]domain.TeamInvite, error)); ok {
+		return rf(ctx, principal)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal) []domain.TeamInvite); ok {
+		r0 = rf(ctx, principal)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.TeamInvite)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal) error); ok {
+		r1 = rf(ctx, principal)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListTeamInvites_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListTeamInvites'
+type MockStore_ListTeamInvites_Call struct {
+	*mock.Call
+}
+
+// ListTeamInvites is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+func (_e *MockStore_Expecter) ListTeamInvites(ctx interface{}, principal interface{}) *MockStore_ListTeamInvites_Call {
+	return &MockStore_ListTeamInvites_Call{Call: _e.mock.On("ListTeamInvites", ctx, principal)}
+}
+
+func (_c *MockStore_ListTeamInvites_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal)) *MockStore_ListTeamInvites_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListTeamInvites_Call) Return(_a0 []domain.TeamInvite, _a1 error) *MockStore_ListTeamInvites_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListTeamInvites_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal) ([]domain.TeamInvite, error)) *MockStore_ListTeamInvites_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListTeamMembers provides a mock function with given fields: ctx, principal, teamID
+func (_m *MockStore) ListTeamMembers(ctx context.Context, principal domain.UserPrincipal, teamID string) ([]domain.TeamMember, error) {
+	ret := _m.Called(ctx, principal, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListTeamMembers")
+	}
+
+	var r0 []domain.TeamMember
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) ([]domain.TeamMember, error)); ok {
+		return rf(ctx, principal, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) []domain.TeamMember); ok {
+		r0 = rf(ctx, principal, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.TeamMember)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListTeamMembers_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListTeamMembers'
+type MockStore_ListTeamMembers_Call struct {
+	*mock.Call
+}
+
+// ListTeamMembers is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - teamID string
+func (_e *MockStore_Expecter) ListTeamMembers(ctx interface{}, principal interface{}, teamID interface{}) *MockStore_ListTeamMembers_Call {
+	return &MockStore_ListTeamMembers_Call{Call: _e.mock.On("ListTeamMembers", ctx, principal, teamID)}
+}
+
+func (_c *MockStore_ListTeamMembers_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, teamID string)) *MockStore_ListTeamMembers_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListTeamMembers_Call) Return(_a0 []domain.TeamMember, _a1 error) *MockStore_ListTeamMembers_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListTeamMembers_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) ([]domain.TeamMember, error)) *MockStore_ListTeamMembers_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListTeams provides a mock function with given fields: ctx, principal
+func (_m *MockStore) ListTeams(ctx context.Context, principal domain.UserPrincipal) ([]domain.TeamSummary, error) {
+	ret := _m.Called(ctx, principal)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListTeams")
+	}
+
+	var r0 []domain.TeamSummary
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal) ([]domain.TeamSummary, error)); ok {
+		return rf(ctx, principal)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal) []domain.TeamSummary); ok {
+		r0 = rf(ctx, principal)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.TeamSummary)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal) error); ok {
+		r1 = rf(ctx, principal)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListTeams_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListTeams'
+type MockStore_ListTeams_Call struct {
+	*mock.Call
+}
+
+// ListTeams is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+func (_e *MockStore_Expecter) ListTeams(ctx interface{}, principal interface{}) *MockStore_ListTeams_Call {
+	return &MockStore_ListTeams_Call{Call: _e.mock.On("ListTeams", ctx, principal)}
+}
+
+func (_c *MockStore_ListTeams_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal)) *MockStore_ListTeams_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListTeams_Call) Return(_a0 []domain.TeamSummary, _a1 error) *MockStore_ListTeams_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListTeams_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal) ([]domain.TeamSummary, error)) *MockStore_ListTeams_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListUserAPIKeys provides a mock function with given fields: ctx, principal
 func (_m *MockStore) ListUserAPIKeys(ctx context.Context, principal domain.UserPrincipal) ([]domain.UserAPIKey, error) {
 	ret := _m.Called(ctx, principal)
@@ -2367,6 +2957,126 @@ func (_c *MockStore_RemoveFriend_Call) Return(_a0 domain.Friend, _a1 error) *Moc
 }
 
 func (_c *MockStore_RemoveFriend_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, time.Time) (domain.Friend, error)) *MockStore_RemoveFriend_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RemoveTeamAgent provides a mock function with given fields: ctx, principal, teamID, agentID, removedAt
+func (_m *MockStore) RemoveTeamAgent(ctx context.Context, principal domain.UserPrincipal, teamID string, agentID string, removedAt time.Time) (domain.TeamAgent, error) {
+	ret := _m.Called(ctx, principal, teamID, agentID, removedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RemoveTeamAgent")
+	}
+
+	var r0 domain.TeamAgent
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string, time.Time) (domain.TeamAgent, error)); ok {
+		return rf(ctx, principal, teamID, agentID, removedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string, time.Time) domain.TeamAgent); ok {
+		r0 = rf(ctx, principal, teamID, agentID, removedAt)
+	} else {
+		r0 = ret.Get(0).(domain.TeamAgent)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, teamID, agentID, removedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_RemoveTeamAgent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveTeamAgent'
+type MockStore_RemoveTeamAgent_Call struct {
+	*mock.Call
+}
+
+// RemoveTeamAgent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - teamID string
+//   - agentID string
+//   - removedAt time.Time
+func (_e *MockStore_Expecter) RemoveTeamAgent(ctx interface{}, principal interface{}, teamID interface{}, agentID interface{}, removedAt interface{}) *MockStore_RemoveTeamAgent_Call {
+	return &MockStore_RemoveTeamAgent_Call{Call: _e.mock.On("RemoveTeamAgent", ctx, principal, teamID, agentID, removedAt)}
+}
+
+func (_c *MockStore_RemoveTeamAgent_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, teamID string, agentID string, removedAt time.Time)) *MockStore_RemoveTeamAgent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(string), args[4].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_RemoveTeamAgent_Call) Return(_a0 domain.TeamAgent, _a1 error) *MockStore_RemoveTeamAgent_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_RemoveTeamAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string, time.Time) (domain.TeamAgent, error)) *MockStore_RemoveTeamAgent_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RemoveTeamMember provides a mock function with given fields: ctx, principal, teamID, userID, removedAt
+func (_m *MockStore) RemoveTeamMember(ctx context.Context, principal domain.UserPrincipal, teamID string, userID string, removedAt time.Time) (domain.TeamMember, error) {
+	ret := _m.Called(ctx, principal, teamID, userID, removedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RemoveTeamMember")
+	}
+
+	var r0 domain.TeamMember
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string, time.Time) (domain.TeamMember, error)); ok {
+		return rf(ctx, principal, teamID, userID, removedAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string, time.Time) domain.TeamMember); ok {
+		r0 = rf(ctx, principal, teamID, userID, removedAt)
+	} else {
+		r0 = ret.Get(0).(domain.TeamMember)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, string, time.Time) error); ok {
+		r1 = rf(ctx, principal, teamID, userID, removedAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_RemoveTeamMember_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RemoveTeamMember'
+type MockStore_RemoveTeamMember_Call struct {
+	*mock.Call
+}
+
+// RemoveTeamMember is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - teamID string
+//   - userID string
+//   - removedAt time.Time
+func (_e *MockStore_Expecter) RemoveTeamMember(ctx interface{}, principal interface{}, teamID interface{}, userID interface{}, removedAt interface{}) *MockStore_RemoveTeamMember_Call {
+	return &MockStore_RemoveTeamMember_Call{Call: _e.mock.On("RemoveTeamMember", ctx, principal, teamID, userID, removedAt)}
+}
+
+func (_c *MockStore_RemoveTeamMember_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, teamID string, userID string, removedAt time.Time)) *MockStore_RemoveTeamMember_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(string), args[4].(time.Time))
+	})
+	return _c
+}
+
+func (_c *MockStore_RemoveTeamMember_Call) Return(_a0 domain.TeamMember, _a1 error) *MockStore_RemoveTeamMember_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_RemoveTeamMember_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string, time.Time) (domain.TeamMember, error)) *MockStore_RemoveTeamMember_Call {
 	_c.Call.Return(run)
 	return _c
 }

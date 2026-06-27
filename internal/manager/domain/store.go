@@ -341,6 +341,54 @@ type Store interface {
 		friendID string,
 		blockedAt time.Time,
 	) (Friend, error)
+	CreateTeam(ctx context.Context, team Team, owner TeamMember) (Team, error)
+	ListTeams(ctx context.Context, principal UserPrincipal) ([]TeamSummary, error)
+	GetTeam(ctx context.Context, principal UserPrincipal, teamID string) (Team, error)
+	ListTeamMembers(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+	) ([]TeamMember, error)
+	ListTeamAgents(ctx context.Context, principal UserPrincipal, teamID string) ([]TeamAgent, error)
+	CreateTeamInvite(
+		ctx context.Context,
+		principal UserPrincipal,
+		invite TeamInvite,
+	) (TeamInvite, error)
+	ListTeamInvites(ctx context.Context, principal UserPrincipal) ([]TeamInvite, error)
+	AcceptTeamInvite(
+		ctx context.Context,
+		principal UserPrincipal,
+		inviteID string,
+		acceptedAt time.Time,
+	) (TeamInvite, error)
+	DeclineTeamInvite(
+		ctx context.Context,
+		principal UserPrincipal,
+		inviteID string,
+		declinedAt time.Time,
+	) (TeamInvite, error)
+	AddTeamAgent(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		agentID string,
+		addedAt time.Time,
+	) (TeamAgent, error)
+	RemoveTeamAgent(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		agentID string,
+		removedAt time.Time,
+	) (TeamAgent, error)
+	RemoveTeamMember(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		userID string,
+		removedAt time.Time,
+	) (TeamMember, error)
 	AppendMessagePartText(
 		ctx context.Context,
 		messageID string,

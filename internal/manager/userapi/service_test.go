@@ -132,6 +132,88 @@ func TestCreateUserAPIKey(t *testing.T) {
 	)
 }
 
+func TestTeamService(t *testing.T) {
+	t.Run(
+		"Given a valid principal when creating a team then it stores the owner member",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_owner", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			secrets := userapimocks.NewMockSecretIssuer(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			secrets.EXPECT().New("team").Return("team_1", nil).Once()
+			store.EXPECT().
+				CreateTeam(
+					ctx,
+					mock.MatchedBy(func(team domain.Team) bool {
+						return team.TeamID == "team_1" &&
+							team.OwnerUserID == "usr_owner" &&
+							team.Name == "Core" &&
+							team.Status == domain.TeamStatusActive &&
+							team.CreatedAt.Equal(fixedUserNow())
+					}),
+					mock.MatchedBy(func(member domain.TeamMember) bool {
+						return member.TeamID == "team_1" &&
+							member.UserID == "usr_owner" &&
+							member.Role == domain.TeamRoleOwner &&
+							member.Status == domain.TeamMemberStatusActive &&
+							member.JoinedAt.Equal(fixedUserNow())
+					}),
+				).
+				Return(domain.Team{
+					TeamID:      "team_1",
+					OwnerUserID: "usr_owner",
+					Name:        "Core",
+					Status:      domain.TeamStatusActive,
+					CreatedAt:   fixedUserNow(),
+				}, nil).
+				Once()
+
+			svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+			status, data, err := svc.CreateTeam(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateTeamRequest{Name: " Core "},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			resp := data.(map[string]any)
+			team := resp["team"].(domain.Team)
+			require.Equal(t, "team_1", team.TeamID)
+		},
+	)
+
+	t.Run(
+		"Given an owner invite role when creating a team invite then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_owner", false)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.CreateTeamInvite(
+				ctx,
+				auth.RequestMetadata{},
+				"team_1",
+				domain.CreateTeamInviteRequest{Email: "operator@example.com", Role: "owner"},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+}
+
 func TestAgents(t *testing.T) {
 	t.Run(
 		"Given an empty agent ID when getting an agent then it returns bad request",

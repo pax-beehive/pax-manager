@@ -43,6 +43,10 @@ type MemoryStore struct {
 	knowledgeInjections       map[string]SessionKnowledgeInjection
 	envelopes                 map[string]Envelope
 	friends                   map[string]Friend
+	teams                     map[string]Team
+	teamMembers               map[teamMemberKey]TeamMember
+	teamInvites               map[string]TeamInvite
+	teamAgents                map[teamAgentKey]TeamAgent
 	approvals                 map[string]AgentApproval
 	secrets                   map[string]Secret
 	secretVersions            map[string]SecretVersion
@@ -79,6 +83,10 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		knowledgeInjections:       make(map[string]SessionKnowledgeInjection),
 		envelopes:                 make(map[string]Envelope),
 		friends:                   make(map[string]Friend),
+		teams:                     make(map[string]Team),
+		teamMembers:               make(map[teamMemberKey]TeamMember),
+		teamInvites:               make(map[string]TeamInvite),
+		teamAgents:                make(map[teamAgentKey]TeamAgent),
 		approvals:                 make(map[string]AgentApproval),
 		secrets:                   make(map[string]Secret),
 		secretVersions:            make(map[string]SecretVersion),
@@ -98,6 +106,16 @@ type transportFrameKey struct {
 type messagePartKey struct {
 	MessageID string
 	Index     int
+}
+
+type teamMemberKey struct {
+	TeamID string
+	UserID string
+}
+
+type teamAgentKey struct {
+	TeamID  string
+	AgentID string
 }
 
 type registrationToken struct {
