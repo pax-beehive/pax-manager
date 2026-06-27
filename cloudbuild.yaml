@@ -1,3 +1,7 @@
+# DEPRECATED: Cloud Run deployment is kept only as a manual rollback path.
+# Production CI/CD for pax-manager now uses cloudbuild.vm.yaml to deploy to
+# the single VM backend. Do not attach main-branch triggers to this file.
+
 substitutions:
   _REGION: us-west1
   _REPOSITORY: pax-manager

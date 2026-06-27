@@ -7,6 +7,7 @@ GOLANGCI_LINT_CACHE ?= /tmp/pax-manager-golangci-lint-cache
 DATABASE_URL ?= postgres://pax:pax@localhost:5432/paxdb?sslmode=disable
 PORT ?= 9879
 INTEGRATION_PORT ?= 19879
+CLOUD_BUILD_IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf manual)
 HZ_IDL := api/pax_manager.thrift
 HZ_MODULE := github.com/pax-beehive/pax-manager
 HZ_HANDLER_DIR := internal/transport/http/handler
@@ -43,7 +44,8 @@ help:
 	@printf "  make fmt            Format Go files\n"
 	@printf "  make tidy           Run go mod tidy\n"
 	@printf "  make docker-build   Build manager Docker image\n"
-	@printf "  make cloud-build    Submit Cloud Build using cloudbuild.yaml\n"
+	@printf "  make cloud-build    Deprecated: submit Cloud Run rollback build\n"
+	@printf "  make cloud-build-vm Submit Cloud Build using cloudbuild.vm.yaml\n"
 	@printf "  make up             Start Postgres and manager with Docker Compose\n"
 	@printf "  make db-up          Start only Postgres with Docker Compose\n"
 	@printf "  make db-ensure      Create local paxdb database if missing\n"
@@ -144,7 +146,12 @@ docker-build:
 
 .PHONY: cloud-build
 cloud-build:
+	@printf "Deprecated: cloudbuild.yaml deploys Cloud Run and is kept only for rollback. Use make cloud-build-vm for VM deployment.\n"
 	gcloud builds submit --config cloudbuild.yaml
+
+.PHONY: cloud-build-vm
+cloud-build-vm:
+	gcloud builds submit --config cloudbuild.vm.yaml --substitutions SHORT_SHA=$(CLOUD_BUILD_IMAGE_TAG)
 
 .PHONY: up
 up: db-ensure
