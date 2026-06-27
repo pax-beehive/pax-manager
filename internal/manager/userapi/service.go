@@ -23,6 +23,7 @@ type Store interface {
 	KnowledgeStore
 	EnvelopeStore
 	FriendStore
+	TeamStore
 	MailboxStore
 }
 
@@ -217,6 +218,68 @@ type FriendStore interface {
 		friendID string,
 		blockedAt time.Time,
 	) (domain.Friend, error)
+}
+
+type TeamStore interface {
+	CreateTeam(
+		ctx context.Context,
+		team domain.Team,
+		owner domain.TeamMember,
+	) (domain.Team, error)
+	ListTeams(ctx context.Context, principal domain.UserPrincipal) ([]domain.TeamSummary, error)
+	GetTeam(ctx context.Context, principal domain.UserPrincipal, teamID string) (domain.Team, error)
+	ListTeamMembers(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+	) ([]domain.TeamMember, error)
+	ListTeamAgents(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+	) ([]domain.TeamAgent, error)
+	CreateTeamInvite(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		invite domain.TeamInvite,
+	) (domain.TeamInvite, error)
+	ListTeamInvites(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+	) ([]domain.TeamInvite, error)
+	AcceptTeamInvite(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		inviteID string,
+		acceptedAt time.Time,
+	) (domain.TeamInvite, error)
+	DeclineTeamInvite(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		inviteID string,
+		declinedAt time.Time,
+	) (domain.TeamInvite, error)
+	AddTeamAgent(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+		agentID string,
+		addedAt time.Time,
+	) (domain.TeamAgent, error)
+	RemoveTeamAgent(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+		agentID string,
+		removedAt time.Time,
+	) (domain.TeamAgent, error)
+	RemoveTeamMember(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+		userID string,
+		removedAt time.Time,
+	) (domain.TeamMember, error)
 }
 
 type MailboxStore interface {

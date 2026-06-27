@@ -67,6 +67,11 @@ type Envelope = domain.Envelope
 type ListEnvelopesFilter = domain.ListEnvelopesFilter
 type Friend = domain.Friend
 type ListFriendsFilter = domain.ListFriendsFilter
+type Team = domain.Team
+type TeamSummary = domain.TeamSummary
+type TeamMember = domain.TeamMember
+type TeamInvite = domain.TeamInvite
+type TeamAgent = domain.TeamAgent
 type TransportFrame = domain.TransportFrame
 
 func newSecret(prefix string) (string, error) {
