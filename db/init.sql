@@ -656,7 +656,8 @@ CREATE TABLE IF NOT EXISTS team_invites (
     invited_by_user_id TEXT NOT NULL REFERENCES users(user_id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     accepted_at TIMESTAMPTZ,
-    declined_at TIMESTAMPTZ
+    declined_at TIMESTAMPTZ,
+    canceled_at TIMESTAMPTZ
 );
 
 ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS team_id TEXT REFERENCES teams(team_id);
@@ -668,6 +669,7 @@ ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS invited_by_user_id TEXT REFERE
 ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
 ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS declined_at TIMESTAMPTZ;
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS canceled_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_team_invites_recipient_user_status
     ON team_invites(recipient_user_id, status, created_at DESC);
@@ -700,6 +702,30 @@ CREATE INDEX IF NOT EXISTS idx_team_agents_owner_active
 CREATE INDEX IF NOT EXISTS idx_team_agents_team_active
     ON team_agents(team_id, added_at)
     WHERE removed_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS team_audit_events (
+    event_id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
+    actor_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    target_user_id TEXT REFERENCES users(user_id),
+    target_agent_id TEXT REFERENCES agents(agent_id),
+    target_invite_id TEXT REFERENCES team_invites(invite_id),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE team_audit_events ADD COLUMN IF NOT EXISTS team_id TEXT REFERENCES teams(team_id);
+ALTER TABLE team_audit_events ADD COLUMN IF NOT EXISTS actor_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE team_audit_events ADD COLUMN IF NOT EXISTS action TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_audit_events ADD COLUMN IF NOT EXISTS target_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE team_audit_events ADD COLUMN IF NOT EXISTS target_agent_id TEXT REFERENCES agents(agent_id);
+ALTER TABLE team_audit_events ADD COLUMN IF NOT EXISTS target_invite_id TEXT REFERENCES team_invites(invite_id);
+ALTER TABLE team_audit_events ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE team_audit_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_team_audit_events_team_created
+    ON team_audit_events(team_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS session_knowledge_injections (
     injection_id TEXT PRIMARY KEY,

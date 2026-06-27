@@ -322,6 +322,102 @@ func TestMemoryTeamStore(t *testing.T) {
 		})
 		require.ErrorIs(t, err, ErrNotFound)
 	})
+
+	t.Run("Given team management changes then audit events are recorded", func(t *testing.T) {
+		ctx := context.Background()
+		now := time.Date(2026, 6, 27, 10, 0, 0, 0, time.UTC)
+		store := NewMemoryStore(func() time.Time { return now })
+		owner, operator, member := seedTeamUsers(t, ctx, store)
+		teamID := "team_1"
+		seedTeam(t, ctx, store, teamID, owner, map[string]User{
+			domain.TeamRoleOperator: operator,
+			domain.TeamRoleMember:   member,
+		}, now)
+		store.agents["agent_operator"] = Agent{
+			AgentID:     "agent_operator",
+			OwnerUserID: operator.UserID,
+			Status:      "online",
+		}
+
+		invite, err := store.CreateTeamInvite(ctx, UserPrincipal{User: owner}, TeamInvite{
+			InviteID:        "tinv_cancel",
+			TeamID:          teamID,
+			Email:           "new@example.com",
+			Role:            domain.TeamRoleMember,
+			Status:          domain.TeamInviteStatusPending,
+			InvitedByUserID: owner.UserID,
+			CreatedAt:       now.Add(time.Minute),
+		})
+		require.NoError(t, err)
+		require.Equal(t, domain.TeamInviteStatusPending, invite.Status)
+
+		canceled, err := store.CancelTeamInvite(
+			ctx,
+			UserPrincipal{User: owner},
+			teamID,
+			"tinv_cancel",
+			now.Add(2*time.Minute),
+		)
+		require.NoError(t, err)
+		require.Equal(t, domain.TeamInviteStatusCanceled, canceled.Status)
+		require.NotNil(t, canceled.CanceledAt)
+
+		updated, err := store.UpdateTeamMemberRole(
+			ctx,
+			UserPrincipal{User: owner},
+			teamID,
+			member.UserID,
+			domain.TeamRoleOperator,
+			now.Add(3*time.Minute),
+		)
+		require.NoError(t, err)
+		require.Equal(t, domain.TeamRoleOperator, updated.Role)
+
+		teamAgent, err := store.AddTeamAgent(
+			ctx,
+			UserPrincipal{User: operator},
+			teamID,
+			"agent_operator",
+			now.Add(4*time.Minute),
+		)
+		require.NoError(t, err)
+		require.Equal(t, operator.Email, teamAgent.AgentOwnerEmail)
+		agents, err := store.ListTeamAgents(ctx, UserPrincipal{User: owner}, teamID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		require.Equal(t, operator.Email, agents[0].AgentOwnerEmail)
+
+		events, err := store.ListTeamAuditEvents(ctx, UserPrincipal{User: owner}, teamID, 20)
+		require.NoError(t, err)
+		requireAuditActions(t, events,
+			domain.TeamAuditActionAgentAdded,
+			domain.TeamAuditActionMemberRoleUpdated,
+			domain.TeamAuditActionInviteCanceled,
+			domain.TeamAuditActionInviteCreated,
+			domain.TeamAuditActionTeamCreated,
+		)
+
+		archived, err := store.ArchiveTeam(
+			ctx,
+			UserPrincipal{User: owner},
+			teamID,
+			now.Add(5*time.Minute),
+		)
+		require.NoError(t, err)
+		require.Equal(t, domain.TeamStatusArchived, archived.Status)
+		require.NotNil(t, archived.ArchivedAt)
+
+		_, err = store.GetTeam(ctx, UserPrincipal{User: owner}, teamID)
+		require.ErrorIs(t, err, ErrNotFound)
+	})
+}
+
+func requireAuditActions(t *testing.T, events []TeamAuditEvent, actions ...string) {
+	t.Helper()
+	require.GreaterOrEqual(t, len(events), len(actions))
+	for i, action := range actions {
+		require.Equal(t, action, events[i].Action)
+	}
 }
 
 func seedTeamUsers(t *testing.T, ctx context.Context, store *MemoryStore) (User, User, User) {

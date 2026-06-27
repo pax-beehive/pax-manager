@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 const (
 	TeamStatusActive   = "active"
@@ -16,6 +19,18 @@ const (
 	TeamInviteStatusPending  = "pending"
 	TeamInviteStatusAccepted = "accepted"
 	TeamInviteStatusDeclined = "declined"
+	TeamInviteStatusCanceled = "canceled"
+
+	TeamAuditActionTeamCreated       = "team.created"
+	TeamAuditActionTeamArchived      = "team.archived"
+	TeamAuditActionInviteCreated     = "invite.created"
+	TeamAuditActionInviteAccepted    = "invite.accepted"
+	TeamAuditActionInviteDeclined    = "invite.declined"
+	TeamAuditActionInviteCanceled    = "invite.canceled"
+	TeamAuditActionMemberRoleUpdated = "member.role_updated"
+	TeamAuditActionMemberRemoved     = "member.removed"
+	TeamAuditActionAgentAdded        = "agent.added"
+	TeamAuditActionAgentRemoved      = "agent.removed"
 )
 
 type Team struct {
@@ -57,17 +72,31 @@ type TeamInvite struct {
 	CreatedAt       time.Time  `json:"created_at"`
 	AcceptedAt      *time.Time `json:"accepted_at,omitempty"`
 	DeclinedAt      *time.Time `json:"declined_at,omitempty"`
+	CanceledAt      *time.Time `json:"canceled_at,omitempty"`
 }
 
 type TeamAgent struct {
 	TeamID           string     `json:"team_id"`
 	AgentID          string     `json:"agent_id"`
 	AgentOwnerUserID string     `json:"agent_owner_user_id"`
+	AgentOwnerEmail  string     `json:"agent_owner_email,omitempty"`
 	AddedByUserID    string     `json:"added_by_user_id"`
 	AddedAt          time.Time  `json:"added_at"`
 	RemovedAt        *time.Time `json:"removed_at,omitempty"`
 	RemovedByUserID  string     `json:"removed_by_user_id,omitempty"`
 	Agent            *Agent     `json:"agent,omitempty"`
+}
+
+type TeamAuditEvent struct {
+	EventID        string          `json:"event_id"`
+	TeamID         string          `json:"team_id"`
+	ActorUserID    string          `json:"actor_user_id"`
+	Action         string          `json:"action"`
+	TargetUserID   string          `json:"target_user_id,omitempty"`
+	TargetAgentID  string          `json:"target_agent_id,omitempty"`
+	TargetInviteID string          `json:"target_invite_id,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
 }
 
 type CreateTeamRequest struct {
@@ -81,4 +110,8 @@ type CreateTeamInviteRequest struct {
 
 type AddTeamAgentRequest struct {
 	AgentID string `json:"agent_id"`
+}
+
+type UpdateTeamMemberRoleRequest struct {
+	Role string `json:"role"`
 }

@@ -212,6 +212,87 @@ func TestTeamService(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, appErr.Status)
 		},
 	)
+
+	t.Run(
+		"Given an empty invite role when creating a team invite then it defaults to member",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_owner", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			secrets := userapimocks.NewMockSecretIssuer(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetUserByEmail(ctx, "operator@example.com").
+				Return(domain.User{}, domain.ErrNotFound).
+				Once()
+			secrets.EXPECT().New("tinv").Return("tinv_1", nil).Once()
+			store.EXPECT().
+				CreateTeamInvite(
+					ctx,
+					principal,
+					mock.MatchedBy(func(invite domain.TeamInvite) bool {
+						return invite.InviteID == "tinv_1" &&
+							invite.TeamID == "team_1" &&
+							invite.Email == "operator@example.com" &&
+							invite.Role == domain.TeamRoleMember &&
+							invite.Status == domain.TeamInviteStatusPending &&
+							invite.InvitedByUserID == principal.User.UserID &&
+							invite.CreatedAt.Equal(fixedUserNow())
+					}),
+				).
+				Return(domain.TeamInvite{
+					InviteID: "tinv_1",
+					TeamID:   "team_1",
+					Email:    "operator@example.com",
+					Role:     domain.TeamRoleMember,
+					Status:   domain.TeamInviteStatusPending,
+				}, nil).
+				Once()
+
+			svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+			status, data, err := svc.CreateTeamInvite(
+				ctx,
+				auth.RequestMetadata{},
+				"team_1",
+				domain.CreateTeamInviteRequest{Email: "operator@example.com"},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			invite := data.(map[string]any)["invite"].(domain.TeamInvite)
+			require.Equal(t, domain.TeamRoleMember, invite.Role)
+		},
+	)
+
+	t.Run(
+		"Given an empty role when updating a team member then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_owner", false)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.UpdateTeamMemberRole(
+				ctx,
+				auth.RequestMetadata{},
+				"team_1",
+				"usr_member",
+				domain.UpdateTeamMemberRoleRequest{},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
 }
 
 func TestAgents(t *testing.T) {

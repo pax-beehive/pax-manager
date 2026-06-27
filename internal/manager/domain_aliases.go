@@ -40,6 +40,7 @@ type ListFriendsFilter = domain.ListFriendsFilter
 type CreateTeamRequest = domain.CreateTeamRequest
 type CreateTeamInviteRequest = domain.CreateTeamInviteRequest
 type AddTeamAgentRequest = domain.AddTeamAgentRequest
+type UpdateTeamMemberRoleRequest = domain.UpdateTeamMemberRoleRequest
 type ApprovalOption = domain.ApprovalOption
 type AgentApproval = domain.AgentApproval
 type RegisterNodeRequest = domain.RegisterNodeRequest

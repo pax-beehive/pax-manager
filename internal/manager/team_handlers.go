@@ -34,11 +34,33 @@ func GetTeam(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func ArchiveTeam(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.ArchiveTeam(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("team_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func ListTeamMembers(c context.Context, ctx *app.RequestContext) {
 	status, data, err := serviceFromContext(ctx).userapi.ListTeamMembers(
 		c,
 		requestMetadata(ctx),
 		ctx.Param("team_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func UpdateTeamMemberRole(c context.Context, ctx *app.RequestContext) {
+	var req UpdateTeamMemberRoleRequest
+	decodeBody(ctx, &req)
+	status, data, err := serviceFromContext(ctx).userapi.UpdateTeamMemberRole(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("team_id"),
+		ctx.Param("member_user_id"),
+		req,
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
@@ -74,6 +96,16 @@ func CreateTeamInvite(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func CancelTeamInvite(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.CancelTeamInvite(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("team_id"),
+		ctx.Param("invite_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func ListTeamInvites(c context.Context, ctx *app.RequestContext) {
 	status, data, err := serviceFromContext(ctx).userapi.ListTeamInvites(
 		c,
@@ -105,6 +137,16 @@ func ListTeamAgents(c context.Context, ctx *app.RequestContext) {
 		c,
 		requestMetadata(ctx),
 		ctx.Param("team_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func ListTeamAuditEvents(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.ListTeamAuditEvents(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("team_id"),
+		queryInt(ctx, "limit"),
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
