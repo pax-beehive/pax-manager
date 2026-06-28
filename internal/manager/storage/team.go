@@ -16,6 +16,7 @@ type teamRow struct {
 	TeamID      string     `gorm:"column:team_id;primaryKey"`
 	OwnerUserID string     `gorm:"column:owner_user_id"`
 	Name        string     `gorm:"column:name"`
+	Description string     `gorm:"column:description"`
 	Status      string     `gorm:"column:status"`
 	CreatedAt   time.Time  `gorm:"column:created_at"`
 	ArchivedAt  *time.Time `gorm:"column:archived_at"`
@@ -93,6 +94,7 @@ func teamModel(team Team) *teamRow {
 		TeamID:      team.TeamID,
 		OwnerUserID: team.OwnerUserID,
 		Name:        team.Name,
+		Description: team.Description,
 		Status:      team.Status,
 		CreatedAt:   team.CreatedAt,
 		ArchivedAt:  team.ArchivedAt,
@@ -107,6 +109,7 @@ func teamFromModel(row *teamRow) Team {
 		TeamID:      row.TeamID,
 		OwnerUserID: row.OwnerUserID,
 		Name:        row.Name,
+		Description: row.Description,
 		Status:      row.Status,
 		CreatedAt:   row.CreatedAt,
 		ArchivedAt:  row.ArchivedAt,
@@ -302,6 +305,7 @@ func (s *PostgresStore) ListTeams(
 		TeamID      string
 		OwnerUserID string
 		Name        string
+		Description string
 		Status      string
 		CreatedAt   time.Time
 		ArchivedAt  *time.Time
@@ -314,6 +318,7 @@ func (s *PostgresStore) ListTeams(
 			t.team_id,
 			t.owner_user_id,
 			t.name,
+			t.description,
 			t.status,
 			t.created_at,
 			t.archived_at,
@@ -344,6 +349,7 @@ func (s *PostgresStore) ListTeams(
 				TeamID:      row.TeamID,
 				OwnerUserID: row.OwnerUserID,
 				Name:        row.Name,
+				Description: row.Description,
 				Status:      row.Status,
 				CreatedAt:   row.CreatedAt,
 				ArchivedAt:  row.ArchivedAt,
@@ -611,6 +617,34 @@ func (s *PostgresStore) ListTeamInvites(
 			principalEmail,
 			principalEmail,
 		).
+		Order("created_at DESC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, mapGormError(err)
+	}
+	out := make([]TeamInvite, 0, len(rows))
+	for i := range rows {
+		out = append(out, teamInviteFromModel(&rows[i]))
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ListTeamSentInvites(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+) ([]TeamInvite, error) {
+	member, err := s.activeTeamMember(ctx, s.gormDB, teamID, principal.User.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if !teamRoleCanViewTeamInvites(member.Role) {
+		return nil, ErrUnauthorized
+	}
+	var rows []teamInviteRow
+	err = s.gormDB.WithContext(ctx).
+		Model(&teamInviteRow{}).
+		Where("team_id = ?", teamID).
 		Order("created_at DESC").
 		Find(&rows).Error
 	if err != nil {

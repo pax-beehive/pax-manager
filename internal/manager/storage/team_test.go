@@ -138,6 +138,65 @@ func TestMemoryTeamStore(t *testing.T) {
 		require.NotNil(t, removed.RemovedAt)
 	})
 
+	t.Run("Given team sent invites then owner and operator can list them", func(t *testing.T) {
+		ctx := context.Background()
+		now := time.Date(2026, 6, 27, 10, 0, 0, 0, time.UTC)
+		store := NewMemoryStore(func() time.Time { return now })
+		owner, operator, member := seedTeamUsers(t, ctx, store)
+		teamID := "team_1"
+		seedTeam(t, ctx, store, teamID, owner, map[string]User{
+			domain.TeamRoleOperator: operator,
+			domain.TeamRoleMember:   member,
+		}, now)
+
+		_, err := store.CreateTeamInvite(ctx, UserPrincipal{User: owner}, TeamInvite{
+			InviteID:        "tinv_pending",
+			TeamID:          teamID,
+			Email:           "pending@example.com",
+			Role:            domain.TeamRoleMember,
+			Status:          domain.TeamInviteStatusPending,
+			InvitedByUserID: owner.UserID,
+			CreatedAt:       now.Add(time.Minute),
+		})
+		require.NoError(t, err)
+		_, err = store.CreateTeamInvite(ctx, UserPrincipal{User: owner}, TeamInvite{
+			InviteID:        "tinv_canceled",
+			TeamID:          teamID,
+			Email:           "canceled@example.com",
+			Role:            domain.TeamRoleMember,
+			Status:          domain.TeamInviteStatusPending,
+			InvitedByUserID: owner.UserID,
+			CreatedAt:       now.Add(2 * time.Minute),
+		})
+		require.NoError(t, err)
+		_, err = store.CancelTeamInvite(
+			ctx,
+			UserPrincipal{User: owner},
+			teamID,
+			"tinv_canceled",
+			now.Add(3*time.Minute),
+		)
+		require.NoError(t, err)
+
+		ownerInvites, err := store.ListTeamSentInvites(ctx, UserPrincipal{User: owner}, teamID)
+		require.NoError(t, err)
+		require.Len(t, ownerInvites, 2)
+		require.Equal(t, "tinv_canceled", ownerInvites[0].InviteID)
+		require.Equal(t, domain.TeamInviteStatusCanceled, ownerInvites[0].Status)
+		require.Equal(t, "tinv_pending", ownerInvites[1].InviteID)
+
+		operatorInvites, err := store.ListTeamSentInvites(
+			ctx,
+			UserPrincipal{User: operator},
+			teamID,
+		)
+		require.NoError(t, err)
+		require.Len(t, operatorInvites, 2)
+
+		_, err = store.ListTeamSentInvites(ctx, UserPrincipal{User: member}, teamID)
+		require.ErrorIs(t, err, ErrUnauthorized)
+	})
+
 	t.Run(
 		"Given an owner removes a member then that member's team agents are removed",
 		func(t *testing.T) {

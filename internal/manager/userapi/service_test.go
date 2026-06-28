@@ -151,6 +151,7 @@ func TestTeamService(t *testing.T) {
 						return team.TeamID == "team_1" &&
 							team.OwnerUserID == "usr_owner" &&
 							team.Name == "Core" &&
+							team.Description == "Build platform work" &&
 							team.Status == domain.TeamStatusActive &&
 							team.CreatedAt.Equal(fixedUserNow())
 					}),
@@ -166,6 +167,7 @@ func TestTeamService(t *testing.T) {
 					TeamID:      "team_1",
 					OwnerUserID: "usr_owner",
 					Name:        "Core",
+					Description: "Build platform work",
 					Status:      domain.TeamStatusActive,
 					CreatedAt:   fixedUserNow(),
 				}, nil).
@@ -175,7 +177,10 @@ func TestTeamService(t *testing.T) {
 			status, data, err := svc.CreateTeam(
 				ctx,
 				auth.RequestMetadata{},
-				domain.CreateTeamRequest{Name: " Core "},
+				domain.CreateTeamRequest{
+					Name:        " Core ",
+					Description: " Build platform work ",
+				},
 			)
 
 			require.NoError(t, err)
@@ -183,6 +188,42 @@ func TestTeamService(t *testing.T) {
 			resp := data.(map[string]any)
 			team := resp["team"].(domain.Team)
 			require.Equal(t, "team_1", team.TeamID)
+			require.Equal(t, "Build platform work", team.Description)
+		},
+	)
+
+	t.Run(
+		"Given a team ID when listing team sent invites then it returns that team's invites",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_owner", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			invites := []domain.TeamInvite{{
+				InviteID: "tinv_1",
+				TeamID:   "team_1",
+				Email:    "operator@example.com",
+				Role:     domain.TeamRoleOperator,
+				Status:   domain.TeamInviteStatusPending,
+			}}
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				ListTeamSentInvites(ctx, principal, "team_1").
+				Return(invites, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.ListTeamSentInvites(ctx, auth.RequestMetadata{}, "team_1")
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, invites, data.(map[string]any)["invites"])
 		},
 	)
 

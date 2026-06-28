@@ -253,6 +253,11 @@ type TeamStore interface {
 		ctx context.Context,
 		principal domain.UserPrincipal,
 	) ([]domain.TeamInvite, error)
+	ListTeamSentInvites(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+	) ([]domain.TeamInvite, error)
 	AcceptTeamInvite(
 		ctx context.Context,
 		principal domain.UserPrincipal,

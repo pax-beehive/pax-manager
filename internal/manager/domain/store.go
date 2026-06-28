@@ -362,6 +362,11 @@ type Store interface {
 		invite TeamInvite,
 	) (TeamInvite, error)
 	ListTeamInvites(ctx context.Context, principal UserPrincipal) ([]TeamInvite, error)
+	ListTeamSentInvites(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+	) ([]TeamInvite, error)
 	AcceptTeamInvite(
 		ctx context.Context,
 		principal UserPrincipal,

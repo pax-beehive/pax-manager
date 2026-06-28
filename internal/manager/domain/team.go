@@ -37,6 +37,7 @@ type Team struct {
 	TeamID      string     `json:"team_id"`
 	OwnerUserID string     `json:"owner_user_id"`
 	Name        string     `json:"name"`
+	Description string     `json:"description"`
 	Status      string     `json:"status"`
 	CreatedAt   time.Time  `json:"created_at"`
 	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
@@ -100,7 +101,8 @@ type TeamAuditEvent struct {
 }
 
 type CreateTeamRequest struct {
-	Name string `json:"name"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 type CreateTeamInviteRequest struct {

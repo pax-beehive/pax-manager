@@ -154,6 +154,7 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.DELETE(routeRemoveTeamMember, RemoveTeamMember)
 	h.POST(routeLeaveTeam, LeaveTeam)
 	h.POST(routeCreateTeamInvite, CreateTeamInvite)
+	h.GET(routeListTeamSentInvites, ListTeamSentInvites)
 	h.POST(routeCancelTeamInvite, CancelTeamInvite)
 	h.GET(routeListTeamInvites, ListTeamInvites)
 	h.POST(routeAcceptTeamInvite, AcceptTeamInvite)
