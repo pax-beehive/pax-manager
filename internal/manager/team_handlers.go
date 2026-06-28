@@ -96,6 +96,15 @@ func CreateTeamInvite(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func ListTeamSentInvites(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.ListTeamSentInvites(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("team_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func CancelTeamInvite(c context.Context, ctx *app.RequestContext) {
 	status, data, err := serviceFromContext(ctx).userapi.CancelTeamInvite(
 		c,

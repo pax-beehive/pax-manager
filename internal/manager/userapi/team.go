@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	teamNameLimit = 100
+	teamNameLimit        = 100
+	teamDescriptionLimit = 1000
 )
 
 func (s *Service) CreateTeam(
@@ -28,6 +29,10 @@ func (s *Service) CreateTeam(
 	if err != nil {
 		return 0, nil, err
 	}
+	description, err := normalizeTeamDescription(req.Description)
+	if err != nil {
+		return 0, nil, err
+	}
 	teamID, err := s.secrets.New("team")
 	if err != nil {
 		return 0, nil, err
@@ -37,6 +42,7 @@ func (s *Service) CreateTeam(
 		TeamID:      teamID,
 		OwnerUserID: principal.User.UserID,
 		Name:        name,
+		Description: description,
 		Status:      domain.TeamStatusActive,
 		CreatedAt:   now,
 	}, domain.TeamMember{
@@ -209,6 +215,25 @@ func (s *Service) ListTeamInvites(
 		return 0, nil, err
 	}
 	invites, err := s.store.ListTeamInvites(c, principal)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"invites": invites}, nil
+}
+
+func (s *Service) ListTeamSentInvites(
+	c context.Context,
+	meta auth.RequestMetadata,
+	teamID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if teamID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "team_id is required"}
+	}
+	invites, err := s.store.ListTeamSentInvites(c, principal, teamID)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -433,6 +458,14 @@ func normalizeTeamName(name string) (string, error) {
 		return "", apperr.Error{Status: http.StatusBadRequest, Message: "name is too long"}
 	}
 	return name, nil
+}
+
+func normalizeTeamDescription(description string) (string, error) {
+	description = strings.TrimSpace(description)
+	if len(description) > teamDescriptionLimit {
+		return "", apperr.Error{Status: http.StatusBadRequest, Message: "description is too long"}
+	}
+	return description, nil
 }
 
 func normalizeTeamInviteRole(role string) (string, error) {

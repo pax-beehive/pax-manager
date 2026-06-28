@@ -246,6 +246,32 @@ func (s *MemoryStore) ListTeamInvites(
 	return out, nil
 }
 
+func (s *MemoryStore) ListTeamSentInvites(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+) ([]TeamInvite, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	member, ok := s.activeTeamMemberLocked(teamID, principal.User.UserID)
+	if !ok {
+		return nil, ErrNotFound
+	}
+	if !teamRoleCanViewTeamInvites(member.Role) {
+		return nil, ErrUnauthorized
+	}
+	out := make([]TeamInvite, 0)
+	for _, invite := range s.teamInvites {
+		if invite.TeamID == teamID {
+			out = append(out, invite)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	return out, nil
+}
+
 func (s *MemoryStore) AcceptTeamInvite(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -606,6 +632,10 @@ func teamInviteVisibleToPrincipal(invite TeamInvite, principal UserPrincipal) bo
 }
 
 func teamRoleCanManageOwnAgents(role string) bool {
+	return role == domain.TeamRoleOwner || role == domain.TeamRoleOperator
+}
+
+func teamRoleCanViewTeamInvites(role string) bool {
 	return role == domain.TeamRoleOwner || role == domain.TeamRoleOperator
 }
 

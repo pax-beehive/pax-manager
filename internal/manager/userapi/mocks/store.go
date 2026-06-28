@@ -2964,6 +2964,66 @@ func (_c *MockStore_ListTeamMembers_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// ListTeamSentInvites provides a mock function with given fields: ctx, principal, teamID
+func (_m *MockStore) ListTeamSentInvites(ctx context.Context, principal domain.UserPrincipal, teamID string) ([]domain.TeamInvite, error) {
+	ret := _m.Called(ctx, principal, teamID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListTeamSentInvites")
+	}
+
+	var r0 []domain.TeamInvite
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) ([]domain.TeamInvite, error)); ok {
+		return rf(ctx, principal, teamID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) []domain.TeamInvite); ok {
+		r0 = rf(ctx, principal, teamID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.TeamInvite)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, teamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListTeamSentInvites_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListTeamSentInvites'
+type MockStore_ListTeamSentInvites_Call struct {
+	*mock.Call
+}
+
+// ListTeamSentInvites is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - teamID string
+func (_e *MockStore_Expecter) ListTeamSentInvites(ctx interface{}, principal interface{}, teamID interface{}) *MockStore_ListTeamSentInvites_Call {
+	return &MockStore_ListTeamSentInvites_Call{Call: _e.mock.On("ListTeamSentInvites", ctx, principal, teamID)}
+}
+
+func (_c *MockStore_ListTeamSentInvites_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, teamID string)) *MockStore_ListTeamSentInvites_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListTeamSentInvites_Call) Return(_a0 []domain.TeamInvite, _a1 error) *MockStore_ListTeamSentInvites_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListTeamSentInvites_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) ([]domain.TeamInvite, error)) *MockStore_ListTeamSentInvites_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListTeams provides a mock function with given fields: ctx, principal
 func (_m *MockStore) ListTeams(ctx context.Context, principal domain.UserPrincipal) ([]domain.TeamSummary, error) {
 	ret := _m.Called(ctx, principal)
