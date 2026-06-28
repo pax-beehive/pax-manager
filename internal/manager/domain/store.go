@@ -350,6 +350,12 @@ type Store interface {
 		teamID string,
 	) ([]TeamMember, error)
 	ListTeamAgents(ctx context.Context, principal UserPrincipal, teamID string) ([]TeamAgent, error)
+	ListTeamAuditEvents(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		limit int,
+	) ([]TeamAuditEvent, error)
 	CreateTeamInvite(
 		ctx context.Context,
 		principal UserPrincipal,
@@ -367,6 +373,13 @@ type Store interface {
 		principal UserPrincipal,
 		inviteID string,
 		declinedAt time.Time,
+	) (TeamInvite, error)
+	CancelTeamInvite(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		inviteID string,
+		canceledAt time.Time,
 	) (TeamInvite, error)
 	AddTeamAgent(
 		ctx context.Context,
@@ -389,6 +402,20 @@ type Store interface {
 		userID string,
 		removedAt time.Time,
 	) (TeamMember, error)
+	UpdateTeamMemberRole(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		userID string,
+		role string,
+		updatedAt time.Time,
+	) (TeamMember, error)
+	ArchiveTeam(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		archivedAt time.Time,
+	) (Team, error)
 	AppendMessagePartText(
 		ctx context.Context,
 		messageID string,

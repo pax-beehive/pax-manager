@@ -238,6 +238,12 @@ type TeamStore interface {
 		principal domain.UserPrincipal,
 		teamID string,
 	) ([]domain.TeamAgent, error)
+	ListTeamAuditEvents(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+		limit int,
+	) ([]domain.TeamAuditEvent, error)
 	CreateTeamInvite(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -258,6 +264,13 @@ type TeamStore interface {
 		principal domain.UserPrincipal,
 		inviteID string,
 		declinedAt time.Time,
+	) (domain.TeamInvite, error)
+	CancelTeamInvite(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+		inviteID string,
+		canceledAt time.Time,
 	) (domain.TeamInvite, error)
 	AddTeamAgent(
 		ctx context.Context,
@@ -280,6 +293,20 @@ type TeamStore interface {
 		userID string,
 		removedAt time.Time,
 	) (domain.TeamMember, error)
+	UpdateTeamMemberRole(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+		userID string,
+		role string,
+		updatedAt time.Time,
+	) (domain.TeamMember, error)
+	ArchiveTeam(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+		archivedAt time.Time,
+	) (domain.Team, error)
 }
 
 type MailboxStore interface {

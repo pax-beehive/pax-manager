@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"time"
 
@@ -32,6 +33,14 @@ func (s *MemoryStore) CreateTeam(ctx context.Context, team Team, owner TeamMembe
 	}
 	s.teams[team.TeamID] = team
 	s.teamMembers[teamMemberKey{TeamID: team.TeamID, UserID: team.OwnerUserID}] = owner
+	if err := s.appendTeamAuditEventLocked(TeamAuditEvent{
+		TeamID:      team.TeamID,
+		ActorUserID: team.OwnerUserID,
+		Action:      domain.TeamAuditActionTeamCreated,
+		CreatedAt:   team.CreatedAt,
+	}); err != nil {
+		return Team{}, err
+	}
 	return team, nil
 }
 
@@ -125,12 +134,44 @@ func (s *MemoryStore) ListTeamAgents(
 		if agent, ok := s.agents[teamAgent.AgentID]; ok {
 			agentCopy := agent
 			teamAgent.Agent = &agentCopy
+			if owner, ok := s.users[teamAgent.AgentOwnerUserID]; ok {
+				teamAgent.AgentOwnerEmail = owner.Email
+			}
 		}
 		out = append(out, teamAgent)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].AddedAt.Before(out[j].AddedAt)
 	})
+	return out, nil
+}
+
+func (s *MemoryStore) ListTeamAuditEvents(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+	limit int,
+) ([]TeamAuditEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.activeTeamMemberLocked(teamID, principal.User.UserID); !ok {
+		return nil, ErrNotFound
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	out := make([]TeamAuditEvent, 0)
+	for _, event := range s.teamAuditEvents {
+		if event.TeamID == teamID {
+			out = append(out, event)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
 	return out, nil
 }
 
@@ -169,6 +210,16 @@ func (s *MemoryStore) CreateTeamInvite(
 	invite.Status = domain.TeamInviteStatusPending
 	invite.InvitedByUserID = principal.User.UserID
 	s.teamInvites[invite.InviteID] = invite
+	if err := s.appendTeamAuditEventLocked(TeamAuditEvent{
+		TeamID:         invite.TeamID,
+		ActorUserID:    principal.User.UserID,
+		Action:         domain.TeamAuditActionInviteCreated,
+		TargetInviteID: invite.InviteID,
+		TargetUserID:   invite.RecipientUserID,
+		CreatedAt:      invite.CreatedAt,
+	}); err != nil {
+		return TeamInvite{}, err
+	}
 	return invite, nil
 }
 
@@ -224,6 +275,16 @@ func (s *MemoryStore) AcceptTeamInvite(
 		InvitedByUser: invite.InvitedByUserID,
 		JoinedAt:      acceptedAt,
 	}
+	if err := s.appendTeamAuditEventLocked(TeamAuditEvent{
+		TeamID:         invite.TeamID,
+		ActorUserID:    principal.User.UserID,
+		Action:         domain.TeamAuditActionInviteAccepted,
+		TargetInviteID: invite.InviteID,
+		TargetUserID:   principal.User.UserID,
+		CreatedAt:      acceptedAt,
+	}); err != nil {
+		return TeamInvite{}, err
+	}
 	return invite, nil
 }
 
@@ -243,6 +304,49 @@ func (s *MemoryStore) DeclineTeamInvite(
 	invite.Status = domain.TeamInviteStatusDeclined
 	invite.DeclinedAt = &declinedAt
 	s.teamInvites[inviteID] = invite
+	if err := s.appendTeamAuditEventLocked(TeamAuditEvent{
+		TeamID:         invite.TeamID,
+		ActorUserID:    principal.User.UserID,
+		Action:         domain.TeamAuditActionInviteDeclined,
+		TargetInviteID: invite.InviteID,
+		TargetUserID:   principal.User.UserID,
+		CreatedAt:      declinedAt,
+	}); err != nil {
+		return TeamInvite{}, err
+	}
+	return invite, nil
+}
+
+func (s *MemoryStore) CancelTeamInvite(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+	inviteID string,
+	canceledAt time.Time,
+) (TeamInvite, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	member, ok := s.activeTeamMemberLocked(teamID, principal.User.UserID)
+	if !ok || member.Role != domain.TeamRoleOwner {
+		return TeamInvite{}, ErrUnauthorized
+	}
+	invite, ok := s.teamInvites[inviteID]
+	if !ok || invite.TeamID != teamID || invite.Status != domain.TeamInviteStatusPending {
+		return TeamInvite{}, ErrNotFound
+	}
+	invite.Status = domain.TeamInviteStatusCanceled
+	invite.CanceledAt = &canceledAt
+	s.teamInvites[inviteID] = invite
+	if err := s.appendTeamAuditEventLocked(TeamAuditEvent{
+		TeamID:         teamID,
+		ActorUserID:    principal.User.UserID,
+		Action:         domain.TeamAuditActionInviteCanceled,
+		TargetInviteID: inviteID,
+		TargetUserID:   invite.RecipientUserID,
+		CreatedAt:      canceledAt,
+	}); err != nil {
+		return TeamInvite{}, err
+	}
 	return invite, nil
 }
 
@@ -272,11 +376,21 @@ func (s *MemoryStore) AddTeamAgent(
 		TeamID:           teamID,
 		AgentID:          agentID,
 		AgentOwnerUserID: agent.OwnerUserID,
+		AgentOwnerEmail:  principal.User.Email,
 		AddedByUserID:    principal.User.UserID,
 		AddedAt:          addedAt,
 		Agent:            &agentCopy,
 	}
 	s.teamAgents[key] = teamAgent
+	if err := s.appendTeamAuditEventLocked(TeamAuditEvent{
+		TeamID:        teamID,
+		ActorUserID:   principal.User.UserID,
+		Action:        domain.TeamAuditActionAgentAdded,
+		TargetAgentID: agentID,
+		CreatedAt:     addedAt,
+	}); err != nil {
+		return TeamAgent{}, err
+	}
 	return teamAgent, nil
 }
 
@@ -306,6 +420,15 @@ func (s *MemoryStore) RemoveTeamAgent(
 	teamAgent.RemovedAt = &removedAt
 	teamAgent.RemovedByUserID = principal.User.UserID
 	s.teamAgents[key] = teamAgent
+	if err := s.appendTeamAuditEventLocked(TeamAuditEvent{
+		TeamID:        teamID,
+		ActorUserID:   principal.User.UserID,
+		Action:        domain.TeamAuditActionAgentRemoved,
+		TargetAgentID: agentID,
+		CreatedAt:     removedAt,
+	}); err != nil {
+		return TeamAgent{}, err
+	}
 	return teamAgent, nil
 }
 
@@ -345,7 +468,103 @@ func (s *MemoryStore) RemoveTeamMember(
 			s.teamAgents[key] = teamAgent
 		}
 	}
+	if err := s.appendTeamAuditEventLocked(TeamAuditEvent{
+		TeamID:       teamID,
+		ActorUserID:  principal.User.UserID,
+		Action:       domain.TeamAuditActionMemberRemoved,
+		TargetUserID: userID,
+		CreatedAt:    removedAt,
+	}); err != nil {
+		return TeamMember{}, err
+	}
 	return target, nil
+}
+
+func (s *MemoryStore) UpdateTeamMemberRole(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+	userID string,
+	role string,
+	updatedAt time.Time,
+) (TeamMember, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	requester, ok := s.activeTeamMemberLocked(teamID, principal.User.UserID)
+	if !ok {
+		return TeamMember{}, ErrNotFound
+	}
+	if requester.Role != domain.TeamRoleOwner {
+		return TeamMember{}, ErrUnauthorized
+	}
+	if role != domain.TeamRoleOperator && role != domain.TeamRoleMember {
+		return TeamMember{}, ErrUnauthorized
+	}
+	key := teamMemberKey{TeamID: teamID, UserID: userID}
+	target, ok := s.teamMembers[key]
+	if !ok || target.Status != domain.TeamMemberStatusActive {
+		return TeamMember{}, ErrNotFound
+	}
+	if target.Role == domain.TeamRoleOwner {
+		return TeamMember{}, ErrConflict
+	}
+	if target.Role == role {
+		return target, nil
+	}
+	previousRole := target.Role
+	target.Role = role
+	s.teamMembers[key] = target
+	metadata, err := json.Marshal(map[string]string{
+		"previous_role": previousRole,
+		"role":          role,
+	})
+	if err != nil {
+		return TeamMember{}, err
+	}
+	if err := s.appendTeamAuditEventLocked(TeamAuditEvent{
+		TeamID:       teamID,
+		ActorUserID:  principal.User.UserID,
+		Action:       domain.TeamAuditActionMemberRoleUpdated,
+		TargetUserID: userID,
+		Metadata:     metadata,
+		CreatedAt:    updatedAt,
+	}); err != nil {
+		return TeamMember{}, err
+	}
+	return target, nil
+}
+
+func (s *MemoryStore) ArchiveTeam(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+	archivedAt time.Time,
+) (Team, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	member, ok := s.activeTeamMemberLocked(teamID, principal.User.UserID)
+	if !ok {
+		return Team{}, ErrNotFound
+	}
+	if member.Role != domain.TeamRoleOwner {
+		return Team{}, ErrUnauthorized
+	}
+	team, ok := s.teams[teamID]
+	if !ok || team.Status != domain.TeamStatusActive {
+		return Team{}, ErrNotFound
+	}
+	team.Status = domain.TeamStatusArchived
+	team.ArchivedAt = &archivedAt
+	s.teams[teamID] = team
+	if err := s.appendTeamAuditEventLocked(TeamAuditEvent{
+		TeamID:      teamID,
+		ActorUserID: principal.User.UserID,
+		Action:      domain.TeamAuditActionTeamArchived,
+		CreatedAt:   archivedAt,
+	}); err != nil {
+		return Team{}, err
+	}
+	return team, nil
 }
 
 func (s *MemoryStore) activeTeamMemberLocked(teamID string, userID string) (TeamMember, bool) {
@@ -388,4 +607,25 @@ func teamInviteVisibleToPrincipal(invite TeamInvite, principal UserPrincipal) bo
 
 func teamRoleCanManageOwnAgents(role string) bool {
 	return role == domain.TeamRoleOwner || role == domain.TeamRoleOperator
+}
+
+func (s *MemoryStore) appendTeamAuditEventLocked(event TeamAuditEvent) error {
+	if event.TeamID == "" || event.ActorUserID == "" || event.Action == "" {
+		return ErrConflict
+	}
+	if event.EventID == "" {
+		eventID, err := newSecret("taud")
+		if err != nil {
+			return err
+		}
+		event.EventID = eventID
+	}
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = s.now().UTC()
+	}
+	if len(event.Metadata) == 0 {
+		event.Metadata = json.RawMessage(`{}`)
+	}
+	s.teamAuditEvents[event.EventID] = event
+	return nil
 }

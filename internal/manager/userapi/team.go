@@ -126,6 +126,26 @@ func (s *Service) ListTeamAgents(
 	return http.StatusOK, map[string]any{"agents": agents}, nil
 }
 
+func (s *Service) ListTeamAuditEvents(
+	c context.Context,
+	meta auth.RequestMetadata,
+	teamID string,
+	limit int,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if teamID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "team_id is required"}
+	}
+	events, err := s.store.ListTeamAuditEvents(c, principal, teamID, limit)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"events": events}, nil
+}
+
 func (s *Service) CreateTeamInvite(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -233,6 +253,29 @@ func (s *Service) DeclineTeamInvite(
 	return http.StatusOK, map[string]any{"invite": invite}, nil
 }
 
+func (s *Service) CancelTeamInvite(
+	c context.Context,
+	meta auth.RequestMetadata,
+	teamID string,
+	inviteID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if teamID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "team_id is required"}
+	}
+	if inviteID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "invite_id is required"}
+	}
+	invite, err := s.store.CancelTeamInvite(c, principal, teamID, inviteID, s.clock().UTC())
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"invite": invite}, nil
+}
+
 func (s *Service) AddTeamAgent(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -302,6 +345,60 @@ func (s *Service) RemoveTeamMember(
 	return http.StatusOK, map[string]any{"member": member}, nil
 }
 
+func (s *Service) UpdateTeamMemberRole(
+	c context.Context,
+	meta auth.RequestMetadata,
+	teamID string,
+	userID string,
+	req domain.UpdateTeamMemberRoleRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if teamID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "team_id is required"}
+	}
+	if userID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "user_id is required"}
+	}
+	role, err := normalizeTeamMemberRole(req.Role)
+	if err != nil {
+		return 0, nil, err
+	}
+	member, err := s.store.UpdateTeamMemberRole(
+		c,
+		principal,
+		teamID,
+		userID,
+		role,
+		s.clock().UTC(),
+	)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"member": member}, nil
+}
+
+func (s *Service) ArchiveTeam(
+	c context.Context,
+	meta auth.RequestMetadata,
+	teamID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if teamID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "team_id is required"}
+	}
+	team, err := s.store.ArchiveTeam(c, principal, teamID, s.clock().UTC())
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"team": team}, nil
+}
+
 func (s *Service) LeaveTeam(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -343,6 +440,18 @@ func normalizeTeamInviteRole(role string) (string, error) {
 	if role == "" {
 		return domain.TeamRoleMember, nil
 	}
+	return normalizeTeamRole(role)
+}
+
+func normalizeTeamMemberRole(role string) (string, error) {
+	role = strings.TrimSpace(strings.ToLower(role))
+	if role == "" {
+		return "", apperr.Error{Status: http.StatusBadRequest, Message: "role is required"}
+	}
+	return normalizeTeamRole(role)
+}
+
+func normalizeTeamRole(role string) (string, error) {
 	switch role {
 	case domain.TeamRoleOperator, domain.TeamRoleMember:
 		return role, nil

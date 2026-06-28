@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -50,6 +51,7 @@ type teamInviteRow struct {
 	CreatedAt       time.Time  `gorm:"column:created_at"`
 	AcceptedAt      *time.Time `gorm:"column:accepted_at"`
 	DeclinedAt      *time.Time `gorm:"column:declined_at"`
+	CanceledAt      *time.Time `gorm:"column:canceled_at"`
 }
 
 func (teamInviteRow) TableName() string {
@@ -68,6 +70,22 @@ type teamAgentRow struct {
 
 func (teamAgentRow) TableName() string {
 	return "team_agents"
+}
+
+type teamAuditEventRow struct {
+	EventID        string          `gorm:"column:event_id;primaryKey"`
+	TeamID         string          `gorm:"column:team_id"`
+	ActorUserID    string          `gorm:"column:actor_user_id"`
+	Action         string          `gorm:"column:action"`
+	TargetUserID   *string         `gorm:"column:target_user_id"`
+	TargetAgentID  *string         `gorm:"column:target_agent_id"`
+	TargetInviteID *string         `gorm:"column:target_invite_id"`
+	Metadata       json.RawMessage `gorm:"column:metadata"`
+	CreatedAt      time.Time       `gorm:"column:created_at"`
+}
+
+func (teamAuditEventRow) TableName() string {
+	return "team_audit_events"
 }
 
 func teamModel(team Team) *teamRow {
@@ -139,6 +157,7 @@ func teamInviteModel(invite TeamInvite) *teamInviteRow {
 		CreatedAt:       invite.CreatedAt,
 		AcceptedAt:      invite.AcceptedAt,
 		DeclinedAt:      invite.DeclinedAt,
+		CanceledAt:      invite.CanceledAt,
 	}
 }
 
@@ -157,6 +176,7 @@ func teamInviteFromModel(row *teamInviteRow) TeamInvite {
 		CreatedAt:       row.CreatedAt,
 		AcceptedAt:      row.AcceptedAt,
 		DeclinedAt:      row.DeclinedAt,
+		CanceledAt:      row.CanceledAt,
 	}
 }
 
@@ -175,6 +195,37 @@ func teamAgentFromModel(row *teamAgentRow) TeamAgent {
 	}
 }
 
+func teamAuditEventModel(event TeamAuditEvent) *teamAuditEventRow {
+	return &teamAuditEventRow{
+		EventID:        event.EventID,
+		TeamID:         event.TeamID,
+		ActorUserID:    event.ActorUserID,
+		Action:         event.Action,
+		TargetUserID:   stringPtrOrNil(event.TargetUserID),
+		TargetAgentID:  stringPtrOrNil(event.TargetAgentID),
+		TargetInviteID: stringPtrOrNil(event.TargetInviteID),
+		Metadata:       jsonDefault(event.Metadata, "{}"),
+		CreatedAt:      event.CreatedAt,
+	}
+}
+
+func teamAuditEventFromModel(row *teamAuditEventRow) TeamAuditEvent {
+	if row == nil {
+		return TeamAuditEvent{}
+	}
+	return TeamAuditEvent{
+		EventID:        row.EventID,
+		TeamID:         row.TeamID,
+		ActorUserID:    row.ActorUserID,
+		Action:         row.Action,
+		TargetUserID:   stringFromPtr(row.TargetUserID),
+		TargetAgentID:  stringFromPtr(row.TargetAgentID),
+		TargetInviteID: stringFromPtr(row.TargetInviteID),
+		Metadata:       jsonDefault(row.Metadata, "{}"),
+		CreatedAt:      row.CreatedAt,
+	}
+}
+
 func stringPtrOrNil(value string) *string {
 	if value == "" {
 		return nil
@@ -189,6 +240,30 @@ func stringFromPtr(value *string) string {
 	return *value
 }
 
+func (s *PostgresStore) createTeamAuditEventTx(
+	ctx context.Context,
+	tx *gorm.DB,
+	event TeamAuditEvent,
+) error {
+	if event.TeamID == "" || event.ActorUserID == "" || event.Action == "" {
+		return ErrConflict
+	}
+	if event.EventID == "" {
+		eventID, err := newSecret("taud")
+		if err != nil {
+			return err
+		}
+		event.EventID = eventID
+	}
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = s.now().UTC()
+	}
+	if len(event.Metadata) == 0 {
+		event.Metadata = json.RawMessage(`{}`)
+	}
+	return tx.WithContext(ctx).Create(teamAuditEventModel(event)).Error
+}
+
 func (s *PostgresStore) CreateTeam(ctx context.Context, team Team, owner TeamMember) (Team, error) {
 	err := s.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(teamModel(team)).Error; err != nil {
@@ -201,6 +276,14 @@ func (s *PostgresStore) CreateTeam(ctx context.Context, team Team, owner TeamMem
 			if isUniqueViolation(err) {
 				return ErrConflict
 			}
+			return err
+		}
+		if err := s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+			TeamID:      team.TeamID,
+			ActorUserID: team.OwnerUserID,
+			Action:      domain.TeamAuditActionTeamCreated,
+			CreatedAt:   team.CreatedAt,
+		}); err != nil {
 			return err
 		}
 		return nil
@@ -357,18 +440,108 @@ func (s *PostgresStore) ListTeamAgents(
 	if _, err := s.activeTeamMember(ctx, s.gormDB, teamID, principal.User.UserID); err != nil {
 		return nil, err
 	}
-	var rows []teamAgentRow
-	err := s.gormDB.WithContext(ctx).
-		Model(&teamAgentRow{}).
-		Where("team_id = ? AND removed_at IS NULL", teamID).
-		Order("added_at ASC").
-		Find(&rows).Error
+	var rows []struct {
+		TeamID           string
+		AgentID          string
+		AgentOwnerUserID string
+		AgentOwnerEmail  string
+		AddedByUserID    string
+		AddedAt          time.Time
+		AgentName        string
+		AgentNodeID      string
+		AgentStatus      string
+		AgentOnline      bool
+		AgentType        string
+		AgentMachineType string
+		AgentOS          string
+		AgentHostname    string
+		LastHeartbeat    *time.Time
+		RegisteredAt     time.Time
+	}
+	err := s.gormDB.WithContext(ctx).Raw(`
+		SELECT
+			ta.team_id,
+			ta.agent_id,
+			ta.agent_owner_user_id,
+			users.email AS agent_owner_email,
+			ta.added_by_user_id,
+			ta.added_at,
+			COALESCE(agents.name, '') AS agent_name,
+			COALESCE(agents.node_id, '') AS agent_node_id,
+			COALESCE(agents.status, '') AS agent_status,
+			computed_status(agents.last_heartbeat) = 'online' AS agent_online,
+			COALESCE(agents.agent_type, '') AS agent_type,
+			COALESCE(agents.machine_type, '') AS agent_machine_type,
+			COALESCE(agents.os, '') AS agent_os,
+			COALESCE(agents.hostname, '') AS agent_hostname,
+			agents.last_heartbeat,
+			agents.registered_at
+		FROM team_agents ta
+		JOIN users ON users.user_id = ta.agent_owner_user_id
+		JOIN agents ON agents.agent_id = ta.agent_id
+		WHERE ta.team_id = ? AND ta.removed_at IS NULL
+		ORDER BY ta.added_at ASC
+	`, teamID).Scan(&rows).Error
 	if err != nil {
 		return nil, mapGormError(err)
 	}
 	out := make([]TeamAgent, 0, len(rows))
 	for i := range rows {
-		out = append(out, teamAgentFromModel(&rows[i]))
+		row := rows[i]
+		teamAgent := TeamAgent{
+			TeamID:           row.TeamID,
+			AgentID:          row.AgentID,
+			AgentOwnerUserID: row.AgentOwnerUserID,
+			AgentOwnerEmail:  row.AgentOwnerEmail,
+			AddedByUserID:    row.AddedByUserID,
+			AddedAt:          row.AddedAt,
+		}
+		if row.AgentName != "" || row.AgentNodeID != "" {
+			teamAgent.Agent = &Agent{
+				AgentID:       row.AgentID,
+				NodeID:        row.AgentNodeID,
+				OwnerUserID:   row.AgentOwnerUserID,
+				Name:          row.AgentName,
+				Hostname:      row.AgentHostname,
+				AgentType:     row.AgentType,
+				MachineType:   row.AgentMachineType,
+				OS:            row.AgentOS,
+				Status:        row.AgentStatus,
+				Online:        row.AgentOnline,
+				LastHeartbeat: row.LastHeartbeat,
+				RegisteredAt:  row.RegisteredAt,
+			}
+		}
+		out = append(out, teamAgent)
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ListTeamAuditEvents(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+	limit int,
+) ([]TeamAuditEvent, error) {
+	if _, err := s.activeTeamMember(ctx, s.gormDB, teamID, principal.User.UserID); err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	var rows []teamAuditEventRow
+	err := s.gormDB.WithContext(ctx).
+		Model(&teamAuditEventRow{}).
+		Where("team_id = ?", teamID).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, mapGormError(err)
+	}
+	out := make([]TeamAuditEvent, 0, len(rows))
+	for i := range rows {
+		out = append(out, teamAuditEventFromModel(&rows[i]))
 	}
 	return out, nil
 }
@@ -405,6 +578,16 @@ func (s *PostgresStore) CreateTeamInvite(
 			return err
 		}
 		invite = teamInviteFromModel(row)
+		if err := s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+			TeamID:         invite.TeamID,
+			ActorUserID:    principal.User.UserID,
+			Action:         domain.TeamAuditActionInviteCreated,
+			TargetInviteID: invite.InviteID,
+			TargetUserID:   invite.RecipientUserID,
+			CreatedAt:      invite.CreatedAt,
+		}); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -491,6 +674,16 @@ func (s *PostgresStore) AcceptTeamInvite(
 		row.RecipientUserID = stringPtrOrNil(principal.User.UserID)
 		row.AcceptedAt = &acceptedAt
 		invite = teamInviteFromModel(&row)
+		if err := s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+			TeamID:         invite.TeamID,
+			ActorUserID:    principal.User.UserID,
+			Action:         domain.TeamAuditActionInviteAccepted,
+			TargetInviteID: invite.InviteID,
+			TargetUserID:   principal.User.UserID,
+			CreatedAt:      acceptedAt,
+		}); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -522,7 +715,67 @@ func (s *PostgresStore) DeclineTeamInvite(
 		row.Status = domain.TeamInviteStatusDeclined
 		row.DeclinedAt = &declinedAt
 		invite = teamInviteFromModel(&row)
+		if err := s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+			TeamID:         invite.TeamID,
+			ActorUserID:    principal.User.UserID,
+			Action:         domain.TeamAuditActionInviteDeclined,
+			TargetInviteID: invite.InviteID,
+			TargetUserID:   principal.User.UserID,
+			CreatedAt:      declinedAt,
+		}); err != nil {
+			return err
+		}
 		return nil
+	})
+	if err != nil {
+		return TeamInvite{}, err
+	}
+	return invite, nil
+}
+
+func (s *PostgresStore) CancelTeamInvite(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+	inviteID string,
+	canceledAt time.Time,
+) (TeamInvite, error) {
+	var invite TeamInvite
+	err := s.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		member, err := s.activeTeamMember(ctx, tx, teamID, principal.User.UserID)
+		if err != nil {
+			return err
+		}
+		if member.Role != domain.TeamRoleOwner {
+			return ErrUnauthorized
+		}
+		var row teamInviteRow
+		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("team_id = ? AND invite_id = ? AND status = ?",
+				teamID, inviteID, domain.TeamInviteStatusPending).
+			First(&row).Error
+		if err != nil {
+			return mapGormError(err)
+		}
+		if err := tx.Model(&teamInviteRow{}).
+			Where("invite_id = ?", inviteID).
+			Updates(map[string]any{
+				"status":      domain.TeamInviteStatusCanceled,
+				"canceled_at": canceledAt,
+			}).Error; err != nil {
+			return err
+		}
+		row.Status = domain.TeamInviteStatusCanceled
+		row.CanceledAt = &canceledAt
+		invite = teamInviteFromModel(&row)
+		return s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+			TeamID:         teamID,
+			ActorUserID:    principal.User.UserID,
+			Action:         domain.TeamAuditActionInviteCanceled,
+			TargetInviteID: inviteID,
+			TargetUserID:   invite.RecipientUserID,
+			CreatedAt:      canceledAt,
+		})
 	})
 	if err != nil {
 		return TeamInvite{}, err
@@ -576,6 +829,16 @@ func (s *PostgresStore) AddTeamAgent(
 				return err
 			}
 			out = teamAgentFromModel(&row)
+			out.AgentOwnerEmail = principal.User.Email
+			if err := s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+				TeamID:        teamID,
+				ActorUserID:   principal.User.UserID,
+				Action:        domain.TeamAuditActionAgentAdded,
+				TargetAgentID: agentID,
+				CreatedAt:     addedAt,
+			}); err != nil {
+				return err
+			}
 			return nil
 		case !errors.Is(err, gorm.ErrRecordNotFound):
 			return mapGormError(err)
@@ -594,6 +857,16 @@ func (s *PostgresStore) AddTeamAgent(
 			return err
 		}
 		out = teamAgentFromModel(&row)
+		out.AgentOwnerEmail = principal.User.Email
+		if err := s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+			TeamID:        teamID,
+			ActorUserID:   principal.User.UserID,
+			Action:        domain.TeamAuditActionAgentAdded,
+			TargetAgentID: agentID,
+			CreatedAt:     addedAt,
+		}); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -633,6 +906,15 @@ func (s *PostgresStore) RemoveTeamAgent(
 			return err
 		}
 		out = teamAgentFromModel(&row)
+		if err := s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+			TeamID:        teamID,
+			ActorUserID:   principal.User.UserID,
+			Action:        domain.TeamAuditActionAgentRemoved,
+			TargetAgentID: agentID,
+			CreatedAt:     removedAt,
+		}); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -685,10 +967,131 @@ func (s *PostgresStore) RemoveTeamMember(
 		target.RemovedAt = &removedAt
 		target.RemovedByUser = principal.User.UserID
 		out = target
+		return s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+			TeamID:       teamID,
+			ActorUserID:  principal.User.UserID,
+			Action:       domain.TeamAuditActionMemberRemoved,
+			TargetUserID: userID,
+			CreatedAt:    removedAt,
+		})
+	})
+	if err != nil {
+		return TeamMember{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) UpdateTeamMemberRole(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+	userID string,
+	role string,
+	updatedAt time.Time,
+) (TeamMember, error) {
+	var out TeamMember
+	err := s.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		requester, err := s.activeTeamMember(ctx, tx, teamID, principal.User.UserID)
+		if err != nil {
+			return err
+		}
+		if requester.Role != domain.TeamRoleOwner {
+			return ErrUnauthorized
+		}
+		if role != domain.TeamRoleOperator && role != domain.TeamRoleMember {
+			return ErrUnauthorized
+		}
+		var row teamMemberRow
+		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("team_id = ? AND user_id = ? AND status = ?",
+				teamID, userID, domain.TeamMemberStatusActive).
+			First(&row).Error
+		if err != nil {
+			return mapGormError(err)
+		}
+		if row.Role == domain.TeamRoleOwner {
+			return ErrConflict
+		}
+		previousRole := row.Role
+		if previousRole != role {
+			if err := tx.Model(&teamMemberRow{}).
+				Where("team_id = ? AND user_id = ?", teamID, userID).
+				Update("role", role).Error; err != nil {
+				return err
+			}
+			row.Role = role
+			metadata, err := json.Marshal(map[string]string{
+				"previous_role": previousRole,
+				"role":          role,
+			})
+			if err != nil {
+				return err
+			}
+			if err := s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+				TeamID:       teamID,
+				ActorUserID:  principal.User.UserID,
+				Action:       domain.TeamAuditActionMemberRoleUpdated,
+				TargetUserID: userID,
+				Metadata:     metadata,
+				CreatedAt:    updatedAt,
+			}); err != nil {
+				return err
+			}
+		}
+		out = teamMemberFromModel(&row)
+		if user, err := s.GetUser(ctx, userID); err == nil {
+			out.Email = user.Email
+		}
 		return nil
 	})
 	if err != nil {
 		return TeamMember{}, err
+	}
+	return out, nil
+}
+
+func (s *PostgresStore) ArchiveTeam(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+	archivedAt time.Time,
+) (Team, error) {
+	var out Team
+	err := s.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		member, err := s.activeTeamMember(ctx, tx, teamID, principal.User.UserID)
+		if err != nil {
+			return err
+		}
+		if member.Role != domain.TeamRoleOwner {
+			return ErrUnauthorized
+		}
+		var row teamRow
+		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("team_id = ? AND status = ?", teamID, domain.TeamStatusActive).
+			First(&row).Error
+		if err != nil {
+			return mapGormError(err)
+		}
+		if err := tx.Model(&teamRow{}).
+			Where("team_id = ?", teamID).
+			Updates(map[string]any{
+				"status":      domain.TeamStatusArchived,
+				"archived_at": archivedAt,
+			}).Error; err != nil {
+			return err
+		}
+		row.Status = domain.TeamStatusArchived
+		row.ArchivedAt = &archivedAt
+		out = teamFromModel(&row)
+		return s.createTeamAuditEventTx(ctx, tx, TeamAuditEvent{
+			TeamID:      teamID,
+			ActorUserID: principal.User.UserID,
+			Action:      domain.TeamAuditActionTeamArchived,
+			CreatedAt:   archivedAt,
+		})
+	})
+	if err != nil {
+		return Team{}, err
 	}
 	return out, nil
 }
