@@ -42,6 +42,10 @@ type teamAgent struct {
 	AgentID          string `json:"agent_id"`
 	AgentOwnerUserID string `json:"agent_owner_user_id"`
 	AgentOwnerEmail  string `json:"agent_owner_email"`
+	Identity         string `json:"identity"`
+	Role             string `json:"role"`
+	DisplayName      string `json:"display_name"`
+	Description      string `json:"description"`
 	AddedByUserID    string `json:"added_by_user_id"`
 }
 
@@ -218,11 +222,24 @@ func TestTeamInviteAgentSharingAndCapsulePermissionsIntegration(t *testing.T) {
 		t,
 		fixture,
 		"/api/v1/user/self/teams/"+team.TeamID+"/agents",
-		map[string]any{"agent_id": ownerAgent.Agent.AgentID},
+		map[string]any{
+			"agent_id":     ownerAgent.Agent.AgentID,
+			"identity":     "launch-reviewer",
+			"role":         "reviewer",
+			"display_name": "Launch Reviewer",
+			"description":  "Reviews launch checklist handoffs.",
+		},
 		ownerHeaders,
 		http.StatusOK,
 	).Agent
-	requireTeamAgent(t, ownerSharedAgent, team.TeamID, ownerAgent.Agent.AgentID)
+	requireTeamAgent(
+		t,
+		ownerSharedAgent,
+		team.TeamID,
+		ownerAgent.Agent.AgentID,
+		"launch-reviewer",
+		"reviewer",
+	)
 	operatorInjection := postJSON[knowledgeInjectionResponse](
 		t,
 		fixture,
@@ -263,7 +280,14 @@ func TestTeamInviteAgentSharingAndCapsulePermissionsIntegration(t *testing.T) {
 		operatorHeaders,
 		http.StatusOK,
 	).Agent
-	requireTeamAgent(t, operatorSharedAgent, team.TeamID, operatorAgent.Agent.AgentID)
+	requireTeamAgent(
+		t,
+		operatorSharedAgent,
+		team.TeamID,
+		operatorAgent.Agent.AgentID,
+		operatorAgent.Agent.AgentID,
+		"general",
+	)
 
 	teamAgents := getJSON[teamAgentListResponse](
 		t,
@@ -350,9 +374,19 @@ func requireAcceptedTeamInvite(t *testing.T, invite teamInvite) {
 	}
 }
 
-func requireTeamAgent(t *testing.T, agent teamAgent, teamID string, agentID string) {
+func requireTeamAgent(
+	t *testing.T,
+	agent teamAgent,
+	teamID string,
+	agentID string,
+	identity string,
+	role string,
+) {
 	t.Helper()
-	if agent.AgentID != agentID || agent.TeamID != teamID {
+	if agent.AgentID != agentID ||
+		agent.TeamID != teamID ||
+		agent.Identity != identity ||
+		agent.Role != role {
 		t.Fatalf("unexpected team agent: %+v", agent)
 	}
 }

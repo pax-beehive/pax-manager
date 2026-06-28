@@ -390,7 +390,7 @@ type Store interface {
 		ctx context.Context,
 		principal UserPrincipal,
 		teamID string,
-		agentID string,
+		req AddTeamAgentRequest,
 		addedAt time.Time,
 	) (TeamAgent, error)
 	RemoveTeamAgent(

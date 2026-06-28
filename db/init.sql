@@ -685,6 +685,11 @@ CREATE TABLE IF NOT EXISTS team_agents (
     team_id TEXT NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
     agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
     agent_owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    identity TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT 'general',
+    display_name TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     added_by_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     removed_at TIMESTAMPTZ,
@@ -693,6 +698,11 @@ CREATE TABLE IF NOT EXISTS team_agents (
 );
 
 ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS agent_owner_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS identity TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'general';
+ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS added_by_user_id TEXT REFERENCES users(user_id);
 ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS added_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE team_agents ADD COLUMN IF NOT EXISTS removed_at TIMESTAMPTZ;
@@ -703,6 +713,12 @@ CREATE INDEX IF NOT EXISTS idx_team_agents_owner_active
     WHERE removed_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_team_agents_team_active
     ON team_agents(team_id, added_at)
+    WHERE removed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_team_agents_identity_active
+    ON team_agents(team_id, identity)
+    WHERE removed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_team_agents_role_active
+    ON team_agents(team_id, role)
     WHERE removed_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS team_audit_events (

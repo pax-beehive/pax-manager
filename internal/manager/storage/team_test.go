@@ -86,12 +86,17 @@ func TestMemoryTeamStore(t *testing.T) {
 			OwnerUserID: operator.UserID,
 			Status:      "online",
 		}
+		store.agents["agent_operator_2"] = Agent{
+			AgentID:     "agent_operator_2",
+			OwnerUserID: operator.UserID,
+			Status:      "online",
+		}
 
 		_, err := store.AddTeamAgent(
 			ctx,
 			UserPrincipal{User: member},
 			teamID,
-			"agent_owner",
+			AddTeamAgentRequest{AgentID: "agent_owner"},
 			now,
 		)
 		require.ErrorIs(t, err, ErrUnauthorized)
@@ -100,7 +105,7 @@ func TestMemoryTeamStore(t *testing.T) {
 			ctx,
 			UserPrincipal{User: operator},
 			teamID,
-			"agent_owner",
+			AddTeamAgentRequest{AgentID: "agent_owner"},
 			now,
 		)
 		require.ErrorIs(t, err, ErrNotFound)
@@ -109,14 +114,42 @@ func TestMemoryTeamStore(t *testing.T) {
 			ctx,
 			UserPrincipal{User: operator},
 			teamID,
-			"agent_operator",
+			AddTeamAgentRequest{
+				AgentID:     "agent_operator",
+				Identity:    "reviewer",
+				Role:        "reviewer",
+				DisplayName: "Review Bot",
+				Description: "Reviews team tasks before handoff.",
+			},
 			now,
 		)
 		require.NoError(t, err)
 		require.Equal(t, operator.UserID, operatorAgent.AgentOwnerUserID)
+		require.Equal(t, "reviewer", operatorAgent.Identity)
+		require.Equal(t, "reviewer", operatorAgent.Role)
+		require.Equal(t, "Review Bot", operatorAgent.DisplayName)
+		require.Equal(t, "Reviews team tasks before handoff.", operatorAgent.Description)
 
-		_, err = store.AddTeamAgent(ctx, UserPrincipal{User: owner}, teamID, "agent_owner", now)
+		secondReviewer, err := store.AddTeamAgent(
+			ctx,
+			UserPrincipal{User: operator},
+			teamID,
+			AddTeamAgentRequest{AgentID: "agent_operator_2", Identity: "reviewer"},
+			now,
+		)
 		require.NoError(t, err)
+		require.Equal(t, "reviewer", secondReviewer.Identity)
+
+		ownerAgent, err := store.AddTeamAgent(
+			ctx,
+			UserPrincipal{User: owner},
+			teamID,
+			AddTeamAgentRequest{AgentID: "agent_owner"},
+			now,
+		)
+		require.NoError(t, err)
+		require.Equal(t, "agent_owner", ownerAgent.Identity)
+		require.Equal(t, domain.TeamAgentRoleGeneral, ownerAgent.Role)
 
 		_, err = store.RemoveTeamAgent(
 			ctx,
@@ -218,7 +251,7 @@ func TestMemoryTeamStore(t *testing.T) {
 				ctx,
 				UserPrincipal{User: operator},
 				teamID,
-				"agent_operator",
+				AddTeamAgentRequest{AgentID: "agent_operator"},
 				now,
 			)
 			require.NoError(t, err)
@@ -240,7 +273,7 @@ func TestMemoryTeamStore(t *testing.T) {
 				ctx,
 				UserPrincipal{User: operator},
 				teamID,
-				"agent_operator",
+				AddTeamAgentRequest{AgentID: "agent_operator"},
 				now.Add(2*time.Minute),
 			)
 			require.ErrorIs(t, err, ErrUnauthorized)
@@ -291,7 +324,13 @@ func TestMemoryTeamStore(t *testing.T) {
 		_, err = store.ListNodeAgents(ctx, UserPrincipal{User: member}, "node_1")
 		require.ErrorIs(t, err, ErrNotFound)
 
-		_, err = store.AddTeamAgent(ctx, UserPrincipal{User: owner}, teamID, "agent_owner", now)
+		_, err = store.AddTeamAgent(
+			ctx,
+			UserPrincipal{User: owner},
+			teamID,
+			AddTeamAgentRequest{AgentID: "agent_owner"},
+			now,
+		)
 		require.NoError(t, err)
 
 		agents, err := store.ListAgents(ctx, UserPrincipal{User: member})
@@ -436,7 +475,7 @@ func TestMemoryTeamStore(t *testing.T) {
 			ctx,
 			UserPrincipal{User: operator},
 			teamID,
-			"agent_operator",
+			AddTeamAgentRequest{AgentID: "agent_operator"},
 			now.Add(4*time.Minute),
 		)
 		require.NoError(t, err)

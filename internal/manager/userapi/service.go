@@ -281,7 +281,7 @@ type TeamStore interface {
 		ctx context.Context,
 		principal domain.UserPrincipal,
 		teamID string,
-		agentID string,
+		req domain.AddTeamAgentRequest,
 		addedAt time.Time,
 	) (domain.TeamAgent, error)
 	RemoveTeamAgent(

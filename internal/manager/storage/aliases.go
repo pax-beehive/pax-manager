@@ -73,6 +73,7 @@ type TeamMember = domain.TeamMember
 type TeamInvite = domain.TeamInvite
 type TeamAgent = domain.TeamAgent
 type TeamAuditEvent = domain.TeamAuditEvent
+type AddTeamAgentRequest = domain.AddTeamAgentRequest
 type TransportFrame = domain.TransportFrame
 
 func newSecret(prefix string) (string, error) {

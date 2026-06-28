@@ -13,6 +13,8 @@ const (
 	TeamRoleOperator = "operator"
 	TeamRoleMember   = "member"
 
+	TeamAgentRoleGeneral = "general"
+
 	TeamMemberStatusActive  = "active"
 	TeamMemberStatusRemoved = "removed"
 
@@ -77,15 +79,20 @@ type TeamInvite struct {
 }
 
 type TeamAgent struct {
-	TeamID           string     `json:"team_id"`
-	AgentID          string     `json:"agent_id"`
-	AgentOwnerUserID string     `json:"agent_owner_user_id"`
-	AgentOwnerEmail  string     `json:"agent_owner_email,omitempty"`
-	AddedByUserID    string     `json:"added_by_user_id"`
-	AddedAt          time.Time  `json:"added_at"`
-	RemovedAt        *time.Time `json:"removed_at,omitempty"`
-	RemovedByUserID  string     `json:"removed_by_user_id,omitempty"`
-	Agent            *Agent     `json:"agent,omitempty"`
+	TeamID           string          `json:"team_id"`
+	AgentID          string          `json:"agent_id"`
+	AgentOwnerUserID string          `json:"agent_owner_user_id"`
+	AgentOwnerEmail  string          `json:"agent_owner_email,omitempty"`
+	Identity         string          `json:"identity"`
+	Role             string          `json:"role"`
+	DisplayName      string          `json:"display_name,omitempty"`
+	Description      string          `json:"description,omitempty"`
+	Metadata         json.RawMessage `json:"metadata,omitempty"`
+	AddedByUserID    string          `json:"added_by_user_id"`
+	AddedAt          time.Time       `json:"added_at"`
+	RemovedAt        *time.Time      `json:"removed_at,omitempty"`
+	RemovedByUserID  string          `json:"removed_by_user_id,omitempty"`
+	Agent            *Agent          `json:"agent,omitempty"`
 }
 
 type TeamAuditEvent struct {
@@ -111,7 +118,12 @@ type CreateTeamInviteRequest struct {
 }
 
 type AddTeamAgentRequest struct {
-	AgentID string `json:"agent_id"`
+	AgentID     string          `json:"agent_id"`
+	Identity    string          `json:"identity,omitempty"`
+	Role        string          `json:"role,omitempty"`
+	DisplayName string          `json:"display_name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Metadata    json.RawMessage `json:"metadata,omitempty"`
 }
 
 type UpdateTeamMemberRoleRequest struct {
