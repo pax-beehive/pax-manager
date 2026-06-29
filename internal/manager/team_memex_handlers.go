@@ -35,3 +35,22 @@ func GetTeamMemexDocument(c context.Context, ctx *app.RequestContext) {
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
+
+func CreateTeamMemexRun(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.CreateTeamMemexRun(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("team_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func GetTeamMemexRun(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.GetTeamMemexRun(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("team_id"),
+		ctx.Param("run_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}

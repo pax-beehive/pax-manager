@@ -64,6 +64,8 @@ const (
 	routeTeamMemexIndex      = "/api/v1/user/:user_id/teams/:team_id/memex/index"
 	routeTeamMemexDocuments  = "/api/v1/user/:user_id/teams/:team_id/memex/documents"
 	routeTeamMemexDocument   = "/api/v1/user/:user_id/teams/:team_id/memex/documents/*document_path"
+	routeTeamMemexRuns       = "/api/v1/user/:user_id/teams/:team_id/memex/runs"
+	routeTeamMemexRun        = "/api/v1/user/:user_id/teams/:team_id/memex/runs/:run_id"
 
 	routeOpenAPI     = "/openapi"
 	routeOpenAPIJSON = "/openapi.json"

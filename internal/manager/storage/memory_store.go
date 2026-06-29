@@ -49,6 +49,7 @@ type MemoryStore struct {
 	teamAgents                map[teamAgentKey]TeamAgent
 	teamAuditEvents           map[string]TeamAuditEvent
 	teamMemexDocuments        map[teamMemexDocumentKey]TeamMemexDocument
+	teamMemexRuns             map[string]TeamMemexRun
 	approvals                 map[string]AgentApproval
 	secrets                   map[string]Secret
 	secretVersions            map[string]SecretVersion
@@ -91,6 +92,7 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		teamAgents:                make(map[teamAgentKey]TeamAgent),
 		teamAuditEvents:           make(map[string]TeamAuditEvent),
 		teamMemexDocuments:        make(map[teamMemexDocumentKey]TeamMemexDocument),
+		teamMemexRuns:             make(map[string]TeamMemexRun),
 		approvals:                 make(map[string]AgentApproval),
 		secrets:                   make(map[string]Secret),
 		secretVersions:            make(map[string]SecretVersion),

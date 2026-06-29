@@ -176,6 +176,40 @@ func TestTeamMemexEmptyReadSurface(t *testing.T) {
 	}](t, listRec.Body.Bytes())
 	require.Empty(t, documents.Documents)
 
+	createRunReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/teams/team_1/memex/runs",
+		nil,
+	)
+	createRunReq.Header.Set("X-User-Email", owner.Email)
+	createRunRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createRunRec, createRunReq)
+	require.Equal(t, http.StatusOK, createRunRec.Code, createRunRec.Body.String())
+	createdRun := decodeData[struct {
+		Run TeamMemexRun `json:"run"`
+	}](t, createRunRec.Body.Bytes())
+	require.NotEmpty(t, createdRun.Run.RunID)
+	require.Equal(t, domain.TeamMemexRunExecutorDryRun, createdRun.Run.ExecutorType)
+	require.Equal(t, domain.TeamMemexRunStatusSucceeded, createdRun.Run.Status)
+	require.False(t, createdRun.Run.Constraints.EmbeddingEnabled)
+	require.Equal(t, 20, createdRun.Run.Constraints.MaxDocsReadPerRun)
+	require.Equal(t, 20, createdRun.Run.Constraints.MaxOutputDocs)
+	require.Equal(t, "# Team LLM Wiki\n", createdRun.Run.IndexMD)
+
+	getRunReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/teams/team_1/memex/runs/"+createdRun.Run.RunID,
+		nil,
+	)
+	getRunReq.Header.Set("X-User-Email", owner.Email)
+	getRunRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(getRunRec, getRunReq)
+	require.Equal(t, http.StatusOK, getRunRec.Code, getRunRec.Body.String())
+	fetchedRun := decodeData[struct {
+		Run TeamMemexRun `json:"run"`
+	}](t, getRunRec.Body.Bytes())
+	require.Equal(t, createdRun.Run.RunID, fetchedRun.Run.RunID)
+
 	nonMemberReq := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v1/user/self/teams/team_1/memex/index",

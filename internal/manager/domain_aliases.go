@@ -28,6 +28,7 @@ type TeamMember = domain.TeamMember
 type TeamInvite = domain.TeamInvite
 type TeamAgent = domain.TeamAgent
 type TeamMemexDocument = domain.TeamMemexDocument
+type TeamMemexRun = domain.TeamMemexRun
 type CreateKnowledgeCapsuleRequest = domain.CreateKnowledgeCapsuleRequest
 type ListKnowledgeCapsulesFilter = domain.ListKnowledgeCapsulesFilter
 type InjectKnowledgeCapsuleRequest = domain.InjectKnowledgeCapsuleRequest

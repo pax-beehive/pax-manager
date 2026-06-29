@@ -1197,6 +1197,64 @@ func (_c *MockStore_CreateTeamInvite_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
+// CreateTeamMemexRun provides a mock function with given fields: ctx, principal, run
+func (_m *MockStore) CreateTeamMemexRun(ctx context.Context, principal domain.UserPrincipal, run domain.TeamMemexRun) (domain.TeamMemexRun, error) {
+	ret := _m.Called(ctx, principal, run)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateTeamMemexRun")
+	}
+
+	var r0 domain.TeamMemexRun
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.TeamMemexRun) (domain.TeamMemexRun, error)); ok {
+		return rf(ctx, principal, run)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.TeamMemexRun) domain.TeamMemexRun); ok {
+		r0 = rf(ctx, principal, run)
+	} else {
+		r0 = ret.Get(0).(domain.TeamMemexRun)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.TeamMemexRun) error); ok {
+		r1 = rf(ctx, principal, run)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateTeamMemexRun_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateTeamMemexRun'
+type MockStore_CreateTeamMemexRun_Call struct {
+	*mock.Call
+}
+
+// CreateTeamMemexRun is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - run domain.TeamMemexRun
+func (_e *MockStore_Expecter) CreateTeamMemexRun(ctx interface{}, principal interface{}, run interface{}) *MockStore_CreateTeamMemexRun_Call {
+	return &MockStore_CreateTeamMemexRun_Call{Call: _e.mock.On("CreateTeamMemexRun", ctx, principal, run)}
+}
+
+func (_c *MockStore_CreateTeamMemexRun_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, run domain.TeamMemexRun)) *MockStore_CreateTeamMemexRun_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.TeamMemexRun))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateTeamMemexRun_Call) Return(_a0 domain.TeamMemexRun, _a1 error) *MockStore_CreateTeamMemexRun_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateTeamMemexRun_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.TeamMemexRun) (domain.TeamMemexRun, error)) *MockStore_CreateTeamMemexRun_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateUserAPIKey provides a mock function with given fields: ctx, principal, name, keyHash, prefix
 func (_m *MockStore) CreateUserAPIKey(ctx context.Context, principal domain.UserPrincipal, name string, keyHash string, prefix string) (domain.UserAPIKey, error) {
 	ret := _m.Called(ctx, principal, name, keyHash, prefix)
@@ -1893,6 +1951,65 @@ func (_c *MockStore_GetTeamMemexDocument_Call) Return(_a0 domain.TeamMemexDocume
 }
 
 func (_c *MockStore_GetTeamMemexDocument_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string) (domain.TeamMemexDocument, error)) *MockStore_GetTeamMemexDocument_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetTeamMemexRun provides a mock function with given fields: ctx, principal, teamID, runID
+func (_m *MockStore) GetTeamMemexRun(ctx context.Context, principal domain.UserPrincipal, teamID string, runID string) (domain.TeamMemexRun, error) {
+	ret := _m.Called(ctx, principal, teamID, runID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetTeamMemexRun")
+	}
+
+	var r0 domain.TeamMemexRun
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string) (domain.TeamMemexRun, error)); ok {
+		return rf(ctx, principal, teamID, runID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string) domain.TeamMemexRun); ok {
+		r0 = rf(ctx, principal, teamID, runID)
+	} else {
+		r0 = ret.Get(0).(domain.TeamMemexRun)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, string) error); ok {
+		r1 = rf(ctx, principal, teamID, runID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetTeamMemexRun_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTeamMemexRun'
+type MockStore_GetTeamMemexRun_Call struct {
+	*mock.Call
+}
+
+// GetTeamMemexRun is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - teamID string
+//   - runID string
+func (_e *MockStore_Expecter) GetTeamMemexRun(ctx interface{}, principal interface{}, teamID interface{}, runID interface{}) *MockStore_GetTeamMemexRun_Call {
+	return &MockStore_GetTeamMemexRun_Call{Call: _e.mock.On("GetTeamMemexRun", ctx, principal, teamID, runID)}
+}
+
+func (_c *MockStore_GetTeamMemexRun_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, teamID string, runID string)) *MockStore_GetTeamMemexRun_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetTeamMemexRun_Call) Return(_a0 domain.TeamMemexRun, _a1 error) *MockStore_GetTeamMemexRun_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetTeamMemexRun_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string) (domain.TeamMemexRun, error)) *MockStore_GetTeamMemexRun_Call {
 	_c.Call.Return(run)
 	return _c
 }

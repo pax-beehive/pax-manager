@@ -373,6 +373,17 @@ type Store interface {
 		teamID string,
 		path string,
 	) (TeamMemexDocument, error)
+	CreateTeamMemexRun(
+		ctx context.Context,
+		principal UserPrincipal,
+		run TeamMemexRun,
+	) (TeamMemexRun, error)
+	GetTeamMemexRun(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		runID string,
+	) (TeamMemexRun, error)
 	CreateTeamInvite(
 		ctx context.Context,
 		principal UserPrincipal,

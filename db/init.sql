@@ -787,6 +787,36 @@ CREATE INDEX IF NOT EXISTS idx_team_memex_documents_active
     ON team_memex_documents(team_id, path)
     WHERE status = 'active';
 
+CREATE TABLE IF NOT EXISTS team_memex_runs (
+    run_id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
+    requested_by_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    executor_type TEXT NOT NULL DEFAULT 'dry_run',
+    status TEXT NOT NULL DEFAULT 'pending',
+    partial BOOLEAN NOT NULL DEFAULT FALSE,
+    constraints_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    index_md TEXT NOT NULL DEFAULT '',
+    validation_report_json JSONB,
+    error TEXT NOT NULL DEFAULT '',
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS team_id TEXT REFERENCES teams(team_id);
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS requested_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS executor_type TEXT NOT NULL DEFAULT 'dry_run';
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS partial BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS constraints_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS index_md TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS validation_report_json JSONB;
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS error TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_team_memex_runs_team_started
+    ON team_memex_runs(team_id, started_at DESC);
+
 CREATE TABLE IF NOT EXISTS session_knowledge_injections (
     injection_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

@@ -337,6 +337,17 @@ type TeamMemexStore interface {
 		teamID string,
 		path string,
 	) (domain.TeamMemexDocument, error)
+	CreateTeamMemexRun(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		run domain.TeamMemexRun,
+	) (domain.TeamMemexRun, error)
+	GetTeamMemexRun(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+		runID string,
+	) (domain.TeamMemexRun, error)
 }
 
 type MailboxStore interface {

@@ -78,6 +78,69 @@ func (s *Service) GetTeamMemexDocument(
 	}, nil
 }
 
+func (s *Service) CreateTeamMemexRun(
+	c context.Context,
+	meta auth.RequestMetadata,
+	teamID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if teamID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "team_id is required"}
+	}
+	documents, err := s.store.ListTeamMemexDocuments(c, principal, teamID)
+	if err != nil {
+		return 0, nil, err
+	}
+	runID, err := s.secrets.New("tmrun")
+	if err != nil {
+		return 0, nil, err
+	}
+	now := s.clock().UTC()
+	run := domain.TeamMemexRun{
+		RunID:             runID,
+		TeamID:            teamID,
+		RequestedByUserID: principal.User.UserID,
+		ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+		Status:            domain.TeamMemexRunStatusSucceeded,
+		Partial:           false,
+		Constraints:       domain.DefaultTeamMemexRunConstraints(),
+		IndexMD:           renderTeamMemexIndex(documents),
+		StartedAt:         now,
+		CompletedAt:       &now,
+	}
+	created, err := s.store.CreateTeamMemexRun(c, principal, run)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"run": teamMemexRunResponseFromDomain(created)}, nil
+}
+
+func (s *Service) GetTeamMemexRun(
+	c context.Context,
+	meta auth.RequestMetadata,
+	teamID string,
+	runID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if teamID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "team_id is required"}
+	}
+	if strings.TrimSpace(runID) == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "run_id is required"}
+	}
+	run, err := s.store.GetTeamMemexRun(c, principal, teamID, runID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, map[string]any{"run": teamMemexRunResponseFromDomain(run)}, nil
+}
+
 type teamMemexDocumentResponse struct {
 	Path      string          `json:"path"`
 	Title     string          `json:"title"`
@@ -85,6 +148,21 @@ type teamMemexDocumentResponse struct {
 	Tags      json.RawMessage `json:"tags,omitempty"`
 	BodyMD    string          `json:"body_md"`
 	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+type teamMemexRunResponse struct {
+	RunID             string                            `json:"run_id"`
+	TeamID            string                            `json:"team_id"`
+	RequestedByUserID string                            `json:"requested_by_user_id"`
+	ExecutorType      string                            `json:"executor_type"`
+	Status            string                            `json:"status"`
+	Partial           bool                              `json:"partial"`
+	Constraints       domain.TeamMemexRunConstraints    `json:"constraints"`
+	IndexMD           string                            `json:"index_md"`
+	ValidationReport  *domain.TeamMemexValidationReport `json:"validation_report,omitempty"`
+	Error             string                            `json:"error,omitempty"`
+	StartedAt         time.Time                         `json:"started_at"`
+	CompletedAt       *time.Time                        `json:"completed_at,omitempty"`
 }
 
 func teamMemexDocumentResponses(
@@ -108,6 +186,42 @@ func teamMemexDocumentResponseFromDomain(
 		BodyMD:    document.BodyMD,
 		UpdatedAt: document.UpdatedAt,
 	}
+}
+
+func teamMemexRunResponseFromDomain(run domain.TeamMemexRun) teamMemexRunResponse {
+	return teamMemexRunResponse{
+		RunID:             run.RunID,
+		TeamID:            run.TeamID,
+		RequestedByUserID: run.RequestedByUserID,
+		ExecutorType:      run.ExecutorType,
+		Status:            run.Status,
+		Partial:           run.Partial,
+		Constraints:       cloneTeamMemexRunConstraints(run.Constraints),
+		IndexMD:           run.IndexMD,
+		ValidationReport:  cloneTeamMemexValidationReport(run.ValidationReport),
+		Error:             run.Error,
+		StartedAt:         run.StartedAt,
+		CompletedAt:       run.CompletedAt,
+	}
+}
+
+func cloneTeamMemexRunConstraints(
+	constraints domain.TeamMemexRunConstraints,
+) domain.TeamMemexRunConstraints {
+	constraints.AllowedOperations = append([]string(nil), constraints.AllowedOperations...)
+	return constraints
+}
+
+func cloneTeamMemexValidationReport(
+	report *domain.TeamMemexValidationReport,
+) *domain.TeamMemexValidationReport {
+	if report == nil {
+		return nil
+	}
+	cloned := *report
+	cloned.Errors = append([]domain.TeamMemexValidationError(nil), report.Errors...)
+	cloned.Constraints = cloneTeamMemexRunConstraints(report.Constraints)
+	return &cloned
 }
 
 func renderTeamMemexIndex(documents []domain.TeamMemexDocument) string {

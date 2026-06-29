@@ -98,6 +98,38 @@ func TestTeamPostgresModelConversions(t *testing.T) {
 	defaultEvent := teamAuditEventFromModel(teamAuditEventModel(TeamAuditEvent{}))
 	require.Equal(t, json.RawMessage(`{}`), defaultEvent.Metadata)
 	require.Equal(t, TeamAuditEvent{}, teamAuditEventFromModel(nil))
+
+	completedAt := now.Add(6 * time.Hour)
+	run := TeamMemexRun{
+		RunID:             "tmrun_1",
+		TeamID:            "team_1",
+		RequestedByUserID: "usr_owner",
+		ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+		Status:            domain.TeamMemexRunStatusValidationFailed,
+		Partial:           true,
+		Constraints:       domain.DefaultTeamMemexRunConstraints(),
+		IndexMD:           "# Team LLM Wiki\n",
+		ValidationReport: &domain.TeamMemexValidationReport{
+			Retryable: true,
+			Errors: []domain.TeamMemexValidationError{{
+				Code:    "DOC_BODY_TOO_LARGE",
+				Path:    "runtime/sessions.md",
+				Message: "body_md is too large",
+			}},
+			Constraints: domain.DefaultTeamMemexRunConstraints(),
+		},
+		Error:       "validation failed",
+		StartedAt:   now,
+		CompletedAt: &completedAt,
+	}
+	row, err := teamMemexRunModel(run)
+	require.NoError(t, err)
+	convertedRun, err := teamMemexRunFromModel(row)
+	require.NoError(t, err)
+	require.Equal(t, run, convertedRun)
+	emptyRun, err := teamMemexRunFromModel(nil)
+	require.NoError(t, err)
+	require.Equal(t, TeamMemexRun{}, emptyRun)
 }
 
 func TestMemoryTeamStore(t *testing.T) {
@@ -324,6 +356,59 @@ func TestMemoryTeamStore(t *testing.T) {
 
 			_, err = store.ListTeamMemexDocuments(ctx, UserPrincipal{User: member}, teamID)
 			require.ErrorIs(t, err, ErrNotFound)
+		},
+	)
+
+	t.Run(
+		"Given team memex run records then only owner and operator can create",
+		func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+			store := NewMemoryStore(func() time.Time { return now })
+			owner, operator, member := seedTeamUsers(t, ctx, store)
+			teamID := "team_1"
+			seedTeam(t, ctx, store, teamID, owner, map[string]User{
+				domain.TeamRoleOperator: operator,
+				domain.TeamRoleMember:   member,
+			}, now)
+
+			run := TeamMemexRun{
+				RunID:             "tmrun_1",
+				TeamID:            teamID,
+				RequestedByUserID: operator.UserID,
+				ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+				Status:            domain.TeamMemexRunStatusSucceeded,
+				Constraints:       domain.DefaultTeamMemexRunConstraints(),
+				IndexMD:           "# Team LLM Wiki\n",
+				StartedAt:         now,
+				CompletedAt:       &now,
+			}
+			created, err := store.CreateTeamMemexRun(ctx, UserPrincipal{User: operator}, run)
+			require.NoError(t, err)
+			require.Equal(t, "tmrun_1", created.RunID)
+
+			created.Constraints.AllowedOperations[0] = "mutated"
+			fetched, err := store.GetTeamMemexRun(
+				ctx,
+				UserPrincipal{User: member},
+				teamID,
+				"tmrun_1",
+			)
+			require.NoError(t, err)
+			require.Equal(t, "create_doc", fetched.Constraints.AllowedOperations[0])
+			require.Equal(t, "# Team LLM Wiki\n", fetched.IndexMD)
+
+			_, err = store.CreateTeamMemexRun(ctx, UserPrincipal{User: member}, TeamMemexRun{
+				RunID:             "tmrun_2",
+				TeamID:            teamID,
+				RequestedByUserID: member.UserID,
+				ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+				Status:            domain.TeamMemexRunStatusSucceeded,
+				Constraints:       domain.DefaultTeamMemexRunConstraints(),
+				StartedAt:         now,
+				CompletedAt:       &now,
+			})
+			require.ErrorIs(t, err, ErrUnauthorized)
 		},
 	)
 
