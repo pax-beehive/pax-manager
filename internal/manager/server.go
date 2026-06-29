@@ -180,6 +180,11 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.POST(routeAddTeamAgent, AddTeamAgent)
 	h.DELETE(routeRemoveTeamAgent, RemoveTeamAgent)
 	h.GET(routeListTeamAudit, ListTeamAuditEvents)
+	h.GET(routeTeamMemexIndex, GetTeamMemexIndex)
+	h.GET(routeTeamMemexDocuments, ListTeamMemexDocuments)
+	h.GET(routeTeamMemexDocument, GetTeamMemexDocument)
+	h.POST(routeTeamMemexRuns, CreateTeamMemexRun)
+	h.GET(routeTeamMemexRun, GetTeamMemexRun)
 
 	h.GET(routeOpenAPI, OpenAPIUI)
 	h.GET(routeOpenAPIJSON, OpenAPIJSON)

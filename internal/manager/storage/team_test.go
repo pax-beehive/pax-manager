@@ -98,6 +98,38 @@ func TestTeamPostgresModelConversions(t *testing.T) {
 	defaultEvent := teamAuditEventFromModel(teamAuditEventModel(TeamAuditEvent{}))
 	require.Equal(t, json.RawMessage(`{}`), defaultEvent.Metadata)
 	require.Equal(t, TeamAuditEvent{}, teamAuditEventFromModel(nil))
+
+	completedAt := now.Add(6 * time.Hour)
+	run := TeamMemexRun{
+		RunID:             "tmrun_1",
+		TeamID:            "team_1",
+		RequestedByUserID: "usr_owner",
+		ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+		Status:            domain.TeamMemexRunStatusValidationFailed,
+		Partial:           true,
+		Constraints:       domain.DefaultTeamMemexRunConstraints(),
+		IndexMD:           "# Team LLM Wiki\n",
+		ValidationReport: &domain.TeamMemexValidationReport{
+			Retryable: true,
+			Errors: []domain.TeamMemexValidationError{{
+				Code:    "DOC_BODY_TOO_LARGE",
+				Path:    "runtime/sessions.md",
+				Message: "body_md is too large",
+			}},
+			Constraints: domain.DefaultTeamMemexRunConstraints(),
+		},
+		Error:       "validation failed",
+		StartedAt:   now,
+		CompletedAt: &completedAt,
+	}
+	row, err := teamMemexRunModel(run)
+	require.NoError(t, err)
+	convertedRun, err := teamMemexRunFromModel(row)
+	require.NoError(t, err)
+	require.Equal(t, run, convertedRun)
+	emptyRun, err := teamMemexRunFromModel(nil)
+	require.NoError(t, err)
+	require.Equal(t, TeamMemexRun{}, emptyRun)
 }
 
 func TestMemoryTeamStore(t *testing.T) {
@@ -260,6 +292,263 @@ func TestMemoryTeamStore(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, removed.RemovedAt)
 	})
+
+	t.Run(
+		"Given team memex documents then active members can read active docs only",
+		func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+			store := NewMemoryStore(func() time.Time { return now })
+			owner, operator, member := seedTeamUsers(t, ctx, store)
+			teamID := "team_1"
+			seedTeam(t, ctx, store, teamID, owner, map[string]User{
+				domain.TeamRoleOperator: operator,
+			}, now)
+			store.teamMemexDocuments[teamMemexDocumentKey{TeamID: teamID, Path: "runtime/sessions.md"}] = TeamMemexDocument{
+				DocumentID: "memex_doc_1",
+				TeamID:     teamID,
+				Path:       "runtime/sessions.md",
+				Title:      "Sessions",
+				Summary:    "How sessions are stored",
+				Tags:       json.RawMessage(`["runtime"]`),
+				BodyMD:     "# Sessions\n",
+				Status:     domain.TeamMemexDocumentStatusActive,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
+			store.teamMemexDocuments[teamMemexDocumentKey{TeamID: teamID, Path: "old/archived.md"}] = TeamMemexDocument{
+				DocumentID: "memex_doc_2",
+				TeamID:     teamID,
+				Path:       "old/archived.md",
+				Title:      "Archived",
+				Status:     domain.TeamMemexDocumentStatusArchived,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
+
+			documents, err := store.ListTeamMemexDocuments(
+				ctx,
+				UserPrincipal{User: operator},
+				teamID,
+			)
+			require.NoError(t, err)
+			require.Len(t, documents, 1)
+			require.Equal(t, "runtime/sessions.md", documents[0].Path)
+			documents[0].Tags[0] = 'x'
+
+			paths, err := store.ListTeamMemexDocumentPaths(
+				ctx,
+				UserPrincipal{User: operator},
+				teamID,
+			)
+			require.NoError(t, err)
+			require.Equal(t, []string{"old/archived.md", "runtime/sessions.md"}, paths)
+
+			document, err := store.GetTeamMemexDocument(
+				ctx,
+				UserPrincipal{User: owner},
+				teamID,
+				"runtime/sessions.md",
+			)
+			require.NoError(t, err)
+			require.Equal(t, json.RawMessage(`["runtime"]`), document.Tags)
+			require.Equal(t, "# Sessions\n", document.BodyMD)
+
+			_, err = store.GetTeamMemexDocument(
+				ctx,
+				UserPrincipal{User: owner},
+				teamID,
+				"old/archived.md",
+			)
+			require.ErrorIs(t, err, ErrNotFound)
+
+			_, err = store.ListTeamMemexDocuments(ctx, UserPrincipal{User: member}, teamID)
+			require.ErrorIs(t, err, ErrNotFound)
+		},
+	)
+
+	t.Run(
+		"Given team memex run records then only owner and operator can create",
+		func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+			store := NewMemoryStore(func() time.Time { return now })
+			owner, operator, member := seedTeamUsers(t, ctx, store)
+			teamID := "team_1"
+			seedTeam(t, ctx, store, teamID, owner, map[string]User{
+				domain.TeamRoleOperator: operator,
+				domain.TeamRoleMember:   member,
+			}, now)
+
+			run := TeamMemexRun{
+				RunID:             "tmrun_1",
+				TeamID:            teamID,
+				RequestedByUserID: operator.UserID,
+				ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+				Status:            domain.TeamMemexRunStatusSucceeded,
+				Constraints:       domain.DefaultTeamMemexRunConstraints(),
+				IndexMD:           "# Team LLM Wiki\n",
+				StartedAt:         now,
+				CompletedAt:       &now,
+			}
+			created, err := store.CreateTeamMemexRun(ctx, UserPrincipal{User: operator}, run)
+			require.NoError(t, err)
+			require.Equal(t, "tmrun_1", created.RunID)
+
+			created.Constraints.AllowedOperations[0] = "mutated"
+			fetched, err := store.GetTeamMemexRun(
+				ctx,
+				UserPrincipal{User: member},
+				teamID,
+				"tmrun_1",
+			)
+			require.NoError(t, err)
+			require.Equal(t, "create_doc", fetched.Constraints.AllowedOperations[0])
+			require.Equal(t, "# Team LLM Wiki\n", fetched.IndexMD)
+
+			_, err = store.CreateTeamMemexRun(ctx, UserPrincipal{User: member}, TeamMemexRun{
+				RunID:             "tmrun_2",
+				TeamID:            teamID,
+				RequestedByUserID: member.UserID,
+				ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+				Status:            domain.TeamMemexRunStatusSucceeded,
+				Constraints:       domain.DefaultTeamMemexRunConstraints(),
+				StartedAt:         now,
+				CompletedAt:       &now,
+			})
+			require.ErrorIs(t, err, ErrUnauthorized)
+		},
+	)
+
+	t.Run(
+		"Given a team memex manifest then publish applies all operations atomically",
+		func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+			store := NewMemoryStore(func() time.Time { return now })
+			owner, operator, _ := seedTeamUsers(t, ctx, store)
+			teamID := "team_1"
+			seedTeam(t, ctx, store, teamID, owner, map[string]User{
+				domain.TeamRoleOperator: operator,
+			}, now)
+			store.teamMemexDocuments[teamMemexDocumentKey{TeamID: teamID, Path: "runtime/sessions.md"}] = TeamMemexDocument{
+				DocumentID: "memex_doc_1",
+				TeamID:     teamID,
+				Path:       "runtime/sessions.md",
+				Title:      "Sessions",
+				Summary:    "Old session notes",
+				Tags:       json.RawMessage(`["runtime"]`),
+				BodyMD:     "# Sessions\nOld body.\n",
+				Status:     domain.TeamMemexDocumentStatusActive,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
+			store.teamMemexDocuments[teamMemexDocumentKey{TeamID: teamID, Path: "old/cleanup.md"}] = TeamMemexDocument{
+				DocumentID: "memex_doc_2",
+				TeamID:     teamID,
+				Path:       "old/cleanup.md",
+				Title:      "Cleanup",
+				Status:     domain.TeamMemexDocumentStatusActive,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
+
+			publishedAt := now.Add(time.Minute)
+			run := TeamMemexRun{
+				RunID:             "tmrun_publish",
+				TeamID:            teamID,
+				RequestedByUserID: operator.UserID,
+				ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+				Status:            domain.TeamMemexRunStatusSucceeded,
+				Constraints:       domain.DefaultTeamMemexRunConstraints(),
+				StartedAt:         now,
+				CompletedAt:       &publishedAt,
+			}
+			_, err := store.PublishTeamMemexRun(
+				ctx,
+				UserPrincipal{User: operator},
+				run,
+				[]TeamMemexDocumentOperation{
+					{
+						Operation:  domain.TeamMemexOperationCreateDoc,
+						DocumentID: "memex_doc_3",
+						Path:       "product/llm-wiki.md",
+						Title:      "LLM Wiki",
+						Summary:    "Team wiki maintenance",
+						Tags:       json.RawMessage(`["product"]`),
+						BodyMD:     "# LLM Wiki\n",
+					},
+					{
+						Operation: domain.TeamMemexOperationUpdateDoc,
+						Path:      "runtime/sessions.md",
+						Title:     "Sessions",
+						Summary:   "Updated session notes",
+						Tags:      json.RawMessage(`["runtime","sessions"]`),
+						BodyMD:    "# Sessions\nUpdated body.\n",
+					},
+					{
+						Operation: domain.TeamMemexOperationArchiveDoc,
+						Path:      "old/cleanup.md",
+					},
+				},
+				publishedAt,
+			)
+			require.NoError(t, err)
+
+			documents, err := store.ListTeamMemexDocuments(ctx, UserPrincipal{User: owner}, teamID)
+			require.NoError(t, err)
+			require.Len(t, documents, 2)
+			require.Equal(t, "product/llm-wiki.md", documents[0].Path)
+			require.Equal(t, "runtime/sessions.md", documents[1].Path)
+			require.Equal(t, "Updated session notes", documents[1].Summary)
+			require.Equal(t, "# Sessions\nUpdated body.\n", documents[1].BodyMD)
+
+			_, err = store.GetTeamMemexDocument(
+				ctx,
+				UserPrincipal{User: owner},
+				teamID,
+				"old/cleanup.md",
+			)
+			require.ErrorIs(t, err, ErrNotFound)
+
+			_, err = store.PublishTeamMemexRun(ctx, UserPrincipal{User: operator}, TeamMemexRun{
+				RunID:             "tmrun_conflict",
+				TeamID:            teamID,
+				RequestedByUserID: operator.UserID,
+				ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+				Status:            domain.TeamMemexRunStatusSucceeded,
+				Constraints:       domain.DefaultTeamMemexRunConstraints(),
+				StartedAt:         now,
+				CompletedAt:       &publishedAt,
+			}, []TeamMemexDocumentOperation{
+				{
+					Operation:  domain.TeamMemexOperationCreateDoc,
+					DocumentID: "memex_doc_4",
+					Path:       "old/cleanup.md",
+					Title:      "Cleanup Again",
+					Summary:    "Should fail because archived paths are reserved",
+					BodyMD:     "# Cleanup Again\n",
+				},
+				{
+					Operation: domain.TeamMemexOperationUpdateDoc,
+					Path:      "runtime/sessions.md",
+					Title:     "Should Not Publish",
+					Summary:   "Should not publish",
+					BodyMD:    "# Should Not Publish\n",
+				},
+			}, publishedAt)
+			require.ErrorIs(t, err, ErrConflict)
+
+			document, err := store.GetTeamMemexDocument(
+				ctx,
+				UserPrincipal{User: owner},
+				teamID,
+				"runtime/sessions.md",
+			)
+			require.NoError(t, err)
+			require.Equal(t, "Updated session notes", document.Summary)
+		},
+	)
 
 	t.Run("Given team sent invites then owner and operator can list them", func(t *testing.T) {
 		ctx := context.Background()

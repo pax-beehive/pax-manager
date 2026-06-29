@@ -362,6 +362,45 @@ type Store interface {
 		teamID string,
 		limit int,
 	) ([]TeamAuditEvent, error)
+	ListTeamMemexDocuments(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+	) ([]TeamMemexDocument, error)
+	ListTeamMemexDocumentPaths(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+	) ([]string, error)
+	AuthorizeTeamMemexRun(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+	) error
+	GetTeamMemexDocument(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		path string,
+	) (TeamMemexDocument, error)
+	CreateTeamMemexRun(
+		ctx context.Context,
+		principal UserPrincipal,
+		run TeamMemexRun,
+	) (TeamMemexRun, error)
+	GetTeamMemexRun(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		runID string,
+	) (TeamMemexRun, error)
+	PublishTeamMemexRun(
+		ctx context.Context,
+		principal UserPrincipal,
+		run TeamMemexRun,
+		operations []TeamMemexDocumentOperation,
+		now time.Time,
+	) (TeamMemexRun, error)
 	CreateTeamInvite(
 		ctx context.Context,
 		principal UserPrincipal,
