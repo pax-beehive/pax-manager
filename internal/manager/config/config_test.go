@@ -24,6 +24,13 @@ func TestLoad(t *testing.T) {
 			require.Equal(t, int64(1<<20), cfg.MaxBodyBytes)
 			require.Equal(t, 15*time.Minute, cfg.PaxdArtifactDownloadTTL)
 			require.Equal(t, "https://ws.paxtech.net", cfg.PaxdVerificationBaseURL)
+			require.Equal(t, "dry_run", cfg.TeamMemexExecutor)
+			require.Empty(t, cfg.DeepSeekAPIKey)
+			require.Equal(t, "https://api.deepseek.com", cfg.DeepSeekBaseURL)
+			require.Equal(t, "deepseek-v4-flash", cfg.DeepSeekModel)
+			require.Equal(t, 120*time.Second, cfg.DeepSeekTimeout)
+			require.Equal(t, 384000, cfg.DeepSeekMaxTokens)
+			require.InDelta(t, 0.2, cfg.DeepSeekTemperature, 0.001)
 			require.True(t, cfg.AdminEmails["toddzheng024@gmail.com"])
 			require.True(t, cfg.AdminEmails["gengcongkai456789@gmail.com"])
 			require.True(t, cfg.AdminEmails["zhangjiahang0725@gmail.com"])
@@ -61,6 +68,13 @@ func TestLoad(t *testing.T) {
 			)
 			t.Setenv("PAXD_ARTIFACT_GCS_MOCK", "true")
 			t.Setenv("PAXD_VERIFICATION_BASE_URL", "https://app.example.com")
+			t.Setenv("TEAM_MEMEX_EXECUTOR", "deepseek")
+			t.Setenv("DEEPSEEK_API_KEY", "deepseek_test")
+			t.Setenv("DEEPSEEK_BASE_URL", "https://deepseek.example.com")
+			t.Setenv("DEEPSEEK_MODEL", "deepseek-test")
+			t.Setenv("DEEPSEEK_TIMEOUT_SECONDS", "30")
+			t.Setenv("DEEPSEEK_MAX_TOKENS", "4096")
+			t.Setenv("DEEPSEEK_TEMPERATURE", "0.4")
 
 			cfg := config.Load()
 
@@ -94,6 +108,13 @@ func TestLoad(t *testing.T) {
 			)
 			require.True(t, cfg.PaxdArtifactGCSMock)
 			require.Equal(t, "https://app.example.com", cfg.PaxdVerificationBaseURL)
+			require.Equal(t, "deepseek", cfg.TeamMemexExecutor)
+			require.Equal(t, "deepseek_test", cfg.DeepSeekAPIKey)
+			require.Equal(t, "https://deepseek.example.com", cfg.DeepSeekBaseURL)
+			require.Equal(t, "deepseek-test", cfg.DeepSeekModel)
+			require.Equal(t, 30*time.Second, cfg.DeepSeekTimeout)
+			require.Equal(t, 4096, cfg.DeepSeekMaxTokens)
+			require.InDelta(t, 0.4, cfg.DeepSeekTemperature, 0.001)
 		},
 	)
 }
@@ -136,6 +157,13 @@ func clearConfigEnv(t *testing.T) {
 		"PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT",
 		"PAXD_ARTIFACT_GCS_MOCK",
 		"PAXD_VERIFICATION_BASE_URL",
+		"TEAM_MEMEX_EXECUTOR",
+		"DEEPSEEK_API_KEY",
+		"DEEPSEEK_BASE_URL",
+		"DEEPSEEK_MODEL",
+		"DEEPSEEK_TIMEOUT_SECONDS",
+		"DEEPSEEK_MAX_TOKENS",
+		"DEEPSEEK_TEMPERATURE",
 	} {
 		t.Setenv(key, "")
 	}

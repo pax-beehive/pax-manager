@@ -9,7 +9,8 @@ const (
 	TeamMemexDocumentStatusActive   = "active"
 	TeamMemexDocumentStatusArchived = "archived"
 
-	TeamMemexRunExecutorDryRun = "dry_run"
+	TeamMemexRunExecutorDryRun   = "dry_run"
+	TeamMemexRunExecutorDeepSeek = "deepseek"
 
 	TeamMemexOperationCreateDoc  = "create_doc"
 	TeamMemexOperationUpdateDoc  = "update_doc"

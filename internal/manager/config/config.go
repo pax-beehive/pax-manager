@@ -34,6 +34,13 @@ type Config struct {
 	PaxdArtifactSigningServiceAccount string
 	PaxdArtifactGCSMock               bool
 	PaxdVerificationBaseURL           string
+	TeamMemexExecutor                 string
+	DeepSeekAPIKey                    string
+	DeepSeekBaseURL                   string
+	DeepSeekModel                     string
+	DeepSeekTimeout                   time.Duration
+	DeepSeekMaxTokens                 int
+	DeepSeekTemperature               float64
 }
 
 func Load() Config {
@@ -68,6 +75,15 @@ func Load() Config {
 			"PAXD_VERIFICATION_BASE_URL",
 			DefaultPaxdVerificationBaseURL,
 		),
+		TeamMemexExecutor: envDefault("TEAM_MEMEX_EXECUTOR", "dry_run"),
+		DeepSeekAPIKey:    os.Getenv("DEEPSEEK_API_KEY"),
+		DeepSeekBaseURL:   envDefault("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+		DeepSeekModel:     envDefault("DEEPSEEK_MODEL", "deepseek-v4-flash"),
+		DeepSeekTimeout: time.Duration(
+			parseIntEnv("DEEPSEEK_TIMEOUT_SECONDS", 120),
+		) * time.Second,
+		DeepSeekMaxTokens:   parseIntEnv("DEEPSEEK_MAX_TOKENS", 384000),
+		DeepSeekTemperature: parseFloatEnv("DEEPSEEK_TEMPERATURE", 0.2),
 	}
 }
 
@@ -150,6 +166,18 @@ func parseInt64Env(key string, fallback int64) int64 {
 	}
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || v <= 0 {
+		return fallback
+	}
+	return v
+}
+
+func parseFloatEnv(key string, fallback float64) float64 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || v < 0 {
 		return fallback
 	}
 	return v

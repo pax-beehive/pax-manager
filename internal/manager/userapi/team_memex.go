@@ -110,19 +110,20 @@ func (s *Service) CreateTeamMemexRun(
 	now := s.clock().UTC()
 	constraints := domain.DefaultTeamMemexRunConstraints()
 	indexMD := renderTeamMemexIndex(documents)
+	executor := s.memexExecutor
+	if executor == nil {
+		executor = dryRunTeamMemexExecutor{}
+	}
+	executorType := teamMemexExecutorType(executor)
 	run := domain.TeamMemexRun{
 		RunID:             runID,
 		TeamID:            teamID,
 		RequestedByUserID: principal.User.UserID,
-		ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+		ExecutorType:      executorType,
 		Partial:           false,
 		Constraints:       constraints,
 		IndexMD:           indexMD,
 		StartedAt:         now,
-	}
-	executor := s.memexExecutor
-	if executor == nil {
-		executor = dryRunTeamMemexExecutor{}
 	}
 	maxAttempts := teamMemexRunMaxAttempts(constraints)
 	attempts := make([]domain.TeamMemexRunAttempt, 0, maxAttempts)
@@ -149,7 +150,7 @@ func (s *Service) CreateTeamMemexRun(
 			RunID:         runID,
 			TeamID:        teamID,
 			AttemptNumber: attemptNumber,
-			ExecutorType:  domain.TeamMemexRunExecutorDryRun,
+			ExecutorType:  executorType,
 			Manifest:      cloneTeamMemexManifest(manifest),
 			StartedAt:     attemptStartedAt,
 			CompletedAt:   &attemptCompletedAt,
@@ -386,6 +387,18 @@ func teamMemexRunMaxAttempts(constraints domain.TeamMemexRunConstraints) int {
 	return 1 + constraints.MaxRepairAttempts
 }
 
+func teamMemexExecutorType(executor TeamMemexExecutor) string {
+	typed, ok := executor.(typedTeamMemexExecutor)
+	if !ok {
+		return domain.TeamMemexRunExecutorDryRun
+	}
+	value := strings.TrimSpace(typed.Type())
+	if value == "" {
+		return domain.TeamMemexRunExecutorDryRun
+	}
+	return value
+}
+
 func renderTeamMemexIndex(documents []domain.TeamMemexDocument) string {
 	var builder strings.Builder
 	builder.WriteString("# Team LLM Wiki\n")
@@ -446,6 +459,11 @@ type TeamMemexExecutor interface {
 	) (domain.TeamMemexManifest, error)
 }
 
+type typedTeamMemexExecutor interface {
+	TeamMemexExecutor
+	Type() string
+}
+
 type TeamMemexExecutorInput struct {
 	TeamID           string
 	IndexMD          string
@@ -473,6 +491,10 @@ func (dryRunTeamMemexExecutor) MaintainTeamMemex(
 			Operation: domain.TeamMemexOperationNoOp,
 		}},
 	}, nil
+}
+
+func (dryRunTeamMemexExecutor) Type() string {
+	return domain.TeamMemexRunExecutorDryRun
 }
 
 type teamMemexWorkspace struct {
