@@ -15,6 +15,7 @@ const serviceContextKey = "service"
 // The generated Hertz router depends only on this interface, keeping generated
 // transport code independent from the concrete storage and authentication code.
 type Service interface {
+	HandleGenerated(context.Context, *app.RequestContext, string)
 	Health(context.Context, *app.RequestContext, *api.EmptyRequest)
 	RegisterAgent(context.Context, *app.RequestContext, *api.RegisterAgentRequest)
 	ReportAgentStatus(context.Context, *app.RequestContext, *api.AgentStatusReportRequest)

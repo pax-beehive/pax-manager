@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -334,9 +335,314 @@ func TestTeamService(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, appErr.Status)
 		},
 	)
+
+	t.Run(
+		"Given a too long team description when creating a team then it returns bad request before minting IDs",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_owner", false)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.CreateTeam(ctx, auth.RequestMetadata{}, domain.CreateTeamRequest{
+				Name:        "Core",
+				Description: strings.Repeat("x", 1001),
+			})
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run(
+		"Given an invite for the current user's email then it rejects the self invite",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_owner", false)
+			principal.User.Email = "owner@example.com"
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.CreateTeamInvite(
+				ctx,
+				auth.RequestMetadata{},
+				"team_1",
+				domain.CreateTeamInviteRequest{Email: " OWNER@example.com "},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run(
+		"Given team agent fields with whitespace and case then it normalizes before storing",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_owner", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				AddTeamAgent(
+					ctx,
+					principal,
+					"team_1",
+					mock.MatchedBy(func(req domain.AddTeamAgentRequest) bool {
+						return req.AgentID == "agent_1" &&
+							req.Identity == "reviewer:primary" &&
+							req.Role == "reviewer" &&
+							req.DisplayName == "Review Bot" &&
+							req.Description == "Reviews code."
+					}),
+					fixedUserNow(),
+				).
+				Return(domain.TeamAgent{
+					TeamID:      "team_1",
+					AgentID:     "agent_1",
+					Identity:    "reviewer:primary",
+					Role:        "reviewer",
+					DisplayName: "Review Bot",
+					Description: "Reviews code.",
+					AddedAt:     fixedUserNow(),
+				}, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.AddTeamAgent(
+				ctx,
+				auth.RequestMetadata{},
+				"team_1",
+				domain.AddTeamAgentRequest{
+					AgentID:     "agent_1",
+					Identity:    " Reviewer:Primary ",
+					Role:        " Reviewer ",
+					DisplayName: " Review Bot ",
+					Description: " Reviews code. ",
+				},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			agent := data.(map[string]any)["agent"].(domain.TeamAgent)
+			require.Equal(t, "reviewer:primary", agent.Identity)
+		},
+	)
+
+	t.Run(
+		"Given an invalid team agent identity then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_owner", false)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.AddTeamAgent(
+				ctx,
+				auth.RequestMetadata{},
+				"team_1",
+				domain.AddTeamAgentRequest{AgentID: "agent_1", Identity: "bad identity"},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run(
+		"Given a member leaves a team then it removes that same principal from the team",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_member", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			member := domain.TeamMember{
+				TeamID: "team_1",
+				UserID: "usr_member",
+				Role:   domain.TeamRoleMember,
+				Status: domain.TeamMemberStatusRemoved,
+			}
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				RemoveTeamMember(ctx, principal, "team_1", "usr_member", fixedUserNow()).
+				Return(member, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.LeaveTeam(ctx, auth.RequestMetadata{}, "team_1")
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, member, data.(map[string]any)["member"])
+		},
+	)
+
+	t.Run(
+		"Given a pending invite when accepting then it delegates with the fixed clock",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_member", false)
+			invite := domain.TeamInvite{
+				InviteID: "tinv_1",
+				TeamID:   "team_1",
+				Status:   domain.TeamInviteStatusAccepted,
+			}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().AcceptTeamInvite(ctx, principal, "tinv_1", fixedUserNow()).
+				Return(invite, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.AcceptTeamInvite(ctx, auth.RequestMetadata{}, "tinv_1")
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, invite, data.(map[string]any)["invite"])
+		},
+	)
+
+	t.Run(
+		"Given a pending invite when declining then it delegates with the fixed clock",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_member", false)
+			invite := domain.TeamInvite{
+				InviteID: "tinv_1",
+				TeamID:   "team_1",
+				Status:   domain.TeamInviteStatusDeclined,
+			}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().DeclineTeamInvite(ctx, principal, "tinv_1", fixedUserNow()).
+				Return(invite, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.DeclineTeamInvite(ctx, auth.RequestMetadata{}, "tinv_1")
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, invite, data.(map[string]any)["invite"])
+		},
+	)
+
+	t.Run(
+		"Given a team invite when canceling then it delegates with team and invite IDs",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_owner", false)
+			invite := domain.TeamInvite{
+				InviteID: "tinv_1",
+				TeamID:   "team_1",
+				Status:   domain.TeamInviteStatusCanceled,
+			}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().CancelTeamInvite(ctx, principal, "team_1", "tinv_1", fixedUserNow()).
+				Return(invite, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.CancelTeamInvite(
+				ctx,
+				auth.RequestMetadata{},
+				"team_1",
+				"tinv_1",
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, invite, data.(map[string]any)["invite"])
+		},
+	)
 }
 
 func TestAgents(t *testing.T) {
+	t.Run(
+		"Given a valid principal when listing agents then it returns visible agents from the store",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			agents := []domain.Agent{{
+				AgentID:     "agent_1",
+				OwnerUserID: "usr_self",
+				Name:        "codex",
+			}}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().ListAgents(ctx, principal).Return(agents, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.ListAgents(ctx, auth.RequestMetadata{})
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, agents, data.(map[string]any)["agents"])
+		},
+	)
+
 	t.Run(
 		"Given an empty agent ID when getting an agent then it returns bad request",
 		func(t *testing.T) {
@@ -596,6 +902,222 @@ func TestAgents(t *testing.T) {
 				map[string]any{"sessions": []domain.AgentSession{sessions[0], sessions[1]}},
 				data,
 			)
+		},
+	)
+}
+
+func TestCurrentUserAndAPIKeyListing(t *testing.T) {
+	t.Run(
+		"Given a valid principal when getting current user then it returns identity fields",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", true)
+			principal.User.Email = "self@example.com"
+			principal.User.DisplayName = "Self"
+			principal.User.Role = "admin"
+			principal.User.CreatedAt = fixedUserNow()
+			lastSeenAt := fixedUserNow().Add(time.Minute)
+			principal.User.LastSeenAt = &lastSeenAt
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.CurrentUser(ctx, auth.RequestMetadata{})
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			user := data.(map[string]any)["user"].(map[string]any)
+			require.Equal(t, "usr_self", user["user_id"])
+			require.Equal(t, "self@example.com", user["email"])
+			require.Equal(t, true, user["is_admin"])
+		},
+	)
+
+	t.Run(
+		"Given a valid principal when listing API keys then it delegates to the store",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			keys := []domain.UserAPIKey{{
+				KeyID:       "key_1",
+				OwnerUserID: "usr_self",
+				Name:        "laptop",
+				Prefix:      "paxu_123",
+			}}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().ListUserAPIKeys(ctx, principal).Return(keys, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.ListUserAPIKeys(ctx, auth.RequestMetadata{})
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, keys, data.(map[string]any)["api_keys"])
+		},
+	)
+
+	t.Run(
+		"Given an empty API key route when revoking then it returns not found",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.RevokeUserAPIKey(ctx, auth.RequestMetadata{}, "")
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusNotFound, appErr.Status)
+		},
+	)
+}
+
+func TestNodeService(t *testing.T) {
+	t.Run(
+		"Given a valid principal when listing nodes then it returns visible nodes",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			nodes := []domain.Node{{NodeID: "node_1", OwnerUserID: "usr_self", Name: "workstation"}}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().ListNodes(ctx, principal).Return(nodes, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.ListNodes(ctx, auth.RequestMetadata{})
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, nodes, data.(map[string]any)["nodes"])
+		},
+	)
+
+	t.Run(
+		"Given an empty node ID when getting node then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.GetNode(ctx, auth.RequestMetadata{}, "")
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run("Given a valid node update then it delegates to storage", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		req := domain.UpdateNodeRequest{NodeID: "node_1", Name: "workstation"}
+		node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self", Name: "workstation"}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().UpdateNode(ctx, principal, req).Return(node, nil).Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, data, err := svc.UpdateNode(ctx, auth.RequestMetadata{}, req)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, node, data)
+	})
+
+	t.Run(
+		"Given a node agent create without node ID then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.CreateNodeAgent(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateAgentRequest{},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run(
+		"Given a valid node agent create then it returns agent and bootstrap message",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			req := domain.CreateAgentRequest{NodeID: "node_1", Name: "codex"}
+			agent := domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}
+			bootstrap := domain.MailboxMessage{MessageID: "msg_bootstrap", AgentID: "agent_1"}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().CreateNodeAgent(ctx, principal, req).Return(agent, bootstrap, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.CreateNodeAgent(ctx, auth.RequestMetadata{}, req)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			resp := data.(map[string]any)
+			require.Equal(t, agent, resp["agent"])
+			require.Equal(t, bootstrap, resp["bootstrap_message"])
 		},
 	)
 }

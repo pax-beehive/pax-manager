@@ -125,3 +125,211 @@ func TestMemorySecretAccessStoresManagerSessionID(t *testing.T) {
 		)
 	}
 }
+
+func TestMemoryMessageHistoryLogicalKeyUpsertAndSessionTranslation(t *testing.T) {
+	store := NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+	})
+	ctx := context.Background()
+	user, err := store.EnsureUser(ctx, "owner@example.com", "Owner", "user")
+	if err != nil {
+		t.Fatalf("ensure user: %v", err)
+	}
+	agent, err := store.RegisterAgent(ctx, user, RegisterAgentRequest{
+		Name: "agent",
+		OS:   "darwin",
+	}, "hash")
+	if err != nil {
+		t.Fatalf("register agent: %v", err)
+	}
+	session, err := store.CreateNodeAgentSession(
+		ctx,
+		UserPrincipal{User: user},
+		CreateSessionRequest{
+			NodeID:    agent.NodeID,
+			AgentID:   agent.AgentID,
+			SessionID: "sess_manager",
+			NativeID:  "sess_native",
+		},
+	)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	first := Message{
+		MessageID:  "msg_first",
+		AgentID:    agent.AgentID,
+		SessionID:  session.NativeID,
+		Source:     domain.MessageSourceACPTunnel,
+		Direction:  domain.MessageDirectionAgentToUser,
+		LogicalKey: "turn:1:assistant",
+		RawJSON:    json.RawMessage(`{"first":true}`),
+	}
+	if err := store.UpsertMessage(ctx, &first); err != nil {
+		t.Fatalf("upsert first message: %v", err)
+	}
+	replacement := Message{
+		MessageID:  "msg_replacement",
+		AgentID:    agent.AgentID,
+		SessionID:  session.SessionID,
+		Source:     domain.MessageSourceACPTunnel,
+		Direction:  domain.MessageDirectionAgentToUser,
+		LogicalKey: "turn:1:assistant",
+		RawJSON:    json.RawMessage(`{"replacement":true}`),
+	}
+	if err := store.UpsertMessage(ctx, &replacement); err != nil {
+		t.Fatalf("upsert replacement message: %v", err)
+	}
+	if replacement.MessageID != first.MessageID || replacement.ID != first.ID {
+		t.Fatalf("replacement = %+v, want original id/message", replacement)
+	}
+
+	messages, err := store.ListMessages(ctx, agent.AgentID, session.SessionID, 10)
+	if err != nil {
+		t.Fatalf("list messages by manager id: %v", err)
+	}
+	if len(messages) != 1 || messages[0].MessageID != first.MessageID {
+		t.Fatalf("manager session messages = %+v", messages)
+	}
+	messages, err = store.ListMessages(ctx, agent.AgentID, session.NativeID, 10)
+	if err != nil {
+		t.Fatalf("list messages by native id: %v", err)
+	}
+	if len(messages) != 1 || messages[0].SessionID != session.SessionID {
+		t.Fatalf("native session messages = %+v", messages)
+	}
+}
+
+func TestMessageHistoryValidationAndCloneIsolation(t *testing.T) {
+	store := NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+	})
+	ctx := context.Background()
+	if err := store.UpsertMessage(ctx, &Message{AgentID: "agent_1"}); err == nil {
+		t.Fatal("upsert message without message_id succeeded")
+	}
+	if err := store.UpsertMessagePart(ctx, &MessagePart{
+		MessageID:   "msg_1",
+		PartIndex:   0,
+		PartType:    domain.MessagePartText,
+		PayloadJSON: json.RawMessage(`{bad-json}`),
+	}); err == nil {
+		t.Fatal("upsert message part with invalid payload succeeded")
+	}
+
+	part := MessagePart{
+		MessageID:   "msg_1",
+		PartIndex:   0,
+		PartType:    domain.MessagePartText,
+		PayloadJSON: json.RawMessage(`{"value":1}`),
+	}
+	if err := store.UpsertMessagePart(ctx, &part); err != nil {
+		t.Fatalf("upsert part: %v", err)
+	}
+	listed, err := store.ListMessageParts(ctx, "msg_1")
+	if err != nil {
+		t.Fatalf("list parts: %v", err)
+	}
+	listed[0].PayloadJSON[0] = '['
+	again, err := store.ListMessageParts(ctx, "msg_1")
+	if err != nil {
+		t.Fatalf("list parts again: %v", err)
+	}
+	if string(again[0].PayloadJSON) != `{"value":1}` {
+		t.Fatalf("stored payload mutated through list result: %s", again[0].PayloadJSON)
+	}
+}
+
+func TestScanMessageAndMessagePartRows(t *testing.T) {
+	now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+	updated := now.Add(time.Minute)
+	msg, err := scanMessage(fakeRow{
+		int64(7),
+		"msg_1",
+		"usr_owner",
+		"node_1",
+		"agent_1",
+		"sess_1",
+		domain.MessageSourceACPTunnel,
+		domain.MessageDirectionAgentToUser,
+		"assistant",
+		"completed",
+		"message",
+		"parent_1",
+		"turn_1",
+		"resp_1",
+		"logic_1",
+		[]byte(`{"event":"completed"}`),
+		now,
+		updated,
+	})
+	if err != nil {
+		t.Fatalf("scan message: %v", err)
+	}
+	if msg.ID != 7 ||
+		msg.Direction != domain.MessageDirectionAgentToUser ||
+		string(msg.RawJSON) != `{"event":"completed"}` {
+		t.Fatalf("message = %+v", msg)
+	}
+
+	part, err := scanMessagePart(fakeRow{
+		int64(8),
+		"msg_1",
+		1,
+		domain.MessagePartArtifact,
+		"stdout",
+		[]byte(`{"text":"stdout"}`),
+		"artifact://stdout",
+		now,
+		updated,
+	})
+	if err != nil {
+		t.Fatalf("scan message part: %v", err)
+	}
+	if part.PartIndex != 1 ||
+		part.ArtifactURI != "artifact://stdout" ||
+		string(part.PayloadJSON) != `{"text":"stdout"}` {
+		t.Fatalf("part = %+v", part)
+	}
+}
+
+func TestHistoryFromMailboxMapsDirectionAndDefaultsPayload(t *testing.T) {
+	now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+	assistantMsg, assistantPart := historyFromMailbox(MailboxMessage{
+		MessageID:       "msg_agent",
+		OwnerUserID:     "usr_owner",
+		NodeID:          "node_1",
+		AgentID:         "agent_1",
+		SessionID:       "sess_1",
+		Message:         "done",
+		MessageType:     "message",
+		Status:          "completed",
+		Direction:       "node_to_user",
+		ParentMessageID: "parent_1",
+		TurnID:          "turn_1",
+		ResponseID:      "resp_1",
+		Payload:         json.RawMessage(`{"content":"done"}`),
+		CreatedAt:       now,
+	})
+	if assistantMsg.Direction != domain.MessageDirectionAgentToUser ||
+		assistantMsg.Role != "assistant" ||
+		assistantMsg.LogicalKey != "mailbox:msg_agent" ||
+		assistantPart.Text != "done" ||
+		string(assistantPart.PayloadJSON) != `{"content":"done"}` {
+		t.Fatalf("assistant history = %+v %+v", assistantMsg, assistantPart)
+	}
+
+	userMsg, userPart := historyFromMailbox(MailboxMessage{
+		MessageID:   "msg_user",
+		OwnerUserID: "usr_owner",
+		AgentID:     "agent_1",
+		Message:     "run tests",
+		CreatedAt:   now,
+	})
+	if userMsg.Direction != domain.MessageDirectionUserToAgent ||
+		userMsg.Role != "user" ||
+		string(userMsg.RawJSON) != `{}` ||
+		string(userPart.PayloadJSON) != `{}` {
+		t.Fatalf("user history = %+v %+v", userMsg, userPart)
+	}
+}

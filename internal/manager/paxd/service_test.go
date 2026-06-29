@@ -282,6 +282,299 @@ func TestCreateNodeOutboundMessage(t *testing.T) {
 	)
 }
 
+func TestRegisterNodeAgent(t *testing.T) {
+	t.Run(
+		"Given both pax key and registration token when registering node agent then it rejects the request",
+		func(t *testing.T) {
+			meta := auth.NewRequestMetadata(map[string]string{
+				"X-Pax-Key":            "pax_raw",
+				"X-Registration-Token": "reg_raw",
+			})
+			svc := paxd.NewService(
+				paxdmocks.NewMockStore(t),
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+
+			_, _, err := svc.RegisterNodeAgent(
+				context.Background(),
+				meta,
+				domain.RegisterNodeAgentRequest{},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run(
+		"Given no pax key or registration token when registering node agent then it returns unauthorized",
+		func(t *testing.T) {
+			svc := paxd.NewService(
+				paxdmocks.NewMockStore(t),
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+
+			_, _, err := svc.RegisterNodeAgent(
+				context.Background(),
+				auth.RequestMetadata{},
+				domain.RegisterNodeAgentRequest{},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusUnauthorized, appErr.Status)
+		},
+	)
+
+	t.Run(
+		"Given a registration token when registering node agent then it registers the node and binds the agent to that node",
+		func(t *testing.T) {
+			ctx := context.Background()
+			meta := auth.NewRequestMetadata(map[string]string{"X-Registration-Token": "reg_raw"})
+			store := paxdmocks.NewMockStore(t)
+			owners := paxdmocks.NewMockRegistrationOwnerResolver(t)
+			secrets := paxdmocks.NewMockSecretIssuer(t)
+			owner := domain.User{UserID: "usr_owner"}
+			node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_owner"}
+			agent := domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_owner"}
+
+			owners.EXPECT().RegistrationOwner(ctx, meta).Return(owner, nil).Once()
+			secrets.EXPECT().New("pax").Return("pax_raw_key", nil).Once()
+			secrets.EXPECT().Hash("pax_raw_key").Return("hashed_key").Once()
+			store.EXPECT().
+				RegisterNode(ctx, owner, mock.MatchedBy(func(req domain.RegisterNodeRequest) bool {
+					return req.Hostname == "node-host" && req.OS == "unknown"
+				}), "hashed_key").
+				Return(node, nil).
+				Once()
+			store.EXPECT().
+				CreateNodeAgent(
+					ctx,
+					domain.UserPrincipal{User: domain.User{UserID: "usr_owner"}},
+					mock.MatchedBy(func(req domain.CreateAgentRequest) bool {
+						return req.NodeID == "node_1" && req.Name == "codex"
+					}),
+				).
+				Return(agent, domain.MailboxMessage{}, nil).
+				Once()
+
+			svc := paxd.NewService(store, fixedClock, owners, secrets)
+			status, data, err := svc.RegisterNodeAgent(
+				ctx,
+				meta,
+				domain.RegisterNodeAgentRequest{
+					Node:  domain.RegisterNodeRequest{Hostname: "node-host"},
+					Agent: domain.CreateAgentRequest{Name: "codex"},
+				},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			resp := data.(domain.RegisterNodeAgentResponse)
+			require.Equal(t, "node_1", resp.NodeID)
+			require.Equal(t, "pax_raw_key", resp.APIKey)
+			require.Equal(t, "agent_1", resp.AgentID)
+		},
+	)
+}
+
+func TestNodeMailboxOperations(t *testing.T) {
+	t.Run(
+		"Given no pull limit when pulling node mailbox then it uses the default limit",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store := paxdmocks.NewMockStore(t)
+			expected := domain.MailboxPull{MaxOffset: 12}
+			store.EXPECT().
+				PullNodeMailbox(ctx, "node_1", "agent_1", "sess_1", int64(2), 10).
+				Return(expected, nil).
+				Once()
+
+			svc := paxd.NewService(
+				store,
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.PullNodeMailbox(
+				ctx,
+				domain.Node{NodeID: "node_1"},
+				"agent_1",
+				"sess_1",
+				2,
+				0,
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, expected, data)
+		},
+	)
+
+	t.Run(
+		"Given a negative node offset when updating offset then it rejects the request",
+		func(t *testing.T) {
+			svc := paxd.NewService(
+				paxdmocks.NewMockStore(t),
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+
+			_, _, err := svc.UpdateNodeOffset(
+				context.Background(),
+				domain.Node{NodeID: "node_1"},
+				-1,
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run(
+		"Given node message result without status then it defaults to completed",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store := paxdmocks.NewMockStore(t)
+			store.EXPECT().
+				MarkNodeMessageResult(
+					ctx,
+					"node_1",
+					"msg_1",
+					mock.MatchedBy(func(req domain.MessageResultRequest) bool {
+						return req.MessageID == "msg_1" && req.Status == "completed"
+					}),
+				).
+				Return(nil).
+				Once()
+
+			svc := paxd.NewService(
+				store,
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.ReportNodeMessageResult(
+				ctx,
+				domain.Node{NodeID: "node_1"},
+				domain.MessageResultRequest{MessageID: "msg_1"},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, map[string]bool{"ok": true}, data)
+		},
+	)
+
+	t.Run(
+		"Given delivered marker without message ID then it rejects the request",
+		func(t *testing.T) {
+			svc := paxd.NewService(
+				paxdmocks.NewMockStore(t),
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+
+			_, _, err := svc.MarkNodeMessageDelivered(
+				context.Background(),
+				domain.Node{NodeID: "node_1"},
+				domain.MarkDeliveredRequest{},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+}
+
+func TestReportNodeStatus(t *testing.T) {
+	t.Run(
+		"Given node status without node ID or timestamp then it fills both from token and clock",
+		func(t *testing.T) {
+			ctx := context.Background()
+			node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_owner"}
+			store := paxdmocks.NewMockStore(t)
+			store.EXPECT().
+				UpsertNodeStatus(ctx, node, mock.MatchedBy(func(report domain.NodeStatusReport) bool {
+					return report.NodeID == "node_1" && report.Timestamp.Equal(fixedNow())
+				})).
+				Return(nil).
+				Once()
+
+			svc := paxd.NewService(
+				store,
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.ReportNodeStatus(ctx, node, domain.NodeStatusReport{})
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, map[string]bool{"ok": true}, data)
+		},
+	)
+
+	t.Run(
+		"Given a node status for another node then it returns forbidden",
+		func(t *testing.T) {
+			svc := paxd.NewService(
+				paxdmocks.NewMockStore(t),
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+
+			_, _, err := svc.ReportNodeStatus(
+				context.Background(),
+				domain.Node{NodeID: "node_1"},
+				domain.NodeStatusReport{NodeID: "node_2"},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusForbidden, appErr.Status)
+		},
+	)
+}
+
+func TestSecretRequestValidation(t *testing.T) {
+	svc := paxd.NewService(
+		paxdmocks.NewMockStore(t),
+		fixedClock,
+		paxdmocks.NewMockRegistrationOwnerResolver(t),
+		paxdmocks.NewMockSecretIssuer(t),
+	)
+	_, _, err := svc.ResolveSecret(
+		context.Background(),
+		domain.Node{NodeID: "node_1"},
+		domain.ResolveSecretRequest{SecretID: "secret_1"},
+	)
+	var appErr apperr.Error
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, http.StatusBadRequest, appErr.Status)
+
+	_, _, err = svc.WriteSecretVersion(
+		context.Background(),
+		domain.Node{NodeID: "node_1"},
+		domain.WriteSecretVersionRequest{
+			SecretID: "secret_1",
+			AgentID:  "agent_1",
+		},
+	)
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, http.StatusBadRequest, appErr.Status)
+}
+
 func fixedClock() time.Time {
 	return fixedNow()
 }

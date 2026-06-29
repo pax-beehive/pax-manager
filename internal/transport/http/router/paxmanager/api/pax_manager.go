@@ -17,58 +17,123 @@ import (
 func Register(r *server.Hertz) {
 
 	root := r.Group("/", rootMw()...)
-	root.GET("/health", append(_healthMw(), handler.Health)...)
 	{
 		_api := root.Group("/api", _apiMw()...)
 		{
-			_agent := _api.Group("/agent", _agentMw()...)
-			_agent.GET("/mailbox", append(_pullmailboxMw(), handler.PullMailbox)...)
-			_agent.POST("/register", append(_registeragentMw(), handler.RegisterAgent)...)
-			_agent.POST("/status", append(_reportagentstatusMw(), handler.ReportAgentStatus)...)
+			_v1 := _api.Group("/v1", _v1Mw()...)
+			_v1.GET("/health", append(_healthMw(), handler.Health)...)
 			{
-				_messages := _agent.Group("/messages", _messagesMw()...)
-				_messages.POST("/offset", append(_updatemailboxoffsetMw(), handler.UpdateMailboxOffset)...)
+				_node := _v1.Group("/node", _nodeMw()...)
+				_node.GET("/mailbox", append(_pullnodemailboxMw(), handler.PullNodeMailbox)...)
+				_node.POST("/register", append(_registernodeMw(), handler.RegisterNode)...)
+				_node.POST("/status", append(_reportnodestatusMw(), handler.ReportNodeStatus)...)
 				{
-					_messageid := _messages.Group("/:messageId", _messageidMw()...)
-					_messageid.POST("/result", append(_reportmessageresultMw(), handler.ReportMessageResult)...)
-				}
-			}
-			{
-				_sessions := _agent.Group("/sessions", _sessionsMw()...)
-				{
-					_sessionid := _sessions.Group("/:sessionId", _sessionidMw()...)
-					_sessionid.GET("/mailbox", append(_pullsessionmailboxMw(), handler.PullSessionMailbox)...)
-				}
-			}
-		}
-		{
-			_user := _api.Group("/user", _userMw()...)
-			_user.POST("/agent-registration-tokens", append(_createagentregistrationtokenMw(), handler.CreateAgentRegistrationToken)...)
-			_user.GET("/agents", append(_listagentsMw(), handler.ListAgents)...)
-			_user.GET("/api-keys", append(_listuserapikeysMw(), handler.ListUserAPIKeys)...)
-			_user.POST("/api-keys", append(_createuserapikeyMw(), handler.CreateUserAPIKey)...)
-			{
-				_agents := _user.Group("/agents", _agentsMw()...)
-				_agents.GET("/:agentId", append(_getagentMw(), handler.GetAgent)...)
-				{
-					_agentid := _agents.Group("/:agentId", _agentidMw()...)
-					_agentid.GET("/messages", append(_listagentmessagesMw(), handler.ListAgentMessages)...)
-					_agentid.POST("/messages", append(_createagentmessageMw(), handler.CreateAgentMessage)...)
-					_agentid.GET("/sessions", append(_listagentsessionsMw(), handler.ListAgentSessions)...)
+					_agents := _node.Group("/agents", _agentsMw()...)
+					_agents.POST("/register", append(_registernodeagentMw(), handler.RegisterNodeAgent)...)
 					{
-						_sessions0 := _agentid.Group("/sessions", _sessions0Mw()...)
-						_sessions0.GET("/:sessionId", append(_getagentsessionMw(), handler.GetAgentSession)...)
+						_agent_id := _agents.Group("/:agent_id", _agent_idMw()...)
+						_agent_id.POST("/approvals", append(_createnodeagentapprovalMw(), handler.CreateNodeAgentApproval)...)
+						_agent_id.GET("/mailbox", append(_pullnodeagentmailboxMw(), handler.PullNodeAgentMailbox)...)
 						{
-							_sessionid0 := _sessions0.Group("/:sessionId", _sessionid0Mw()...)
-							_sessionid0.GET("/messages", append(_listagentsessionmessagesMw(), handler.ListAgentSessionMessages)...)
-							_sessionid0.POST("/messages", append(_createsessionmessageMw(), handler.CreateSessionMessage)...)
+							_approvals := _agent_id.Group("/approvals", _approvalsMw()...)
+							_approvals.GET("/:approval_id", append(_getnodeagentapprovalMw(), handler.GetNodeAgentApproval)...)
 						}
+						{
+							_sessions := _agent_id.Group("/sessions", _sessionsMw()...)
+							{
+								_session_id := _sessions.Group("/:session_id", _session_idMw()...)
+								_session_id.GET("/mailbox", append(_pullnodeagentsessionmailboxMw(), handler.PullNodeAgentSessionMailbox)...)
+							}
+						}
+					}
+				}
+				{
+					_messages := _node.Group("/messages", _messagesMw()...)
+					_messages.POST("/offset", append(_updatenodemailboxoffsetMw(), handler.UpdateNodeMailboxOffset)...)
+					_messages.POST("/outbound", append(_createnodeoutboundmessageMw(), handler.CreateNodeOutboundMessage)...)
+					{
+						_message_id := _messages.Group("/:message_id", _message_idMw()...)
+						_message_id.POST("/delivered", append(_marknodemessagedeliveredMw(), handler.MarkNodeMessageDelivered)...)
+						_message_id.POST("/result", append(_reportnodemessageresultMw(), handler.ReportNodeMessageResult)...)
+					}
+				}
+				{
+					_secrets := _node.Group("/secrets", _secretsMw()...)
+					_secrets.POST("/resolve", append(_resolvenodesecretMw(), handler.ResolveNodeSecret)...)
+					{
+						_secret_id := _secrets.Group("/:secret_id", _secret_idMw()...)
+						_secret_id.POST("/versions", append(_writenodesecretversionMw(), handler.WriteNodeSecretVersion)...)
 					}
 				}
 			}
 			{
-				_api_keys := _user.Group("/api-keys", _api_keysMw()...)
-				_api_keys.DELETE("/:keyId", append(_revokeuserapikeyMw(), handler.RevokeUserAPIKey)...)
+				_user := _v1.Group("/user", _userMw()...)
+				{
+					_user_id := _user.Group("/:user_id", _user_idMw()...)
+					_user_id.GET("/api-keys", append(_listuserapikeysMw(), handler.ListUserAPIKeys)...)
+					_user_id.POST("/api-keys", append(_createuserapikeyMw(), handler.CreateUserAPIKey)...)
+					_user_id.GET("/approval-grants", append(_listuserapprovalgrantsMw(), handler.ListUserApprovalGrants)...)
+					_user_id.GET("/approvals", append(_listuserapprovalsMw(), handler.ListUserApprovals)...)
+					_user_id.GET("/me", append(_getcurrentuserMw(), handler.GetCurrentUser)...)
+					_user_id.POST("/node-registration-tokens", append(_createnoderegistrationtokenMw(), handler.CreateNodeRegistrationToken)...)
+					_user_id.GET("/nodes", append(_listnodesMw(), handler.ListNodes)...)
+					_user_id.GET("/secrets", append(_listusersecretsMw(), handler.ListUserSecrets)...)
+					_user_id.POST("/secrets", append(_createusersecretMw(), handler.CreateUserSecret)...)
+					{
+						_api_keys := _user_id.Group("/api-keys", _api_keysMw()...)
+						_api_keys.DELETE("/:key_id", append(_revokeuserapikeyMw(), handler.RevokeUserAPIKey)...)
+					}
+					{
+						_approval_grants := _user_id.Group("/approval-grants", _approval_grantsMw()...)
+						{
+							_grant_id := _approval_grants.Group("/:grant_id", _grant_idMw()...)
+							_grant_id.POST("/revoke", append(_revokeuserapprovalgrantMw(), handler.RevokeUserApprovalGrant)...)
+						}
+					}
+					{
+						_approvals0 := _user_id.Group("/approvals", _approvals0Mw()...)
+						_approvals0.GET("/:approval_id", append(_getuserapprovalMw(), handler.GetUserApproval)...)
+						{
+							_approval_id := _approvals0.Group("/:approval_id", _approval_idMw()...)
+							_approval_id.POST("/decision", append(_decideuserapprovalMw(), handler.DecideUserApproval)...)
+						}
+					}
+					{
+						_nodes := _user_id.Group("/nodes", _nodesMw()...)
+						_nodes.GET("/:node_id", append(_getnodeMw(), handler.GetNode)...)
+						_nodes.PATCH("/:node_id", append(_updatenodeMw(), handler.UpdateNode)...)
+						{
+							_node_id := _nodes.Group("/:node_id", _node_idMw()...)
+							_node_id.GET("/agents", append(_listnodeagentsMw(), handler.ListNodeAgents)...)
+							_node_id.POST("/agents", append(_createnodeagentMw(), handler.CreateNodeAgent)...)
+							{
+								_agents0 := _node_id.Group("/agents", _agents0Mw()...)
+								_agents0.GET("/:agent_id", append(_getnodeagentMw(), handler.GetNodeAgent)...)
+								_agents0.PATCH("/:agent_id", append(_updatenodeagentMw(), handler.UpdateNodeAgent)...)
+								{
+									_agent_id0 := _agents0.Group("/:agent_id", _agent_id0Mw()...)
+									_agent_id0.GET("/messages", append(_listnodeagentmessagesMw(), handler.ListNodeAgentMessages)...)
+									_agent_id0.POST("/messages", append(_createnodeagentmessageMw(), handler.CreateNodeAgentMessage)...)
+									_agent_id0.GET("/sessions", append(_listnodeagentsessionsMw(), handler.ListNodeAgentSessions)...)
+									_agent_id0.POST("/sessions", append(_createnodeagentsessionMw(), handler.CreateNodeAgentSession)...)
+									{
+										_sessions0 := _agent_id0.Group("/sessions", _sessions0Mw()...)
+										_sessions0.GET("/:session_id", append(_getnodeagentsessionMw(), handler.GetNodeAgentSession)...)
+										{
+											_session_id0 := _sessions0.Group("/:session_id", _session_id0Mw()...)
+											_session_id0.GET("/messages", append(_listnodeagentsessionmessagesMw(), handler.ListNodeAgentSessionMessages)...)
+											_session_id0.POST("/messages", append(_createnodeagentsessionmessageMw(), handler.CreateNodeAgentSessionMessage)...)
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						_secrets0 := _user_id.Group("/secrets", _secrets0Mw()...)
+						_secrets0.GET("/:secret_id", append(_getusersecretMw(), handler.GetUserSecret)...)
+					}
+				}
 			}
 		}
 	}

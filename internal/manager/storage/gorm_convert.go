@@ -106,6 +106,7 @@ func nodeFromModel(row *dbmodel.Node) Node {
 		OwnerUserID:   row.OwnerUserID,
 		Kind:          firstNonEmpty(row.Kind, "paxd"),
 		Name:          row.Name,
+		Description:   row.Description,
 		Hostname:      row.Hostname,
 		MachineType:   row.MachineType,
 		OS:            stringValue(row.Os),
@@ -115,6 +116,7 @@ func nodeFromModel(row *dbmodel.Node) Node {
 		Status:        stringValue(row.Status),
 		LastHeartbeat: row.LastHeartbeat,
 		RegisteredAt:  timeValue(row.RegisteredAt),
+		UserMetadata:  rawJSONValue(row.UserMetadata),
 		Metadata:      rawJSONValue(row.Metadata),
 	}
 	node.Online = node.Status == "online"

@@ -7,6 +7,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+
 	api "github.com/pax-beehive/pax-manager/internal/transport/http/model/paxmanager/api"
 )
 

@@ -25,6 +25,8 @@ struct RegisterNodeRequest {
   6: optional string paxd_version
   7: optional string api_endpoint
   8: optional JSON metadata
+  9: optional string description
+  10: optional JSON user_metadata
 }
 
 struct RegisterNodeData {
@@ -63,6 +65,8 @@ struct AgentStatusInput {
   7: optional JSON capabilities
   8: optional JSON metadata
   9: optional list<SessionStatusInput> sessions
+  10: optional string description
+  11: optional JSON card
 }
 
 struct SessionStatusInput {
@@ -82,6 +86,95 @@ struct SessionStatusInput {
   14: optional string model
   15: optional string run_id
   16: optional string run_status
+}
+
+struct RegisterAgentRequest {
+  1: optional string name
+  2: optional string agent_type
+  3: optional string hostname
+  4: optional string machine_type
+  5: optional string os
+  6: optional string hermes_version
+  7: optional string api_endpoint
+  8: optional JSON metadata
+}
+
+struct AgentStatusReportRequest {
+  1: optional string agent_id
+  2: optional string hostname
+  3: optional string timestamp
+  4: optional list<SessionStatusInput> sessions
+  5: optional JSON system
+}
+
+struct PullMailboxRequest {
+  1: optional i64 offset
+  2: optional i32 limit
+}
+
+struct PullSessionMailboxRequest {
+  1: optional string session_id
+  2: optional i64 offset
+  3: optional i32 limit
+}
+
+struct UpdateMailboxOffsetRequest {
+  1: optional i64 offset
+}
+
+struct ReportMessageResultRequest {
+  1: optional string message_id
+  2: optional string status
+  3: optional string result
+  4: optional string error
+  5: optional string completed_at
+}
+
+struct GetAgentRequest {
+  1: optional string agent_id
+}
+
+struct ListAgentSessionsRequest {
+  1: optional string agent_id
+}
+
+struct GetAgentSessionRequest {
+  1: optional string agent_id
+  2: optional string session_id
+}
+
+struct ListAgentMessagesRequest {
+  1: optional string agent_id
+  2: optional string session_id
+  3: optional string status
+  4: optional i32 limit
+}
+
+struct CreateAgentMessageRequest {
+  1: optional string agent_id
+  2: optional string session_id
+  3: optional string message
+  4: optional string message_type
+  5: optional JSON payload
+}
+
+struct ListAgentSessionMessagesRequest {
+  1: optional string agent_id
+  2: optional string session_id
+}
+
+struct CreateSessionMessageRequest {
+  1: optional string agent_id
+  2: optional string session_id
+  3: optional string message
+  4: optional string message_type
+  5: optional JSON payload
+}
+
+struct CreateRegistrationTokenRequest {
+  1: optional string owner_user_id
+  2: optional string owner_email
+  3: optional i64 expires_in_seconds
 }
 
 struct TokenUsage {
@@ -129,6 +222,8 @@ struct Node {
   12: optional string last_heartbeat
   13: optional string registered_at
   14: optional JSON metadata
+  15: optional string description
+  16: optional JSON user_metadata
 }
 
 struct Agent {
@@ -143,6 +238,9 @@ struct Agent {
   9: optional string registered_at
   10: optional JSON capabilities
   11: optional JSON metadata
+  12: optional string description
+  13: optional JSON card
+  14: optional JSON user_metadata
 }
 
 struct AgentSession {
@@ -356,12 +454,33 @@ struct CreateNodeAgentRequest {
   4: optional string agent_type
   5: optional JSON capabilities
   6: optional JSON metadata
+  7: optional string description
+  8: optional JSON card
+  9: optional JSON user_metadata
+}
+
+struct UpdateNodeRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string name
+  4: optional string description
+  5: optional JSON user_metadata
 }
 
 struct GetNodeAgentRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
   3: optional string agent_id (api.path = "agent_id")
+}
+
+struct UpdateNodeAgentRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string agent_id (api.path = "agent_id")
+  4: optional string name
+  5: optional string description
+  6: optional JSON card
+  7: optional JSON user_metadata
 }
 
 struct ListNodeAgentMessagesRequest {
@@ -1006,6 +1125,17 @@ service PaxManagerAPI {
     openapi.path.node_id = "Node identifier."
   )
 
+  NodeResponse UpdateNode(1: optional UpdateNodeRequest request) (
+    api.patch = "/api/v1/user/:user_id/nodes/:node_id",
+    openapi.tag = "user",
+    openapi.summary = "Update node profile",
+    openapi.description = "Updates user-maintained node name, description, and metadata.",
+    openapi.status = "200",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
   AgentListResponse ListNodeAgents(
     1: optional ListNodeAgentsRequest request
   ) (
@@ -1036,6 +1166,18 @@ service PaxManagerAPI {
     openapi.tag = "user",
     openapi.summary = "Get node agent",
     openapi.description = "Returns an agent under a node visible to the current user.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.agent_id = "Agent identifier."
+  )
+
+  AgentResponse UpdateNodeAgent(1: optional UpdateNodeAgentRequest request) (
+    api.patch = "/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id",
+    openapi.tag = "user",
+    openapi.summary = "Update node agent profile",
+    openapi.description = "Updates user-maintained agent name, description, card, and metadata.",
+    openapi.status = "200",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier.",

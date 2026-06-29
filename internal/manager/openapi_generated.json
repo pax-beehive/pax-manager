@@ -12,6 +12,12 @@
           "capabilities": {
             "type": "object"
           },
+          "card": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
           "last_heartbeat": {
             "type": "string"
           },
@@ -35,6 +41,9 @@
           },
           "status": {
             "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
           }
         },
         "type": "object"
@@ -286,6 +295,12 @@
           "capabilities": {
             "type": "object"
           },
+          "card": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
           "last_heartbeat": {
             "type": "string"
           },
@@ -305,6 +320,29 @@
             "type": "array"
           },
           "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AgentStatusReportRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionStatusInput"
+            },
+            "type": "array"
+          },
+          "system": {
+            "type": "object"
+          },
+          "timestamp": {
             "type": "string"
           }
         },
@@ -397,6 +435,26 @@
             "$ref": "#/components/schemas/ApprovalData"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateAgentMessageRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "message_type": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "session_id": {
             "type": "string"
           }
         },
@@ -503,6 +561,12 @@
           "capabilities": {
             "type": "object"
           },
+          "card": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
           "metadata": {
             "type": "object"
           },
@@ -514,6 +578,9 @@
           },
           "user_id": {
             "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
           }
         },
         "type": "object"
@@ -694,6 +761,21 @@
         },
         "type": "object"
       },
+      "CreateRegistrationTokenRequest": {
+        "properties": {
+          "expires_in_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "owner_email": {
+            "type": "string"
+          },
+          "owner_user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateSecretData": {
         "properties": {
           "secret": {
@@ -715,6 +797,26 @@
             "$ref": "#/components/schemas/CreateSecretData"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateSessionMessageRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "message_type": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "session_id": {
             "type": "string"
           }
         },
@@ -872,6 +974,25 @@
         },
         "type": "object"
       },
+      "GetAgentRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetAgentSessionRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "GetCurrentUserRequest": {
         "properties": {
           "user_id": {
@@ -973,6 +1094,43 @@
             "$ref": "#/components/schemas/HealthData"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListAgentMessagesRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListAgentSessionMessagesRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListAgentSessionsRequest": {
+        "properties": {
+          "agent_id": {
             "type": "string"
           }
         },
@@ -1311,6 +1469,9 @@
           "arch": {
             "type": "string"
           },
+          "description": {
+            "type": "string"
+          },
           "hostname": {
             "type": "string"
           },
@@ -1346,6 +1507,9 @@
           },
           "status": {
             "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
           }
         },
         "type": "object"
@@ -1443,6 +1607,19 @@
       "OpenAPI": {
         "type": "object"
       },
+      "PullMailboxRequest": {
+        "properties": {
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "PullMailboxResponse": {
         "properties": {
           "code": {
@@ -1502,6 +1679,51 @@
           "offset": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PullSessionMailboxRequest": {
+        "properties": {
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RegisterAgentRequest": {
+        "properties": {
+          "agent_type": {
+            "type": "string"
+          },
+          "api_endpoint": {
+            "type": "string"
+          },
+          "hermes_version": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "machine_type": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "os": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -1568,6 +1790,9 @@
           "arch": {
             "type": "string"
           },
+          "description": {
+            "type": "string"
+          },
           "hostname": {
             "type": "string"
           },
@@ -1585,6 +1810,9 @@
           },
           "paxd_version": {
             "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
           }
         },
         "type": "object"
@@ -1599,6 +1827,26 @@
             "$ref": "#/components/schemas/RegisterNodeData"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReportMessageResultRequest": {
+        "properties": {
+          "completed_at": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           }
         },
@@ -1973,11 +2221,66 @@
         },
         "type": "object"
       },
+      "UpdateMailboxOffsetRequest": {
+        "properties": {
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateNodeAgentRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "card": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
       "UpdateNodeMailboxOffsetRequest": {
         "properties": {
           "offset": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateNodeRequest": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
           }
         },
         "type": "object"
@@ -4821,6 +5124,110 @@
         "tags": [
           "user"
         ]
+      },
+      "patch": {
+        "description": "Updates user-maintained node name, description, and metadata.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update node profile",
+        "tags": [
+          "user"
+        ]
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/agents": {
@@ -5143,6 +5550,119 @@
           }
         ],
         "summary": "Get node agent",
+        "tags": [
+          "user"
+        ]
+      },
+      "patch": {
+        "description": "Updates user-maintained agent name, description, card, and metadata.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update node agent profile",
         "tags": [
           "user"
         ]

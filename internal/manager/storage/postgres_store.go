@@ -590,12 +590,11 @@ func (s *PostgresStore) RegisterAgent(
 
 	row := s.db.QueryRowContext(ctx, `
 		INSERT INTO agents (
-			agent_id, node_id, owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
-			api_endpoint, api_key_hash, status, last_heartbeat, registered_at, metadata
+			agent_id, node_id, owner_user_id, name, hostname, agent_type, machine_type, os,
+			hermes_version, api_endpoint, api_key_hash, status, last_heartbeat, registered_at, metadata
 		)
 		VALUES ($1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,'online',$11,$12,$13)
-		RETURNING agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
-			api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+		RETURNING `+agentSelectColumns+`
 	`, agentID, owner.UserID, defaultAgentName(req), req.Hostname, defaultAgentType(req), req.MachineType, req.OS,
 		req.HermesVersion, defaultAPIEndpoint(req.APIEndpoint), apiKeyHash, now, now, metadata)
 
@@ -621,6 +620,7 @@ func (s *PostgresStore) RegisterNode(
 		OwnerUserID:   owner.UserID,
 		Kind:          "paxd",
 		Name:          defaultNodeName(req),
+		Description:   req.Description,
 		Hostname:      req.Hostname,
 		MachineType:   req.MachineType,
 		Os:            &osValue,
@@ -631,6 +631,7 @@ func (s *PostgresStore) RegisterNode(
 		Status:        &status,
 		LastHeartbeat: &now,
 		RegisteredAt:  &now,
+		UserMetadata:  rawJSONPtr(req.UserMetadata),
 		Metadata:      rawJSONPtr(req.Metadata),
 	}
 	if err := s.q.Node.WithContext(ctx).Create(&row); err != nil {
@@ -1053,11 +1054,24 @@ const paxlDeviceLoginSelectSQL = `
 	FROM paxl_device_login_sessions
 `
 
+const nodeSelectColumns = `
+	node_id, owner_user_id, COALESCE(kind, 'paxd'), name, description, hostname,
+	machine_type, os, arch, paxd_version, api_endpoint, computed_status(last_heartbeat),
+	last_heartbeat, registered_at, COALESCE(user_metadata, '{}'::jsonb),
+	COALESCE(metadata, '{}'::jsonb)
+`
+
+const agentSelectColumns = `
+	agent_id, COALESCE(node_id, ''), owner_user_id, name, description,
+	COALESCE(card, '{}'::jsonb), hostname, agent_type, machine_type, os,
+	hermes_version, api_endpoint, status, computed_status(last_heartbeat),
+	last_heartbeat, registered_at, COALESCE(user_metadata, '{}'::jsonb),
+	COALESCE(metadata, '{}'::jsonb)
+`
+
 func (s *PostgresStore) AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT node_id, owner_user_id, COALESCE(kind, 'paxd'), name, hostname, machine_type, os, arch, paxd_version,
-			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at,
-			COALESCE(metadata, '{}'::jsonb)
+		SELECT `+nodeSelectColumns+`
 		FROM nodes
 		WHERE api_key_hash = $1
 	`, apiKeyHash)
@@ -1066,8 +1080,7 @@ func (s *PostgresStore) AuthenticateNode(ctx context.Context, apiKeyHash string)
 
 func (s *PostgresStore) AuthenticateAgent(ctx context.Context, apiKeyHash string) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
-			api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+		SELECT `+agentSelectColumns+`
 		FROM agents
 		WHERE api_key_hash = $1
 	`, apiKeyHash)
@@ -1107,13 +1120,16 @@ func (s *PostgresStore) UpsertNodeStatus(
 			ctx,
 			`
 			INSERT INTO agents (
-				agent_id, node_id, owner_user_id, name, hostname, agent_type, machine_type, os,
-				hermes_version, api_endpoint, api_key_hash, status, last_heartbeat, registered_at, metadata
+				agent_id, node_id, owner_user_id, name, description, card, hostname, agent_type,
+				machine_type, os, hermes_version, api_endpoint, api_key_hash, status,
+				last_heartbeat, registered_at, metadata
 			)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13,$14)
+			VALUES ($1,$2,$3,$4,$5,COALESCE($6, '{}'::jsonb),$7,$8,$9,$10,$11,$12,$13,$14,$15,$15,$16)
 			ON CONFLICT (agent_id) DO UPDATE SET
 				node_id = EXCLUDED.node_id,
 				name = COALESCE(NULLIF(EXCLUDED.name, ''), agents.name),
+				description = COALESCE(NULLIF(EXCLUDED.description, ''), agents.description),
+				card = COALESCE(EXCLUDED.card, agents.card),
 				agent_type = COALESCE(NULLIF(EXCLUDED.agent_type, ''), agents.agent_type),
 				status = EXCLUDED.status,
 				last_heartbeat = EXCLUDED.last_heartbeat,
@@ -1123,6 +1139,8 @@ func (s *PostgresStore) UpsertNodeStatus(
 			node.NodeID,
 			node.OwnerUserID,
 			firstNonEmpty(input.Name, "agent"),
+			input.Description,
+			nullRaw(input.Card),
 			node.Hostname,
 			firstNonEmpty(input.AgentType, "hermes"),
 			node.MachineType,
@@ -1195,9 +1213,7 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 
 func (s *PostgresStore) ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error) {
 	query := `
-		SELECT node_id, owner_user_id, COALESCE(kind, 'paxd'), name, hostname, machine_type, os, arch, paxd_version,
-			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at,
-			COALESCE(metadata, '{}'::jsonb)
+		SELECT ` + nodeSelectColumns + `
 		FROM nodes
 		WHERE owner_user_id = $1
 	`
@@ -1217,9 +1233,7 @@ func (s *PostgresStore) GetNode(
 	nodeID string,
 ) (Node, error) {
 	query := `
-		SELECT node_id, owner_user_id, COALESCE(kind, 'paxd'), name, hostname, machine_type, os, arch, paxd_version,
-			api_endpoint, computed_status(last_heartbeat), last_heartbeat, registered_at,
-			COALESCE(metadata, '{}'::jsonb)
+		SELECT ` + nodeSelectColumns + `
 		FROM nodes
 		WHERE node_id = $1
 			AND owner_user_id = $2
@@ -1228,15 +1242,30 @@ func (s *PostgresStore) GetNode(
 	return scanNode(s.db.QueryRowContext(ctx, query, args...))
 }
 
+func (s *PostgresStore) UpdateNode(
+	ctx context.Context,
+	principal UserPrincipal,
+	req UpdateNodeRequest,
+) (Node, error) {
+	row := s.db.QueryRowContext(ctx, `
+		UPDATE nodes
+		SET name = COALESCE(NULLIF($3, ''), name),
+			description = COALESCE(NULLIF($4, ''), description),
+			user_metadata = COALESCE($5, user_metadata)
+		WHERE node_id = $1
+			AND owner_user_id = $2
+		RETURNING `+nodeSelectColumns+`
+	`, req.NodeID, principal.User.UserID, req.Name, req.Description, nullRaw(req.UserMetadata))
+	return scanNode(row)
+}
+
 func (s *PostgresStore) GetNodeAgent(
 	ctx context.Context,
 	nodeID string,
 	agentID string,
 ) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type,
-			machine_type, os, hermes_version, api_endpoint, status, computed_status(last_heartbeat),
-			last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+		SELECT `+agentSelectColumns+`
 		FROM agents
 		WHERE node_id = $1 AND agent_id = $2
 	`, nodeID, agentID)
@@ -1249,9 +1278,7 @@ func (s *PostgresStore) ListNodeAgents(
 	nodeID string,
 ) ([]Agent, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type,
-			machine_type, os, hermes_version, api_endpoint, status, computed_status(last_heartbeat),
-			last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+		SELECT `+agentSelectColumns+`
 		FROM agents
 		WHERE node_id = $1
 			AND (
@@ -1292,16 +1319,17 @@ func (s *PostgresStore) CreateNodeAgent(
 	now := s.now().UTC()
 	agent, err := scanAgent(s.db.QueryRowContext(ctx, `
 		INSERT INTO agents (
-			agent_id, node_id, owner_user_id, name, hostname, agent_type, machine_type, os,
-			hermes_version, api_endpoint, api_key_hash, status, last_heartbeat, registered_at, metadata
+			agent_id, node_id, owner_user_id, name, description, card, hostname, agent_type,
+			machine_type, os, hermes_version, api_endpoint, api_key_hash, status,
+			last_heartbeat, registered_at, user_metadata, metadata
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',$12,$12,$13)
-		RETURNING agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type,
-			machine_type, os, hermes_version, api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at,
-			COALESCE(metadata, '{}'::jsonb)
-	`, agentID, node.NodeID, node.OwnerUserID, firstNonEmpty(req.Name, "agent"), node.Hostname,
-		firstNonEmpty(req.AgentType, "hermes"), node.MachineType, node.OS, node.PaxdVersion,
-		node.APIEndpoint, "node:"+node.NodeID+":"+agentID, now, nullRaw(req.Metadata)))
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending',$14,$14,$15,$16)
+		RETURNING `+agentSelectColumns+`
+	`, agentID, node.NodeID, node.OwnerUserID, firstNonEmpty(req.Name, "agent"), req.Description,
+		jsonDefault(req.Card, "{}"), node.Hostname, firstNonEmpty(req.AgentType, "hermes"),
+		node.MachineType, node.OS, node.PaxdVersion, node.APIEndpoint,
+		"node:"+node.NodeID+":"+agentID, now, jsonDefault(req.UserMetadata, "{}"),
+		nullRaw(req.Metadata)))
 	if err != nil {
 		return Agent{}, MailboxMessage{}, err
 	}
@@ -1323,6 +1351,26 @@ func (s *PostgresStore) CreateNodeAgent(
 		return Agent{}, MailboxMessage{}, err
 	}
 	return agent, msg, nil
+}
+
+func (s *PostgresStore) UpdateNodeAgent(
+	ctx context.Context,
+	principal UserPrincipal,
+	req UpdateAgentProfileRequest,
+) (Agent, error) {
+	row := s.db.QueryRowContext(ctx, `
+		UPDATE agents
+		SET name = COALESCE(NULLIF($4, ''), name),
+			description = COALESCE(NULLIF($5, ''), description),
+			card = COALESCE($6, card),
+			user_metadata = COALESCE($7, user_metadata)
+		WHERE node_id = $1
+			AND agent_id = $2
+			AND owner_user_id = $3
+		RETURNING `+agentSelectColumns+`
+	`, req.NodeID, req.AgentID, principal.User.UserID, req.Name, req.Description,
+		nullRaw(req.Card), nullRaw(req.UserMetadata))
+	return scanAgent(row)
 }
 
 func (s *PostgresStore) CreateNodeAgentSession(
@@ -1373,8 +1421,7 @@ func (s *PostgresStore) CreateNodeAgentSession(
 
 func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error) {
 	query := `
-		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
-			api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+		SELECT ` + agentSelectColumns + `
 		FROM agents
 		WHERE owner_user_id = $1
 			OR ` + teamAgentAccessSQL("agents.agent_id", "$1") + `
@@ -1395,8 +1442,7 @@ func (s *PostgresStore) GetAgent(
 	agentID string,
 ) (Agent, error) {
 	query := `
-		SELECT agent_id, COALESCE(node_id, ''), owner_user_id, name, hostname, agent_type, machine_type, os, hermes_version,
-			api_endpoint, status, computed_status(last_heartbeat), last_heartbeat, registered_at, COALESCE(metadata, '{}'::jsonb)
+		SELECT ` + agentSelectColumns + `
 		FROM agents
 		WHERE agent_id = $1
 			AND (

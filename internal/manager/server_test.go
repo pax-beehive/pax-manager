@@ -2703,6 +2703,63 @@ func testNodeAgent(t *testing.T, srv *Server, userEmail string) conversationTest
 	}
 }
 
+func TestUpdateNodeAndAgentProfiles(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+
+	nodeReq := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/user/self/nodes/"+fixture.nodeID,
+		bytes.NewReader([]byte(`{
+			"name":"desk mac",
+			"description":"Main development workstation",
+			"user_metadata":{"location":"office"}
+		}`)),
+	)
+	nodeReq.Header.Set("X-User-Email", fixture.userEmail)
+	setJSON(nodeReq)
+	nodeRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(nodeRec, nodeReq)
+	if nodeRec.Code != http.StatusOK {
+		t.Fatalf("update node code = %d, body = %s", nodeRec.Code, nodeRec.Body.String())
+	}
+	node := decodeData[Node](t, nodeRec.Body.Bytes())
+	if node.Name != "desk mac" || node.Description != "Main development workstation" {
+		t.Fatalf("bad node profile: %+v", node)
+	}
+	if string(node.UserMetadata) != `{"location":"office"}` {
+		t.Fatalf("node user metadata = %s", string(node.UserMetadata))
+	}
+
+	agentReq := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/user/self/nodes/"+fixture.nodeID+"/agents/"+fixture.agentID,
+		bytes.NewReader([]byte(`{
+			"name":"reviewer",
+			"description":"Reviews risky changes",
+			"card":{"skills":["review","tests"],"routing_tags":["review"]},
+			"user_metadata":{"priority":"high"}
+		}`)),
+	)
+	agentReq.Header.Set("X-User-Email", fixture.userEmail)
+	setJSON(agentReq)
+	agentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(agentRec, agentReq)
+	if agentRec.Code != http.StatusOK {
+		t.Fatalf("update agent code = %d, body = %s", agentRec.Code, agentRec.Body.String())
+	}
+	agent := decodeData[Agent](t, agentRec.Body.Bytes())
+	if agent.Name != "reviewer" || agent.Description != "Reviews risky changes" {
+		t.Fatalf("bad agent profile: %+v", agent)
+	}
+	if string(agent.Card) != `{"skills":["review","tests"],"routing_tags":["review"]}` {
+		t.Fatalf("agent card = %s", string(agent.Card))
+	}
+	if string(agent.UserMetadata) != `{"priority":"high"}` {
+		t.Fatalf("agent user metadata = %s", string(agent.UserMetadata))
+	}
+}
+
 func createConversationTestSession(
 	t *testing.T,
 	srv *Server,

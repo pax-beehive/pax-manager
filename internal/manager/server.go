@@ -18,7 +18,6 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 	"github.com/pax-beehive/pax-manager/internal/manager/paxd"
 	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
-	httprouter "github.com/pax-beehive/pax-manager/internal/transport/http/router"
 )
 
 type Service struct {
@@ -111,8 +110,26 @@ func (s *Service) routes() http.Handler {
 func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.Use(injectService(s), s.protect())
 
-	httprouter.GeneratedRegister(h)
 	registerIDLRoutes(h)
+	h.GET(routeLegacyHealth, Health)
+	h.POST(routeLegacyAgentRegister, RegisterAgent)
+	h.POST(routeLegacyAgentStatus, AgentAuth(), ReportAgentStatus)
+	h.GET(routeLegacyAgentMailbox, AgentAuth(), PullMailbox)
+	h.GET(routeLegacySessionMailbox, AgentAuth(), PullSessionMailbox)
+	h.POST(routeLegacyAgentOffset, AgentAuth(), UpdateMailboxOffset)
+	h.POST(routeLegacyMessageResult, AgentAuth(), ReportMessageResult)
+	h.GET(routeLegacyListAgents, ListAgents)
+	h.GET(routeLegacyGetAgent, GetAgent)
+	h.GET(routeLegacyListAgentSessions, ListAgentSessions)
+	h.GET(routeLegacyGetAgentSession, GetAgentSession)
+	h.GET(routeLegacyAgentMessages, ListAgentMessages)
+	h.POST(routeLegacyAgentMessages, CreateAgentMessage)
+	h.GET(routeLegacySessionMessages, ListAgentSessionMessages)
+	h.POST(routeLegacySessionMessages, CreateSessionMessage)
+	h.GET(routeLegacyUserAPIKeys, ListUserAPIKeys)
+	h.POST(routeLegacyUserAPIKeys, CreateUserAPIKey)
+	h.DELETE(routeLegacyUserAPIKey, RevokeUserAPIKey)
+	h.POST(routeLegacyRegistrationTokens, CreateAgentRegistrationToken)
 	h.GET(routeLegacySessionHistory, ListAgentSessionHistory)
 	h.GET(routeSessionHistory, ListAgentSessionHistory)
 	h.POST(

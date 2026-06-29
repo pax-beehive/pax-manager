@@ -75,6 +75,11 @@ type FleetStore interface {
 	ListAgents(ctx context.Context, principal domain.UserPrincipal) ([]domain.Agent, error)
 	ListNodes(ctx context.Context, principal domain.UserPrincipal) ([]domain.Node, error)
 	GetNode(ctx context.Context, principal domain.UserPrincipal, nodeID string) (domain.Node, error)
+	UpdateNode(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.UpdateNodeRequest,
+	) (domain.Node, error)
 	ListNodeAgents(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -85,6 +90,11 @@ type FleetStore interface {
 		principal domain.UserPrincipal,
 		req domain.CreateAgentRequest,
 	) (domain.Agent, domain.MailboxMessage, error)
+	UpdateNodeAgent(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.UpdateAgentProfileRequest,
+	) (domain.Agent, error)
 	CreateNodeAgentSession(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -518,6 +528,25 @@ func (s *Service) GetNode(
 	return http.StatusOK, node, nil
 }
 
+func (s *Service) UpdateNode(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.UpdateNodeRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if req.NodeID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "node_id is required"}
+	}
+	node, err := s.store.UpdateNode(c, principal, req)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, node, nil
+}
+
 func (s *Service) ListNodeAgents(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -551,6 +580,28 @@ func (s *Service) CreateNodeAgent(
 		return 0, nil, err
 	}
 	return http.StatusOK, map[string]any{"agent": agent, "bootstrap_message": bootstrap}, nil
+}
+
+func (s *Service) UpdateNodeAgent(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.UpdateAgentProfileRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if req.NodeID == "" || req.AgentID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id and agent_id are required",
+		}
+	}
+	agent, err := s.store.UpdateNodeAgent(c, principal, req)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, agent, nil
 }
 
 func (s *Service) CreateNodeAgentSession(

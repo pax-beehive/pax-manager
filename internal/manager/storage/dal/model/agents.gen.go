@@ -15,6 +15,8 @@ type Agent struct {
 	AgentID       string     `gorm:"column:agent_id;type:text;primaryKey" json:"agent_id"`
 	OwnerUserID   string     `gorm:"column:owner_user_id;type:text;not null;index:idx_agents_owner,priority:1" json:"owner_user_id"`
 	Name          string     `gorm:"column:name;type:text;not null" json:"name"`
+	Description   string     `gorm:"column:description;type:text;not null" json:"description"`
+	Card          *string    `gorm:"column:card;type:jsonb;not null;default:{}" json:"card"`
 	Hostname      string     `gorm:"column:hostname;type:text;not null" json:"hostname"`
 	AgentType     *string    `gorm:"column:agent_type;type:text;not null;default:hermes" json:"agent_type"`
 	MachineType   string     `gorm:"column:machine_type;type:text;not null" json:"machine_type"`
@@ -25,6 +27,7 @@ type Agent struct {
 	Status        *string    `gorm:"column:status;type:text;not null;default:offline" json:"status"`
 	LastHeartbeat *time.Time `gorm:"column:last_heartbeat;type:timestamp with time zone" json:"last_heartbeat"`
 	RegisteredAt  *time.Time `gorm:"column:registered_at;type:timestamp with time zone;not null;default:now()" json:"registered_at"`
+	UserMetadata  *string    `gorm:"column:user_metadata;type:jsonb;not null;default:{}" json:"user_metadata"`
 	Metadata      *string    `gorm:"column:metadata;type:jsonb" json:"metadata"`
 	NodeID        *string    `gorm:"column:node_id;type:text;index:idx_agents_node,priority:1" json:"node_id"`
 }

@@ -32,6 +32,8 @@ type Agent struct {
 	NodeID        string          `json:"node_id,omitempty"`
 	OwnerUserID   string          `json:"owner_user_id"`
 	Name          string          `json:"name,omitempty"`
+	Description   string          `json:"description,omitempty"`
+	Card          json.RawMessage `json:"card,omitempty"`
 	Hostname      string          `json:"hostname"`
 	AgentType     string          `json:"agent_type"`
 	MachineType   string          `json:"machine_type,omitempty"`
@@ -42,6 +44,7 @@ type Agent struct {
 	Online        bool            `json:"online"`
 	LastHeartbeat *time.Time      `json:"last_heartbeat,omitempty"`
 	RegisteredAt  time.Time       `json:"registered_at"`
+	UserMetadata  json.RawMessage `json:"user_metadata,omitempty"`
 	Metadata      json.RawMessage `json:"metadata,omitempty"`
 }
 
@@ -50,6 +53,7 @@ type Node struct {
 	OwnerUserID   string          `json:"owner_user_id"`
 	Kind          string          `json:"kind,omitempty"`
 	Name          string          `json:"name,omitempty"`
+	Description   string          `json:"description,omitempty"`
 	Hostname      string          `json:"hostname"`
 	MachineType   string          `json:"machine_type,omitempty"`
 	OS            string          `json:"os"`
@@ -60,6 +64,7 @@ type Node struct {
 	Online        bool            `json:"online"`
 	LastHeartbeat *time.Time      `json:"last_heartbeat,omitempty"`
 	RegisteredAt  time.Time       `json:"registered_at"`
+	UserMetadata  json.RawMessage `json:"user_metadata,omitempty"`
 	Metadata      json.RawMessage `json:"metadata,omitempty"`
 }
 
@@ -436,14 +441,16 @@ type FileChange struct {
 }
 
 type RegisterNodeRequest struct {
-	Name        string          `json:"name"`
-	Hostname    string          `json:"hostname"`
-	MachineType string          `json:"machine_type"`
-	OS          string          `json:"os"`
-	Arch        string          `json:"arch"`
-	PaxdVersion string          `json:"paxd_version"`
-	APIEndpoint string          `json:"api_endpoint"`
-	Metadata    json.RawMessage `json:"metadata"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	Hostname     string          `json:"hostname"`
+	MachineType  string          `json:"machine_type"`
+	OS           string          `json:"os"`
+	Arch         string          `json:"arch"`
+	PaxdVersion  string          `json:"paxd_version"`
+	APIEndpoint  string          `json:"api_endpoint"`
+	UserMetadata json.RawMessage `json:"user_metadata"`
+	Metadata     json.RawMessage `json:"metadata"`
 }
 
 type RegisterNodeResponse struct {
@@ -880,6 +887,8 @@ type NodeStatusReport struct {
 type AgentStatusInput struct {
 	AgentID       string               `json:"agent_id"`
 	Name          string               `json:"name"`
+	Description   string               `json:"description"`
+	Card          json.RawMessage      `json:"card"`
 	AgentType     string               `json:"agent_type"`
 	Status        string               `json:"status"`
 	Online        bool                 `json:"online"`
@@ -1017,9 +1026,30 @@ type CreateAgentRequest struct {
 	UserID       string          `json:"user_id"`
 	NodeID       string          `json:"node_id"`
 	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	Card         json.RawMessage `json:"card"`
 	AgentType    string          `json:"agent_type"`
 	Capabilities json.RawMessage `json:"capabilities"`
+	UserMetadata json.RawMessage `json:"user_metadata"`
 	Metadata     json.RawMessage `json:"metadata"`
+}
+
+type UpdateNodeRequest struct {
+	UserID       string          `json:"user_id"`
+	NodeID       string          `json:"node_id"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	UserMetadata json.RawMessage `json:"user_metadata"`
+}
+
+type UpdateAgentProfileRequest struct {
+	UserID       string          `json:"user_id"`
+	NodeID       string          `json:"node_id"`
+	AgentID      string          `json:"agent_id"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	Card         json.RawMessage `json:"card"`
+	UserMetadata json.RawMessage `json:"user_metadata"`
 }
 
 type CreateSessionRequest struct {

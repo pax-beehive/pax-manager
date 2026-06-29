@@ -16,6 +16,8 @@ type rowScanner interface {
 
 func scanAgent(row rowScanner) (Agent, error) {
 	var agent Agent
+	var card []byte
+	var userMetadata []byte
 	var metadata []byte
 	var liveness string
 	if err := row.Scan(
@@ -23,6 +25,8 @@ func scanAgent(row rowScanner) (Agent, error) {
 		&agent.NodeID,
 		&agent.OwnerUserID,
 		&agent.Name,
+		&agent.Description,
+		&card,
 		&agent.Hostname,
 		&agent.AgentType,
 		&agent.MachineType,
@@ -33,12 +37,15 @@ func scanAgent(row rowScanner) (Agent, error) {
 		&liveness,
 		&agent.LastHeartbeat,
 		&agent.RegisteredAt,
+		&userMetadata,
 		&metadata,
 	); err != nil {
 		return Agent{}, mapSQLError(err)
 	}
 	agent.Status = effectiveAgentStatus(agent.Status, liveness)
 	agent.Online = agent.Status == "online"
+	agent.Card = json.RawMessage(card)
+	agent.UserMetadata = json.RawMessage(userMetadata)
 	agent.Metadata = json.RawMessage(metadata)
 	return agent, nil
 }
@@ -64,12 +71,14 @@ func effectiveAgentStatus(storedStatus string, heartbeatStatus string) string {
 
 func scanNode(row rowScanner) (Node, error) {
 	var node Node
+	var userMetadata []byte
 	var metadata []byte
 	if err := row.Scan(
 		&node.NodeID,
 		&node.OwnerUserID,
 		&node.Kind,
 		&node.Name,
+		&node.Description,
 		&node.Hostname,
 		&node.MachineType,
 		&node.OS,
@@ -79,11 +88,13 @@ func scanNode(row rowScanner) (Node, error) {
 		&node.Status,
 		&node.LastHeartbeat,
 		&node.RegisteredAt,
+		&userMetadata,
 		&metadata,
 	); err != nil {
 		return Node{}, mapSQLError(err)
 	}
 	node.Online = node.Status == "online"
+	node.UserMetadata = json.RawMessage(userMetadata)
 	node.Metadata = json.RawMessage(metadata)
 	return node, nil
 }

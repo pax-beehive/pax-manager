@@ -3,39 +3,70 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
+	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	hzapi "github.com/pax-beehive/pax-manager/internal/transport/http/model/paxmanager/api"
 )
+
+func ptrString(v string) *string {
+	return &v
+}
+
+func ptrInt32(v int) *int32 {
+	out := int32(v)
+	return &out
+}
+
+func ptrInt64(v int64) *int64 {
+	return &v
+}
 
 func Health(c context.Context, ctx *app.RequestContext) {
 	serviceFromContext(ctx).Health(c, ctx, &hzapi.EmptyRequest{})
 }
 
 func RegisterAgent(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).RegisterAgent(c, ctx, nil)
+	var req hzapi.RegisterAgentRequest
+	decodeBody(ctx, &req)
+	serviceFromContext(ctx).RegisterAgent(c, ctx, &req)
 }
 
 func ReportAgentStatus(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).ReportAgentStatus(c, ctx, nil)
+	var req hzapi.AgentStatusReportRequest
+	decodeBody(ctx, &req)
+	serviceFromContext(ctx).ReportAgentStatus(c, ctx, &req)
 }
 
 func PullMailbox(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).PullMailbox(c, ctx, nil)
+	req := hzapi.PullMailboxRequest{}
+	req.Offset = ptrInt64(queryInt64(ctx, "offset"))
+	req.Limit = ptrInt32(queryInt(ctx, "limit"))
+	serviceFromContext(ctx).PullMailbox(c, ctx, &req)
 }
 
 func PullSessionMailbox(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).PullSessionMailbox(c, ctx, nil)
+	req := hzapi.PullSessionMailboxRequest{}
+	req.SessionID = ptrString(ctx.Param("sessionId"))
+	req.Offset = ptrInt64(queryInt64(ctx, "offset"))
+	req.Limit = ptrInt32(queryInt(ctx, "limit"))
+	serviceFromContext(ctx).PullSessionMailbox(c, ctx, &req)
 }
 
 func UpdateMailboxOffset(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).UpdateMailboxOffset(c, ctx, nil)
+	var req hzapi.UpdateMailboxOffsetRequest
+	decodeBody(ctx, &req)
+	serviceFromContext(ctx).UpdateMailboxOffset(c, ctx, &req)
 }
 
 func ReportMessageResult(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).ReportMessageResult(c, ctx, nil)
+	var req hzapi.ReportMessageResultRequest
+	decodeBody(ctx, &req)
+	req.MessageID = ptrString(ctx.Param("messageId"))
+	serviceFromContext(ctx).ReportMessageResult(c, ctx, &req)
 }
 
 func ListAgents(c context.Context, ctx *app.RequestContext) {
@@ -43,35 +74,111 @@ func ListAgents(c context.Context, ctx *app.RequestContext) {
 }
 
 func GetAgent(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).GetAgent(c, ctx, nil)
+	req := hzapi.GetAgentRequest{}
+	req.AgentID = ptrString(ctx.Param("agentId"))
+	serviceFromContext(ctx).GetAgent(c, ctx, &req)
 }
 
 func ListAgentSessions(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).ListAgentSessions(c, ctx, nil)
+	req := hzapi.ListAgentSessionsRequest{}
+	req.AgentID = ptrString(ctx.Param("agentId"))
+	serviceFromContext(ctx).ListAgentSessions(c, ctx, &req)
 }
 
 func GetAgentSession(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).GetAgentSession(c, ctx, nil)
+	req := hzapi.GetAgentSessionRequest{}
+	req.AgentID = ptrString(ctx.Param("agentId"))
+	req.SessionID = ptrString(ctx.Param("sessionId"))
+	serviceFromContext(ctx).GetAgentSession(c, ctx, &req)
 }
 
 func ListAgentMessages(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).ListAgentMessages(c, ctx, nil)
+	req := hzapi.ListAgentMessagesRequest{}
+	req.AgentID = ptrString(ctx.Param("agentId"))
+	req.SessionID = ptrString(string(ctx.QueryArgs().Peek("session_id")))
+	req.Status = ptrString(string(ctx.QueryArgs().Peek("status")))
+	req.Limit = ptrInt32(queryInt(ctx, "limit"))
+	serviceFromContext(ctx).ListAgentMessages(c, ctx, &req)
 }
 
 func CreateAgentMessage(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).CreateAgentMessage(c, ctx, nil)
+	req := hzapi.CreateAgentMessageRequest{}
+	req.AgentID = ptrString(ctx.Param("agentId"))
+	serviceFromContext(ctx).CreateAgentMessage(c, ctx, &req)
 }
 
 func ListAgentSessionMessages(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).ListAgentSessionMessages(c, ctx, nil)
+	req := hzapi.ListAgentSessionMessagesRequest{}
+	req.AgentID = ptrString(ctx.Param("agentId"))
+	req.SessionID = ptrString(ctx.Param("sessionId"))
+	serviceFromContext(ctx).ListAgentSessionMessages(c, ctx, &req)
 }
 
 func CreateSessionMessage(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).CreateSessionMessage(c, ctx, nil)
+	req := hzapi.CreateSessionMessageRequest{}
+	req.AgentID = ptrString(ctx.Param("agentId"))
+	req.SessionID = ptrString(ctx.Param("sessionId"))
+	serviceFromContext(ctx).CreateSessionMessage(c, ctx, &req)
 }
 
 func CreateAgentRegistrationToken(c context.Context, ctx *app.RequestContext) {
-	serviceFromContext(ctx).CreateAgentRegistrationToken(c, ctx, nil)
+	var req hzapi.CreateRegistrationTokenRequest
+	decodeBody(ctx, &req)
+	serviceFromContext(ctx).CreateAgentRegistrationToken(c, ctx, &req)
+}
+
+type generatedHandlerFunc func(context.Context, *app.RequestContext)
+
+var generatedHandlerBridge = map[string]generatedHandlerFunc{
+	"CreateNodeAgent":               CreateNodeAgent,
+	"CreateNodeAgentApproval":       CreateNodeAgentApproval,
+	"CreateNodeAgentMessage":        CreateNodeAgentMessage,
+	"CreateNodeAgentSession":        CreateNodeAgentSession,
+	"CreateNodeAgentSessionMessage": CreateNodeAgentSessionMessage,
+	"CreateNodeOutboundMessage":     CreateNodeOutboundMessage,
+	"CreateNodeRegistrationToken":   CreateNodeRegistrationToken,
+	"CreateUserSecret":              CreateUserSecret,
+	"DecideUserApproval":            DecideUserApproval,
+	"GetCurrentUser":                GetCurrentUser,
+	"GetNode":                       GetNode,
+	"GetNodeAgent":                  GetNodeAgent,
+	"GetNodeAgentApproval":          GetNodeAgentApproval,
+	"GetNodeAgentSession":           GetNodeAgentSession,
+	"GetUserApproval":               GetUserApproval,
+	"GetUserSecret":                 GetUserSecret,
+	"ListNodeAgentMessages":         ListNodeAgentMessages,
+	"ListNodeAgentSessionMessages":  ListNodeAgentSessionMessages,
+	"ListNodeAgentSessions":         ListNodeAgentSessions,
+	"ListNodeAgents":                ListNodeAgents,
+	"ListNodes":                     ListNodes,
+	"ListUserApprovalGrants":        ListUserApprovalGrants,
+	"ListUserApprovals":             ListUserApprovals,
+	"ListUserSecrets":               ListUserSecrets,
+	"MarkNodeMessageDelivered":      MarkNodeMessageDelivered,
+	"PullNodeAgentMailbox":          PullNodeAgentMailbox,
+	"PullNodeAgentSessionMailbox":   PullNodeAgentSessionMailbox,
+	"PullNodeMailbox":               PullNodeMailbox,
+	"RegisterNode":                  RegisterNode,
+	"RegisterNodeAgent":             RegisterNodeAgent,
+	"ReportNodeMessageResult":       ReportNodeMessageResult,
+	"ReportNodeStatus":              ReportNodeStatus,
+	"ResolveNodeSecret":             ResolveNodeSecret,
+	"RevokeUserApprovalGrant":       RevokeUserApprovalGrant,
+	"UpdateNode":                    UpdateNode,
+	"UpdateNodeAgent":               UpdateNodeAgent,
+	"UpdateNodeMailboxOffset":       UpdateNodeMailboxOffset,
+	"WriteNodeSecretVersion":        WriteNodeSecretVersion,
+}
+
+func (s *Service) HandleGenerated(c context.Context, ctx *app.RequestContext, name string) {
+	if handler, ok := generatedHandlerBridge[name]; ok {
+		handler(c, ctx)
+		return
+	}
+	writeEndpointResult(ctx, http.StatusNotFound, nil, apperr.Error{
+		Status:  http.StatusNotFound,
+		Message: "generated handler not found",
+	})
 }
 
 func ListUserAPIKeys(c context.Context, ctx *app.RequestContext) {
