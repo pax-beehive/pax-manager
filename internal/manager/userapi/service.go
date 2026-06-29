@@ -165,6 +165,12 @@ type KnowledgeStore interface {
 
 type EnvelopeStore interface {
 	CreateEnvelope(ctx context.Context, envelope domain.Envelope) (domain.Envelope, error)
+	GetEnvelopeAgentRecipient(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		fromAgentID string,
+		toAgentID string,
+	) (domain.User, error)
 	ListEnvelopes(
 		ctx context.Context,
 		filter domain.ListEnvelopesFilter,

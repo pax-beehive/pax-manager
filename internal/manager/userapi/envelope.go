@@ -59,12 +59,6 @@ func (s *Service) CreateEnvelope(
 		return 0, nil, err
 	}
 	recipientEmail := domain.NormalizeEmail(req.RecipientEmail)
-	if recipientEmail == "" {
-		return 0, nil, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "recipient_email is required",
-		}
-	}
 	payloadType := strings.TrimSpace(req.PayloadType)
 	if payloadType == "" {
 		payloadType = domain.EnvelopePayloadKnowledgeCapsule
@@ -94,27 +88,30 @@ func (s *Service) CreateEnvelope(
 	if len(message) > envelopeMessageLimit {
 		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "message is too long"}
 	}
-	friend, err := s.store.GetAcceptedFriendByEmail(c, principal, recipientEmail)
+	fromAgentID := strings.TrimSpace(req.FromAgentID)
+	toAgentID := strings.TrimSpace(req.ToAgentID)
+	recipientUserID, resolvedRecipientEmail, err := s.resolveEnvelopeRecipient(
+		c,
+		principal,
+		recipientEmail,
+		fromAgentID,
+		toAgentID,
+	)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			return 0, nil, apperr.Error{
-				Status:  http.StatusForbidden,
-				Message: "recipient must be an accepted friend",
-			}
-		}
 		return 0, nil, err
 	}
 	envelopeID, err := s.secrets.New("env")
 	if err != nil {
 		return 0, nil, err
 	}
-	recipientUserID := friendCounterpartyUserID(principal, friend)
 	envelope, err := s.store.CreateEnvelope(c, domain.Envelope{
 		EnvelopeID:      envelopeID,
 		SenderUserID:    principal.User.UserID,
 		SenderEmail:     principal.User.Email,
 		RecipientUserID: recipientUserID,
-		RecipientEmail:  recipientEmail,
+		RecipientEmail:  resolvedRecipientEmail,
+		FromAgentID:     fromAgentID,
+		ToAgentID:       toAgentID,
 		PayloadType:     payloadType,
 		PayloadJSON:     req.PayloadJSON,
 		Message:         message,
@@ -125,6 +122,58 @@ func (s *Service) CreateEnvelope(
 		return 0, nil, err
 	}
 	return http.StatusOK, map[string]any{"envelope": envelope}, nil
+}
+
+func (s *Service) resolveEnvelopeRecipient(
+	ctx context.Context,
+	principal domain.UserPrincipal,
+	recipientEmail string,
+	fromAgentID string,
+	toAgentID string,
+) (string, string, error) {
+	if fromAgentID == "" && toAgentID == "" {
+		if recipientEmail == "" {
+			return "", "", apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "recipient_email is required",
+			}
+		}
+		friend, err := s.store.GetAcceptedFriendByEmail(ctx, principal, recipientEmail)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				return "", "", apperr.Error{
+					Status:  http.StatusForbidden,
+					Message: "recipient must be an accepted friend",
+				}
+			}
+			return "", "", err
+		}
+		return friendCounterpartyUserID(principal, friend), recipientEmail, nil
+	}
+	if fromAgentID == "" || toAgentID == "" {
+		return "", "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "from_agent_id and to_agent_id must be provided together",
+		}
+	}
+	recipient, err := s.store.GetEnvelopeAgentRecipient(ctx, principal, fromAgentID, toAgentID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return "", "", apperr.Error{
+				Status:  http.StatusForbidden,
+				Message: "agents must share an active team",
+			}
+		}
+		return "", "", err
+	}
+	resolvedEmail := domain.NormalizeEmail(recipient.Email)
+	if recipientEmail != "" && recipientEmail != resolvedEmail {
+		return "", "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "recipient_email must match target agent owner",
+		}
+	}
+	return recipient.UserID, resolvedEmail, nil
 }
 
 func (s *Service) scheduleEnvelopeCapsuleUnpack(ctx context.Context, envelope domain.Envelope) {

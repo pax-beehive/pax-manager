@@ -248,6 +248,8 @@ type Envelope struct {
 	SenderEmail     string          `json:"sender_email"`
 	RecipientUserID string          `json:"recipient_user_id,omitempty"`
 	RecipientEmail  string          `json:"recipient_email"`
+	FromAgentID     string          `json:"from_agent_id,omitempty"`
+	ToAgentID       string          `json:"to_agent_id,omitempty"`
 	PayloadType     string          `json:"payload_type"`
 	PayloadJSON     json.RawMessage `json:"payload_json"`
 	Message         string          `json:"message,omitempty"`
@@ -259,6 +261,8 @@ type Envelope struct {
 
 type CreateEnvelopeRequest struct {
 	RecipientEmail string          `json:"recipient_email"`
+	FromAgentID    string          `json:"from_agent_id,omitempty"`
+	ToAgentID      string          `json:"to_agent_id,omitempty"`
 	PayloadType    string          `json:"payload_type"`
 	PayloadJSON    json.RawMessage `json:"payload_json"`
 	Message        string          `json:"message,omitempty"`

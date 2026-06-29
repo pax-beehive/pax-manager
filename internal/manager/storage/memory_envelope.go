@@ -29,6 +29,56 @@ func (s *MemoryStore) CreateEnvelope(
 	return envelope, nil
 }
 
+func (s *MemoryStore) GetEnvelopeAgentRecipient(
+	ctx context.Context,
+	principal UserPrincipal,
+	fromAgentID string,
+	toAgentID string,
+) (User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	targetAgent, ok := s.agents[toAgentID]
+	if !ok {
+		return User{}, ErrNotFound
+	}
+	targetUser, ok := s.users[targetAgent.OwnerUserID]
+	if !ok {
+		return User{}, ErrNotFound
+	}
+	if !s.envelopeAgentsShareTeamLocked(principal.User.UserID, fromAgentID, toAgentID) {
+		return User{}, ErrNotFound
+	}
+	return targetUser, nil
+}
+
+func (s *MemoryStore) envelopeAgentsShareTeamLocked(
+	userID string,
+	fromAgentID string,
+	toAgentID string,
+) bool {
+	for _, fromTeamAgent := range s.teamAgents {
+		if fromTeamAgent.AgentID != fromAgentID || fromTeamAgent.RemovedAt != nil {
+			continue
+		}
+		team, ok := s.teams[fromTeamAgent.TeamID]
+		if !ok || team.Status != domain.TeamStatusActive {
+			continue
+		}
+		member, ok := s.teamMembers[teamMemberKey{TeamID: fromTeamAgent.TeamID, UserID: userID}]
+		if !ok || member.Status != domain.TeamMemberStatusActive {
+			continue
+		}
+		for _, toTeamAgent := range s.teamAgents {
+			if toTeamAgent.TeamID == fromTeamAgent.TeamID &&
+				toTeamAgent.AgentID == toAgentID &&
+				toTeamAgent.RemovedAt == nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (s *MemoryStore) ListEnvelopes(
 	ctx context.Context,
 	filter ListEnvelopesFilter,

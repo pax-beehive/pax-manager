@@ -306,6 +306,12 @@ type Store interface {
 		filter ListKnowledgeInjectionsFilter,
 	) ([]SessionKnowledgeInjection, error)
 	CreateEnvelope(ctx context.Context, envelope Envelope) (Envelope, error)
+	GetEnvelopeAgentRecipient(
+		ctx context.Context,
+		principal UserPrincipal,
+		fromAgentID string,
+		toAgentID string,
+	) (User, error)
 	ListEnvelopes(ctx context.Context, filter ListEnvelopesFilter) ([]Envelope, error)
 	GetEnvelope(ctx context.Context, principal UserPrincipal, envelopeID string) (Envelope, error)
 	AcceptEnvelope(
