@@ -60,13 +60,18 @@ func (teamInviteRow) TableName() string {
 }
 
 type teamAgentRow struct {
-	TeamID           string     `gorm:"column:team_id;primaryKey"`
-	AgentID          string     `gorm:"column:agent_id;primaryKey"`
-	AgentOwnerUserID string     `gorm:"column:agent_owner_user_id"`
-	AddedByUserID    string     `gorm:"column:added_by_user_id"`
-	AddedAt          time.Time  `gorm:"column:added_at"`
-	RemovedAt        *time.Time `gorm:"column:removed_at"`
-	RemovedByUserID  *string    `gorm:"column:removed_by_user_id"`
+	TeamID           string          `gorm:"column:team_id;primaryKey"`
+	AgentID          string          `gorm:"column:agent_id;primaryKey"`
+	AgentOwnerUserID string          `gorm:"column:agent_owner_user_id"`
+	Identity         string          `gorm:"column:identity"`
+	Role             string          `gorm:"column:role"`
+	DisplayName      string          `gorm:"column:display_name"`
+	Description      string          `gorm:"column:description"`
+	Metadata         json.RawMessage `gorm:"column:metadata"`
+	AddedByUserID    string          `gorm:"column:added_by_user_id"`
+	AddedAt          time.Time       `gorm:"column:added_at"`
+	RemovedAt        *time.Time      `gorm:"column:removed_at"`
+	RemovedByUserID  *string         `gorm:"column:removed_by_user_id"`
 }
 
 func (teamAgentRow) TableName() string {
@@ -191,6 +196,11 @@ func teamAgentFromModel(row *teamAgentRow) TeamAgent {
 		TeamID:           row.TeamID,
 		AgentID:          row.AgentID,
 		AgentOwnerUserID: row.AgentOwnerUserID,
+		Identity:         defaultTeamAgentIdentity(row.Identity, row.AgentID),
+		Role:             defaultTeamAgentRole(row.Role),
+		DisplayName:      row.DisplayName,
+		Description:      row.Description,
+		Metadata:         jsonDefault(row.Metadata, "{}"),
 		AddedByUserID:    row.AddedByUserID,
 		AddedAt:          row.AddedAt,
 		RemovedAt:        row.RemovedAt,
@@ -451,6 +461,11 @@ func (s *PostgresStore) ListTeamAgents(
 		AgentID          string
 		AgentOwnerUserID string
 		AgentOwnerEmail  string
+		Identity         string
+		Role             string
+		DisplayName      string
+		Description      string
+		Metadata         json.RawMessage
 		AddedByUserID    string
 		AddedAt          time.Time
 		AgentName        string
@@ -470,6 +485,11 @@ func (s *PostgresStore) ListTeamAgents(
 			ta.agent_id,
 			ta.agent_owner_user_id,
 			users.email AS agent_owner_email,
+			COALESCE(NULLIF(ta.identity, ''), ta.agent_id) AS identity,
+			COALESCE(NULLIF(ta.role, ''), ?) AS role,
+			COALESCE(ta.display_name, '') AS display_name,
+			COALESCE(ta.description, '') AS description,
+			COALESCE(ta.metadata, '{}'::jsonb) AS metadata,
 			ta.added_by_user_id,
 			ta.added_at,
 			COALESCE(agents.name, '') AS agent_name,
@@ -487,7 +507,7 @@ func (s *PostgresStore) ListTeamAgents(
 		JOIN agents ON agents.agent_id = ta.agent_id
 		WHERE ta.team_id = ? AND ta.removed_at IS NULL
 		ORDER BY ta.added_at ASC
-	`, teamID).Scan(&rows).Error
+	`, domain.TeamAgentRoleGeneral, teamID).Scan(&rows).Error
 	if err != nil {
 		return nil, mapGormError(err)
 	}
@@ -499,6 +519,11 @@ func (s *PostgresStore) ListTeamAgents(
 			AgentID:          row.AgentID,
 			AgentOwnerUserID: row.AgentOwnerUserID,
 			AgentOwnerEmail:  row.AgentOwnerEmail,
+			Identity:         defaultTeamAgentIdentity(row.Identity, row.AgentID),
+			Role:             defaultTeamAgentRole(row.Role),
+			DisplayName:      row.DisplayName,
+			Description:      row.Description,
+			Metadata:         jsonDefault(row.Metadata, "{}"),
 			AddedByUserID:    row.AddedByUserID,
 			AddedAt:          row.AddedAt,
 		}
@@ -821,7 +846,7 @@ func (s *PostgresStore) AddTeamAgent(
 	ctx context.Context,
 	principal UserPrincipal,
 	teamID string,
-	agentID string,
+	req AddTeamAgentRequest,
 	addedAt time.Time,
 ) (TeamAgent, error) {
 	var out TeamAgent
@@ -833,6 +858,7 @@ func (s *PostgresStore) AddTeamAgent(
 		if !teamRoleCanManageOwnAgents(member.Role) {
 			return ErrUnauthorized
 		}
+		agentID := req.AgentID
 		var agentOwnerUserID string
 		err = tx.Raw(`
 			SELECT owner_user_id
@@ -855,11 +881,19 @@ func (s *PostgresStore) AddTeamAgent(
 			return ErrConflict
 		case err == nil:
 			row.AgentOwnerUserID = agentOwnerUserID
+			row.Identity = defaultTeamAgentIdentity(req.Identity, agentID)
+			row.Role = defaultTeamAgentRole(req.Role)
+			row.DisplayName = req.DisplayName
+			row.Description = req.Description
+			row.Metadata = jsonDefault(req.Metadata, "{}")
 			row.AddedByUserID = principal.User.UserID
 			row.AddedAt = addedAt
 			row.RemovedAt = nil
 			row.RemovedByUserID = nil
 			if err := tx.Save(&row).Error; err != nil {
+				if isUniqueViolation(err) {
+					return ErrConflict
+				}
 				return err
 			}
 			out = teamAgentFromModel(&row)
@@ -881,6 +915,11 @@ func (s *PostgresStore) AddTeamAgent(
 			TeamID:           teamID,
 			AgentID:          agentID,
 			AgentOwnerUserID: agentOwnerUserID,
+			Identity:         defaultTeamAgentIdentity(req.Identity, agentID),
+			Role:             defaultTeamAgentRole(req.Role),
+			DisplayName:      req.DisplayName,
+			Description:      req.Description,
+			Metadata:         jsonDefault(req.Metadata, "{}"),
 			AddedByUserID:    principal.User.UserID,
 			AddedAt:          addedAt,
 		}
@@ -907,6 +946,20 @@ func (s *PostgresStore) AddTeamAgent(
 		return TeamAgent{}, err
 	}
 	return out, nil
+}
+
+func defaultTeamAgentIdentity(identity string, agentID string) string {
+	if identity != "" {
+		return identity
+	}
+	return agentID
+}
+
+func defaultTeamAgentRole(role string) string {
+	if role != "" {
+		return role
+	}
+	return domain.TeamAgentRoleGeneral
 }
 
 func (s *PostgresStore) RemoveTeamAgent(

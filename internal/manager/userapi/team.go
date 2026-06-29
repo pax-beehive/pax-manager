@@ -12,8 +12,11 @@ import (
 )
 
 const (
-	teamNameLimit        = 100
-	teamDescriptionLimit = 1000
+	teamNameLimit             = 100
+	teamDescriptionLimit      = 1000
+	teamAgentIdentityLimit    = 64
+	teamAgentRoleLimit        = 64
+	teamAgentDisplayNameLimit = 100
 )
 
 func (s *Service) CreateTeam(
@@ -317,7 +320,11 @@ func (s *Service) AddTeamAgent(
 	if req.AgentID == "" {
 		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "agent_id is required"}
 	}
-	agent, err := s.store.AddTeamAgent(c, principal, teamID, req.AgentID, s.clock().UTC())
+	normalized, err := normalizeAddTeamAgentRequest(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	agent, err := s.store.AddTeamAgent(c, principal, teamID, normalized, s.clock().UTC())
 	if err != nil {
 		return 0, nil, err
 	}
@@ -466,6 +473,59 @@ func normalizeTeamDescription(description string) (string, error) {
 		return "", apperr.Error{Status: http.StatusBadRequest, Message: "description is too long"}
 	}
 	return description, nil
+}
+
+func normalizeAddTeamAgentRequest(
+	req domain.AddTeamAgentRequest,
+) (domain.AddTeamAgentRequest, error) {
+	req.Identity = strings.TrimSpace(strings.ToLower(req.Identity))
+	if req.Identity == "" {
+		req.Identity = req.AgentID
+	}
+	if err := validateTeamAgentToken("identity", req.Identity, teamAgentIdentityLimit); err != nil {
+		return domain.AddTeamAgentRequest{}, err
+	}
+	req.Role = strings.TrimSpace(strings.ToLower(req.Role))
+	if req.Role == "" {
+		req.Role = domain.TeamAgentRoleGeneral
+	}
+	if err := validateTeamAgentToken("role", req.Role, teamAgentRoleLimit); err != nil {
+		return domain.AddTeamAgentRequest{}, err
+	}
+	req.DisplayName = strings.TrimSpace(req.DisplayName)
+	if len(req.DisplayName) > teamAgentDisplayNameLimit {
+		return domain.AddTeamAgentRequest{}, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "display_name is too long",
+		}
+	}
+	description, err := normalizeTeamDescription(req.Description)
+	if err != nil {
+		return domain.AddTeamAgentRequest{}, err
+	}
+	req.Description = description
+	return req, nil
+}
+
+func validateTeamAgentToken(field string, value string, limit int) error {
+	if value == "" {
+		return apperr.Error{Status: http.StatusBadRequest, Message: field + " is required"}
+	}
+	if len(value) > limit {
+		return apperr.Error{Status: http.StatusBadRequest, Message: field + " is too long"}
+	}
+	for _, ch := range value {
+		if (ch >= 'a' && ch <= 'z') ||
+			(ch >= '0' && ch <= '9') ||
+			ch == '_' ||
+			ch == '-' ||
+			ch == '.' ||
+			ch == ':' {
+			continue
+		}
+		return apperr.Error{Status: http.StatusBadRequest, Message: field + " is invalid"}
+	}
+	return nil
 }
 
 func normalizeTeamInviteRole(role string) (string, error) {

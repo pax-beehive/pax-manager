@@ -176,6 +176,19 @@ func GetNode(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func UpdateNode(c context.Context, ctx *app.RequestContext) {
+	var req UpdateNodeRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	status, data, err := serviceFromContext(ctx).userapi.UpdateNode(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func ListNodeAgents(c context.Context, ctx *app.RequestContext) {
 	status, data, err := serviceFromContext(ctx).userapi.ListNodeAgents(
 		c,
@@ -206,6 +219,20 @@ func GetNodeAgent(c context.Context, ctx *app.RequestContext) {
 		requestMetadata(ctx),
 		ctx.Param("node_id"),
 		ctx.Param("agent_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func UpdateNodeAgent(c context.Context, ctx *app.RequestContext) {
+	var req UpdateAgentProfileRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	req.AgentID = ctx.Param("agent_id")
+	status, data, err := serviceFromContext(ctx).userapi.UpdateNodeAgent(
+		c,
+		requestMetadata(ctx),
+		req,
 	)
 	writeEndpointResult(ctx, status, data, err)
 }

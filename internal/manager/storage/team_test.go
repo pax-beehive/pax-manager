@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -9,6 +10,95 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
+
+func TestTeamPostgresModelConversions(t *testing.T) {
+	now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+	archivedAt := now.Add(time.Hour)
+	removedAt := now.Add(2 * time.Hour)
+	acceptedAt := now.Add(3 * time.Hour)
+	declinedAt := now.Add(4 * time.Hour)
+	canceledAt := now.Add(5 * time.Hour)
+
+	team := Team{
+		TeamID:      "team_1",
+		OwnerUserID: "usr_owner",
+		Name:        "Core",
+		Description: "Build platform work",
+		Status:      domain.TeamStatusArchived,
+		CreatedAt:   now,
+		ArchivedAt:  &archivedAt,
+	}
+	require.Equal(t, team, teamFromModel(teamModel(team)))
+	require.Equal(t, Team{}, teamFromModel(nil))
+
+	member := TeamMember{
+		TeamID:        "team_1",
+		UserID:        "usr_member",
+		Role:          domain.TeamRoleOperator,
+		Status:        domain.TeamMemberStatusRemoved,
+		InvitedByUser: "usr_owner",
+		JoinedAt:      now,
+		RemovedAt:     &removedAt,
+		RemovedByUser: "usr_owner",
+	}
+	require.Equal(t, member, teamMemberFromModel(teamMemberModel(member)))
+	require.Nil(t, teamMemberModel(TeamMember{}).InvitedByUserID)
+	require.Equal(t, TeamMember{}, teamMemberFromModel(nil))
+
+	invite := TeamInvite{
+		InviteID:        "tinv_1",
+		TeamID:          "team_1",
+		Email:           "operator@example.com",
+		RecipientUserID: "usr_operator",
+		Role:            domain.TeamRoleOperator,
+		Status:          domain.TeamInviteStatusCanceled,
+		InvitedByUserID: "usr_owner",
+		CreatedAt:       now,
+		AcceptedAt:      &acceptedAt,
+		DeclinedAt:      &declinedAt,
+		CanceledAt:      &canceledAt,
+	}
+	require.Equal(t, invite, teamInviteFromModel(teamInviteModel(invite)))
+	require.Nil(t, teamInviteModel(TeamInvite{}).RecipientUserID)
+	require.Equal(t, TeamInvite{}, teamInviteFromModel(nil))
+
+	removedBy := "usr_owner"
+	agent := teamAgentFromModel(&teamAgentRow{
+		TeamID:           "team_1",
+		AgentID:          "agent_1",
+		AgentOwnerUserID: "usr_operator",
+		Identity:         "",
+		Role:             "",
+		DisplayName:      "Review Bot",
+		Description:      "Reviews code",
+		Metadata:         nil,
+		AddedByUserID:    "usr_operator",
+		AddedAt:          now,
+		RemovedAt:        &removedAt,
+		RemovedByUserID:  &removedBy,
+	})
+	require.Equal(t, "agent_1", agent.Identity)
+	require.Equal(t, domain.TeamAgentRoleGeneral, agent.Role)
+	require.Equal(t, json.RawMessage(`{}`), agent.Metadata)
+	require.Equal(t, "usr_owner", agent.RemovedByUserID)
+	require.Equal(t, TeamAgent{}, teamAgentFromModel(nil))
+
+	event := TeamAuditEvent{
+		EventID:        "taud_1",
+		TeamID:         "team_1",
+		ActorUserID:    "usr_owner",
+		Action:         domain.TeamAuditActionAgentAdded,
+		TargetUserID:   "usr_operator",
+		TargetAgentID:  "agent_1",
+		TargetInviteID: "tinv_1",
+		Metadata:       json.RawMessage(`{"agent_id":"agent_1"}`),
+		CreatedAt:      now,
+	}
+	require.Equal(t, event, teamAuditEventFromModel(teamAuditEventModel(event)))
+	defaultEvent := teamAuditEventFromModel(teamAuditEventModel(TeamAuditEvent{}))
+	require.Equal(t, json.RawMessage(`{}`), defaultEvent.Metadata)
+	require.Equal(t, TeamAuditEvent{}, teamAuditEventFromModel(nil))
+}
 
 func TestMemoryTeamStore(t *testing.T) {
 	t.Run(
@@ -86,12 +176,17 @@ func TestMemoryTeamStore(t *testing.T) {
 			OwnerUserID: operator.UserID,
 			Status:      "online",
 		}
+		store.agents["agent_operator_2"] = Agent{
+			AgentID:     "agent_operator_2",
+			OwnerUserID: operator.UserID,
+			Status:      "online",
+		}
 
 		_, err := store.AddTeamAgent(
 			ctx,
 			UserPrincipal{User: member},
 			teamID,
-			"agent_owner",
+			AddTeamAgentRequest{AgentID: "agent_owner"},
 			now,
 		)
 		require.ErrorIs(t, err, ErrUnauthorized)
@@ -100,7 +195,7 @@ func TestMemoryTeamStore(t *testing.T) {
 			ctx,
 			UserPrincipal{User: operator},
 			teamID,
-			"agent_owner",
+			AddTeamAgentRequest{AgentID: "agent_owner"},
 			now,
 		)
 		require.ErrorIs(t, err, ErrNotFound)
@@ -109,14 +204,42 @@ func TestMemoryTeamStore(t *testing.T) {
 			ctx,
 			UserPrincipal{User: operator},
 			teamID,
-			"agent_operator",
+			AddTeamAgentRequest{
+				AgentID:     "agent_operator",
+				Identity:    "reviewer",
+				Role:        "reviewer",
+				DisplayName: "Review Bot",
+				Description: "Reviews team tasks before handoff.",
+			},
 			now,
 		)
 		require.NoError(t, err)
 		require.Equal(t, operator.UserID, operatorAgent.AgentOwnerUserID)
+		require.Equal(t, "reviewer", operatorAgent.Identity)
+		require.Equal(t, "reviewer", operatorAgent.Role)
+		require.Equal(t, "Review Bot", operatorAgent.DisplayName)
+		require.Equal(t, "Reviews team tasks before handoff.", operatorAgent.Description)
 
-		_, err = store.AddTeamAgent(ctx, UserPrincipal{User: owner}, teamID, "agent_owner", now)
+		secondReviewer, err := store.AddTeamAgent(
+			ctx,
+			UserPrincipal{User: operator},
+			teamID,
+			AddTeamAgentRequest{AgentID: "agent_operator_2", Identity: "reviewer"},
+			now,
+		)
 		require.NoError(t, err)
+		require.Equal(t, "reviewer", secondReviewer.Identity)
+
+		ownerAgent, err := store.AddTeamAgent(
+			ctx,
+			UserPrincipal{User: owner},
+			teamID,
+			AddTeamAgentRequest{AgentID: "agent_owner"},
+			now,
+		)
+		require.NoError(t, err)
+		require.Equal(t, "agent_owner", ownerAgent.Identity)
+		require.Equal(t, domain.TeamAgentRoleGeneral, ownerAgent.Role)
 
 		_, err = store.RemoveTeamAgent(
 			ctx,
@@ -218,7 +341,7 @@ func TestMemoryTeamStore(t *testing.T) {
 				ctx,
 				UserPrincipal{User: operator},
 				teamID,
-				"agent_operator",
+				AddTeamAgentRequest{AgentID: "agent_operator"},
 				now,
 			)
 			require.NoError(t, err)
@@ -240,7 +363,7 @@ func TestMemoryTeamStore(t *testing.T) {
 				ctx,
 				UserPrincipal{User: operator},
 				teamID,
-				"agent_operator",
+				AddTeamAgentRequest{AgentID: "agent_operator"},
 				now.Add(2*time.Minute),
 			)
 			require.ErrorIs(t, err, ErrUnauthorized)
@@ -291,7 +414,13 @@ func TestMemoryTeamStore(t *testing.T) {
 		_, err = store.ListNodeAgents(ctx, UserPrincipal{User: member}, "node_1")
 		require.ErrorIs(t, err, ErrNotFound)
 
-		_, err = store.AddTeamAgent(ctx, UserPrincipal{User: owner}, teamID, "agent_owner", now)
+		_, err = store.AddTeamAgent(
+			ctx,
+			UserPrincipal{User: owner},
+			teamID,
+			AddTeamAgentRequest{AgentID: "agent_owner"},
+			now,
+		)
 		require.NoError(t, err)
 
 		agents, err := store.ListAgents(ctx, UserPrincipal{User: member})
@@ -436,7 +565,7 @@ func TestMemoryTeamStore(t *testing.T) {
 			ctx,
 			UserPrincipal{User: operator},
 			teamID,
-			"agent_operator",
+			AddTeamAgentRequest{AgentID: "agent_operator"},
 			now.Add(4*time.Minute),
 		)
 		require.NoError(t, err)
@@ -469,6 +598,55 @@ func TestMemoryTeamStore(t *testing.T) {
 		_, err = store.GetTeam(ctx, UserPrincipal{User: owner}, teamID)
 		require.ErrorIs(t, err, ErrNotFound)
 	})
+
+	t.Run(
+		"Given pending team invites then recipients can list and decline them",
+		func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Date(2026, 6, 27, 10, 0, 0, 0, time.UTC)
+			store := NewMemoryStore(func() time.Time { return now })
+			owner, operator, member := seedTeamUsers(t, ctx, store)
+			teamID := "team_1"
+			seedTeam(t, ctx, store, teamID, owner, map[string]User{
+				domain.TeamRoleOperator: operator,
+			}, now)
+
+			members, err := store.ListTeamMembers(ctx, UserPrincipal{User: owner}, teamID)
+			require.NoError(t, err)
+			require.Len(t, members, 2)
+			require.ElementsMatch(t, []string{owner.Email, operator.Email}, []string{
+				members[0].Email,
+				members[1].Email,
+			})
+
+			_, err = store.CreateTeamInvite(ctx, UserPrincipal{User: owner}, TeamInvite{
+				InviteID:        "tinv_decline",
+				TeamID:          teamID,
+				Email:           "MEMBER@example.com",
+				RecipientUserID: member.UserID,
+				Role:            domain.TeamRoleMember,
+				CreatedAt:       now.Add(time.Minute),
+			})
+			require.NoError(t, err)
+			received, err := store.ListTeamInvites(ctx, UserPrincipal{User: member})
+			require.NoError(t, err)
+			require.Len(t, received, 1)
+			require.Equal(t, "member@example.com", received[0].Email)
+
+			declined, err := store.DeclineTeamInvite(
+				ctx,
+				UserPrincipal{User: member},
+				"tinv_decline",
+				now.Add(2*time.Minute),
+			)
+			require.NoError(t, err)
+			require.Equal(t, domain.TeamInviteStatusDeclined, declined.Status)
+			require.NotNil(t, declined.DeclinedAt)
+			received, err = store.ListTeamInvites(ctx, UserPrincipal{User: member})
+			require.NoError(t, err)
+			require.Empty(t, received)
+		},
+	)
 }
 
 func requireAuditActions(t *testing.T, events []TeamAuditEvent, actions ...string) {

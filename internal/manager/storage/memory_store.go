@@ -578,6 +578,7 @@ func (s *MemoryStore) RegisterAgent(
 		Online:        true,
 		LastHeartbeat: &now,
 		RegisteredAt:  now,
+		UserMetadata:  jsonDefault(nil, "{}"),
 		Metadata:      req.Metadata,
 	}
 	agent := Agent{
@@ -595,6 +596,8 @@ func (s *MemoryStore) RegisterAgent(
 		Online:        true,
 		LastHeartbeat: &now,
 		RegisteredAt:  now,
+		Card:          jsonDefault(nil, "{}"),
+		UserMetadata:  jsonDefault(nil, "{}"),
 		Metadata:      req.Metadata,
 	}
 	s.nodes[nodeID] = node
@@ -625,6 +628,7 @@ func (s *MemoryStore) RegisterNode(
 		OwnerUserID:   owner.UserID,
 		Kind:          "paxd",
 		Name:          defaultNodeName(req),
+		Description:   req.Description,
 		Hostname:      req.Hostname,
 		MachineType:   req.MachineType,
 		OS:            defaultOS(req.OS),
@@ -635,6 +639,7 @@ func (s *MemoryStore) RegisterNode(
 		Online:        true,
 		LastHeartbeat: &now,
 		RegisteredAt:  now,
+		UserMetadata:  jsonDefault(req.UserMetadata, "{}"),
 		Metadata:      req.Metadata,
 	}
 	s.nodes[nodeID] = node
@@ -1014,6 +1019,30 @@ func (s *MemoryStore) GetNode(
 	return node, nil
 }
 
+func (s *MemoryStore) UpdateNode(
+	ctx context.Context,
+	principal UserPrincipal,
+	req UpdateNodeRequest,
+) (Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	node, ok := s.nodes[req.NodeID]
+	if !ok || !canAccessOwner(principal, node.OwnerUserID) {
+		return Node{}, ErrNotFound
+	}
+	if req.Name != "" {
+		node.Name = req.Name
+	}
+	if req.Description != "" {
+		node.Description = req.Description
+	}
+	if len(req.UserMetadata) > 0 {
+		node.UserMetadata = jsonDefault(req.UserMetadata, "{}")
+	}
+	s.nodes[req.NodeID] = node
+	return node, nil
+}
+
 func (s *MemoryStore) GetNodeAgent(
 	ctx context.Context,
 	nodeID string,
@@ -1069,9 +1098,12 @@ func (s *MemoryStore) CreateNodeAgent(
 	agent, err := s.createNodeAgentLocked(
 		node,
 		req.Name,
+		req.Description,
+		req.Card,
 		req.AgentType,
 		"pending",
 		false,
+		req.UserMetadata,
 		req.Metadata,
 		now,
 	)
@@ -1094,6 +1126,33 @@ func (s *MemoryStore) CreateNodeAgent(
 		return Agent{}, MailboxMessage{}, err
 	}
 	return agent, msg, nil
+}
+
+func (s *MemoryStore) UpdateNodeAgent(
+	ctx context.Context,
+	principal UserPrincipal,
+	req UpdateAgentProfileRequest,
+) (Agent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[req.AgentID]
+	if !ok || agent.NodeID != req.NodeID || !canAccessOwner(principal, agent.OwnerUserID) {
+		return Agent{}, ErrNotFound
+	}
+	if req.Name != "" {
+		agent.Name = req.Name
+	}
+	if req.Description != "" {
+		agent.Description = req.Description
+	}
+	if len(req.Card) > 0 {
+		agent.Card = jsonDefault(req.Card, "{}")
+	}
+	if len(req.UserMetadata) > 0 {
+		agent.UserMetadata = jsonDefault(req.UserMetadata, "{}")
+	}
+	s.agents[req.AgentID] = agent
+	return agent, nil
 }
 
 func (s *MemoryStore) CreateNodeAgentSession(
@@ -1962,6 +2021,10 @@ func (s *MemoryStore) upsertNodeAgentLocked(
 			agent.NodeID = node.NodeID
 			agent.OwnerUserID = node.OwnerUserID
 			agent.Name = firstNonEmpty(input.Name, agent.Name)
+			agent.Description = firstNonEmpty(input.Description, agent.Description)
+			if len(input.Card) > 0 {
+				agent.Card = jsonDefault(input.Card, "{}")
+			}
 			agent.AgentType = firstNonEmpty(input.AgentType, agent.AgentType)
 			agent.Status = reportedAgentStatus(input)
 			agent.Online = agent.Status == "online"
@@ -1979,9 +2042,12 @@ func (s *MemoryStore) upsertNodeAgentLocked(
 	return s.createNodeAgentLocked(
 		node,
 		input.Name,
+		input.Description,
+		input.Card,
 		input.AgentType,
 		status,
 		status == "online",
+		nil,
 		input.Metadata,
 		now,
 	)
@@ -1990,9 +2056,12 @@ func (s *MemoryStore) upsertNodeAgentLocked(
 func (s *MemoryStore) createNodeAgentLocked(
 	node Node,
 	name string,
+	description string,
+	card []byte,
 	agentType string,
 	status string,
 	online bool,
+	userMetadata []byte,
 	metadata []byte,
 	now time.Time,
 ) (Agent, error) {
@@ -2005,6 +2074,8 @@ func (s *MemoryStore) createNodeAgentLocked(
 		NodeID:        node.NodeID,
 		OwnerUserID:   node.OwnerUserID,
 		Name:          firstNonEmpty(name, "agent"),
+		Description:   description,
+		Card:          jsonDefault(card, "{}"),
 		Hostname:      node.Hostname,
 		AgentType:     firstNonEmpty(agentType, "hermes"),
 		MachineType:   node.MachineType,
@@ -2015,6 +2086,7 @@ func (s *MemoryStore) createNodeAgentLocked(
 		Online:        online,
 		LastHeartbeat: &now,
 		RegisteredAt:  now,
+		UserMetadata:  jsonDefault(userMetadata, "{}"),
 		Metadata:      metadata,
 	}
 	s.agents[agentID] = agent

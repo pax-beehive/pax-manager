@@ -131,6 +131,9 @@ func (s *MemoryStore) ListTeamAgents(
 		if teamAgent.TeamID != teamID || teamAgent.RemovedAt != nil {
 			continue
 		}
+		teamAgent.Identity = defaultTeamAgentIdentity(teamAgent.Identity, teamAgent.AgentID)
+		teamAgent.Role = defaultTeamAgentRole(teamAgent.Role)
+		teamAgent.Metadata = jsonDefault(teamAgent.Metadata, "{}")
 		if agent, ok := s.agents[teamAgent.AgentID]; ok {
 			agentCopy := agent
 			teamAgent.Agent = &agentCopy
@@ -380,7 +383,7 @@ func (s *MemoryStore) AddTeamAgent(
 	ctx context.Context,
 	principal UserPrincipal,
 	teamID string,
-	agentID string,
+	req AddTeamAgentRequest,
 	addedAt time.Time,
 ) (TeamAgent, error) {
 	s.mu.Lock()
@@ -389,6 +392,7 @@ func (s *MemoryStore) AddTeamAgent(
 	if !ok || !teamRoleCanManageOwnAgents(member.Role) {
 		return TeamAgent{}, ErrUnauthorized
 	}
+	agentID := req.AgentID
 	agent, ok := s.agents[agentID]
 	if !ok || agent.OwnerUserID != principal.User.UserID {
 		return TeamAgent{}, ErrNotFound
@@ -397,12 +401,18 @@ func (s *MemoryStore) AddTeamAgent(
 	if existing, ok := s.teamAgents[key]; ok && existing.RemovedAt == nil {
 		return TeamAgent{}, ErrConflict
 	}
+	identity := defaultTeamAgentIdentity(req.Identity, agentID)
 	agentCopy := agent
 	teamAgent := TeamAgent{
 		TeamID:           teamID,
 		AgentID:          agentID,
 		AgentOwnerUserID: agent.OwnerUserID,
 		AgentOwnerEmail:  principal.User.Email,
+		Identity:         identity,
+		Role:             defaultTeamAgentRole(req.Role),
+		DisplayName:      req.DisplayName,
+		Description:      req.Description,
+		Metadata:         jsonDefault(req.Metadata, "{}"),
 		AddedByUserID:    principal.User.UserID,
 		AddedAt:          addedAt,
 		Agent:            &agentCopy,

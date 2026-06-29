@@ -1,6 +1,24 @@
 package manager
 
 const (
+	routeLegacyHealth         = "/health"
+	routeLegacyAgentRegister  = "/api/agent/register"
+	routeLegacyAgentStatus    = "/api/agent/status"
+	routeLegacyAgentMailbox   = "/api/agent/mailbox"
+	routeLegacySessionMailbox = "/api/agent/sessions/:sessionId/mailbox"
+	routeLegacyAgentOffset    = "/api/agent/messages/offset"
+	routeLegacyMessageResult  = "/api/agent/messages/:messageId/result"
+
+	routeLegacyListAgents         = "/api/user/agents"
+	routeLegacyGetAgent           = "/api/user/agents/:agentId"
+	routeLegacyListAgentSessions  = "/api/user/agents/:agentId/sessions"
+	routeLegacyGetAgentSession    = "/api/user/agents/:agentId/sessions/:sessionId"
+	routeLegacyAgentMessages      = "/api/user/agents/:agentId/messages"
+	routeLegacySessionMessages    = "/api/user/agents/:agentId/sessions/:sessionId/messages"
+	routeLegacyUserAPIKeys        = "/api/user/api-keys"
+	routeLegacyUserAPIKey         = "/api/user/api-keys/:keyId"
+	routeLegacyRegistrationTokens = "/api/user/agent-registration-tokens"
+
 	routeLegacySessionHistory = "/api/user/agents/:agentId/sessions/:sessionId/history"
 	routeSessionHistory       = "/api/v1/user/:user_id/agents/:agent_id/sessions/:session_id/history"
 

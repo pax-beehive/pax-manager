@@ -201,9 +201,9 @@ func (_c *MockStore_AcceptTeamInvite_Call) RunAndReturn(run func(context.Context
 	return _c
 }
 
-// AddTeamAgent provides a mock function with given fields: ctx, principal, teamID, agentID, addedAt
-func (_m *MockStore) AddTeamAgent(ctx context.Context, principal domain.UserPrincipal, teamID string, agentID string, addedAt time.Time) (domain.TeamAgent, error) {
-	ret := _m.Called(ctx, principal, teamID, agentID, addedAt)
+// AddTeamAgent provides a mock function with given fields: ctx, principal, teamID, req, addedAt
+func (_m *MockStore) AddTeamAgent(ctx context.Context, principal domain.UserPrincipal, teamID string, req domain.AddTeamAgentRequest, addedAt time.Time) (domain.TeamAgent, error) {
+	ret := _m.Called(ctx, principal, teamID, req, addedAt)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AddTeamAgent")
@@ -211,17 +211,17 @@ func (_m *MockStore) AddTeamAgent(ctx context.Context, principal domain.UserPrin
 
 	var r0 domain.TeamAgent
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string, time.Time) (domain.TeamAgent, error)); ok {
-		return rf(ctx, principal, teamID, agentID, addedAt)
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, domain.AddTeamAgentRequest, time.Time) (domain.TeamAgent, error)); ok {
+		return rf(ctx, principal, teamID, req, addedAt)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string, time.Time) domain.TeamAgent); ok {
-		r0 = rf(ctx, principal, teamID, agentID, addedAt)
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, domain.AddTeamAgentRequest, time.Time) domain.TeamAgent); ok {
+		r0 = rf(ctx, principal, teamID, req, addedAt)
 	} else {
 		r0 = ret.Get(0).(domain.TeamAgent)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, string, time.Time) error); ok {
-		r1 = rf(ctx, principal, teamID, agentID, addedAt)
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, domain.AddTeamAgentRequest, time.Time) error); ok {
+		r1 = rf(ctx, principal, teamID, req, addedAt)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -238,15 +238,15 @@ type MockStore_AddTeamAgent_Call struct {
 //   - ctx context.Context
 //   - principal domain.UserPrincipal
 //   - teamID string
-//   - agentID string
+//   - req domain.AddTeamAgentRequest
 //   - addedAt time.Time
-func (_e *MockStore_Expecter) AddTeamAgent(ctx interface{}, principal interface{}, teamID interface{}, agentID interface{}, addedAt interface{}) *MockStore_AddTeamAgent_Call {
-	return &MockStore_AddTeamAgent_Call{Call: _e.mock.On("AddTeamAgent", ctx, principal, teamID, agentID, addedAt)}
+func (_e *MockStore_Expecter) AddTeamAgent(ctx interface{}, principal interface{}, teamID interface{}, req interface{}, addedAt interface{}) *MockStore_AddTeamAgent_Call {
+	return &MockStore_AddTeamAgent_Call{Call: _e.mock.On("AddTeamAgent", ctx, principal, teamID, req, addedAt)}
 }
 
-func (_c *MockStore_AddTeamAgent_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, teamID string, agentID string, addedAt time.Time)) *MockStore_AddTeamAgent_Call {
+func (_c *MockStore_AddTeamAgent_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, teamID string, req domain.AddTeamAgentRequest, addedAt time.Time)) *MockStore_AddTeamAgent_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(string), args[4].(time.Time))
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(domain.AddTeamAgentRequest), args[4].(time.Time))
 	})
 	return _c
 }
@@ -256,7 +256,7 @@ func (_c *MockStore_AddTeamAgent_Call) Return(_a0 domain.TeamAgent, _a1 error) *
 	return _c
 }
 
-func (_c *MockStore_AddTeamAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string, time.Time) (domain.TeamAgent, error)) *MockStore_AddTeamAgent_Call {
+func (_c *MockStore_AddTeamAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, domain.AddTeamAgentRequest, time.Time) (domain.TeamAgent, error)) *MockStore_AddTeamAgent_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -3424,6 +3424,122 @@ func (_c *MockStore_UpdateFriendAlias_Call) Return(_a0 domain.Friend, _a1 error)
 }
 
 func (_c *MockStore_UpdateFriendAlias_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string) (domain.Friend, error)) *MockStore_UpdateFriendAlias_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateNode provides a mock function with given fields: ctx, principal, req
+func (_m *MockStore) UpdateNode(ctx context.Context, principal domain.UserPrincipal, req domain.UpdateNodeRequest) (domain.Node, error) {
+	ret := _m.Called(ctx, principal, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateNode")
+	}
+
+	var r0 domain.Node
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.UpdateNodeRequest) (domain.Node, error)); ok {
+		return rf(ctx, principal, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.UpdateNodeRequest) domain.Node); ok {
+		r0 = rf(ctx, principal, req)
+	} else {
+		r0 = ret.Get(0).(domain.Node)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.UpdateNodeRequest) error); ok {
+		r1 = rf(ctx, principal, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_UpdateNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateNode'
+type MockStore_UpdateNode_Call struct {
+	*mock.Call
+}
+
+// UpdateNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - req domain.UpdateNodeRequest
+func (_e *MockStore_Expecter) UpdateNode(ctx interface{}, principal interface{}, req interface{}) *MockStore_UpdateNode_Call {
+	return &MockStore_UpdateNode_Call{Call: _e.mock.On("UpdateNode", ctx, principal, req)}
+}
+
+func (_c *MockStore_UpdateNode_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, req domain.UpdateNodeRequest)) *MockStore_UpdateNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.UpdateNodeRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_UpdateNode_Call) Return(_a0 domain.Node, _a1 error) *MockStore_UpdateNode_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_UpdateNode_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.UpdateNodeRequest) (domain.Node, error)) *MockStore_UpdateNode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateNodeAgent provides a mock function with given fields: ctx, principal, req
+func (_m *MockStore) UpdateNodeAgent(ctx context.Context, principal domain.UserPrincipal, req domain.UpdateAgentProfileRequest) (domain.Agent, error) {
+	ret := _m.Called(ctx, principal, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateNodeAgent")
+	}
+
+	var r0 domain.Agent
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.UpdateAgentProfileRequest) (domain.Agent, error)); ok {
+		return rf(ctx, principal, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.UpdateAgentProfileRequest) domain.Agent); ok {
+		r0 = rf(ctx, principal, req)
+	} else {
+		r0 = ret.Get(0).(domain.Agent)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.UpdateAgentProfileRequest) error); ok {
+		r1 = rf(ctx, principal, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_UpdateNodeAgent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateNodeAgent'
+type MockStore_UpdateNodeAgent_Call struct {
+	*mock.Call
+}
+
+// UpdateNodeAgent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - req domain.UpdateAgentProfileRequest
+func (_e *MockStore_Expecter) UpdateNodeAgent(ctx interface{}, principal interface{}, req interface{}) *MockStore_UpdateNodeAgent_Call {
+	return &MockStore_UpdateNodeAgent_Call{Call: _e.mock.On("UpdateNodeAgent", ctx, principal, req)}
+}
+
+func (_c *MockStore_UpdateNodeAgent_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, req domain.UpdateAgentProfileRequest)) *MockStore_UpdateNodeAgent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.UpdateAgentProfileRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_UpdateNodeAgent_Call) Return(_a0 domain.Agent, _a1 error) *MockStore_UpdateNodeAgent_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_UpdateNodeAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.UpdateAgentProfileRequest) (domain.Agent, error)) *MockStore_UpdateNodeAgent_Call {
 	_c.Call.Return(run)
 	return _c
 }

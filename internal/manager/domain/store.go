@@ -160,6 +160,7 @@ type Store interface {
 	UpsertNodeStatus(ctx context.Context, node Node, report NodeStatusReport) error
 	ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error)
 	GetNode(ctx context.Context, principal UserPrincipal, nodeID string) (Node, error)
+	UpdateNode(ctx context.Context, principal UserPrincipal, req UpdateNodeRequest) (Node, error)
 	GetNodeAgent(ctx context.Context, nodeID string, agentID string) (Agent, error)
 	ListNodeAgents(ctx context.Context, principal UserPrincipal, nodeID string) ([]Agent, error)
 	CreateNodeAgent(
@@ -167,6 +168,11 @@ type Store interface {
 		principal UserPrincipal,
 		req CreateAgentRequest,
 	) (Agent, MailboxMessage, error)
+	UpdateNodeAgent(
+		ctx context.Context,
+		principal UserPrincipal,
+		req UpdateAgentProfileRequest,
+	) (Agent, error)
 	CreateNodeAgentSession(
 		ctx context.Context,
 		principal UserPrincipal,
@@ -390,7 +396,7 @@ type Store interface {
 		ctx context.Context,
 		principal UserPrincipal,
 		teamID string,
-		agentID string,
+		req AddTeamAgentRequest,
 		addedAt time.Time,
 	) (TeamAgent, error)
 	RemoveTeamAgent(

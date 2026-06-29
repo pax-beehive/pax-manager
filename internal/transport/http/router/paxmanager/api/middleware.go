@@ -191,3 +191,288 @@ func _getagentsessionMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _v1Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _nodeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _pullnodemailboxMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _registernodeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _reportnodestatusMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _registernodeagentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _agent_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createnodeagentapprovalMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _pullnodeagentmailboxMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _approvalsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getnodeagentapprovalMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _session_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _pullnodeagentsessionmailboxMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updatenodemailboxoffsetMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createnodeoutboundmessageMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _message_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _marknodemessagedeliveredMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _reportnodemessageresultMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _secretsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _resolvenodesecretMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _secret_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _writenodesecretversionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _user_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listuserapprovalgrantsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listuserapprovalsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getcurrentuserMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createnoderegistrationtokenMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnodesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listusersecretsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createusersecretMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _approval_grantsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _grant_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _revokeuserapprovalgrantMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _approvals0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getuserapprovalMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _approval_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _decideuserapprovalMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _nodesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getnodeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updatenodeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _node_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnodeagentsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createnodeagentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _agents0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getnodeagentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updatenodeagentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _agent_id0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnodeagentmessagesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createnodeagentmessageMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnodeagentsessionsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createnodeagentsessionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getnodeagentsessionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _session_id0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnodeagentsessionmessagesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createnodeagentsessionmessageMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _secrets0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getusersecretMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

@@ -54,6 +54,8 @@ type ApprovalDecisionRequest = domain.ApprovalDecisionRequest
 type ApprovalGrantLookup = domain.ApprovalGrantLookup
 type RevokeApprovalGrantRequest = domain.RevokeApprovalGrantRequest
 type CreateAgentRequest = domain.CreateAgentRequest
+type UpdateNodeRequest = domain.UpdateNodeRequest
+type UpdateAgentProfileRequest = domain.UpdateAgentProfileRequest
 type CreateSessionRequest = domain.CreateSessionRequest
 type MailboxPull = domain.MailboxPull
 type MailboxFilter = domain.MailboxFilter
@@ -73,6 +75,7 @@ type TeamMember = domain.TeamMember
 type TeamInvite = domain.TeamInvite
 type TeamAgent = domain.TeamAgent
 type TeamAuditEvent = domain.TeamAuditEvent
+type AddTeamAgentRequest = domain.AddTeamAgentRequest
 type TransportFrame = domain.TransportFrame
 
 func newSecret(prefix string) (string, error) {

@@ -268,6 +268,41 @@ func (_c *MockService_GetAgentSession_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// HandleGenerated provides a mock function with given fields: _a0, _a1, _a2
+func (_m *MockService) HandleGenerated(_a0 context.Context, _a1 *app.RequestContext, _a2 string) {
+	_m.Called(_a0, _a1, _a2)
+}
+
+// MockService_HandleGenerated_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HandleGenerated'
+type MockService_HandleGenerated_Call struct {
+	*mock.Call
+}
+
+// HandleGenerated is a helper method to define mock.On call
+//   - _a0 context.Context
+//   - _a1 *app.RequestContext
+//   - _a2 string
+func (_e *MockService_Expecter) HandleGenerated(_a0 interface{}, _a1 interface{}, _a2 interface{}) *MockService_HandleGenerated_Call {
+	return &MockService_HandleGenerated_Call{Call: _e.mock.On("HandleGenerated", _a0, _a1, _a2)}
+}
+
+func (_c *MockService_HandleGenerated_Call) Run(run func(_a0 context.Context, _a1 *app.RequestContext, _a2 string)) *MockService_HandleGenerated_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*app.RequestContext), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockService_HandleGenerated_Call) Return() *MockService_HandleGenerated_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockService_HandleGenerated_Call) RunAndReturn(run func(context.Context, *app.RequestContext, string)) *MockService_HandleGenerated_Call {
+	_c.Run(run)
+	return _c
+}
+
 // Health provides a mock function with given fields: _a0, _a1, _a2
 func (_m *MockService) Health(_a0 context.Context, _a1 *app.RequestContext, _a2 *api.EmptyRequest) {
 	_m.Called(_a0, _a1, _a2)
