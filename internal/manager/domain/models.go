@@ -884,6 +884,10 @@ type NodeStatusReport struct {
 	Metadata  json.RawMessage    `json:"metadata"`
 }
 
+type NodeAgentSessionReport struct {
+	Sessions []SessionStatusInput `json:"sessions"`
+}
+
 type AgentStatusInput struct {
 	AgentID       string               `json:"agent_id"`
 	Name          string               `json:"name"`

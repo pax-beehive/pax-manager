@@ -88,6 +88,7 @@ type CreatePaxdArtifactRequest = domain.CreatePaxdArtifactRequest
 type FindPaxdArtifactRequest = domain.FindPaxdArtifactRequest
 type PaxdArtifactDownloadResponse = domain.PaxdArtifactDownloadResponse
 type NodeStatusReport = domain.NodeStatusReport
+type NodeAgentSessionReport = domain.NodeAgentSessionReport
 type AgentStatusReport = domain.AgentStatusReport
 type SessionStatusInput = domain.SessionStatusInput
 type TokenUsage = domain.TokenUsage

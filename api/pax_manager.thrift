@@ -177,6 +177,10 @@ struct CreateRegistrationTokenRequest {
   3: optional i64 expires_in_seconds
 }
 
+struct NodeAgentSessionReportRequest {
+  1: optional list<SessionStatusInput> sessions
+}
+
 struct TokenUsage {
   1: optional i64 input_tokens
   2: optional i64 output_tokens
@@ -964,6 +968,17 @@ service PaxManagerAPI {
     openapi.summary = "Report node status",
     openapi.description = "Upserts node, hosted agents, and agent session status.",
     openapi.security = "nodeBearer"
+  )
+
+  OKResponse ReportNodeAgentSessions(
+    1: optional NodeAgentSessionReportRequest request
+  ) (
+    api.post = "/api/v1/node/agents/:agent_id/sessions",
+    openapi.tag = "node",
+    openapi.summary = "Report node agent sessions",
+    openapi.description = "Upserts session status for one agent owned by the authenticated node without changing node or agent liveness fields.",
+    openapi.security = "nodeBearer",
+    openapi.path.agent_id = "Agent identifier."
   )
 
   PullMailboxResponse PullNodeMailbox(

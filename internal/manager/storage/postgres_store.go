@@ -1211,6 +1211,45 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 	return tx.Commit()
 }
 
+func (s *PostgresStore) UpsertAgentSessions(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	sessions []SessionStatusInput,
+) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var exists bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS(SELECT 1 FROM agents WHERE agent_id = $1 AND node_id = $2)
+	`, agentID, node.NodeID).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
+
+	now := s.now().UTC()
+	for _, input := range sessions {
+		if input.SessionID == "" {
+			return ErrConflict
+		}
+		input, err = s.normalizeReportedSessionInput(ctx, tx, agentID, input)
+		if err != nil {
+			return err
+		}
+		if err := upsertSessionTx(ctx, tx, node.NodeID, agentID, input, now); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (s *PostgresStore) ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error) {
 	query := `
 		SELECT ` + nodeSelectColumns + `

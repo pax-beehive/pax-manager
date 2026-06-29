@@ -1026,6 +1026,55 @@ func (_c *MockStore_UpsertAgentStatus_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// UpsertAgentSessions provides a mock function with given fields: ctx, node, agentID, sessions
+func (_m *MockStore) UpsertAgentSessions(ctx context.Context, node domain.Node, agentID string, sessions []domain.SessionStatusInput) error {
+	ret := _m.Called(ctx, node, agentID, sessions)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpsertAgentSessions")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.Node, string, []domain.SessionStatusInput) error); ok {
+		r0 = rf(ctx, node, agentID, sessions)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStore_UpsertAgentSessions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpsertAgentSessions'
+type MockStore_UpsertAgentSessions_Call struct {
+	*mock.Call
+}
+
+// UpsertAgentSessions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - node domain.Node
+//   - agentID string
+//   - sessions []domain.SessionStatusInput
+func (_e *MockStore_Expecter) UpsertAgentSessions(ctx interface{}, node interface{}, agentID interface{}, sessions interface{}) *MockStore_UpsertAgentSessions_Call {
+	return &MockStore_UpsertAgentSessions_Call{Call: _e.mock.On("UpsertAgentSessions", ctx, node, agentID, sessions)}
+}
+
+func (_c *MockStore_UpsertAgentSessions_Call) Run(run func(ctx context.Context, node domain.Node, agentID string, sessions []domain.SessionStatusInput)) *MockStore_UpsertAgentSessions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.Node), args[2].(string), args[3].([]domain.SessionStatusInput))
+	})
+	return _c
+}
+
+func (_c *MockStore_UpsertAgentSessions_Call) Return(_a0 error) *MockStore_UpsertAgentSessions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStore_UpsertAgentSessions_Call) RunAndReturn(run func(context.Context, domain.Node, string, []domain.SessionStatusInput) error) *MockStore_UpsertAgentSessions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpsertNodeStatus provides a mock function with given fields: ctx, node, report
 func (_m *MockStore) UpsertNodeStatus(ctx context.Context, node domain.Node, report domain.NodeStatusReport) error {
 	ret := _m.Called(ctx, node, report)
