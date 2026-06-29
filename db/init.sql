@@ -544,6 +544,8 @@ CREATE TABLE IF NOT EXISTS envelopes (
     sender_email TEXT NOT NULL,
     recipient_user_id TEXT REFERENCES users(user_id),
     recipient_email TEXT NOT NULL,
+    from_agent_id TEXT NOT NULL DEFAULT '',
+    to_agent_id TEXT NOT NULL DEFAULT '',
     payload_type TEXT NOT NULL,
     payload_json JSONB NOT NULL,
     message TEXT NOT NULL DEFAULT '',
@@ -557,6 +559,8 @@ ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS sender_user_id TEXT REFERENCES us
 ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS sender_email TEXT NOT NULL DEFAULT '';
 ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS recipient_user_id TEXT REFERENCES users(user_id);
 ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS recipient_email TEXT NOT NULL DEFAULT '';
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS from_agent_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS to_agent_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS payload_type TEXT NOT NULL DEFAULT '';
 ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS payload_json JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE envelopes ADD COLUMN IF NOT EXISTS message TEXT NOT NULL DEFAULT '';
@@ -572,6 +576,9 @@ CREATE INDEX IF NOT EXISTS idx_envelopes_recipient_email_status
     WHERE recipient_user_id IS NULL OR recipient_user_id = '';
 CREATE INDEX IF NOT EXISTS idx_envelopes_sender_created
     ON envelopes(sender_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_envelopes_from_to_agent_created
+    ON envelopes(from_agent_id, to_agent_id, created_at DESC)
+    WHERE from_agent_id <> '' OR to_agent_id <> '';
 
 CREATE TABLE IF NOT EXISTS friends (
     friend_id TEXT PRIMARY KEY,

@@ -1588,6 +1588,182 @@ func TestEnvelopeFlow(t *testing.T) {
 	})
 
 	t.Run(
+		"Given from and to agents sharing a team then it creates an envelope",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_sender", false)
+			recipient := domain.User{
+				UserID: "usr_recipient",
+				Email:  "recipient@example.com",
+				Role:   "user",
+			}
+			payload := json.RawMessage(`{"capsule":{"capsule_id":"kcap_1","title":"team handoff"}}`)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			secrets := userapimocks.NewMockSecretIssuer(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetEnvelopeAgentRecipient(ctx, principal, "agent_from", "agent_to").
+				Return(recipient, nil).
+				Once()
+			secrets.EXPECT().New("env").Return("env_1", nil).Once()
+			store.EXPECT().CreateEnvelope(
+				ctx,
+				mock.MatchedBy(func(envelope domain.Envelope) bool {
+					require.Equal(t, "env_1", envelope.EnvelopeID)
+					require.Equal(t, "usr_sender", envelope.SenderUserID)
+					require.Equal(t, "usr_recipient", envelope.RecipientUserID)
+					require.Equal(t, "recipient@example.com", envelope.RecipientEmail)
+					require.Equal(t, "agent_from", envelope.FromAgentID)
+					require.Equal(t, "agent_to", envelope.ToAgentID)
+					require.Equal(t, domain.EnvelopePayloadKnowledgeCapsule, envelope.PayloadType)
+					require.Equal(t, domain.EnvelopeStatusPending, envelope.Status)
+					require.JSONEq(t, string(payload), string(envelope.PayloadJSON))
+					return true
+				}),
+			).Return(domain.Envelope{EnvelopeID: "env_1"}, nil).Once()
+
+			svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+			status, data, err := svc.CreateEnvelope(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateEnvelopeRequest{
+					FromAgentID: " agent_from ",
+					ToAgentID:   " agent_to ",
+					PayloadType: domain.EnvelopePayloadKnowledgeCapsule,
+					PayloadJSON: payload,
+				},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(
+				t,
+				"env_1",
+				data.(map[string]any)["envelope"].(domain.Envelope).EnvelopeID,
+			)
+		},
+	)
+
+	t.Run("Given only one agent id then it rejects the envelope", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_sender", false)
+		payload := json.RawMessage(`{"capsule":{"capsule_id":"kcap_1","title":"team handoff"}}`)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+		svc := userapi.NewService(
+			userapimocks.NewMockStore(t),
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, _, err := svc.CreateEnvelope(
+			ctx,
+			auth.RequestMetadata{},
+			domain.CreateEnvelopeRequest{
+				FromAgentID: "agent_from",
+				PayloadType: domain.EnvelopePayloadKnowledgeCapsule,
+				PayloadJSON: payload,
+			},
+		)
+
+		require.Error(t, err)
+		require.Zero(t, status)
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+		require.Contains(t, err.Error(), "from_agent_id and to_agent_id must be provided together")
+	})
+
+	t.Run("Given agents without a shared team then it rejects the envelope", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_sender", false)
+		payload := json.RawMessage(`{"capsule":{"capsule_id":"kcap_1","title":"team handoff"}}`)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().
+			GetEnvelopeAgentRecipient(ctx, principal, "agent_from", "agent_to").
+			Return(domain.User{}, domain.ErrNotFound).
+			Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, _, err := svc.CreateEnvelope(
+			ctx,
+			auth.RequestMetadata{},
+			domain.CreateEnvelopeRequest{
+				FromAgentID: "agent_from",
+				ToAgentID:   "agent_to",
+				PayloadType: domain.EnvelopePayloadKnowledgeCapsule,
+				PayloadJSON: payload,
+			},
+		)
+
+		require.Error(t, err)
+		require.Zero(t, status)
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusForbidden, appErr.Status)
+		require.Contains(t, err.Error(), "agents must share an active team")
+	})
+
+	t.Run(
+		"Given an agent recipient email mismatch then it rejects the envelope",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_sender", false)
+			recipient := domain.User{
+				UserID: "usr_recipient",
+				Email:  "recipient@example.com",
+				Role:   "user",
+			}
+			payload := json.RawMessage(`{"capsule":{"capsule_id":"kcap_1","title":"team handoff"}}`)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				GetEnvelopeAgentRecipient(ctx, principal, "agent_from", "agent_to").
+				Return(recipient, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, _, err := svc.CreateEnvelope(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateEnvelopeRequest{
+					RecipientEmail: "other@example.com",
+					FromAgentID:    "agent_from",
+					ToAgentID:      "agent_to",
+					PayloadType:    domain.EnvelopePayloadKnowledgeCapsule,
+					PayloadJSON:    payload,
+				},
+			)
+
+			require.Error(t, err)
+			require.Zero(t, status)
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+			require.Contains(t, err.Error(), "recipient_email must match target agent owner")
+		},
+	)
+
+	t.Run(
 		"Given a paxl capsule envelope then it creates without importing a recipient knowledge capsule",
 		func(t *testing.T) {
 			ctx := context.Background()

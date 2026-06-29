@@ -16,6 +16,8 @@ type envelopeRow struct {
 	SenderEmail     string          `gorm:"column:sender_email"`
 	RecipientUserID *string         `gorm:"column:recipient_user_id"`
 	RecipientEmail  string          `gorm:"column:recipient_email"`
+	FromAgentID     string          `gorm:"column:from_agent_id"`
+	ToAgentID       string          `gorm:"column:to_agent_id"`
 	PayloadType     string          `gorm:"column:payload_type"`
 	PayloadJSON     json.RawMessage `gorm:"column:payload_json;type:jsonb"`
 	Message         string          `gorm:"column:message"`
@@ -40,6 +42,8 @@ func envelopeModel(envelope Envelope) *envelopeRow {
 		SenderEmail:     envelope.SenderEmail,
 		RecipientUserID: recipientUserID,
 		RecipientEmail:  envelope.RecipientEmail,
+		FromAgentID:     envelope.FromAgentID,
+		ToAgentID:       envelope.ToAgentID,
 		PayloadType:     envelope.PayloadType,
 		PayloadJSON:     envelope.PayloadJSON,
 		Message:         envelope.Message,
@@ -60,6 +64,8 @@ func envelopeFromModel(row *envelopeRow) Envelope {
 		SenderEmail:     row.SenderEmail,
 		RecipientUserID: envelopeRecipientUserID(row.RecipientUserID),
 		RecipientEmail:  row.RecipientEmail,
+		FromAgentID:     row.FromAgentID,
+		ToAgentID:       row.ToAgentID,
 		PayloadType:     row.PayloadType,
 		PayloadJSON:     row.PayloadJSON,
 		Message:         row.Message,
@@ -76,6 +82,52 @@ func envelopesFromModels(rows []envelopeRow) []Envelope {
 		out = append(out, envelopeFromModel(&rows[i]))
 	}
 	return out
+}
+
+func (s *PostgresStore) GetEnvelopeAgentRecipient(
+	ctx context.Context,
+	principal UserPrincipal,
+	fromAgentID string,
+	toAgentID string,
+) (User, error) {
+	var user User
+	err := s.gormDB.WithContext(ctx).
+		Raw(`
+			SELECT u.user_id, u.email, u.display_name, u.role, u.created_at
+			FROM users u
+			JOIN agents target_agent ON target_agent.owner_user_id = u.user_id
+			WHERE target_agent.agent_id = ?
+				AND EXISTS (
+					SELECT 1
+					FROM team_agents from_ta
+					JOIN team_agents to_ta ON to_ta.team_id = from_ta.team_id
+					JOIN team_members tm ON tm.team_id = from_ta.team_id
+					JOIN teams t ON t.team_id = from_ta.team_id
+					WHERE from_ta.agent_id = ?
+						AND to_ta.agent_id = ?
+						AND from_ta.removed_at IS NULL
+						AND to_ta.removed_at IS NULL
+						AND tm.user_id = ?
+						AND tm.status = ?
+						AND t.status = ?
+				)
+			LIMIT 1
+		`,
+			toAgentID,
+			fromAgentID,
+			toAgentID,
+			principal.User.UserID,
+			domain.TeamMemberStatusActive,
+			domain.TeamStatusActive,
+		).
+		Scan(&user).Error
+	if err != nil {
+		return User{}, mapGormError(err)
+	}
+	if user.UserID == "" {
+		return User{}, ErrNotFound
+	}
+	return user, nil
 }
 
 func (s *PostgresStore) CreateEnvelope(

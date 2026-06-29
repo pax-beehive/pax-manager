@@ -1596,6 +1596,65 @@ func (_c *MockStore_GetEnvelope_Call) RunAndReturn(run func(context.Context, dom
 	return _c
 }
 
+// GetEnvelopeAgentRecipient provides a mock function with given fields: ctx, principal, fromAgentID, toAgentID
+func (_m *MockStore) GetEnvelopeAgentRecipient(ctx context.Context, principal domain.UserPrincipal, fromAgentID string, toAgentID string) (domain.User, error) {
+	ret := _m.Called(ctx, principal, fromAgentID, toAgentID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetEnvelopeAgentRecipient")
+	}
+
+	var r0 domain.User
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string) (domain.User, error)); ok {
+		return rf(ctx, principal, fromAgentID, toAgentID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, string) domain.User); ok {
+		r0 = rf(ctx, principal, fromAgentID, toAgentID)
+	} else {
+		r0 = ret.Get(0).(domain.User)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, string) error); ok {
+		r1 = rf(ctx, principal, fromAgentID, toAgentID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetEnvelopeAgentRecipient_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetEnvelopeAgentRecipient'
+type MockStore_GetEnvelopeAgentRecipient_Call struct {
+	*mock.Call
+}
+
+// GetEnvelopeAgentRecipient is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - fromAgentID string
+//   - toAgentID string
+func (_e *MockStore_Expecter) GetEnvelopeAgentRecipient(ctx interface{}, principal interface{}, fromAgentID interface{}, toAgentID interface{}) *MockStore_GetEnvelopeAgentRecipient_Call {
+	return &MockStore_GetEnvelopeAgentRecipient_Call{Call: _e.mock.On("GetEnvelopeAgentRecipient", ctx, principal, fromAgentID, toAgentID)}
+}
+
+func (_c *MockStore_GetEnvelopeAgentRecipient_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, fromAgentID string, toAgentID string)) *MockStore_GetEnvelopeAgentRecipient_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetEnvelopeAgentRecipient_Call) Return(_a0 domain.User, _a1 error) *MockStore_GetEnvelopeAgentRecipient_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetEnvelopeAgentRecipient_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, string) (domain.User, error)) *MockStore_GetEnvelopeAgentRecipient_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetFriend provides a mock function with given fields: ctx, principal, friendID
 func (_m *MockStore) GetFriend(ctx context.Context, principal domain.UserPrincipal, friendID string) (domain.Friend, error) {
 	ret := _m.Called(ctx, principal, friendID)
