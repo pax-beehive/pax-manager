@@ -817,6 +817,36 @@ ALTER TABLE team_memex_runs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_team_memex_runs_team_started
     ON team_memex_runs(team_id, started_at DESC);
 
+CREATE TABLE IF NOT EXISTS team_memex_run_attempts (
+    attempt_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES team_memex_runs(run_id) ON DELETE CASCADE,
+    team_id TEXT NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
+    attempt_number INTEGER NOT NULL,
+    executor_type TEXT NOT NULL DEFAULT 'dry_run',
+    status TEXT NOT NULL,
+    manifest_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    validation_report_json JSONB,
+    error TEXT NOT NULL DEFAULT '',
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+ALTER TABLE team_memex_run_attempts ADD COLUMN IF NOT EXISTS run_id TEXT REFERENCES team_memex_runs(run_id) ON DELETE CASCADE;
+ALTER TABLE team_memex_run_attempts ADD COLUMN IF NOT EXISTS team_id TEXT REFERENCES teams(team_id);
+ALTER TABLE team_memex_run_attempts ADD COLUMN IF NOT EXISTS attempt_number INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE team_memex_run_attempts ADD COLUMN IF NOT EXISTS executor_type TEXT NOT NULL DEFAULT 'dry_run';
+ALTER TABLE team_memex_run_attempts ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'validation_failed';
+ALTER TABLE team_memex_run_attempts ADD COLUMN IF NOT EXISTS manifest_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE team_memex_run_attempts ADD COLUMN IF NOT EXISTS validation_report_json JSONB;
+ALTER TABLE team_memex_run_attempts ADD COLUMN IF NOT EXISTS error TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_memex_run_attempts ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE team_memex_run_attempts ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_team_memex_run_attempts_run_number
+    ON team_memex_run_attempts(run_id, attempt_number);
+CREATE INDEX IF NOT EXISTS idx_team_memex_run_attempts_team_run
+    ON team_memex_run_attempts(team_id, run_id, attempt_number);
+
 CREATE TABLE IF NOT EXISTS session_knowledge_injections (
     injection_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

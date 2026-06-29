@@ -80,6 +80,7 @@ type TeamMemexDocumentOperation = domain.TeamMemexDocumentOperation
 type TeamMemexManifest = domain.TeamMemexManifest
 type TeamMemexManifestOperation = domain.TeamMemexManifestOperation
 type TeamMemexRun = domain.TeamMemexRun
+type TeamMemexRunAttempt = domain.TeamMemexRunAttempt
 type AddTeamAgentRequest = domain.AddTeamAgentRequest
 type TransportFrame = domain.TransportFrame
 

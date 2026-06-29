@@ -40,12 +40,30 @@ type teamMemexRunRow struct {
 	CompletedAt          *time.Time      `gorm:"column:completed_at"`
 }
 
+type teamMemexRunAttemptRow struct {
+	AttemptID            string          `gorm:"column:attempt_id;primaryKey"`
+	RunID                string          `gorm:"column:run_id"`
+	TeamID               string          `gorm:"column:team_id"`
+	AttemptNumber        int             `gorm:"column:attempt_number"`
+	ExecutorType         string          `gorm:"column:executor_type"`
+	Status               string          `gorm:"column:status"`
+	Manifest             json.RawMessage `gorm:"column:manifest_json"`
+	ValidationReportJSON json.RawMessage `gorm:"column:validation_report_json"`
+	Error                string          `gorm:"column:error"`
+	StartedAt            time.Time       `gorm:"column:started_at"`
+	CompletedAt          *time.Time      `gorm:"column:completed_at"`
+}
+
 func (teamMemexDocumentRow) TableName() string {
 	return "team_memex_documents"
 }
 
 func (teamMemexRunRow) TableName() string {
 	return "team_memex_runs"
+}
+
+func (teamMemexRunAttemptRow) TableName() string {
+	return "team_memex_run_attempts"
 }
 
 func teamMemexDocumentFromModel(row *teamMemexDocumentRow) TeamMemexDocument {
@@ -119,6 +137,61 @@ func teamMemexRunFromModel(row *teamMemexRunRow) (TeamMemexRun, error) {
 		Error:             row.Error,
 		StartedAt:         row.StartedAt,
 		CompletedAt:       row.CompletedAt,
+	}, nil
+}
+
+func teamMemexRunAttemptModel(attempt TeamMemexRunAttempt) (*teamMemexRunAttemptRow, error) {
+	manifest, err := json.Marshal(attempt.Manifest)
+	if err != nil {
+		return nil, err
+	}
+	report, err := teamMemexValidationReportJSON(attempt.ValidationReport)
+	if err != nil {
+		return nil, err
+	}
+	return &teamMemexRunAttemptRow{
+		AttemptID:            attempt.AttemptID,
+		RunID:                attempt.RunID,
+		TeamID:               attempt.TeamID,
+		AttemptNumber:        attempt.AttemptNumber,
+		ExecutorType:         attempt.ExecutorType,
+		Status:               attempt.Status,
+		Manifest:             manifest,
+		ValidationReportJSON: report,
+		Error:                attempt.Error,
+		StartedAt:            attempt.StartedAt,
+		CompletedAt:          attempt.CompletedAt,
+	}, nil
+}
+
+func teamMemexRunAttemptFromModel(
+	row *teamMemexRunAttemptRow,
+) (TeamMemexRunAttempt, error) {
+	if row == nil {
+		return TeamMemexRunAttempt{}, nil
+	}
+	var manifest domain.TeamMemexManifest
+	if len(row.Manifest) > 0 {
+		if err := json.Unmarshal(row.Manifest, &manifest); err != nil {
+			return TeamMemexRunAttempt{}, err
+		}
+	}
+	report, err := teamMemexValidationReportFromJSON(row.ValidationReportJSON)
+	if err != nil {
+		return TeamMemexRunAttempt{}, err
+	}
+	return TeamMemexRunAttempt{
+		AttemptID:        row.AttemptID,
+		RunID:            row.RunID,
+		TeamID:           row.TeamID,
+		AttemptNumber:    row.AttemptNumber,
+		ExecutorType:     row.ExecutorType,
+		Status:           row.Status,
+		Manifest:         manifest,
+		ValidationReport: report,
+		Error:            row.Error,
+		StartedAt:        row.StartedAt,
+		CompletedAt:      row.CompletedAt,
 	}, nil
 }
 
@@ -207,21 +280,17 @@ func (s *PostgresStore) CreateTeamMemexRun(
 	principal UserPrincipal,
 	run TeamMemexRun,
 ) (TeamMemexRun, error) {
-	member, err := s.activeTeamMember(ctx, s.gormDB, run.TeamID, principal.User.UserID)
-	if err != nil {
-		return TeamMemexRun{}, err
-	}
-	if !teamRoleCanManageOwnAgents(member.Role) {
-		return TeamMemexRun{}, ErrUnauthorized
-	}
-	row, err := teamMemexRunModel(run)
-	if err != nil {
-		return TeamMemexRun{}, err
-	}
-	if err := s.gormDB.WithContext(ctx).Create(row).Error; err != nil {
-		if isUniqueViolation(err) {
-			return TeamMemexRun{}, ErrConflict
+	err := s.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		member, err := s.activeTeamMember(ctx, tx, run.TeamID, principal.User.UserID)
+		if err != nil {
+			return err
 		}
+		if !teamRoleCanManageOwnAgents(member.Role) {
+			return ErrUnauthorized
+		}
+		return createPostgresTeamMemexRun(ctx, tx, run)
+	})
+	if err != nil {
 		return TeamMemexRun{}, err
 	}
 	return run, nil
@@ -246,7 +315,16 @@ func (s *PostgresStore) GetTeamMemexRun(
 		}
 		return TeamMemexRun{}, err
 	}
-	return teamMemexRunFromModel(&row)
+	run, err := teamMemexRunFromModel(&row)
+	if err != nil {
+		return TeamMemexRun{}, err
+	}
+	attempts, err := listPostgresTeamMemexRunAttempts(ctx, s.gormDB, teamID, runID)
+	if err != nil {
+		return TeamMemexRun{}, err
+	}
+	run.Attempts = attempts
+	return run, nil
 }
 
 func (s *PostgresStore) PublishTeamMemexRun(
@@ -264,14 +342,7 @@ func (s *PostgresStore) PublishTeamMemexRun(
 		if !teamRoleCanManageOwnAgents(member.Role) {
 			return ErrUnauthorized
 		}
-		row, err := teamMemexRunModel(run)
-		if err != nil {
-			return err
-		}
-		if err := tx.Create(row).Error; err != nil {
-			if isUniqueViolation(err) {
-				return ErrConflict
-			}
+		if err := createPostgresTeamMemexRun(ctx, tx, run); err != nil {
 			return err
 		}
 		for _, operation := range operations {
@@ -285,6 +356,61 @@ func (s *PostgresStore) PublishTeamMemexRun(
 		return TeamMemexRun{}, err
 	}
 	return run, nil
+}
+
+func createPostgresTeamMemexRun(
+	ctx context.Context,
+	tx *gorm.DB,
+	run TeamMemexRun,
+) error {
+	row, err := teamMemexRunModel(run)
+	if err != nil {
+		return err
+	}
+	if err := tx.WithContext(ctx).Create(row).Error; err != nil {
+		if isUniqueViolation(err) {
+			return ErrConflict
+		}
+		return err
+	}
+	for _, attempt := range run.Attempts {
+		row, err := teamMemexRunAttemptModel(attempt)
+		if err != nil {
+			return err
+		}
+		if err := tx.WithContext(ctx).Create(row).Error; err != nil {
+			if isUniqueViolation(err) {
+				return ErrConflict
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func listPostgresTeamMemexRunAttempts(
+	ctx context.Context,
+	db *gorm.DB,
+	teamID string,
+	runID string,
+) ([]TeamMemexRunAttempt, error) {
+	var rows []teamMemexRunAttemptRow
+	err := db.WithContext(ctx).
+		Where("team_id = ? AND run_id = ?", teamID, runID).
+		Order("attempt_number ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	attempts := make([]TeamMemexRunAttempt, 0, len(rows))
+	for i := range rows {
+		attempt, err := teamMemexRunAttemptFromModel(&rows[i])
+		if err != nil {
+			return nil, err
+		}
+		attempts = append(attempts, attempt)
+	}
+	return attempts, nil
 }
 
 func applyPostgresTeamMemexOperation(
@@ -641,17 +767,56 @@ func cloneTeamMemexDocument(doc TeamMemexDocument) TeamMemexDocument {
 func cloneTeamMemexRun(run TeamMemexRun) TeamMemexRun {
 	run.Constraints.AllowedOperations = append([]string(nil), run.Constraints.AllowedOperations...)
 	if run.ValidationReport != nil {
-		report := *run.ValidationReport
-		report.Errors = append(
-			[]domain.TeamMemexValidationError(nil),
-			run.ValidationReport.Errors...)
-		report.Constraints.AllowedOperations = append(
-			[]string(nil),
-			run.ValidationReport.Constraints.AllowedOperations...,
-		)
-		run.ValidationReport = &report
+		run.ValidationReport = cloneTeamMemexValidationReport(run.ValidationReport)
 	}
+	run.Attempts = cloneTeamMemexRunAttempts(run.Attempts)
 	return run
+}
+
+func cloneTeamMemexRunAttempts(
+	attempts []TeamMemexRunAttempt,
+) []TeamMemexRunAttempt {
+	if len(attempts) == 0 {
+		return nil
+	}
+	out := make([]TeamMemexRunAttempt, 0, len(attempts))
+	for _, attempt := range attempts {
+		out = append(out, cloneTeamMemexRunAttempt(attempt))
+	}
+	return out
+}
+
+func cloneTeamMemexRunAttempt(attempt TeamMemexRunAttempt) TeamMemexRunAttempt {
+	attempt.Manifest = cloneTeamMemexManifest(attempt.Manifest)
+	attempt.ValidationReport = cloneTeamMemexValidationReport(attempt.ValidationReport)
+	return attempt
+}
+
+func cloneTeamMemexManifest(manifest TeamMemexManifest) TeamMemexManifest {
+	if len(manifest.Operations) == 0 {
+		return TeamMemexManifest{}
+	}
+	operations := make([]domain.TeamMemexManifestOperation, 0, len(manifest.Operations))
+	for _, operation := range manifest.Operations {
+		operation.Tags = append(json.RawMessage(nil), operation.Tags...)
+		operations = append(operations, operation)
+	}
+	return TeamMemexManifest{Operations: operations}
+}
+
+func cloneTeamMemexValidationReport(
+	report *domain.TeamMemexValidationReport,
+) *domain.TeamMemexValidationReport {
+	if report == nil {
+		return nil
+	}
+	cloned := *report
+	cloned.Errors = append([]domain.TeamMemexValidationError(nil), report.Errors...)
+	cloned.Constraints.AllowedOperations = append(
+		[]string(nil),
+		report.Constraints.AllowedOperations...,
+	)
+	return &cloned
 }
 
 func teamMemexValidationReportJSON(

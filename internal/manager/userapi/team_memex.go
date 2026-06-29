@@ -124,48 +124,100 @@ func (s *Service) CreateTeamMemexRun(
 	if executor == nil {
 		executor = dryRunTeamMemexExecutor{}
 	}
-	manifest, err := executor.MaintainTeamMemex(c, TeamMemexExecutorInput{
-		TeamID:      teamID,
-		IndexMD:     indexMD,
-		Constraints: constraints,
-		Workspace:   newTeamMemexWorkspace(documents, constraints),
-	})
-	if err != nil {
-		completedAt := s.clock().UTC()
-		run.Status = domain.TeamMemexRunStatusProviderFailed
-		run.Error = err.Error()
-		run.CompletedAt = &completedAt
-		created, createErr := s.store.CreateTeamMemexRun(c, principal, run)
-		if createErr != nil {
-			return 0, nil, createErr
+	maxAttempts := teamMemexRunMaxAttempts(constraints)
+	attempts := make([]domain.TeamMemexRunAttempt, 0, maxAttempts)
+	var previousManifest *domain.TeamMemexManifest
+	var previousReport *domain.TeamMemexValidationReport
+	for attemptNumber := 1; attemptNumber <= maxAttempts; attemptNumber++ {
+		attemptID, err := s.secrets.New("tmattempt")
+		if err != nil {
+			return 0, nil, err
+		}
+		attemptStartedAt := s.clock().UTC()
+		manifest, err := executor.MaintainTeamMemex(c, TeamMemexExecutorInput{
+			TeamID:           teamID,
+			IndexMD:          indexMD,
+			Constraints:      constraints,
+			Workspace:        newTeamMemexWorkspace(documents, constraints),
+			AttemptNumber:    attemptNumber,
+			PreviousManifest: previousManifest,
+			ValidationReport: previousReport,
+		})
+		attemptCompletedAt := s.clock().UTC()
+		attempt := domain.TeamMemexRunAttempt{
+			AttemptID:     attemptID,
+			RunID:         runID,
+			TeamID:        teamID,
+			AttemptNumber: attemptNumber,
+			ExecutorType:  domain.TeamMemexRunExecutorDryRun,
+			Manifest:      cloneTeamMemexManifest(manifest),
+			StartedAt:     attemptStartedAt,
+			CompletedAt:   &attemptCompletedAt,
+		}
+		if err != nil {
+			attempt.Status = domain.TeamMemexRunAttemptStatusProviderFailed
+			attempt.Error = err.Error()
+			attempts = append(attempts, attempt)
+			run.Status = domain.TeamMemexRunStatusProviderFailed
+			run.Error = err.Error()
+			run.CompletedAt = &attemptCompletedAt
+			run.Attempts = attempts
+			created, createErr := s.store.CreateTeamMemexRun(c, principal, run)
+			if createErr != nil {
+				return 0, nil, createErr
+			}
+			return http.StatusOK, map[string]any{
+				"run": teamMemexRunResponseFromDomain(created),
+			}, nil
+		}
+		operations, report, err := s.validateTeamMemexManifest(
+			manifest,
+			documents,
+			reservedPaths,
+			constraints,
+		)
+		if err != nil {
+			attempt.Status = domain.TeamMemexRunAttemptStatusValidationFailed
+			attempt.ValidationReport = cloneTeamMemexValidationReport(report)
+			attempt.Error = err.Error()
+			attempts = append(attempts, attempt)
+			if report != nil && report.Retryable && attemptNumber < maxAttempts {
+				nextManifest := cloneTeamMemexManifest(manifest)
+				previousManifest = &nextManifest
+				previousReport = cloneTeamMemexValidationReport(report)
+				continue
+			}
+			run.Status = domain.TeamMemexRunStatusValidationFailed
+			run.ValidationReport = cloneTeamMemexValidationReport(report)
+			run.Error = err.Error()
+			run.CompletedAt = &attemptCompletedAt
+			run.Attempts = attempts
+			created, createErr := s.store.CreateTeamMemexRun(c, principal, run)
+			if createErr != nil {
+				return 0, nil, createErr
+			}
+			return http.StatusOK, map[string]any{
+				"run": teamMemexRunResponseFromDomain(created),
+			}, nil
+		}
+		attempt.Status = domain.TeamMemexRunAttemptStatusSucceeded
+		attempts = append(attempts, attempt)
+		run.Status = domain.TeamMemexRunStatusSucceeded
+		run.CompletedAt = &attemptCompletedAt
+		run.Attempts = attempts
+		created, err := s.store.PublishTeamMemexRun(
+			c,
+			principal,
+			run,
+			operations,
+			attemptCompletedAt,
+		)
+		if err != nil {
+			return 0, nil, err
 		}
 		return http.StatusOK, map[string]any{"run": teamMemexRunResponseFromDomain(created)}, nil
 	}
-	operations, report, err := s.validateTeamMemexManifest(
-		manifest,
-		documents,
-		reservedPaths,
-		constraints,
-	)
-	completedAt := s.clock().UTC()
-	if err != nil {
-		run.Status = domain.TeamMemexRunStatusValidationFailed
-		run.ValidationReport = report
-		run.Error = err.Error()
-		run.CompletedAt = &completedAt
-		created, createErr := s.store.CreateTeamMemexRun(c, principal, run)
-		if createErr != nil {
-			return 0, nil, createErr
-		}
-		return http.StatusOK, map[string]any{"run": teamMemexRunResponseFromDomain(created)}, nil
-	}
-	run.Status = domain.TeamMemexRunStatusSucceeded
-	run.CompletedAt = &completedAt
-	created, err := s.store.PublishTeamMemexRun(c, principal, run, operations, completedAt)
-	if err != nil {
-		return 0, nil, err
-	}
-	return http.StatusOK, map[string]any{"run": teamMemexRunResponseFromDomain(created)}, nil
+	return 0, nil, errors.New("team memex run reached an unreachable terminal state")
 }
 
 func (s *Service) GetTeamMemexRun(
@@ -213,6 +265,21 @@ type teamMemexRunResponse struct {
 	Error             string                            `json:"error,omitempty"`
 	StartedAt         time.Time                         `json:"started_at"`
 	CompletedAt       *time.Time                        `json:"completed_at,omitempty"`
+	Attempts          []teamMemexRunAttemptResponse     `json:"attempts,omitempty"`
+}
+
+type teamMemexRunAttemptResponse struct {
+	AttemptID        string                            `json:"attempt_id"`
+	RunID            string                            `json:"run_id"`
+	TeamID           string                            `json:"team_id"`
+	AttemptNumber    int                               `json:"attempt_number"`
+	ExecutorType     string                            `json:"executor_type"`
+	Status           string                            `json:"status"`
+	Manifest         domain.TeamMemexManifest          `json:"manifest"`
+	ValidationReport *domain.TeamMemexValidationReport `json:"validation_report,omitempty"`
+	Error            string                            `json:"error,omitempty"`
+	StartedAt        time.Time                         `json:"started_at"`
+	CompletedAt      *time.Time                        `json:"completed_at,omitempty"`
 }
 
 func teamMemexDocumentResponses(
@@ -252,7 +319,33 @@ func teamMemexRunResponseFromDomain(run domain.TeamMemexRun) teamMemexRunRespons
 		Error:             run.Error,
 		StartedAt:         run.StartedAt,
 		CompletedAt:       run.CompletedAt,
+		Attempts:          teamMemexRunAttemptResponses(run.Attempts),
 	}
+}
+
+func teamMemexRunAttemptResponses(
+	attempts []domain.TeamMemexRunAttempt,
+) []teamMemexRunAttemptResponse {
+	if len(attempts) == 0 {
+		return nil
+	}
+	out := make([]teamMemexRunAttemptResponse, 0, len(attempts))
+	for _, attempt := range attempts {
+		out = append(out, teamMemexRunAttemptResponse{
+			AttemptID:        attempt.AttemptID,
+			RunID:            attempt.RunID,
+			TeamID:           attempt.TeamID,
+			AttemptNumber:    attempt.AttemptNumber,
+			ExecutorType:     attempt.ExecutorType,
+			Status:           attempt.Status,
+			Manifest:         cloneTeamMemexManifest(attempt.Manifest),
+			ValidationReport: cloneTeamMemexValidationReport(attempt.ValidationReport),
+			Error:            attempt.Error,
+			StartedAt:        attempt.StartedAt,
+			CompletedAt:      attempt.CompletedAt,
+		})
+	}
+	return out
 }
 
 func cloneTeamMemexRunConstraints(
@@ -272,6 +365,25 @@ func cloneTeamMemexValidationReport(
 	cloned.Errors = append([]domain.TeamMemexValidationError(nil), report.Errors...)
 	cloned.Constraints = cloneTeamMemexRunConstraints(report.Constraints)
 	return &cloned
+}
+
+func cloneTeamMemexManifest(manifest domain.TeamMemexManifest) domain.TeamMemexManifest {
+	if len(manifest.Operations) == 0 {
+		return domain.TeamMemexManifest{}
+	}
+	operations := make([]domain.TeamMemexManifestOperation, 0, len(manifest.Operations))
+	for _, operation := range manifest.Operations {
+		operation.Tags = append(json.RawMessage(nil), operation.Tags...)
+		operations = append(operations, operation)
+	}
+	return domain.TeamMemexManifest{Operations: operations}
+}
+
+func teamMemexRunMaxAttempts(constraints domain.TeamMemexRunConstraints) int {
+	if constraints.MaxRepairAttempts < 0 {
+		return 1
+	}
+	return 1 + constraints.MaxRepairAttempts
 }
 
 func renderTeamMemexIndex(documents []domain.TeamMemexDocument) string {
@@ -335,10 +447,13 @@ type TeamMemexExecutor interface {
 }
 
 type TeamMemexExecutorInput struct {
-	TeamID      string
-	IndexMD     string
-	Constraints domain.TeamMemexRunConstraints
-	Workspace   TeamMemexWorkspace
+	TeamID           string
+	IndexMD          string
+	Constraints      domain.TeamMemexRunConstraints
+	Workspace        TeamMemexWorkspace
+	AttemptNumber    int
+	PreviousManifest *domain.TeamMemexManifest
+	ValidationReport *domain.TeamMemexValidationReport
 }
 
 type TeamMemexWorkspace interface {

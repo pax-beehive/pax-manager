@@ -23,6 +23,10 @@ const (
 	TeamMemexRunStatusProviderFailed   = "provider_failed"
 	TeamMemexRunStatusValidationFailed = "validation_failed"
 	TeamMemexRunStatusFailed           = "failed"
+
+	TeamMemexRunAttemptStatusSucceeded        = "succeeded"
+	TeamMemexRunAttemptStatusProviderFailed   = "provider_failed"
+	TeamMemexRunAttemptStatusValidationFailed = "validation_failed"
 )
 
 type TeamMemexDocument struct {
@@ -101,6 +105,21 @@ type TeamMemexRun struct {
 	Error             string                     `json:"error,omitempty"`
 	StartedAt         time.Time                  `json:"started_at"`
 	CompletedAt       *time.Time                 `json:"completed_at,omitempty"`
+	Attempts          []TeamMemexRunAttempt      `json:"attempts,omitempty"`
+}
+
+type TeamMemexRunAttempt struct {
+	AttemptID        string                     `json:"attempt_id"`
+	RunID            string                     `json:"run_id"`
+	TeamID           string                     `json:"team_id"`
+	AttemptNumber    int                        `json:"attempt_number"`
+	ExecutorType     string                     `json:"executor_type"`
+	Status           string                     `json:"status"`
+	Manifest         TeamMemexManifest          `json:"manifest"`
+	ValidationReport *TeamMemexValidationReport `json:"validation_report,omitempty"`
+	Error            string                     `json:"error,omitempty"`
+	StartedAt        time.Time                  `json:"started_at"`
+	CompletedAt      *time.Time                 `json:"completed_at,omitempty"`
 }
 
 func DefaultTeamMemexRunConstraints() TeamMemexRunConstraints {

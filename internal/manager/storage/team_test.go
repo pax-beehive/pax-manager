@@ -130,6 +130,35 @@ func TestTeamPostgresModelConversions(t *testing.T) {
 	emptyRun, err := teamMemexRunFromModel(nil)
 	require.NoError(t, err)
 	require.Equal(t, TeamMemexRun{}, emptyRun)
+
+	attempt := TeamMemexRunAttempt{
+		AttemptID:     "tmattempt_1",
+		RunID:         "tmrun_1",
+		TeamID:        "team_1",
+		AttemptNumber: 1,
+		ExecutorType:  domain.TeamMemexRunExecutorDryRun,
+		Status:        domain.TeamMemexRunAttemptStatusValidationFailed,
+		Manifest: TeamMemexManifest{Operations: []domain.TeamMemexManifestOperation{{
+			Operation: domain.TeamMemexOperationUpdateDoc,
+			Path:      "index.md",
+			Title:     "Index",
+			Summary:   "Should not be writable",
+			Tags:      json.RawMessage(`["index"]`),
+			BodyMD:    "# Index\n",
+		}}},
+		ValidationReport: run.ValidationReport,
+		Error:            "validation failed",
+		StartedAt:        now,
+		CompletedAt:      &completedAt,
+	}
+	attemptRow, err := teamMemexRunAttemptModel(attempt)
+	require.NoError(t, err)
+	convertedAttempt, err := teamMemexRunAttemptFromModel(attemptRow)
+	require.NoError(t, err)
+	require.Equal(t, attempt, convertedAttempt)
+	emptyAttempt, err := teamMemexRunAttemptFromModel(nil)
+	require.NoError(t, err)
+	require.Equal(t, TeamMemexRunAttempt{}, emptyAttempt)
 }
 
 func TestMemoryTeamStore(t *testing.T) {
@@ -390,12 +419,26 @@ func TestMemoryTeamStore(t *testing.T) {
 				IndexMD:           "# Team LLM Wiki\n",
 				StartedAt:         now,
 				CompletedAt:       &now,
+				Attempts: []TeamMemexRunAttempt{{
+					AttemptID:     "tmattempt_1",
+					RunID:         "tmrun_1",
+					TeamID:        teamID,
+					AttemptNumber: 1,
+					ExecutorType:  domain.TeamMemexRunExecutorDryRun,
+					Status:        domain.TeamMemexRunAttemptStatusSucceeded,
+					Manifest: TeamMemexManifest{Operations: []domain.TeamMemexManifestOperation{{
+						Operation: domain.TeamMemexOperationNoOp,
+					}}},
+					StartedAt:   now,
+					CompletedAt: &now,
+				}},
 			}
 			created, err := store.CreateTeamMemexRun(ctx, UserPrincipal{User: operator}, run)
 			require.NoError(t, err)
 			require.Equal(t, "tmrun_1", created.RunID)
 
 			created.Constraints.AllowedOperations[0] = "mutated"
+			created.Attempts[0].Manifest.Operations[0].Operation = "mutated"
 			fetched, err := store.GetTeamMemexRun(
 				ctx,
 				UserPrincipal{User: member},
@@ -405,6 +448,12 @@ func TestMemoryTeamStore(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "create_doc", fetched.Constraints.AllowedOperations[0])
 			require.Equal(t, "# Team LLM Wiki\n", fetched.IndexMD)
+			require.Len(t, fetched.Attempts, 1)
+			require.Equal(
+				t,
+				domain.TeamMemexOperationNoOp,
+				fetched.Attempts[0].Manifest.Operations[0].Operation,
+			)
 
 			_, err = store.CreateTeamMemexRun(ctx, UserPrincipal{User: member}, TeamMemexRun{
 				RunID:             "tmrun_2",
