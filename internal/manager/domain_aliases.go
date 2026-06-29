@@ -32,6 +32,7 @@ type TeamMemexDocumentOperation = domain.TeamMemexDocumentOperation
 type TeamMemexManifest = domain.TeamMemexManifest
 type TeamMemexManifestOperation = domain.TeamMemexManifestOperation
 type TeamMemexRun = domain.TeamMemexRun
+type TeamMemexRunAttempt = domain.TeamMemexRunAttempt
 type CreateKnowledgeCapsuleRequest = domain.CreateKnowledgeCapsuleRequest
 type ListKnowledgeCapsulesFilter = domain.ListKnowledgeCapsulesFilter
 type InjectKnowledgeCapsuleRequest = domain.InjectKnowledgeCapsuleRequest

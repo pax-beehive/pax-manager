@@ -84,8 +84,9 @@ func TestTeamMemexRunAppliesExecutorManifest(t *testing.T) {
 		}},
 	}
 	secrets := &sequenceSecretIssuer{values: map[string][]string{
-		"tmrun": {"tmrun_publish"},
-		"tmdoc": {"tmdoc_product"},
+		"tmrun":     {"tmrun_publish"},
+		"tmattempt": {"tmattempt_publish_1"},
+		"tmdoc":     {"tmdoc_product"},
 	}}
 	svc := NewService(
 		store,
@@ -102,6 +103,8 @@ func TestTeamMemexRunAppliesExecutorManifest(t *testing.T) {
 	require.Equal(t, "tmrun_publish", run.RunID)
 	require.Equal(t, domain.TeamMemexRunStatusSucceeded, run.Status)
 	require.Nil(t, run.ValidationReport)
+	require.Len(t, run.Attempts, 1)
+	require.Equal(t, domain.TeamMemexRunAttemptStatusSucceeded, run.Attempts[0].Status)
 	require.Contains(t, executor.indexMD, "runtime/sessions.md")
 	require.Empty(t, executor.searchBody)
 	require.Contains(t, executor.readBody, "Old session notes")
@@ -129,6 +132,88 @@ func TestTeamMemexRunAppliesExecutorManifest(t *testing.T) {
 		"old/cleanup.md",
 	)
 	require.ErrorIs(t, err, storage.ErrNotFound)
+}
+
+func TestTeamMemexRunRepairsInvalidManifest(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 28, 12, 0, 0, 0, time.UTC)
+	store := storage.NewMemoryStore(func() time.Time { return now })
+	owner, err := store.EnsureUser(ctx, "owner@example.com", "", "user")
+	require.NoError(t, err)
+	teamID := "team_1"
+	_, err = store.CreateTeam(ctx, domain.Team{
+		TeamID:      teamID,
+		OwnerUserID: owner.UserID,
+		Name:        "Core",
+		Status:      domain.TeamStatusActive,
+		CreatedAt:   now,
+	}, domain.TeamMember{
+		TeamID:        teamID,
+		UserID:        owner.UserID,
+		Email:         owner.Email,
+		Role:          domain.TeamRoleOwner,
+		Status:        domain.TeamMemberStatusActive,
+		InvitedByUser: owner.UserID,
+		JoinedAt:      now,
+	})
+	require.NoError(t, err)
+	seedTeamMemexDocuments(t, ctx, store, owner, teamID, now)
+
+	executor := &scriptedTeamMemexExecutor{manifests: []domain.TeamMemexManifest{
+		{Operations: []domain.TeamMemexManifestOperation{{
+			Operation: domain.TeamMemexOperationUpdateDoc,
+			Path:      "index.md",
+			Title:     "Index",
+			Summary:   "Should not be writable",
+			BodyMD:    "# Index\n",
+		}}},
+		{Operations: []domain.TeamMemexManifestOperation{{
+			Operation: domain.TeamMemexOperationUpdateDoc,
+			Path:      "runtime/sessions.md",
+			Title:     "Sessions",
+			Summary:   "Repaired session storage notes",
+			Tags:      json.RawMessage(`["runtime","sessions"]`),
+			BodyMD:    "# Sessions\nThe repaired manifest updates the existing doc.\n",
+		}}},
+	}}
+	svc := NewService(
+		store,
+		func() time.Time { return now },
+		fixedTeamMemexPrincipal{principal: domain.UserPrincipal{User: owner}},
+		&sequenceSecretIssuer{values: map[string][]string{
+			"tmrun":     {"tmrun_repair"},
+			"tmattempt": {"tmattempt_repair_1", "tmattempt_repair_2"},
+		}},
+	)
+	svc.memexExecutor = executor
+
+	status, data, err := svc.CreateTeamMemexRun(ctx, auth.RequestMetadata{}, teamID)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	run := data.(map[string]any)["run"].(teamMemexRunResponse)
+	require.Equal(t, domain.TeamMemexRunStatusSucceeded, run.Status)
+	require.Nil(t, run.ValidationReport)
+	require.Len(t, run.Attempts, 2)
+	require.Equal(t, domain.TeamMemexRunAttemptStatusValidationFailed, run.Attempts[0].Status)
+	require.Equal(t, "INDEX_IS_READ_ONLY", run.Attempts[0].ValidationReport.Errors[0].Code)
+	require.Equal(t, domain.TeamMemexRunAttemptStatusSucceeded, run.Attempts[1].Status)
+	require.Len(t, executor.inputs, 2)
+	require.Equal(t, 1, executor.inputs[0].attemptNumber)
+	require.Nil(t, executor.inputs[0].previousManifest)
+	require.Nil(t, executor.inputs[0].validationReport)
+	require.Equal(t, 2, executor.inputs[1].attemptNumber)
+	require.NotNil(t, executor.inputs[1].previousManifest)
+	require.NotNil(t, executor.inputs[1].validationReport)
+	require.Equal(t, "INDEX_IS_READ_ONLY", executor.inputs[1].validationReport.Errors[0].Code)
+
+	document, err := store.GetTeamMemexDocument(
+		ctx,
+		storage.UserPrincipal{User: owner},
+		teamID,
+		"runtime/sessions.md",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Repaired session storage notes", document.Summary)
 }
 
 func TestTeamMemexRunStoresValidationReportWithoutPublishing(t *testing.T) {
@@ -160,7 +245,14 @@ func TestTeamMemexRunStoresValidationReportWithoutPublishing(t *testing.T) {
 		store,
 		func() time.Time { return now },
 		fixedTeamMemexPrincipal{principal: domain.UserPrincipal{User: owner}},
-		&sequenceSecretIssuer{values: map[string][]string{"tmrun": {"tmrun_invalid"}}},
+		&sequenceSecretIssuer{values: map[string][]string{
+			"tmrun": {"tmrun_invalid"},
+			"tmattempt": {
+				"tmattempt_invalid_1",
+				"tmattempt_invalid_2",
+				"tmattempt_invalid_3",
+			},
+		}},
 	)
 	svc.memexExecutor = &capturingTeamMemexExecutor{
 		manifest: domain.TeamMemexManifest{Operations: []domain.TeamMemexManifestOperation{{
@@ -180,6 +272,11 @@ func TestTeamMemexRunStoresValidationReportWithoutPublishing(t *testing.T) {
 	require.NotNil(t, run.ValidationReport)
 	require.Equal(t, "INDEX_IS_READ_ONLY", run.ValidationReport.Errors[0].Code)
 	require.Contains(t, run.Error, "validation failed")
+	require.Len(t, run.Attempts, 3)
+	for _, attempt := range run.Attempts {
+		require.Equal(t, domain.TeamMemexRunAttemptStatusValidationFailed, attempt.Status)
+		require.Equal(t, "INDEX_IS_READ_ONLY", attempt.ValidationReport.Errors[0].Code)
+	}
 
 	document, err := store.GetTeamMemexDocument(
 		ctx,
@@ -300,6 +397,33 @@ type capturingTeamMemexExecutor struct {
 	indexMD    string
 	searchBody string
 	readBody   string
+}
+
+type observedTeamMemexExecutorInput struct {
+	attemptNumber    int
+	previousManifest *domain.TeamMemexManifest
+	validationReport *domain.TeamMemexValidationReport
+}
+
+type scriptedTeamMemexExecutor struct {
+	manifests []domain.TeamMemexManifest
+	inputs    []observedTeamMemexExecutorInput
+}
+
+func (e *scriptedTeamMemexExecutor) MaintainTeamMemex(
+	_ context.Context,
+	input TeamMemexExecutorInput,
+) (domain.TeamMemexManifest, error) {
+	e.inputs = append(e.inputs, observedTeamMemexExecutorInput{
+		attemptNumber:    input.AttemptNumber,
+		previousManifest: input.PreviousManifest,
+		validationReport: input.ValidationReport,
+	})
+	index := len(e.inputs) - 1
+	if index >= len(e.manifests) {
+		index = len(e.manifests) - 1
+	}
+	return e.manifests[index], nil
 }
 
 func (e *capturingTeamMemexExecutor) MaintainTeamMemex(
