@@ -75,6 +75,7 @@ type TeamMember = domain.TeamMember
 type TeamInvite = domain.TeamInvite
 type TeamAgent = domain.TeamAgent
 type TeamAuditEvent = domain.TeamAuditEvent
+type TeamMemexDocument = domain.TeamMemexDocument
 type AddTeamAgentRequest = domain.AddTeamAgentRequest
 type TransportFrame = domain.TransportFrame
 

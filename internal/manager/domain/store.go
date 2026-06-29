@@ -362,6 +362,17 @@ type Store interface {
 		teamID string,
 		limit int,
 	) ([]TeamAuditEvent, error)
+	ListTeamMemexDocuments(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+	) ([]TeamMemexDocument, error)
+	GetTeamMemexDocument(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+		path string,
+	) (TeamMemexDocument, error)
 	CreateTeamInvite(
 		ctx context.Context,
 		principal UserPrincipal,

@@ -755,6 +755,38 @@ ALTER TABLE team_audit_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NO
 CREATE INDEX IF NOT EXISTS idx_team_audit_events_team_created
     ON team_audit_events(team_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS team_memex_documents (
+    document_id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL REFERENCES teams(team_id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    body_md TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    archived_at TIMESTAMPTZ,
+    UNIQUE(team_id, path)
+);
+
+ALTER TABLE team_memex_documents ADD COLUMN IF NOT EXISTS team_id TEXT REFERENCES teams(team_id);
+ALTER TABLE team_memex_documents ADD COLUMN IF NOT EXISTS path TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_memex_documents ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_memex_documents ADD COLUMN IF NOT EXISTS summary TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_memex_documents ADD COLUMN IF NOT EXISTS tags_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE team_memex_documents ADD COLUMN IF NOT EXISTS body_md TEXT NOT NULL DEFAULT '';
+ALTER TABLE team_memex_documents ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE team_memex_documents ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE team_memex_documents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE team_memex_documents ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_team_memex_documents_team_path
+    ON team_memex_documents(team_id, path);
+CREATE INDEX IF NOT EXISTS idx_team_memex_documents_active
+    ON team_memex_documents(team_id, path)
+    WHERE status = 'active';
+
 CREATE TABLE IF NOT EXISTS session_knowledge_injections (
     injection_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

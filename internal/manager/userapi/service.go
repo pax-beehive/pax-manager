@@ -24,6 +24,7 @@ type Store interface {
 	EnvelopeStore
 	FriendStore
 	TeamStore
+	TeamMemexStore
 	MailboxStore
 }
 
@@ -322,6 +323,20 @@ type TeamStore interface {
 		teamID string,
 		archivedAt time.Time,
 	) (domain.Team, error)
+}
+
+type TeamMemexStore interface {
+	ListTeamMemexDocuments(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+	) ([]domain.TeamMemexDocument, error)
+	GetTeamMemexDocument(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+		path string,
+	) (domain.TeamMemexDocument, error)
 }
 
 type MailboxStore interface {

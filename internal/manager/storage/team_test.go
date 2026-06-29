@@ -261,6 +261,72 @@ func TestMemoryTeamStore(t *testing.T) {
 		require.NotNil(t, removed.RemovedAt)
 	})
 
+	t.Run(
+		"Given team memex documents then active members can read active docs only",
+		func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+			store := NewMemoryStore(func() time.Time { return now })
+			owner, operator, member := seedTeamUsers(t, ctx, store)
+			teamID := "team_1"
+			seedTeam(t, ctx, store, teamID, owner, map[string]User{
+				domain.TeamRoleOperator: operator,
+			}, now)
+			store.teamMemexDocuments[teamMemexDocumentKey{TeamID: teamID, Path: "runtime/sessions.md"}] = TeamMemexDocument{
+				DocumentID: "memex_doc_1",
+				TeamID:     teamID,
+				Path:       "runtime/sessions.md",
+				Title:      "Sessions",
+				Summary:    "How sessions are stored",
+				Tags:       json.RawMessage(`["runtime"]`),
+				BodyMD:     "# Sessions\n",
+				Status:     domain.TeamMemexDocumentStatusActive,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
+			store.teamMemexDocuments[teamMemexDocumentKey{TeamID: teamID, Path: "old/archived.md"}] = TeamMemexDocument{
+				DocumentID: "memex_doc_2",
+				TeamID:     teamID,
+				Path:       "old/archived.md",
+				Title:      "Archived",
+				Status:     domain.TeamMemexDocumentStatusArchived,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
+
+			documents, err := store.ListTeamMemexDocuments(
+				ctx,
+				UserPrincipal{User: operator},
+				teamID,
+			)
+			require.NoError(t, err)
+			require.Len(t, documents, 1)
+			require.Equal(t, "runtime/sessions.md", documents[0].Path)
+			documents[0].Tags[0] = 'x'
+
+			document, err := store.GetTeamMemexDocument(
+				ctx,
+				UserPrincipal{User: owner},
+				teamID,
+				"runtime/sessions.md",
+			)
+			require.NoError(t, err)
+			require.Equal(t, json.RawMessage(`["runtime"]`), document.Tags)
+			require.Equal(t, "# Sessions\n", document.BodyMD)
+
+			_, err = store.GetTeamMemexDocument(
+				ctx,
+				UserPrincipal{User: owner},
+				teamID,
+				"old/archived.md",
+			)
+			require.ErrorIs(t, err, ErrNotFound)
+
+			_, err = store.ListTeamMemexDocuments(ctx, UserPrincipal{User: member}, teamID)
+			require.ErrorIs(t, err, ErrNotFound)
+		},
+	)
+
 	t.Run("Given team sent invites then owner and operator can list them", func(t *testing.T) {
 		ctx := context.Background()
 		now := time.Date(2026, 6, 27, 10, 0, 0, 0, time.UTC)
