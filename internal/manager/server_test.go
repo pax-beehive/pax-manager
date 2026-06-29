@@ -1911,6 +1911,185 @@ func TestConversationWaitsForAgentTunnelReconnect(t *testing.T) {
 	requireConversationEvent(t, events, "done")
 }
 
+func TestConversationContinuesWhenAgentTunnelReconnectsDuringPrompt(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentHeader := http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}}
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		agentHeader,
+	)
+	require.NoError(t, err)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"continue after reconnect","session_id":"sess-existing"}`,
+		respCh,
+		errCh,
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+	assertFrameSessionID(t, promptEnv.Payload, "native-existing")
+	require.NoError(t, agentWS.Close())
+
+	secondAgentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		agentHeader,
+	)
+	require.NoError(t, err)
+	defer func() { _ = secondAgentWS.Close() }()
+
+	replayedPromptEnv := readNextManagerToAgentData(t, secondAgentWS)
+	assert.Equal(t, promptEnv.Seq, replayedPromptEnv.Seq)
+	assertACPMethod(t, replayedPromptEnv.Payload, "session/prompt")
+	assertFrameSessionID(t, replayedPromptEnv.Payload, "native-existing")
+
+	writeAgentDataFrame(
+		t,
+		secondAgentWS,
+		replayedPromptEnv.QueueID,
+		1,
+		json.RawMessage(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-existing","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"still here"}}}}`,
+		),
+	)
+	writeAgentDataFrame(
+		t,
+		secondAgentWS,
+		replayedPromptEnv.QueueID,
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	acpEvent := requireConversationEvent(t, events, "acp")
+	assert.Contains(t, string(acpEvent.Frame), "still here")
+	requireConversationEvent(t, events, "done")
+}
+
+func TestConversationPromptIdleTimeoutResetsOnACPUpdate(t *testing.T) {
+	previousTimeout := conversationRequestIdleTimeout
+	conversationRequestIdleTimeout = 100 * time.Millisecond
+	defer func() { conversationRequestIdleTimeout = previousTimeout }()
+
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"slow but alive","session_id":"sess-existing"}`,
+		respCh,
+		errCh,
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+	time.Sleep(60 * time.Millisecond)
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		promptEnv.QueueID,
+		1,
+		json.RawMessage(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-existing","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"still working"}}}}`,
+		),
+	)
+	time.Sleep(60 * time.Millisecond)
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		promptEnv.QueueID,
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	acpEvent := requireConversationEvent(t, events, "acp")
+	assert.Contains(t, string(acpEvent.Frame), "still working")
+	requireConversationEvent(t, events, "done")
+}
+
+func TestConversationPromptReturnsErrorAfterIdleTimeout(t *testing.T) {
+	previousTimeout := conversationRequestIdleTimeout
+	conversationRequestIdleTimeout = 50 * time.Millisecond
+	defer func() { conversationRequestIdleTimeout = previousTimeout }()
+
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"silent","session_id":"sess-existing"}`,
+		respCh,
+		errCh,
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	errorEvent := requireConversationEvent(t, events, "error")
+	assert.Contains(t, errorEvent.Message, "ACP request idle timed out: session/prompt")
+}
+
 func TestConversationContinuesExistingSessionWithoutInitialize(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
@@ -2090,9 +2269,10 @@ func TestConversationRejectsBusyAgent(t *testing.T) {
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	conn := acpTunnelConn(t, srv, fixture.agentID, "")
-	conn.mu.Lock()
-	conn.paired = true
-	conn.mu.Unlock()
+	state := conn.liveState()
+	state.mu.Lock()
+	state.paired = true
+	state.mu.Unlock()
 
 	rec := postConversationRecorder(t, srv, fixture, `{"input":"hello"}`)
 	if rec.Code != http.StatusConflict {

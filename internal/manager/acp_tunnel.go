@@ -26,6 +26,7 @@ import (
 type ACPTunnelHub struct {
 	mu     sync.RWMutex
 	agents map[acpTunnelKey]*ACPTunnelAgent
+	states map[acpTunnelKey]*acpTunnelLiveState
 }
 
 type acpTunnelKey struct {
@@ -51,6 +52,70 @@ type ACPTunnelAgent struct {
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
 	managerRequestSeq int64
+	live              *acpTunnelLiveState
+}
+
+type acpTunnelLiveState struct {
+	mu                sync.Mutex
+	sessionID         string
+	paired            bool
+	userWS            *websocket.Conn
+	responseWaiters   map[string]chan []byte
+	sseSubscribers    map[*acpSSESubscriber]struct{}
+	historyGroups     acpHistoryGroups
+	pendingSessionNew acpPendingSessionNews
+	managerRequestSeq int64
+}
+
+func (a *ACPTunnelAgent) liveState() *acpTunnelLiveState {
+	if a.live != nil {
+		return a.live
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.live == nil {
+		a.live = &acpTunnelLiveState{
+			sessionID:         a.sessionID,
+			paired:            a.paired,
+			userWS:            a.userWS,
+			responseWaiters:   a.responseWaiters,
+			sseSubscribers:    a.sseSubscribers,
+			historyGroups:     a.historyGroups,
+			pendingSessionNew: a.pendingSessionNew,
+			managerRequestSeq: a.managerRequestSeq,
+		}
+	}
+	return a.live
+}
+
+func (a *ACPTunnelAgent) setLiveState(state *acpTunnelLiveState) {
+	if state == nil {
+		return
+	}
+	a.mu.Lock()
+	a.live = state
+	state.mu.Lock()
+	a.sessionID = state.sessionID
+	a.paired = state.paired
+	a.userWS = state.userWS
+	a.responseWaiters = state.responseWaiters
+	a.sseSubscribers = state.sseSubscribers
+	a.historyGroups = state.historyGroups
+	a.pendingSessionNew = state.pendingSessionNew
+	a.managerRequestSeq = state.managerRequestSeq
+	state.mu.Unlock()
+	a.mu.Unlock()
+}
+
+func (s *acpTunnelLiveState) hasAsyncReceiversLocked() bool {
+	return len(s.responseWaiters) > 0 || len(s.sseSubscribers) > 0
+}
+
+func (a *ACPTunnelAgent) currentSessionID() string {
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.sessionID
 }
 
 type acpUserTunnelMetadata struct {
@@ -65,13 +130,28 @@ type acpSSESubscriber struct {
 }
 
 func NewACPTunnelHub() *ACPTunnelHub {
-	return &ACPTunnelHub{agents: make(map[acpTunnelKey]*ACPTunnelAgent)}
+	return &ACPTunnelHub{
+		agents: make(map[acpTunnelKey]*ACPTunnelAgent),
+		states: make(map[acpTunnelKey]*acpTunnelLiveState),
+	}
 }
 
 func (h *ACPTunnelHub) add(agentID string, sessionID string, conn *ACPTunnelAgent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.agents[acpTunnelKey{agentID: agentID, sessionID: sessionID}] = conn
+	if h.states == nil {
+		h.states = make(map[acpTunnelKey]*acpTunnelLiveState)
+	}
+	key := acpTunnelKey{agentID: agentID, sessionID: sessionID}
+	state := h.states[key]
+	if state == nil {
+		state = &acpTunnelLiveState{sessionID: conn.sessionID}
+		h.states[key] = state
+	} else if state.sessionID == "" && conn.sessionID != "" {
+		state.sessionID = conn.sessionID
+	}
+	conn.setLiveState(state)
+	h.agents[key] = conn
 }
 
 func (h *ACPTunnelHub) remove(agentID string, sessionID string, conn *ACPTunnelAgent) {
@@ -106,14 +186,16 @@ func (h *ACPTunnelHub) claimAny(agentID string, sessionIDs ...string) (*ACPTunne
 		return nil, apperr.Error{Status: http.StatusNotFound, Message: "agent tunnel not connected"}
 	}
 
-	conn.mu.Lock()
-	defer conn.mu.Unlock()
-	if conn.paired {
+	state := conn.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.paired {
 		return nil, apperr.Error{
 			Status:  http.StatusConflict,
 			Message: "agent tunnel already in use",
 		}
 	}
+	state.paired = true
 	conn.paired = true
 	return conn, nil
 }
@@ -166,49 +248,61 @@ func isAgentTunnelNotConnected(err error) bool {
 }
 
 func (h *ACPTunnelHub) release(conn *ACPTunnelAgent) {
-	conn.mu.Lock()
-	defer conn.mu.Unlock()
+	state := conn.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	state.paired = false
+	state.userWS = nil
 	conn.paired = false
 	conn.userWS = nil
 }
 
 func (a *ACPTunnelAgent) attachUser(userWS *websocket.Conn) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	state.userWS = userWS
 	a.userWS = userWS
 }
 
 func (a *ACPTunnelAgent) closeUser() {
-	a.mu.Lock()
-	userWS := a.userWS
+	state := a.liveState()
+	state.mu.Lock()
+	userWS := state.userWS
+	state.userWS = nil
+	if userWS != nil || !state.hasAsyncReceiversLocked() {
+		state.paired = false
+		a.paired = false
+	}
 	a.userWS = nil
-	a.paired = false
-	a.mu.Unlock()
+	state.mu.Unlock()
 	if userWS != nil {
 		_ = userWS.Close()
 	}
 }
 
 func (a *ACPTunnelAgent) currentUser() *websocket.Conn {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.userWS
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.userWS
 }
 
 func (a *ACPTunnelAgent) addResponseWaiter(requestID string) (<-chan []byte, func()) {
 	ch := make(chan []byte, 1)
-	a.mu.Lock()
-	if a.responseWaiters == nil {
-		a.responseWaiters = make(map[string]chan []byte)
+	state := a.liveState()
+	state.mu.Lock()
+	if state.responseWaiters == nil {
+		state.responseWaiters = make(map[string]chan []byte)
 	}
-	a.responseWaiters[requestID] = ch
-	a.mu.Unlock()
+	state.responseWaiters[requestID] = ch
+	state.mu.Unlock()
 	cancel := func() {
-		a.mu.Lock()
-		if current := a.responseWaiters[requestID]; current == ch {
-			delete(a.responseWaiters, requestID)
+		state.mu.Lock()
+		if current := state.responseWaiters[requestID]; current == ch {
+			delete(state.responseWaiters, requestID)
 		}
-		a.mu.Unlock()
+		state.mu.Unlock()
 	}
 	return ch, cancel
 }
@@ -217,12 +311,13 @@ func (a *ACPTunnelAgent) notifyResponseWaiter(requestID string, payload []byte) 
 	if requestID == "" {
 		return false
 	}
-	a.mu.Lock()
-	ch := a.responseWaiters[requestID]
+	state := a.liveState()
+	state.mu.Lock()
+	ch := state.responseWaiters[requestID]
 	if ch != nil {
-		delete(a.responseWaiters, requestID)
+		delete(state.responseWaiters, requestID)
 	}
-	a.mu.Unlock()
+	state.mu.Unlock()
 	if ch == nil {
 		return false
 	}
@@ -238,12 +333,13 @@ func (a *ACPTunnelAgent) subscribeSSE(sessionID string) *acpSSESubscriber {
 		sessionID: sessionID,
 		ch:        make(chan []byte, 64),
 	}
-	a.mu.Lock()
-	if a.sseSubscribers == nil {
-		a.sseSubscribers = make(map[*acpSSESubscriber]struct{})
+	state := a.liveState()
+	state.mu.Lock()
+	if state.sseSubscribers == nil {
+		state.sseSubscribers = make(map[*acpSSESubscriber]struct{})
 	}
-	a.sseSubscribers[sub] = struct{}{}
-	a.mu.Unlock()
+	state.sseSubscribers[sub] = struct{}{}
+	state.mu.Unlock()
 	return sub
 }
 
@@ -251,26 +347,28 @@ func (a *ACPTunnelAgent) unsubscribeSSE(sub *acpSSESubscriber) {
 	if sub == nil {
 		return
 	}
-	a.mu.Lock()
-	if _, ok := a.sseSubscribers[sub]; ok {
-		delete(a.sseSubscribers, sub)
+	state := a.liveState()
+	state.mu.Lock()
+	if _, ok := state.sseSubscribers[sub]; ok {
+		delete(state.sseSubscribers, sub)
 		close(sub.ch)
 	}
-	a.mu.Unlock()
+	state.mu.Unlock()
 }
 
 func (a *ACPTunnelAgent) broadcastSSE(payload []byte) bool {
 	var rpc acpJSONRPCMessage
 	_ = json.Unmarshal(payload, &rpc)
 	sessionID := frameSessionID(rpc)
-	a.mu.Lock()
-	subs := make([]*acpSSESubscriber, 0, len(a.sseSubscribers))
-	for sub := range a.sseSubscribers {
+	state := a.liveState()
+	state.mu.Lock()
+	subs := make([]*acpSSESubscriber, 0, len(state.sseSubscribers))
+	for sub := range state.sseSubscribers {
 		if sub.sessionID == "" || sessionID == "" || sub.sessionID == sessionID {
 			subs = append(subs, sub)
 		}
 	}
-	a.mu.Unlock()
+	state.mu.Unlock()
 	for _, sub := range subs {
 		select {
 		case sub.ch <- append([]byte(nil), payload...):
@@ -281,36 +379,42 @@ func (a *ACPTunnelAgent) broadcastSSE(payload []byte) bool {
 }
 
 func (a *ACPTunnelAgent) hasAsyncReceivers() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return len(a.responseWaiters) > 0 || len(a.sseSubscribers) > 0
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.hasAsyncReceiversLocked()
 }
 
 func (a *ACPTunnelAgent) withSessionContext(sessionID string) func() {
 	if sessionID == "" {
 		return func() {}
 	}
-	a.mu.Lock()
-	previous := a.sessionID
+	state := a.liveState()
+	state.mu.Lock()
+	previous := state.sessionID
+	state.sessionID = sessionID
 	a.sessionID = sessionID
-	a.mu.Unlock()
+	state.mu.Unlock()
 	return func() {
-		a.mu.Lock()
+		state.mu.Lock()
+		state.sessionID = previous
 		a.sessionID = previous
-		a.mu.Unlock()
+		state.mu.Unlock()
 	}
 }
 
 func (a *ACPTunnelAgent) ensureManagerSessionID() (string, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.sessionID != "" {
-		return a.sessionID, nil
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.sessionID != "" {
+		return state.sessionID, nil
 	}
 	sessionID, err := newManagerSessionID()
 	if err != nil {
 		return "", err
 	}
+	state.sessionID = sessionID
 	a.sessionID = sessionID
 	return sessionID, nil
 }
@@ -320,22 +424,25 @@ func newManagerSessionID() (string, error) {
 }
 
 func (a *ACPTunnelAgent) trackSessionNew(requestID string, managerSessionID string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.pendingSessionNew.track(requestID, managerSessionID)
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	state.pendingSessionNew.track(requestID, managerSessionID)
 }
 
 func (a *ACPTunnelAgent) takeSessionNew(requestID string) (string, bool) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.pendingSessionNew.take(requestID)
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.pendingSessionNew.take(requestID)
 }
 
 func (a *ACPTunnelAgent) nextManagerRequestID() int64 {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.managerRequestSeq++
-	return a.managerRequestSeq
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	state.managerRequestSeq++
+	return state.managerRequestSeq
 }
 
 // Tunnel reliability is a small durable outbox/inbox layered over WebSocket:
@@ -373,7 +480,7 @@ func (a *ACPTunnelAgent) actorAttrs() []slog.Attr {
 		slog.String("connection_id", a.queueID()),
 		slog.String("node_id", a.nodeID),
 		slog.String("owner_user_id", a.ownerUserID),
-		slog.String("session_id", a.sessionID),
+		slog.String("session_id", a.currentSessionID()),
 	}
 }
 
@@ -1045,15 +1152,17 @@ func relayUserFramesToAgent(
 }
 
 func (a *ACPTunnelAgent) historyGroupID(seq int64, payload json.RawMessage) string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.historyGroups.groupID(seq, a.sessionID, payload)
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.historyGroups.groupID(seq, state.sessionID, payload)
 }
 
 func (a *ACPTunnelAgent) observeHistoryBoundary(payload json.RawMessage) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.historyGroups.observeBoundary(payload)
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	state.historyGroups.observeBoundary(payload)
 }
 
 func (a *ACPTunnelAgent) replayUnackedToAgent(ctx context.Context) error {
@@ -1099,7 +1208,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 					"agent acp tunnel dropped frame without user",
 					slog.String("agent_id", a.agentID),
 					slog.String("connection_id", a.queueID()),
-					slog.String("session_id", a.sessionID),
+					slog.String("session_id", a.currentSessionID()),
 				)
 			}
 			return nil
@@ -1114,7 +1223,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 			"agent acp tunnel frame handling failed",
 			slog.String("agent_id", a.agentID),
 			slog.String("connection_id", a.queueID()),
-			slog.String("session_id", a.sessionID),
+			slog.String("session_id", a.currentSessionID()),
 			logging.Err(err),
 		)
 	}
@@ -1124,7 +1233,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 			"agent acp tunnel failed to write user frame",
 			slog.String("agent_id", a.agentID),
 			slog.String("connection_id", a.queueID()),
-			slog.String("session_id", a.sessionID),
+			slog.String("session_id", a.currentSessionID()),
 			logging.Err(err),
 		)
 		a.closeUser()
