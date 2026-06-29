@@ -15,10 +15,11 @@ import (
 )
 
 const (
-	conversationRequestTimeout     = 45 * time.Second
 	conversationTunnelClaimTimeout = 2 * time.Second
 	conversationTunnelClaimTick    = 50 * time.Millisecond
 )
+
+var conversationRequestIdleTimeout = 30 * time.Second
 
 type conversationRequest struct {
 	SessionID string `json:"session_id,omitempty"`
@@ -209,20 +210,30 @@ func (s *Service) createConversationSession(
 	}
 	restoreSessionContext := runner.agentConn.withSessionContext(managerSessionID)
 	defer restoreSessionContext()
-	if _, err := runner.request(ctx, "initialize", map[string]any{
-		"protocolVersion":    1,
-		"clientCapabilities": map[string]any{},
-		"clientInfo": map[string]any{
-			"name":    "pax-manager-conversation",
-			"version": "0.1.0",
+	if _, err := runner.request(
+		ctx,
+		"initialize",
+		map[string]any{
+			"protocolVersion":    1,
+			"clientCapabilities": map[string]any{},
+			"clientInfo": map[string]any{
+				"name":    "pax-manager-conversation",
+				"version": "0.1.0",
+			},
 		},
-	}); err != nil {
+		nil,
+	); err != nil {
 		return conversationSession{}, err
 	}
-	resp, err := runner.request(ctx, "session/new", map[string]any{
-		"cwd":        "/tmp",
-		"mcpServers": []any{},
-	})
+	resp, err := runner.request(
+		ctx,
+		"session/new",
+		map[string]any{
+			"cwd":        "/tmp",
+			"mcpServers": []any{},
+		},
+		nil,
+	)
 	if err != nil {
 		return conversationSession{}, err
 	}
@@ -248,9 +259,11 @@ func (s *Service) promptConversation(
 	defer runner.agentConn.unsubscribeSSE(sub)
 
 	done := make(chan struct{})
+	activity := make(chan struct{}, 1)
 	go func() {
 		defer close(done)
 		for payload := range sub.ch {
+			notifyConversationActivity(activity)
 			_ = s.writeConversationEvent(w, flusher, conversationEvent{
 				Type:      "acp",
 				NodeID:    runner.agentConn.nodeID,
@@ -261,13 +274,18 @@ func (s *Service) promptConversation(
 		}
 	}()
 
-	_, err := runner.request(ctx, "session/prompt", map[string]any{
-		"sessionId": session.managerID,
-		"prompt": []map[string]string{{
-			"type": "text",
-			"text": input,
-		}},
-	})
+	_, err := runner.request(
+		ctx,
+		"session/prompt",
+		map[string]any{
+			"sessionId": session.managerID,
+			"prompt": []map[string]string{{
+				"type": "text",
+				"text": input,
+			}},
+		},
+		activity,
+	)
 	runner.agentConn.unsubscribeSSE(sub)
 	<-done
 	if err != nil {
@@ -285,6 +303,7 @@ func (r *conversationRunner) request(
 	ctx context.Context,
 	method string,
 	params map[string]any,
+	activity <-chan struct{},
 ) (conversationResponse, error) {
 	requestID := r.agentConn.nextManagerRequestID()
 	payload, err := json.Marshal(map[string]any{
@@ -312,27 +331,48 @@ func (r *conversationRunner) request(
 	); err != nil {
 		return conversationResponse{}, err
 	}
-	timer := time.NewTimer(conversationRequestTimeout)
+	timer := time.NewTimer(conversationRequestIdleTimeout)
 	defer timer.Stop()
-	select {
-	case payload := <-waiter:
-		var msg acpJSONRPCMessage
-		_ = json.Unmarshal(payload, &msg)
-		if len(msg.Error) > 0 {
-			return conversationResponse{}, apperr.Error{
-				Status:  http.StatusBadGateway,
-				Message: firstNonEmpty(acpErrorMessage(msg.Error), "ACP request failed"),
+	for {
+		select {
+		case payload := <-waiter:
+			var msg acpJSONRPCMessage
+			_ = json.Unmarshal(payload, &msg)
+			if len(msg.Error) > 0 {
+				return conversationResponse{}, apperr.Error{
+					Status:  http.StatusBadGateway,
+					Message: firstNonEmpty(acpErrorMessage(msg.Error), "ACP request failed"),
+				}
 			}
+			return conversationResponse{acpJSONRPCMessage: msg, raw: payload}, nil
+		case <-activity:
+			resetConversationIdleTimer(timer)
+		case <-timer.C:
+			return conversationResponse{}, apperr.Error{
+				Status:  http.StatusGatewayTimeout,
+				Message: "ACP request idle timed out: " + method,
+			}
+		case <-ctx.Done():
+			return conversationResponse{}, ctx.Err()
 		}
-		return conversationResponse{acpJSONRPCMessage: msg, raw: payload}, nil
-	case <-timer.C:
-		return conversationResponse{}, apperr.Error{
-			Status:  http.StatusGatewayTimeout,
-			Message: "ACP request timed out: " + method,
-		}
-	case <-ctx.Done():
-		return conversationResponse{}, ctx.Err()
 	}
+}
+
+func notifyConversationActivity(ch chan<- struct{}) {
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+}
+
+func resetConversationIdleTimer(timer *time.Timer) {
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	timer.Reset(conversationRequestIdleTimeout)
 }
 
 func (s *Service) writeConversationEvent(
