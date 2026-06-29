@@ -35,6 +35,18 @@ func ReportNodeStatus(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func ReportNodeAgentSessions(c context.Context, ctx *app.RequestContext) {
+	var req NodeAgentSessionReport
+	decodeBody(ctx, &req)
+	status, data, err := serviceFromContext(ctx).paxd.ReportNodeAgentSessions(
+		c,
+		nodeFromContext(ctx),
+		ctx.Param("agent_id"),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func PullNodeMailbox(c context.Context, ctx *app.RequestContext) {
 	status, data, err := serviceFromContext(ctx).paxd.PullNodeMailbox(
 		c,

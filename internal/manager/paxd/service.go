@@ -27,6 +27,12 @@ type Store interface {
 	) (domain.Agent, error)
 	AuthenticateNode(ctx context.Context, apiKeyHash string) (domain.Node, error)
 	UpsertAgentStatus(ctx context.Context, report domain.AgentStatusReport) error
+	UpsertAgentSessions(
+		ctx context.Context,
+		node domain.Node,
+		agentID string,
+		sessions []domain.SessionStatusInput,
+	) error
 	PullMailbox(
 		ctx context.Context,
 		agentID string,
@@ -349,6 +355,45 @@ func (s *Service) ReportNodeStatus(
 	if err := s.store.UpsertNodeStatus(c, node, report); err != nil {
 		return 0, nil, err
 	}
+	return http.StatusOK, map[string]bool{"ok": true}, nil
+}
+
+func (s *Service) ReportNodeAgentSessions(
+	c context.Context,
+	node domain.Node,
+	agentID string,
+	report domain.NodeAgentSessionReport,
+) (int, any, error) {
+	if agentID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "agent_id is required"}
+	}
+	for _, session := range report.Sessions {
+		if session.SessionID == "" {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "session_id is required",
+			}
+		}
+	}
+	sessionCount := len(report.Sessions)
+	if err := s.store.UpsertAgentSessions(c, node, agentID, report.Sessions); err != nil {
+		logging.Warn(
+			c,
+			"node agent session report failed",
+			slog.String("node_id", node.NodeID),
+			slog.String("agent_id", agentID),
+			slog.Int("session_count", sessionCount),
+			logging.Err(err),
+		)
+		return 0, nil, err
+	}
+	logging.Info(
+		c,
+		"node agent sessions reported",
+		slog.String("node_id", node.NodeID),
+		slog.String("agent_id", agentID),
+		slog.Int("session_count", sessionCount),
+	)
 	return http.StatusOK, map[string]bool{"ok": true}, nil
 }
 

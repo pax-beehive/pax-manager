@@ -158,6 +158,12 @@ type Store interface {
 	) (PaxlDeviceLoginSession, error)
 	AuthenticateNode(ctx context.Context, apiKeyHash string) (Node, error)
 	UpsertNodeStatus(ctx context.Context, node Node, report NodeStatusReport) error
+	UpsertAgentSessions(
+		ctx context.Context,
+		node Node,
+		agentID string,
+		sessions []SessionStatusInput,
+	) error
 	ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error)
 	GetNode(ctx context.Context, principal UserPrincipal, nodeID string) (Node, error)
 	UpdateNode(ctx context.Context, principal UserPrincipal, req UpdateNodeRequest) (Node, error)

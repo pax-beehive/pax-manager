@@ -1244,6 +1244,33 @@ func (s *MemoryStore) UpsertAgentStatus(ctx context.Context, report AgentStatusR
 	return nil
 }
 
+func (s *MemoryStore) UpsertAgentSessions(
+	ctx context.Context,
+	node Node,
+	agentID string,
+	sessions []SessionStatusInput,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	agent, ok := s.agents[agentID]
+	if !ok || agent.NodeID != node.NodeID {
+		return ErrNotFound
+	}
+	now := s.now().UTC()
+	for _, input := range sessions {
+		if input.SessionID == "" {
+			return ErrConflict
+		}
+		normalized, err := s.normalizeReportedSessionLocked(agentID, input)
+		if err != nil {
+			return err
+		}
+		s.upsertSessionLocked(node.NodeID, agentID, normalized, now)
+	}
+	return nil
+}
+
 func (s *MemoryStore) ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

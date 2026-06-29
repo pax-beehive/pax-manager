@@ -1514,6 +1514,17 @@
         },
         "type": "object"
       },
+      "NodeAgentSessionReportRequest": {
+        "properties": {
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionStatusInput"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "NodeListData": {
         "properties": {
           "nodes": {
@@ -2953,6 +2964,103 @@
           }
         ],
         "summary": "Pull node agent mailbox",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/agents/{agent_id}/sessions": {
+      "post": {
+        "description": "Upserts session status for one agent owned by the authenticated node without changing node or agent liveness fields.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeAgentSessionReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OKResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Report node agent sessions",
         "tags": [
           "node"
         ]

@@ -127,10 +127,18 @@ func isManagerSessionID(sessionID string) bool {
 }
 
 func reportedNativeSessionID(input SessionStatusInput) string {
-	if input.NativeID != "" && isManagerSessionID(input.SessionID) {
-		return input.NativeID
+	if input.NativeID != "" {
+		return stripAgentTypeSessionPrefix(input.AgentType, input.NativeID)
 	}
-	return input.SessionID
+	return stripAgentTypeSessionPrefix(input.AgentType, input.SessionID)
+}
+
+func stripAgentTypeSessionPrefix(agentType string, sessionID string) string {
+	prefix := strings.TrimSpace(agentType)
+	if prefix == "" {
+		return sessionID
+	}
+	return strings.TrimPrefix(sessionID, prefix+":")
 }
 
 func replacePayloadSessionID(raw json.RawMessage, sessionID string) json.RawMessage {

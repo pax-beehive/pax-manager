@@ -10,6 +10,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/node/register", RegisterNode)
 	h.POST("/api/v1/node/agents/register", RegisterNodeAgent)
 	h.POST("/api/v1/node/status", NodeAuth(), ReportNodeStatus)
+	h.POST("/api/v1/node/agents/:agent_id/sessions", NodeAuth(), ReportNodeAgentSessions)
 	h.GET("/api/v1/node/mailbox", NodeAuth(), PullNodeMailbox)
 	h.GET("/api/v1/node/agents/:agent_id/mailbox", NodeAuth(), PullNodeAgentMailbox)
 	h.GET(

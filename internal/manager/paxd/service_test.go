@@ -132,6 +132,116 @@ func TestReportStatus(t *testing.T) {
 	)
 }
 
+func TestReportNodeAgentSessions(t *testing.T) {
+	t.Run(
+		"Given a node-owned agent session report when reporting then it delegates session-only upsert",
+		func(t *testing.T) {
+			ctx := context.Background()
+			node := domain.Node{NodeID: "node_1"}
+			sessions := []domain.SessionStatusInput{{
+				SessionID: "codex:abc",
+				NativeID:  "abc",
+				Status:    "available",
+			}}
+			store := paxdmocks.NewMockStore(t)
+			store.EXPECT().UpsertAgentSessions(ctx, node, "agent_1", sessions).Return(nil).Once()
+
+			svc := paxd.NewService(
+				store,
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.ReportNodeAgentSessions(
+				ctx,
+				node,
+				"agent_1",
+				domain.NodeAgentSessionReport{Sessions: sessions},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, map[string]bool{"ok": true}, data)
+		},
+	)
+
+	t.Run(
+		"Given missing agent ID when reporting sessions then it returns bad request",
+		func(t *testing.T) {
+			svc := paxd.NewService(
+				paxdmocks.NewMockStore(t),
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+
+			_, _, err := svc.ReportNodeAgentSessions(
+				context.Background(),
+				domain.Node{NodeID: "node_1"},
+				"",
+				domain.NodeAgentSessionReport{},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run(
+		"Given missing session ID when reporting sessions then it returns bad request",
+		func(t *testing.T) {
+			svc := paxd.NewService(
+				paxdmocks.NewMockStore(t),
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+
+			_, _, err := svc.ReportNodeAgentSessions(
+				context.Background(),
+				domain.Node{NodeID: "node_1"},
+				"agent_1",
+				domain.NodeAgentSessionReport{Sessions: []domain.SessionStatusInput{{}}},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
+
+	t.Run(
+		"Given storage fails when reporting sessions then it returns the storage error",
+		func(t *testing.T) {
+			ctx := context.Background()
+			node := domain.Node{NodeID: "node_1"}
+			sessions := []domain.SessionStatusInput{{SessionID: "codex:abc"}}
+			storeErr := errors.New("store failed")
+			store := paxdmocks.NewMockStore(t)
+			store.EXPECT().
+				UpsertAgentSessions(ctx, node, "agent_1", sessions).
+				Return(storeErr).
+				Once()
+			svc := paxd.NewService(
+				store,
+				fixedClock,
+				paxdmocks.NewMockRegistrationOwnerResolver(t),
+				paxdmocks.NewMockSecretIssuer(t),
+			)
+
+			_, _, err := svc.ReportNodeAgentSessions(
+				ctx,
+				node,
+				"agent_1",
+				domain.NodeAgentSessionReport{Sessions: sessions},
+			)
+
+			require.ErrorIs(t, err, storeErr)
+		},
+	)
+}
+
 func TestMailboxOperations(t *testing.T) {
 	t.Run(
 		"Given no pull limit when pulling mailbox then it uses the default limit",

@@ -15,6 +15,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/common/adaptor"
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/pax-beehive/paxkit/reliablemq"
@@ -2859,6 +2860,48 @@ func TestUpdateNodeAndAgentProfiles(t *testing.T) {
 	}
 }
 
+func postNodeAgentSessions(
+	t *testing.T,
+	srv *Server,
+	nodeAPIKey string,
+	agentID string,
+	body string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/agents/"+agentID+"/sessions",
+		bytes.NewReader([]byte(body)),
+	)
+	setJSON(req)
+	req.Header.Set("X-Pax-Key", nodeAPIKey)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	return rec
+}
+
+func listNodeAgentSessions(
+	t *testing.T,
+	srv *Server,
+	fixture conversationTestFixture,
+) []AgentSession {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/nodes/"+fixture.nodeID+"/agents/"+fixture.agentID+"/sessions",
+		nil,
+	)
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	setJSON(req)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		Sessions []AgentSession `json:"sessions"`
+	}](t, rec.Body.Bytes())
+	return got.Sessions
+}
+
 func createConversationTestSession(
 	t *testing.T,
 	srv *Server,
@@ -3476,6 +3519,176 @@ func TestNodeStatusReportsAccumulateSessionBatches(t *testing.T) {
 	if len(got.Sessions) != 2 {
 		t.Fatalf("sessions = %+v, want 2 accumulated sessions", got.Sessions)
 	}
+}
+
+func TestNodeAgentSessionReportEndpoint(t *testing.T) {
+	t.Run(
+		"Given a node-owned agent when paxd posts sessions then manager upserts those sessions",
+		func(t *testing.T) {
+			srv, _ := testServer(t, "todd@example.com")
+			fixture := testNodeAgent(t, srv, "todd@example.com")
+
+			rec := postNodeAgentSessions(
+				t,
+				srv,
+				fixture.nodeAPIKey,
+				fixture.agentID,
+				`{"sessions":[{"session_id":"codex:abc","native_id":"codex:abc","agent_type":"codex","name":"Fix paxd","project_id":"/workspace/paxd","preview":"Working","workspace_roots":["/workspace/paxd"],"status":"available","message_count":3,"token_usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}}]}`,
+			)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+			sessions := listNodeAgentSessions(t, srv, fixture)
+			require.Len(t, sessions, 1)
+			assert.True(
+				t,
+				strings.HasPrefix(sessions[0].SessionID, "sess_") ||
+					strings.HasPrefix(sessions[0].SessionID, "sess-"),
+				sessions[0].SessionID,
+			)
+			assert.Equal(t, "Fix paxd", sessions[0].SessionName)
+			assert.Equal(t, "/workspace/paxd", sessions[0].ProjectID)
+			assert.Equal(t, []string{"/workspace/paxd"}, sessions[0].WorkspaceRoots)
+			assert.Equal(t, int64(30), sessions[0].TokenUsage.Total)
+
+			agent, err := srv.store.GetNodeAgent(t.Context(), fixture.nodeID, fixture.agentID)
+			require.NoError(t, err)
+			assert.Equal(
+				t,
+				sessions[0].SessionID,
+				srv.virtualACPSessionID(t.Context(), agent.OwnerUserID, fixture.agentID, "abc"),
+			)
+			assert.Equal(
+				t,
+				"abc",
+				srv.nativeACPSessionID(
+					t.Context(),
+					agent.OwnerUserID,
+					fixture.agentID,
+					sessions[0].SessionID,
+				),
+			)
+		},
+	)
+
+	t.Run(
+		"Given the same session is posted again then manager updates the session row",
+		func(t *testing.T) {
+			srv, _ := testServer(t, "todd@example.com")
+			fixture := testNodeAgent(t, srv, "todd@example.com")
+
+			rec := postNodeAgentSessions(
+				t,
+				srv,
+				fixture.nodeAPIKey,
+				fixture.agentID,
+				`{"sessions":[{"session_id":"codex:abc","native_id":"abc","name":"Old","preview":"old","status":"available"}]}`,
+			)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			firstSessions := listNodeAgentSessions(t, srv, fixture)
+			require.Len(t, firstSessions, 1)
+			sessionID := firstSessions[0].SessionID
+
+			rec = postNodeAgentSessions(
+				t,
+				srv,
+				fixture.nodeAPIKey,
+				fixture.agentID,
+				`{"sessions":[{"session_id":"codex:abc","native_id":"abc","name":"New","preview":"new","status":"busy","token_usage":{"total_tokens":99}}]}`,
+			)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+			sessions := listNodeAgentSessions(t, srv, fixture)
+			require.Len(t, sessions, 1)
+			assert.Equal(t, sessionID, sessions[0].SessionID)
+			assert.Equal(t, "New", sessions[0].SessionName)
+			assert.Equal(t, "new", sessions[0].Preview)
+			assert.Equal(t, "busy", sessions[0].Status)
+			assert.Equal(t, int64(99), sessions[0].TokenUsage.Total)
+		},
+	)
+
+	t.Run(
+		"Given a different node posts for another node agent then manager rejects it",
+		func(t *testing.T) {
+			srv, _ := testServer(t, "todd@example.com")
+			owner := testNodeAgent(t, srv, "todd@example.com")
+			other := testNodeAgent(t, srv, "todd@example.com")
+
+			rec := postNodeAgentSessions(
+				t,
+				srv,
+				other.nodeAPIKey,
+				owner.agentID,
+				`{"sessions":[{"session_id":"codex:abc"}]}`,
+			)
+
+			require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+			assert.Empty(t, listNodeAgentSessions(t, srv, owner))
+		},
+	)
+
+	t.Run(
+		"Given session-only reporting omits agent fields then the agent row is unchanged",
+		func(t *testing.T) {
+			srv, _ := testServer(t, "todd@example.com")
+			fixture := testNodeAgent(t, srv, "todd@example.com")
+			before, err := srv.store.GetNodeAgent(t.Context(), fixture.nodeID, fixture.agentID)
+			require.NoError(t, err)
+
+			rec := postNodeAgentSessions(
+				t,
+				srv,
+				fixture.nodeAPIKey,
+				fixture.agentID,
+				`{"sessions":[{"session_id":"codex:abc","status":"available"}]}`,
+			)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+			after, err := srv.store.GetNodeAgent(t.Context(), fixture.nodeID, fixture.agentID)
+			require.NoError(t, err)
+			assert.Equal(t, before.Name, after.Name)
+			assert.Equal(t, before.AgentType, after.AgentType)
+			assert.Equal(t, before.Status, after.Status)
+			assert.Equal(t, before.Online, after.Online)
+			assert.Equal(t, before.LastHeartbeat, after.LastHeartbeat)
+			assert.Equal(t, before.Metadata, after.Metadata)
+		},
+	)
+
+	t.Run(
+		"Given an empty sessions list then request succeeds and no sessions change",
+		func(t *testing.T) {
+			srv, _ := testServer(t, "todd@example.com")
+			fixture := testNodeAgent(t, srv, "todd@example.com")
+
+			rec := postNodeAgentSessions(
+				t,
+				srv,
+				fixture.nodeAPIKey,
+				fixture.agentID,
+				`{"sessions":[]}`,
+			)
+
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			assert.Empty(t, listNodeAgentSessions(t, srv, fixture))
+		},
+	)
+
+	t.Run("Given a malformed session row then manager rejects the request", func(t *testing.T) {
+		srv, _ := testServer(t, "todd@example.com")
+		fixture := testNodeAgent(t, srv, "todd@example.com")
+
+		rec := postNodeAgentSessions(
+			t,
+			srv,
+			fixture.nodeAPIKey,
+			fixture.agentID,
+			`{"sessions":[{"name":"missing id"}]}`,
+		)
+
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		assert.Empty(t, listNodeAgentSessions(t, srv, fixture))
+	})
 }
 
 func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {
