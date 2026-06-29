@@ -3,10 +3,12 @@ set -euo pipefail
 
 IMAGE="${1:?image is required}"
 DB_SECRET="${2:-pax-manager-database-url}"
+DEEPSEEK_SECRET="${3:-deepseek_api_key}"
 REGION="${REGION:-us-west1}"
 
 gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 DATABASE_URL="$(gcloud secrets versions access latest --secret="${DB_SECRET}")"
+DEEPSEEK_API_KEY="$(gcloud secrets versions access latest --secret="${DEEPSEEK_SECRET}")"
 
 docker pull "$IMAGE"
 docker rm -f pax-manager >/dev/null 2>&1 || true
@@ -15,6 +17,8 @@ docker run -d \
   --restart=always \
   --env-file /etc/pax-manager/env \
   -e DATABASE_URL="${DATABASE_URL}" \
+  -e TEAM_MEMEX_EXECUTOR=deepseek \
+  -e DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" \
   -v /cloudsql:/cloudsql \
   -p 9879:9879 \
   "$IMAGE"

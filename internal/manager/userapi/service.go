@@ -440,6 +440,14 @@ func NewServiceWithBackgroundRunner(
 	}
 }
 
+func (s *Service) SetTeamMemexExecutor(executor TeamMemexExecutor) {
+	if executor == nil {
+		s.memexExecutor = dryRunTeamMemexExecutor{}
+		return
+	}
+	s.memexExecutor = executor
+}
+
 func firstVaultCipher(values []*vaultsecrets.Cipher) *vaultsecrets.Cipher {
 	if len(values) > 0 && values[0] != nil {
 		return values[0]

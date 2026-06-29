@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -15,6 +16,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	managerconfig "github.com/pax-beehive/pax-manager/internal/manager/config"
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 	"github.com/pax-beehive/pax-manager/internal/manager/paxd"
 	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
@@ -77,8 +79,40 @@ func newServer(cfg Config, store Store) *Service {
 		authService,
 		secrets,
 	)
+	s.configureTeamMemexExecutor()
 	s.paxdArtifacts = newGCPPaxdArtifactBackend(cfg)
 	return s
+}
+
+func (s *Service) configureTeamMemexExecutor() {
+	switch strings.ToLower(strings.TrimSpace(s.cfg.TeamMemexExecutor)) {
+	case "", domain.TeamMemexRunExecutorDryRun:
+		return
+	case domain.TeamMemexRunExecutorDeepSeek:
+		executor, err := userapi.NewDeepSeekTeamMemexExecutor(userapi.DeepSeekTeamMemexConfig{
+			APIKey:      s.cfg.DeepSeekAPIKey,
+			BaseURL:     s.cfg.DeepSeekBaseURL,
+			Model:       s.cfg.DeepSeekModel,
+			Timeout:     s.cfg.DeepSeekTimeout,
+			MaxTokens:   s.cfg.DeepSeekMaxTokens,
+			Temperature: s.cfg.DeepSeekTemperature,
+		})
+		if err != nil {
+			logging.Warn(
+				context.Background(),
+				"team memex deepseek executor disabled",
+				slog.String("error", err.Error()),
+			)
+			return
+		}
+		s.userapi.SetTeamMemexExecutor(executor)
+	default:
+		logging.Warn(
+			context.Background(),
+			"unknown team memex executor; using dry run",
+			slog.String("executor", s.cfg.TeamMemexExecutor),
+		)
+	}
 }
 
 type serviceAdminPolicy struct {
