@@ -336,6 +336,14 @@ func TestMemoryTeamStore(t *testing.T) {
 			require.Equal(t, "runtime/sessions.md", documents[0].Path)
 			documents[0].Tags[0] = 'x'
 
+			paths, err := store.ListTeamMemexDocumentPaths(
+				ctx,
+				UserPrincipal{User: operator},
+				teamID,
+			)
+			require.NoError(t, err)
+			require.Equal(t, []string{"old/archived.md", "runtime/sessions.md"}, paths)
+
 			document, err := store.GetTeamMemexDocument(
 				ctx,
 				UserPrincipal{User: owner},
@@ -409,6 +417,136 @@ func TestMemoryTeamStore(t *testing.T) {
 				CompletedAt:       &now,
 			})
 			require.ErrorIs(t, err, ErrUnauthorized)
+		},
+	)
+
+	t.Run(
+		"Given a team memex manifest then publish applies all operations atomically",
+		func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+			store := NewMemoryStore(func() time.Time { return now })
+			owner, operator, _ := seedTeamUsers(t, ctx, store)
+			teamID := "team_1"
+			seedTeam(t, ctx, store, teamID, owner, map[string]User{
+				domain.TeamRoleOperator: operator,
+			}, now)
+			store.teamMemexDocuments[teamMemexDocumentKey{TeamID: teamID, Path: "runtime/sessions.md"}] = TeamMemexDocument{
+				DocumentID: "memex_doc_1",
+				TeamID:     teamID,
+				Path:       "runtime/sessions.md",
+				Title:      "Sessions",
+				Summary:    "Old session notes",
+				Tags:       json.RawMessage(`["runtime"]`),
+				BodyMD:     "# Sessions\nOld body.\n",
+				Status:     domain.TeamMemexDocumentStatusActive,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
+			store.teamMemexDocuments[teamMemexDocumentKey{TeamID: teamID, Path: "old/cleanup.md"}] = TeamMemexDocument{
+				DocumentID: "memex_doc_2",
+				TeamID:     teamID,
+				Path:       "old/cleanup.md",
+				Title:      "Cleanup",
+				Status:     domain.TeamMemexDocumentStatusActive,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
+
+			publishedAt := now.Add(time.Minute)
+			run := TeamMemexRun{
+				RunID:             "tmrun_publish",
+				TeamID:            teamID,
+				RequestedByUserID: operator.UserID,
+				ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+				Status:            domain.TeamMemexRunStatusSucceeded,
+				Constraints:       domain.DefaultTeamMemexRunConstraints(),
+				StartedAt:         now,
+				CompletedAt:       &publishedAt,
+			}
+			_, err := store.PublishTeamMemexRun(
+				ctx,
+				UserPrincipal{User: operator},
+				run,
+				[]TeamMemexDocumentOperation{
+					{
+						Operation:  domain.TeamMemexOperationCreateDoc,
+						DocumentID: "memex_doc_3",
+						Path:       "product/llm-wiki.md",
+						Title:      "LLM Wiki",
+						Summary:    "Team wiki maintenance",
+						Tags:       json.RawMessage(`["product"]`),
+						BodyMD:     "# LLM Wiki\n",
+					},
+					{
+						Operation: domain.TeamMemexOperationUpdateDoc,
+						Path:      "runtime/sessions.md",
+						Title:     "Sessions",
+						Summary:   "Updated session notes",
+						Tags:      json.RawMessage(`["runtime","sessions"]`),
+						BodyMD:    "# Sessions\nUpdated body.\n",
+					},
+					{
+						Operation: domain.TeamMemexOperationArchiveDoc,
+						Path:      "old/cleanup.md",
+					},
+				},
+				publishedAt,
+			)
+			require.NoError(t, err)
+
+			documents, err := store.ListTeamMemexDocuments(ctx, UserPrincipal{User: owner}, teamID)
+			require.NoError(t, err)
+			require.Len(t, documents, 2)
+			require.Equal(t, "product/llm-wiki.md", documents[0].Path)
+			require.Equal(t, "runtime/sessions.md", documents[1].Path)
+			require.Equal(t, "Updated session notes", documents[1].Summary)
+			require.Equal(t, "# Sessions\nUpdated body.\n", documents[1].BodyMD)
+
+			_, err = store.GetTeamMemexDocument(
+				ctx,
+				UserPrincipal{User: owner},
+				teamID,
+				"old/cleanup.md",
+			)
+			require.ErrorIs(t, err, ErrNotFound)
+
+			_, err = store.PublishTeamMemexRun(ctx, UserPrincipal{User: operator}, TeamMemexRun{
+				RunID:             "tmrun_conflict",
+				TeamID:            teamID,
+				RequestedByUserID: operator.UserID,
+				ExecutorType:      domain.TeamMemexRunExecutorDryRun,
+				Status:            domain.TeamMemexRunStatusSucceeded,
+				Constraints:       domain.DefaultTeamMemexRunConstraints(),
+				StartedAt:         now,
+				CompletedAt:       &publishedAt,
+			}, []TeamMemexDocumentOperation{
+				{
+					Operation:  domain.TeamMemexOperationCreateDoc,
+					DocumentID: "memex_doc_4",
+					Path:       "old/cleanup.md",
+					Title:      "Cleanup Again",
+					Summary:    "Should fail because archived paths are reserved",
+					BodyMD:     "# Cleanup Again\n",
+				},
+				{
+					Operation: domain.TeamMemexOperationUpdateDoc,
+					Path:      "runtime/sessions.md",
+					Title:     "Should Not Publish",
+					Summary:   "Should not publish",
+					BodyMD:    "# Should Not Publish\n",
+				},
+			}, publishedAt)
+			require.ErrorIs(t, err, ErrConflict)
+
+			document, err := store.GetTeamMemexDocument(
+				ctx,
+				UserPrincipal{User: owner},
+				teamID,
+				"runtime/sessions.md",
+			)
+			require.NoError(t, err)
+			require.Equal(t, "Updated session notes", document.Summary)
 		},
 	)
 

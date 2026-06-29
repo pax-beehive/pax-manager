@@ -331,6 +331,16 @@ type TeamMemexStore interface {
 		principal domain.UserPrincipal,
 		teamID string,
 	) ([]domain.TeamMemexDocument, error)
+	ListTeamMemexDocumentPaths(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+	) ([]string, error)
+	AuthorizeTeamMemexRun(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		teamID string,
+	) error
 	GetTeamMemexDocument(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -347,6 +357,13 @@ type TeamMemexStore interface {
 		principal domain.UserPrincipal,
 		teamID string,
 		runID string,
+	) (domain.TeamMemexRun, error)
+	PublishTeamMemexRun(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		run domain.TeamMemexRun,
+		operations []domain.TeamMemexDocumentOperation,
+		now time.Time,
 	) (domain.TeamMemexRun, error)
 }
 
@@ -376,6 +393,7 @@ type Service struct {
 	secrets          SecretIssuer
 	vault            *vaultsecrets.Cipher
 	backgroundRunner func(context.Context, func(context.Context))
+	memexExecutor    TeamMemexExecutor
 }
 
 func NewService(
@@ -418,6 +436,7 @@ func NewServiceWithBackgroundRunner(
 		secrets:          secrets,
 		vault:            cipher,
 		backgroundRunner: backgroundRunner,
+		memexExecutor:    dryRunTeamMemexExecutor{},
 	}
 }
 

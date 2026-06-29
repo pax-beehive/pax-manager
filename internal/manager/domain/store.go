@@ -367,6 +367,16 @@ type Store interface {
 		principal UserPrincipal,
 		teamID string,
 	) ([]TeamMemexDocument, error)
+	ListTeamMemexDocumentPaths(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+	) ([]string, error)
+	AuthorizeTeamMemexRun(
+		ctx context.Context,
+		principal UserPrincipal,
+		teamID string,
+	) error
 	GetTeamMemexDocument(
 		ctx context.Context,
 		principal UserPrincipal,
@@ -383,6 +393,13 @@ type Store interface {
 		principal UserPrincipal,
 		teamID string,
 		runID string,
+	) (TeamMemexRun, error)
+	PublishTeamMemexRun(
+		ctx context.Context,
+		principal UserPrincipal,
+		run TeamMemexRun,
+		operations []TeamMemexDocumentOperation,
+		now time.Time,
 	) (TeamMemexRun, error)
 	CreateTeamInvite(
 		ctx context.Context,

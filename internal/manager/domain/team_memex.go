@@ -11,6 +11,11 @@ const (
 
 	TeamMemexRunExecutorDryRun = "dry_run"
 
+	TeamMemexOperationCreateDoc  = "create_doc"
+	TeamMemexOperationUpdateDoc  = "update_doc"
+	TeamMemexOperationArchiveDoc = "archive_doc"
+	TeamMemexOperationNoOp       = "no_op"
+
 	TeamMemexRunStatusPending          = "pending"
 	TeamMemexRunStatusRunning          = "running"
 	TeamMemexRunStatusSucceeded        = "succeeded"
@@ -32,6 +37,29 @@ type TeamMemexDocument struct {
 	CreatedAt  time.Time       `json:"created_at"`
 	UpdatedAt  time.Time       `json:"updated_at"`
 	ArchivedAt *time.Time      `json:"archived_at,omitempty"`
+}
+
+type TeamMemexManifest struct {
+	Operations []TeamMemexManifestOperation `json:"operations"`
+}
+
+type TeamMemexManifestOperation struct {
+	Operation string          `json:"operation"`
+	Path      string          `json:"path,omitempty"`
+	Title     string          `json:"title,omitempty"`
+	Summary   string          `json:"summary,omitempty"`
+	Tags      json.RawMessage `json:"tags,omitempty"`
+	BodyMD    string          `json:"body_md,omitempty"`
+}
+
+type TeamMemexDocumentOperation struct {
+	Operation  string
+	DocumentID string
+	Path       string
+	Title      string
+	Summary    string
+	Tags       json.RawMessage
+	BodyMD     string
 }
 
 type TeamMemexRunConstraints struct {
@@ -77,13 +105,18 @@ type TeamMemexRun struct {
 
 func DefaultTeamMemexRunConstraints() TeamMemexRunConstraints {
 	return TeamMemexRunConstraints{
-		MaxInputMessages:       200,
-		MaxInputMessageChars:   120000,
-		MaxDocsReadPerRun:      20,
-		MaxDocCharsReadPerRun:  160000,
-		MaxOutputDocs:          20,
-		MaxOutputDocCharsEach:  64000,
-		AllowedOperations:      []string{"create_doc", "update_doc", "archive_doc", "no_op"},
+		MaxInputMessages:      200,
+		MaxInputMessageChars:  120000,
+		MaxDocsReadPerRun:     20,
+		MaxDocCharsReadPerRun: 160000,
+		MaxOutputDocs:         20,
+		MaxOutputDocCharsEach: 64000,
+		AllowedOperations: []string{
+			TeamMemexOperationCreateDoc,
+			TeamMemexOperationUpdateDoc,
+			TeamMemexOperationArchiveDoc,
+			TeamMemexOperationNoOp,
+		},
 		IndexIsReadOnly:        true,
 		EmbeddingEnabled:       false,
 		MaxRepairAttempts:      2,

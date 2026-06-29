@@ -145,6 +145,41 @@ func (s *PostgresStore) ListTeamMemexDocuments(
 	return out, nil
 }
 
+func (s *PostgresStore) ListTeamMemexDocumentPaths(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+) ([]string, error) {
+	if err := s.ensureActiveTeamMember(ctx, principal, teamID); err != nil {
+		return nil, err
+	}
+	var paths []string
+	err := s.gormDB.WithContext(ctx).
+		Model(&teamMemexDocumentRow{}).
+		Where("team_id = ?", teamID).
+		Order("path ASC").
+		Pluck("path", &paths).Error
+	if err != nil {
+		return nil, err
+	}
+	return paths, nil
+}
+
+func (s *PostgresStore) AuthorizeTeamMemexRun(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+) error {
+	member, err := s.activeTeamMember(ctx, s.gormDB, teamID, principal.User.UserID)
+	if err != nil {
+		return err
+	}
+	if !teamRoleCanManageOwnAgents(member.Role) {
+		return ErrUnauthorized
+	}
+	return nil
+}
+
 func (s *PostgresStore) GetTeamMemexDocument(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -214,6 +249,133 @@ func (s *PostgresStore) GetTeamMemexRun(
 	return teamMemexRunFromModel(&row)
 }
 
+func (s *PostgresStore) PublishTeamMemexRun(
+	ctx context.Context,
+	principal UserPrincipal,
+	run TeamMemexRun,
+	operations []TeamMemexDocumentOperation,
+	now time.Time,
+) (TeamMemexRun, error) {
+	err := s.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		member, err := s.activeTeamMember(ctx, tx, run.TeamID, principal.User.UserID)
+		if err != nil {
+			return err
+		}
+		if !teamRoleCanManageOwnAgents(member.Role) {
+			return ErrUnauthorized
+		}
+		row, err := teamMemexRunModel(run)
+		if err != nil {
+			return err
+		}
+		if err := tx.Create(row).Error; err != nil {
+			if isUniqueViolation(err) {
+				return ErrConflict
+			}
+			return err
+		}
+		for _, operation := range operations {
+			if err := applyPostgresTeamMemexOperation(ctx, tx, run.TeamID, operation, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return TeamMemexRun{}, err
+	}
+	return run, nil
+}
+
+func applyPostgresTeamMemexOperation(
+	ctx context.Context,
+	tx *gorm.DB,
+	teamID string,
+	operation TeamMemexDocumentOperation,
+	now time.Time,
+) error {
+	switch operation.Operation {
+	case domain.TeamMemexOperationNoOp:
+		return nil
+	case domain.TeamMemexOperationCreateDoc:
+		var existing teamMemexDocumentRow
+		err := tx.WithContext(ctx).
+			Where("team_id = ? AND path = ?", teamID, operation.Path).
+			First(&existing).Error
+		if err == nil {
+			return ErrConflict
+		}
+		if err != gorm.ErrRecordNotFound {
+			return err
+		}
+		row := teamMemexDocumentRow{
+			DocumentID: operation.DocumentID,
+			TeamID:     teamID,
+			Path:       operation.Path,
+			Title:      operation.Title,
+			Summary:    operation.Summary,
+			Tags:       jsonDefault(operation.Tags, "[]"),
+			BodyMD:     operation.BodyMD,
+			Status:     domain.TeamMemexDocumentStatusActive,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		if err := tx.WithContext(ctx).Create(&row).Error; err != nil {
+			if isUniqueViolation(err) {
+				return ErrConflict
+			}
+			return err
+		}
+		return nil
+	case domain.TeamMemexOperationUpdateDoc:
+		result := tx.WithContext(ctx).
+			Model(&teamMemexDocumentRow{}).
+			Where(
+				"team_id = ? AND path = ? AND status = ?",
+				teamID,
+				operation.Path,
+				domain.TeamMemexDocumentStatusActive,
+			).
+			Updates(map[string]any{
+				"title":      operation.Title,
+				"summary":    operation.Summary,
+				"tags_json":  jsonDefault(operation.Tags, "[]"),
+				"body_md":    operation.BodyMD,
+				"updated_at": now,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
+	case domain.TeamMemexOperationArchiveDoc:
+		result := tx.WithContext(ctx).
+			Model(&teamMemexDocumentRow{}).
+			Where(
+				"team_id = ? AND path = ? AND status = ?",
+				teamID,
+				operation.Path,
+				domain.TeamMemexDocumentStatusActive,
+			).
+			Updates(map[string]any{
+				"status":      domain.TeamMemexDocumentStatusArchived,
+				"updated_at":  now,
+				"archived_at": now,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
+	default:
+		return ErrConflict
+	}
+}
+
 func (s *PostgresStore) ensureActiveTeamMember(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -264,6 +426,51 @@ func (s *MemoryStore) ListTeamMemexDocuments(
 		return out[i].Path < out[j].Path
 	})
 	return out, nil
+}
+
+func (s *MemoryStore) ListTeamMemexDocumentPaths(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.activeTeamMemberLocked(teamID, principal.User.UserID); !ok {
+		return nil, ErrNotFound
+	}
+	team, ok := s.teams[teamID]
+	if !ok || team.Status != domain.TeamStatusActive {
+		return nil, ErrNotFound
+	}
+	paths := make([]string, 0)
+	for key := range s.teamMemexDocuments {
+		if key.TeamID == teamID {
+			paths = append(paths, key.Path)
+		}
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func (s *MemoryStore) AuthorizeTeamMemexRun(
+	ctx context.Context,
+	principal UserPrincipal,
+	teamID string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	member, ok := s.activeTeamMemberLocked(teamID, principal.User.UserID)
+	if !ok {
+		return ErrNotFound
+	}
+	team, ok := s.teams[teamID]
+	if !ok || team.Status != domain.TeamStatusActive {
+		return ErrNotFound
+	}
+	if !teamRoleCanManageOwnAgents(member.Role) {
+		return ErrUnauthorized
+	}
+	return nil
 }
 
 func (s *MemoryStore) GetTeamMemexDocument(
@@ -333,6 +540,97 @@ func (s *MemoryStore) GetTeamMemexRun(
 		return TeamMemexRun{}, ErrNotFound
 	}
 	return cloneTeamMemexRun(run), nil
+}
+
+func (s *MemoryStore) PublishTeamMemexRun(
+	ctx context.Context,
+	principal UserPrincipal,
+	run TeamMemexRun,
+	operations []TeamMemexDocumentOperation,
+	now time.Time,
+) (TeamMemexRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	member, ok := s.activeTeamMemberLocked(run.TeamID, principal.User.UserID)
+	if !ok {
+		return TeamMemexRun{}, ErrNotFound
+	}
+	team, ok := s.teams[run.TeamID]
+	if !ok || team.Status != domain.TeamStatusActive {
+		return TeamMemexRun{}, ErrNotFound
+	}
+	if !teamRoleCanManageOwnAgents(member.Role) {
+		return TeamMemexRun{}, ErrUnauthorized
+	}
+	if _, ok := s.teamMemexRuns[run.RunID]; ok {
+		return TeamMemexRun{}, ErrConflict
+	}
+	nextDocs := make(map[teamMemexDocumentKey]TeamMemexDocument, len(s.teamMemexDocuments))
+	for key, document := range s.teamMemexDocuments {
+		nextDocs[key] = cloneTeamMemexDocument(document)
+	}
+	for _, operation := range operations {
+		if err := applyMemoryTeamMemexOperation(nextDocs, run.TeamID, operation, now); err != nil {
+			return TeamMemexRun{}, err
+		}
+	}
+	s.teamMemexDocuments = nextDocs
+	s.teamMemexRuns[run.RunID] = cloneTeamMemexRun(run)
+	return cloneTeamMemexRun(run), nil
+}
+
+func applyMemoryTeamMemexOperation(
+	documents map[teamMemexDocumentKey]TeamMemexDocument,
+	teamID string,
+	operation TeamMemexDocumentOperation,
+	now time.Time,
+) error {
+	key := teamMemexDocumentKey{TeamID: teamID, Path: operation.Path}
+	switch operation.Operation {
+	case domain.TeamMemexOperationNoOp:
+		return nil
+	case domain.TeamMemexOperationCreateDoc:
+		if _, ok := documents[key]; ok {
+			return ErrConflict
+		}
+		documents[key] = TeamMemexDocument{
+			DocumentID: operation.DocumentID,
+			TeamID:     teamID,
+			Path:       operation.Path,
+			Title:      operation.Title,
+			Summary:    operation.Summary,
+			Tags:       jsonDefault(operation.Tags, "[]"),
+			BodyMD:     operation.BodyMD,
+			Status:     domain.TeamMemexDocumentStatusActive,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		return nil
+	case domain.TeamMemexOperationUpdateDoc:
+		document, ok := documents[key]
+		if !ok || document.Status != domain.TeamMemexDocumentStatusActive {
+			return ErrNotFound
+		}
+		document.Title = operation.Title
+		document.Summary = operation.Summary
+		document.Tags = jsonDefault(operation.Tags, "[]")
+		document.BodyMD = operation.BodyMD
+		document.UpdatedAt = now
+		documents[key] = document
+		return nil
+	case domain.TeamMemexOperationArchiveDoc:
+		document, ok := documents[key]
+		if !ok || document.Status != domain.TeamMemexDocumentStatusActive {
+			return ErrNotFound
+		}
+		document.Status = domain.TeamMemexDocumentStatusArchived
+		document.UpdatedAt = now
+		document.ArchivedAt = &now
+		documents[key] = document
+		return nil
+	default:
+		return ErrConflict
+	}
 }
 
 func cloneTeamMemexDocument(doc TeamMemexDocument) TeamMemexDocument {
