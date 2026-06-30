@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strconv"
 	"strings"
@@ -1526,7 +1527,8 @@ func (s *MemoryStore) CreateApproval(
 		RequestNodeID:     node.NodeID,
 		RequestAgentID:    req.AgentID,
 		RequestSessionID:  sessionID,
-		SourceMessageID:   req.SourceMessageID,
+		NativeID:          firstNonEmpty(req.NativeID, req.SourceMessageID),
+		SourceMessageID:   firstNonEmpty(req.SourceMessageID, req.NativeID),
 		Domain:            defaultApprovalDomain(req.Domain),
 		Operation:         req.Operation,
 		ResourceType:      req.ResourceType,
@@ -1629,6 +1631,30 @@ func (s *MemoryStore) DecideApproval(
 	approval.GrantBody = jsonDefault(req.GrantBody, "{}")
 	approval.DecidedByUserID = principal.User.UserID
 	approval.DecidedAt = &now
+	s.approvals[approvalID] = approval
+	return approval, nil
+}
+
+func (s *MemoryStore) RecordApprovalResponse(
+	ctx context.Context,
+	principal UserPrincipal,
+	approvalID string,
+	responseBody json.RawMessage,
+	responseError string,
+) (AgentApproval, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	approval, ok := s.approvals[approvalID]
+	if !ok || !canAccessOwner(principal, approval.OwnerUserID) {
+		return AgentApproval{}, ErrNotFound
+	}
+	if approval.RespondedAt != nil {
+		return AgentApproval{}, ErrConflict
+	}
+	now := s.now().UTC()
+	approval.RespondedAt = &now
+	approval.ResponseBody = jsonDefault(responseBody, "{}")
+	approval.ResponseError = responseError
 	s.approvals[approvalID] = approval
 	return approval, nil
 }
@@ -2220,6 +2246,7 @@ func (s *MemoryStore) translateMailboxMessagesToNativeLocked(messages []MailboxM
 }
 
 func (s *MemoryStore) translateApprovalToNativeLocked(approval AgentApproval) AgentApproval {
+	approval.NativeID = firstNonEmpty(approval.NativeID, approval.SourceMessageID)
 	if approval.RequestAgentID != "" && approval.RequestSessionID != "" {
 		approval.RequestSessionID = s.nativeSessionIDLocked(
 			approval.RequestAgentID,

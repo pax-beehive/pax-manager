@@ -631,6 +631,7 @@ struct AgentApproval {
   4: optional string request_agent_id
   5: optional string request_session_id
   6: optional string source_message_id
+  34: optional string native_id
   7: optional string grant_node_id
   8: optional string grant_agent_id
   9: optional string grant_session_id
@@ -696,6 +697,7 @@ struct CreateNodeAgentApprovalRequest {
   1: optional string agent_id (api.path = "agent_id")
   2: optional string session_id
   3: optional string source_message_id
+  17: optional string native_id
   4: optional string domain
   5: optional string operation
   6: optional string resource_type

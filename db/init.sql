@@ -929,7 +929,10 @@ CREATE TABLE IF NOT EXISTS agent_approvals (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMPTZ,
     decided_at TIMESTAMPTZ,
-    raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb
+    raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    responded_at TIMESTAMPTZ,
+    response_body JSONB,
+    response_error TEXT NOT NULL DEFAULT ''
 );
 
 ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS owner_user_id TEXT REFERENCES users(user_id);
@@ -964,6 +967,9 @@ ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT 
 ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS decided_at TIMESTAMPTZ;
 ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ;
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS response_body JSONB;
+ALTER TABLE agent_approvals ADD COLUMN IF NOT EXISTS response_error TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_agent_approvals_owner_status
     ON agent_approvals(owner_user_id, status, created_at DESC);

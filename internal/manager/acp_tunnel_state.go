@@ -42,6 +42,7 @@ func (h *acpHistoryGroups) groupID(
 	fields := extractACPHistoryFields(payload, rpc)
 	fields, projection := classifyACPHistoryProjection(rpc, fields)
 	if projection != acpHistoryProjectionText {
+		h.groups = nil
 		return ""
 	}
 	key := firstNonEmpty(fields.SessionID, sessionID) + "\x00" +

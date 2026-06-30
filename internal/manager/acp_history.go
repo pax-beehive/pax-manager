@@ -15,6 +15,7 @@ type acpHistoryRPC struct {
 	Method string          `json:"method,omitempty"`
 	Params json.RawMessage `json:"params,omitempty"`
 	Result json.RawMessage `json:"result,omitempty"`
+	Error  json.RawMessage `json:"error,omitempty"`
 }
 
 type acpHistoryFields struct {
@@ -129,7 +130,7 @@ func projectACPUserPrompt(
 		return nil
 	}
 	if rpc.Method != "session/prompt" {
-		return nil
+		return projectACPUserRawFrame(ctx, agent, payload, rpc)
 	}
 	sessionID := firstNonEmpty(
 		findStringFromRaw(rpc.Params, "sessionId", "session_id"),
@@ -177,6 +178,77 @@ func projectACPUserPrompt(
 		Text:        content,
 		PayloadJSON: append(json.RawMessage(nil), payload...),
 	})
+}
+
+func projectACPUserRawFrame(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+	payload []byte,
+	rpc acpHistoryRPC,
+) error {
+	if len(rpc.Result) == 0 && len(rpc.Error) == 0 {
+		return nil
+	}
+	sessionID := canonicalACPHistorySessionID(
+		ctx,
+		agent.store,
+		agent.ownerUserID,
+		agent.agentID,
+		agent.sessionID,
+	)
+	if sessionID == "" {
+		return nil
+	}
+	messageType := acpUserRawFrameMessageType(rpc)
+	logicalKey := fmt.Sprintf(
+		"acp:%s:%s:%s:%s:%s",
+		agent.agentID,
+		domain.TransportStreamManagerToPaxd,
+		sessionID,
+		firstNonEmpty(messageType, "acp_response"),
+		firstNonEmpty(acpHistoryRPCID(rpc.ID), acpHistoryContentHash(string(payload))),
+	)
+	msg := domain.Message{
+		MessageID:   acpHistoryMessageID(logicalKey),
+		OwnerUserID: agent.ownerUserID,
+		NodeID:      agent.nodeID,
+		AgentID:     agent.agentID,
+		SessionID:   sessionID,
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionUserToAgent,
+		Role:        "user",
+		Status:      "sent",
+		MessageType: messageType,
+		LogicalKey:  logicalKey,
+		RawJSON:     append(json.RawMessage(nil), payload...),
+	}
+	if err := agent.store.UpsertMessage(ctx, &msg); err != nil {
+		return err
+	}
+	return agent.store.UpsertMessagePart(ctx, &domain.MessagePart{
+		MessageID:   msg.MessageID,
+		PartIndex:   0,
+		PartType:    domain.MessagePartRawJSON,
+		PayloadJSON: append(json.RawMessage(nil), payload...),
+	})
+}
+
+func acpUserRawFrameMessageType(rpc acpHistoryRPC) string {
+	var result struct {
+		Outcome struct {
+			Outcome  string `json:"outcome"`
+			OptionID string `json:"optionId"`
+		} `json:"outcome"`
+	}
+	if len(rpc.Result) > 0 &&
+		json.Unmarshal(rpc.Result, &result) == nil &&
+		result.Outcome.Outcome != "" {
+		return "permission_response"
+	}
+	if len(rpc.Error) > 0 {
+		return "acp_error_response"
+	}
+	return "acp_response"
 }
 
 func acpPromptText(raw json.RawMessage) string {
@@ -395,6 +467,9 @@ func classifyACPHistoryProjection(
 		return fields, acpHistoryProjectionText
 	}
 	if rpc.Method == "session/update" && fields.SessionUpdate != "" {
+		return fields, acpHistoryProjectionRaw
+	}
+	if rpc.Method == "session/request_permission" {
 		return fields, acpHistoryProjectionRaw
 	}
 	if fields.EntityType != "" || fields.EventType != "" {

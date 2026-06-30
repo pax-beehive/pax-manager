@@ -307,6 +307,7 @@ func scanApproval(row rowScanner) (AgentApproval, error) {
 	var options []byte
 	var grantBody []byte
 	var rawPayload []byte
+	var responseBody []byte
 	if err := row.Scan(
 		&approval.ApprovalID,
 		&approval.OwnerUserID,
@@ -341,14 +342,21 @@ func scanApproval(row rowScanner) (AgentApproval, error) {
 		&approval.ExpiresAt,
 		&approval.DecidedAt,
 		&rawPayload,
+		&approval.RespondedAt,
+		&responseBody,
+		&approval.ResponseError,
 	); err != nil {
 		return AgentApproval{}, mapSQLError(err)
 	}
 	approval.RequestBody = json.RawMessage(requestBody)
 	approval.RequestedEffects = json.RawMessage(requestedEffects)
+	approval.NativeID = approval.SourceMessageID
 	_ = json.Unmarshal(options, &approval.Options)
 	approval.GrantBody = json.RawMessage(grantBody)
 	approval.RawPayload = json.RawMessage(rawPayload)
+	if len(responseBody) > 0 {
+		approval.ResponseBody = json.RawMessage(responseBody)
+	}
 	return approval, nil
 }
 
