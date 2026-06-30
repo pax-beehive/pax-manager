@@ -1698,7 +1698,7 @@ func (s *PostgresStore) CreateApproval(
 			$15,$16,$17,'pending',$18,$19,$20
 			)
 			RETURNING `+approvalReturningSQL+`
-	`, approvalID, ownerUserID, node.NodeID, req.AgentID, sessionID, req.SourceMessageID,
+	`, approvalID, ownerUserID, node.NodeID, req.AgentID, sessionID, firstNonEmpty(req.NativeID, req.SourceMessageID),
 		defaultApprovalDomain(req.Domain), req.Operation, req.ResourceType, req.ResourceRef,
 		req.Title, req.Description, defaultApprovalRiskLevel(req.RiskLevel), req.ActionFingerprint,
 		jsonDefault(req.RequestBody, "{}"), jsonDefault(req.RequestedEffects, "[]"),
@@ -1789,6 +1789,34 @@ func (s *PostgresStore) DecideApproval(
 		RETURNING `+approvalReturningSQL+`
 	`, approvalID, decision, req.DecisionOption, scope, grantNodeID, grantAgentID, grantSessionID,
 		jsonDefault(req.GrantBody, "{}"), principal.User.UserID, now)
+	return scanApproval(row)
+}
+
+func (s *PostgresStore) RecordApprovalResponse(
+	ctx context.Context,
+	principal UserPrincipal,
+	approvalID string,
+	responseBody json.RawMessage,
+	responseError string,
+) (AgentApproval, error) {
+	approval, err := s.GetApproval(ctx, principal, approvalID)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	if approval.RespondedAt != nil {
+		return AgentApproval{}, ErrConflict
+	}
+	now := s.now().UTC()
+	row := s.db.QueryRowContext(ctx, `
+		UPDATE agent_approvals
+		SET responded_at = $3,
+			response_body = $4,
+			response_error = $5
+		WHERE approval_id = $1
+			AND owner_user_id = $2
+			AND responded_at IS NULL
+		RETURNING `+approvalReturningSQL+`
+	`, approvalID, principal.User.UserID, now, jsonDefault(responseBody, "{}"), responseError)
 	return scanApproval(row)
 }
 
@@ -2328,7 +2356,8 @@ const approvalReturningSQL = `
 		options, status, decision, decision_option, decision_scope, grant_body,
 		COALESCE(decided_by_user_id, ''), grant_revoked_at,
 		COALESCE(grant_revoked_by_user_id, ''), grant_revocation_reason, created_at,
-		expires_at, decided_at, raw_payload`
+		expires_at, decided_at, raw_payload, responded_at, response_body,
+		COALESCE(response_error, '')`
 
 const secretSelectSQL = `
 	SELECT secret_id, owner_user_id, name, kind, description, metadata,

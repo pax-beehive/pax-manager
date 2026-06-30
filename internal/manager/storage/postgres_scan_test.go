@@ -375,6 +375,7 @@ func TestScanApprovalSecretAndArtifactRows(t *testing.T) {
 	decidedAt := now.Add(time.Minute)
 	revokedAt := now.Add(2 * time.Minute)
 	expiresAt := now.Add(time.Hour)
+	respondedAt := now.Add(3 * time.Minute)
 
 	approval, err := scanApproval(fakeRow{
 		"appr_1",
@@ -410,13 +411,18 @@ func TestScanApprovalSecretAndArtifactRows(t *testing.T) {
 		&expiresAt,
 		&decidedAt,
 		[]byte(`{"raw":true}`),
+		&respondedAt,
+		[]byte(`{"jsonrpc":"2.0","id":"perm_1"}`),
+		"",
 	})
 	if err != nil {
 		t.Fatalf("scan approval: %v", err)
 	}
 	if len(approval.Options) != 1 ||
 		approval.Options[0].OptionID != "allow" ||
-		string(approval.GrantBody) != `{"reason":"approved"}` {
+		string(approval.GrantBody) != `{"reason":"approved"}` ||
+		approval.RespondedAt == nil ||
+		string(approval.ResponseBody) != `{"jsonrpc":"2.0","id":"perm_1"}` {
 		t.Fatalf("approval = %+v", approval)
 	}
 

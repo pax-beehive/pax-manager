@@ -104,6 +104,9 @@
           "grant_session_id": {
             "type": "string"
           },
+          "native_id": {
+            "type": "string"
+          },
           "operation": {
             "type": "string"
           },
@@ -475,6 +478,9 @@
             "type": "string"
           },
           "expires_at": {
+            "type": "string"
+          },
+          "native_id": {
             "type": "string"
           },
           "operation": {

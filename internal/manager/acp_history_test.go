@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/storage"
 )
@@ -138,9 +141,9 @@ func TestACPHistoryProjectsInboundResultBoundariesIntoExpectedMessageRows(t *tes
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
-	if len(messages) != 7 {
+	if len(messages) != 8 {
 		t.Fatalf(
-			"messages = %+v, want 7 rows: 3 turns of thought/message plus one tool call",
+			"messages = %+v, want 8 rows: 3 turns of thought/message plus one tool call boundary",
 			messages,
 		)
 	}
@@ -191,13 +194,18 @@ func TestACPHistoryProjectsInboundResultBoundariesIntoExpectedMessageRows(t *tes
 		},
 		{
 			messageType: "agent_thought_chunk",
-			text:        "The user wants me to remember the passphrase blue-mango and reply only OK. Let me save this to memory first.The passphrase was already saved, so no duplicate was added. Now I just reply OK as instructed.",
+			text:        "The user wants me to remember the passphrase blue-mango and reply only OK. Let me save this to memory first.",
 			partType:    domain.MessagePartText,
 		},
 		{
 			messageType: "tool_call",
 			partType:    domain.MessagePartRawJSON,
 			rawContains: `"title":"memory add: memory"`,
+		},
+		{
+			messageType: "agent_thought_chunk",
+			text:        "The passphrase was already saved, so no duplicate was added. Now I just reply OK as instructed.",
+			partType:    domain.MessagePartText,
 		},
 		{
 			messageType: "agent_message_chunk",
@@ -223,6 +231,70 @@ func TestACPHistoryProjectsInboundResultBoundariesIntoExpectedMessageRows(t *tes
 			t.Fatalf("row %d = %+v, want %+v", i, got[i], want[i])
 		}
 	}
+}
+
+func TestACPHistoryGivenNonTextUpdateBetweenTextChunksThenStartsANewGroup(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	agent := &ACPTunnelAgent{
+		agentID:     "agent_boundary",
+		ownerUserID: "user_boundary",
+		nodeID:      "node_boundary",
+		sessionID:   "sess_boundary",
+	}
+	frames := []json.RawMessage{
+		json.RawMessage(
+			`{"method":"session/update","params":{"sessionId":"sess_boundary","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"before tool. "}}},"jsonrpc":"2.0"}`,
+		),
+		json.RawMessage(
+			`{"method":"session/update","params":{"sessionId":"sess_boundary","update":{"sessionUpdate":"tool_call","toolCallId":"tool_1","title":"Read file","kind":"read"}},"jsonrpc":"2.0"}`,
+		),
+		json.RawMessage(
+			`{"method":"session/update","params":{"sessionId":"sess_boundary","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"after tool."}}},"jsonrpc":"2.0"}`,
+		),
+	}
+
+	for i, frame := range frames {
+		seq := int64(i + 1)
+		err := projectACPTransportMessage(
+			ctx,
+			store,
+			agent.agentID,
+			agent.ownerUserID,
+			agent.nodeID,
+			domain.TransportStreamPaxdToManager,
+			seq,
+			agent.historyGroupID(seq, frame),
+			frame,
+		)
+		require.NoError(t, err)
+		agent.observeHistoryBoundary(frame)
+	}
+
+	messages, err := store.ListMessages(ctx, agent.agentID, agent.sessionID, 10)
+	require.NoError(t, err)
+	require.Len(t, messages, 3)
+	assert.Equal(t, []string{
+		"agent_thought_chunk",
+		"tool_call",
+		"agent_thought_chunk",
+	}, []string{
+		messages[0].MessageType,
+		messages[1].MessageType,
+		messages[2].MessageType,
+	})
+
+	beforeParts, err := store.ListMessageParts(ctx, messages[0].MessageID)
+	require.NoError(t, err)
+	afterParts, err := store.ListMessageParts(ctx, messages[2].MessageID)
+	require.NoError(t, err)
+	require.Len(t, beforeParts, 1)
+	require.Len(t, afterParts, 1)
+	assert.Equal(t, "before tool. ", beforeParts[0].Text)
+	assert.Equal(t, "after tool.", afterParts[0].Text)
+	assert.NotEqual(t, messages[0].MessageID, messages[2].MessageID)
 }
 
 func TestACPHistoryProjectsUserPrompt(t *testing.T) {
@@ -270,6 +342,89 @@ func TestACPHistoryProjectsUserPrompt(t *testing.T) {
 	if len(parts) != 1 || parts[0].Text != "hello from user" {
 		t.Fatalf("parts = %+v", parts)
 	}
+}
+
+func TestACPHistoryGivenPermissionRequestThenProjectsRawFrame(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	raw := json.RawMessage(`{
+		"jsonrpc":"2.0",
+		"id":0,
+		"method":"session/request_permission",
+		"params":{
+			"sessionId":"sess_permission",
+			"toolCall":{"toolCallId":"perm-check-1","kind":"execute","title":"curl -sI google.com"},
+			"options":[{"kind":"allow_once","name":"Allow once","optionId":"allow_once"}]
+		}
+	}`)
+
+	err := projectACPTransportMessage(
+		ctx,
+		store,
+		"agent_1",
+		"user_1",
+		"node_1",
+		domain.TransportStreamPaxdToManager,
+		4,
+		"",
+		raw,
+	)
+	require.NoError(t, err)
+
+	messages, err := store.ListMessages(ctx, "agent_1", "sess_permission", 100)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	msg := messages[0]
+	assert.Equal(t, domain.MessageDirectionAgentToUser, msg.Direction)
+	assert.Equal(t, "assistant", msg.Role)
+	assert.Equal(t, "session/request_permission", msg.MessageType)
+	assert.Equal(t, string(raw), string(msg.RawJSON))
+
+	parts, err := store.ListMessageParts(ctx, msg.MessageID)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, domain.MessagePartRawJSON, parts[0].PartType)
+	assert.Contains(t, string(parts[0].PayloadJSON), `"method":"session/request_permission"`)
+	assert.Contains(t, string(parts[0].PayloadJSON), `"toolCallId":"perm-check-1"`)
+}
+
+func TestACPHistoryGivenPermissionResponseThenProjectsRawFrame(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	agent := &ACPTunnelAgent{
+		agentID:     "agent_1",
+		ownerUserID: "user_1",
+		nodeID:      "node_1",
+		sessionID:   "sess_permission",
+		store:       store,
+	}
+	payload := []byte(
+		`{"jsonrpc":"2.0","id":0,"result":{"outcome":{"outcome":"selected","optionId":"allow_once"}}}`,
+	)
+
+	err := projectACPUserPrompt(ctx, agent, payload)
+	require.NoError(t, err)
+
+	messages, err := store.ListMessages(ctx, "agent_1", "sess_permission", 100)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	msg := messages[0]
+	assert.Equal(t, domain.MessageDirectionUserToAgent, msg.Direction)
+	assert.Equal(t, "user", msg.Role)
+	assert.Equal(t, "permission_response", msg.MessageType)
+	assert.Equal(t, string(payload), string(msg.RawJSON))
+
+	parts, err := store.ListMessageParts(ctx, msg.MessageID)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, domain.MessagePartRawJSON, parts[0].PartType)
+	assert.Empty(t, parts[0].Text)
+	assert.Contains(t, string(parts[0].PayloadJSON), `"id":0`)
+	assert.Contains(t, string(parts[0].PayloadJSON), `"optionId":"allow_once"`)
 }
 
 func TestACPHistoryKeepsDistinctUserPromptIDs(t *testing.T) {

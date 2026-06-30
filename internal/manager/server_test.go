@@ -1828,6 +1828,384 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	requireConversationEvent(t, events, "done")
 }
 
+func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"run approved command","session_id":"sess-existing"}`,
+		respCh,
+		errCh,
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		promptEnv.QueueID,
+		1,
+		json.RawMessage(`{
+			"jsonrpc":"2.0",
+			"id":"perm_1",
+			"method":"session/request_permission",
+			"params":{
+				"sessionId":"native-existing",
+				"toolCall":{
+					"toolCallId":"toolu_approval",
+					"kind":"execute",
+					"title":"go test ./...",
+					"rawInput":{"command":"go test ./..."}
+				},
+				"options":[
+					{"optionId":"allow","kind":"allow_once","name":"Allow"},
+					{"optionId":"reject","kind":"reject_once","name":"Reject"}
+				]
+			}
+		}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	requiredEvent := requireConversationEvent(t, events, "approval_required")
+	require.NotEmpty(t, requiredEvent.ApprovalID)
+	require.Equal(t, "sess-existing", requiredEvent.SessionID)
+	require.NotNil(t, requiredEvent.Approval)
+	assert.Equal(t, requiredEvent.ApprovalID, requiredEvent.Approval.ApprovalID)
+	assert.Contains(t, string(requiredEvent.Frame), `"approval_id":"`+requiredEvent.ApprovalID+`"`)
+	assert.Contains(t, string(requiredEvent.Frame), `"sessionId":"sess-existing"`)
+
+	interruptedEvent := requireConversationEvent(t, events, "interrupted")
+	assert.Equal(t, "permission_required", interruptedEvent.Reason)
+	assert.Equal(t, requiredEvent.ApprovalID, interruptedEvent.ApprovalID)
+
+	approval, err := srv.store.GetApproval(
+		t.Context(),
+		domain.UserPrincipal{User: domain.User{UserID: requiredEvent.Approval.OwnerUserID}},
+		requiredEvent.ApprovalID,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "perm_1", approval.NativeID)
+	assert.Equal(t, "native-existing", approval.RequestSessionID)
+	assert.Equal(t, "toolu_approval", approval.ResourceRef)
+	assert.Equal(t, "go test ./...", approval.Title)
+
+	session, err := srv.store.GetSession(
+		t.Context(),
+		domain.UserPrincipal{User: domain.User{UserID: approval.OwnerUserID}},
+		"sess-existing",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, session.RuntimeState)
+	assert.Equal(t, requiredEvent.ApprovalID, session.RuntimeState.PendingApprovalID)
+}
+
+func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionResponse(
+	t *testing.T,
+) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
+	decideTestApproval(t, srv, approval.ApprovalID, "allow_once")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"session_id":"sess-existing","resume":{"approval_id":"`+approval.ApprovalID+`"}}`,
+		respCh,
+		errCh,
+	)
+
+	responseEnv := readNextManagerToAgentData(t, agentWS)
+	var response struct {
+		ID     string `json:"id"`
+		Result struct {
+			Outcome struct {
+				Outcome  string `json:"outcome"`
+				OptionID string `json:"optionId"`
+			} `json:"outcome"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(responseEnv.Payload, &response))
+	assert.Equal(t, "perm_1", response.ID)
+	assert.Equal(t, "selected", response.Result.Outcome.Outcome)
+	assert.Equal(t, "allow", response.Result.Outcome.OptionID)
+
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		responseEnv.QueueID,
+		3,
+		json.RawMessage(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-existing","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"approved output"}}}}`,
+		),
+	)
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		responseEnv.QueueID,
+		4,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	acpEvent := requireConversationEvent(t, events, "acp")
+	assert.Contains(t, string(acpEvent.Frame), "approved output")
+	requireConversationEvent(t, events, "done")
+
+	updatedApproval, err := srv.store.GetApproval(
+		t.Context(),
+		domain.UserPrincipal{User: domain.User{UserID: approval.OwnerUserID}},
+		approval.ApprovalID,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, updatedApproval.RespondedAt)
+	assert.Contains(t, string(updatedApproval.ResponseBody), `"id":"perm_1"`)
+	assert.Empty(t, updatedApproval.ResponseError)
+}
+
+func TestConversationGivenNumericPermissionRequestIDWhenResumingThenPreservesIDType(
+	t *testing.T,
+) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	approval := createConversationApprovalInterruptWithFrame(
+		t,
+		srv,
+		fixture,
+		httpServer.URL,
+		agentWS,
+		json.RawMessage(`{
+			"jsonrpc":"2.0",
+			"id":0,
+			"method":"session/request_permission",
+			"params":{
+				"sessionId":"native-existing",
+				"toolCall":{
+					"toolCallId":"toolu_approval",
+					"kind":"execute",
+					"title":"rm -rf /tmp/hermes_acp_test_nonexistent",
+					"rawInput":{"command":"rm -rf /tmp/hermes_acp_test_nonexistent"}
+				},
+				"options":[
+					{"optionId":"allow_once","kind":"allow_once","name":"Allow once"},
+					{"optionId":"deny","kind":"reject_once","name":"Deny"}
+				]
+			}
+		}`),
+	)
+	decideTestApproval(t, srv, approval.ApprovalID, "allow_once")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"session_id":"sess-existing","resume":{"approval_id":"`+approval.ApprovalID+`"}}`,
+		respCh,
+		errCh,
+	)
+
+	responseEnv := readNextManagerToAgentData(t, agentWS)
+	var response struct {
+		ID     json.RawMessage `json:"id"`
+		Result struct {
+			Outcome struct {
+				Outcome  string `json:"outcome"`
+				OptionID string `json:"optionId"`
+			} `json:"outcome"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(responseEnv.Payload, &response))
+	assert.Equal(t, json.RawMessage(`0`), response.ID)
+	assert.Equal(t, "selected", response.Result.Outcome.Outcome)
+	assert.Equal(t, "allow_once", response.Result.Outcome.OptionID)
+
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		responseEnv.QueueID,
+		3,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
+	)
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	requireConversationEvent(t, events, "done")
+
+	updatedApproval, err := srv.store.GetApproval(
+		t.Context(),
+		domain.UserPrincipal{User: domain.User{UserID: approval.OwnerUserID}},
+		approval.ApprovalID,
+	)
+	require.NoError(t, err)
+	assert.Contains(t, string(updatedApproval.ResponseBody), `"id":0`)
+	assert.NotContains(t, string(updatedApproval.ResponseBody), `"id":"0"`)
+}
+
+func TestConversationGivenDecidedApprovalWhenResumeTrueThenInfersPendingApproval(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
+	decideTestApproval(t, srv, approval.ApprovalID, "allow_once")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"session_id":"sess-existing","resume":true}`,
+		respCh,
+		errCh,
+	)
+
+	responseEnv := readNextManagerToAgentData(t, agentWS)
+	var response struct {
+		ID string `json:"id"`
+	}
+	require.NoError(t, json.Unmarshal(responseEnv.Payload, &response))
+	assert.Equal(t, "perm_1", response.ID)
+
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		responseEnv.QueueID,
+		3,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
+	)
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	requireConversationEvent(t, events, "done")
+}
+
+func TestConversationGivenAlreadyRespondedApprovalWhenResumingThenDoesNotSendDuplicateResponse(
+	t *testing.T,
+) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
+	decideTestApproval(t, srv, approval.ApprovalID, "allow_once")
+	_, err = srv.store.RecordApprovalResponse(
+		t.Context(),
+		domain.UserPrincipal{User: domain.User{UserID: approval.OwnerUserID}},
+		approval.ApprovalID,
+		json.RawMessage(`{"jsonrpc":"2.0","id":"perm_1","result":{}}`),
+		"",
+	)
+	require.NoError(t, err)
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"session_id":"sess-existing","resume":{"approval_id":"`+approval.ApprovalID+`"}}`,
+		respCh,
+		errCh,
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	errorEvent := requireConversationEvent(t, events, "error")
+	assert.Contains(t, errorEvent.Message, "approval response already sent")
+	assertNoManagerToAgentData(t, agentWS)
+}
+
 func TestConversationWaitsForAgentTunnelReconnect(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
@@ -3112,6 +3490,80 @@ func createConversationTestSession(
 	}
 }
 
+func createConversationApprovalInterrupt(
+	t *testing.T,
+	srv *Server,
+	fixture conversationTestFixture,
+	baseURL string,
+	agentWS *websocket.Conn,
+) AgentApproval {
+	t.Helper()
+	return createConversationApprovalInterruptWithFrame(
+		t,
+		srv,
+		fixture,
+		baseURL,
+		agentWS,
+		json.RawMessage(`{
+			"jsonrpc":"2.0",
+			"id":"perm_1",
+			"method":"session/request_permission",
+			"params":{
+				"sessionId":"native-existing",
+				"toolCall":{
+					"toolCallId":"toolu_approval",
+					"kind":"execute",
+					"title":"go test ./...",
+					"rawInput":{"command":"go test ./..."}
+				},
+				"options":[
+					{"optionId":"allow","kind":"allow_once","name":"Allow"},
+					{"optionId":"reject","kind":"reject_once","name":"Reject"}
+				]
+			}
+		}`),
+	)
+}
+
+func createConversationApprovalInterruptWithFrame(
+	t *testing.T,
+	srv *Server,
+	fixture conversationTestFixture,
+	baseURL string,
+	agentWS *websocket.Conn,
+	permissionFrame json.RawMessage,
+) AgentApproval {
+	t.Helper()
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		baseURL,
+		fixture,
+		`{"input":"run approved command","session_id":"sess-existing"}`,
+		respCh,
+		errCh,
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		promptEnv.QueueID,
+		1,
+		permissionFrame,
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	assert.NotContains(t, string(body), `"approval":{}`)
+	events := decodeConversationEvents(t, body)
+	requiredEvent := requireConversationEvent(t, events, "approval_required")
+	require.NotEmpty(t, requiredEvent.ApprovalID)
+	require.NotNil(t, requiredEvent.Approval)
+	return *requiredEvent.Approval
+}
+
 func postConversation(
 	t *testing.T,
 	baseURL string,
@@ -3239,6 +3691,31 @@ func readNextManagerToAgentData(t *testing.T, agentWS *websocket.Conn) acpTunnel
 			env.Type == acpTunnelTypeData &&
 			env.Stream == acpTunnelStreamManagerToPaxd {
 			return env
+		}
+	}
+}
+
+func assertNoManagerToAgentData(t *testing.T, agentWS *websocket.Conn) {
+	t.Helper()
+	if err := agentWS.SetReadDeadline(time.Now().Add(250 * time.Millisecond)); err != nil {
+		t.Fatalf("set agent read deadline: %v", err)
+	}
+	defer func() {
+		if err := agentWS.SetReadDeadline(time.Time{}); err != nil {
+			t.Fatalf("clear agent read deadline: %v", err)
+		}
+	}()
+	for {
+		messageType, payload, err := agentWS.ReadMessage()
+		if err != nil {
+			assert.Contains(t, err.Error(), "i/o timeout")
+			return
+		}
+		env := decodeACPTunnelEnvelope(t, payload)
+		if messageType == websocket.TextMessage &&
+			env.Type == acpTunnelTypeData &&
+			env.Stream == acpTunnelStreamManagerToPaxd {
+			t.Fatalf("unexpected manager-to-agent data frame: %s", payload)
 		}
 	}
 }

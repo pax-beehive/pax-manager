@@ -223,6 +223,13 @@ type Store interface {
 		approvalID string,
 		req ApprovalDecisionRequest,
 	) (AgentApproval, error)
+	RecordApprovalResponse(
+		ctx context.Context,
+		principal UserPrincipal,
+		approvalID string,
+		responseBody json.RawMessage,
+		responseError string,
+	) (AgentApproval, error)
 	ListApprovalGrants(ctx context.Context, filter ApprovalGrantFilter) ([]AgentApproval, error)
 	FindReusableApprovalGrant(
 		ctx context.Context,

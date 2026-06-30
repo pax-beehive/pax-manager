@@ -407,6 +407,7 @@ type AgentApproval struct {
 	RequestNodeID         string           `json:"request_node_id,omitempty"`
 	RequestAgentID        string           `json:"request_agent_id,omitempty"`
 	RequestSessionID      string           `json:"request_session_id,omitempty"`
+	NativeID              string           `json:"native_id,omitempty"`
 	SourceMessageID       string           `json:"source_message_id,omitempty"`
 	GrantNodeID           string           `json:"grant_node_id,omitempty"`
 	GrantAgentID          string           `json:"grant_agent_id,omitempty"`
@@ -435,6 +436,9 @@ type AgentApproval struct {
 	ExpiresAt             *time.Time       `json:"expires_at,omitempty"`
 	DecidedAt             *time.Time       `json:"decided_at,omitempty"`
 	RawPayload            json.RawMessage  `json:"raw_payload,omitempty"`
+	RespondedAt           *time.Time       `json:"responded_at,omitempty"`
+	ResponseBody          json.RawMessage  `json:"response_body,omitempty"`
+	ResponseError         string           `json:"response_error,omitempty"`
 }
 
 type FileChange struct {
@@ -802,6 +806,7 @@ type CreateUserAPIKeyResponse struct {
 type CreateApprovalRequest struct {
 	AgentID           string           `json:"agent_id"`
 	SessionID         string           `json:"session_id"`
+	NativeID          string           `json:"native_id"`
 	SourceMessageID   string           `json:"source_message_id"`
 	Domain            string           `json:"domain"`
 	Operation         string           `json:"operation"`
