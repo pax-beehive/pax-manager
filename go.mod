@@ -8,7 +8,7 @@ require (
 	github.com/cloudwego/hertz v0.10.5
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/pax-beehive/paxkit v0.0.0-20260625041709-1fa585114f65
+	github.com/pax-beehive/paxkit v0.0.0-20260701212726-4cf7b380e25c
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.21.0
 	google.golang.org/api v0.285.0

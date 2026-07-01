@@ -326,6 +326,17 @@ $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_transport_journal_queue_unique
     ON transport_journal(queue_id, stream, seq, direction);
+
+CREATE TABLE IF NOT EXISTS transport_queue_state (
+    queue_id TEXT NOT NULL,
+    stream TEXT NOT NULL,
+    next_outbound_seq BIGINT NOT NULL DEFAULT 1,
+    inbound_applied_through BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (queue_id, stream)
+);
+
 DROP INDEX IF EXISTS idx_transport_journal_pending;
 CREATE INDEX IF NOT EXISTS idx_transport_journal_pending
     ON transport_journal(queue_id, stream, direction, status, seq);
