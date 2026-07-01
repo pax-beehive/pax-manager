@@ -78,31 +78,8 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 		writeHTTPEndpointError(w, err)
 		return
 	}
-	var req conversationRequest
-	body := r.Body
-	if s.maxBodyBytes > 0 {
-		body = http.MaxBytesReader(w, r.Body, s.maxBodyBytes)
-	}
-	if err := json.NewDecoder(body).Decode(&req); err != nil {
-		writeHTTPError(w, http.StatusBadRequest, "invalid JSON body")
-		return
-	}
-	req.Input = strings.TrimSpace(req.Input)
-	resumeReq, err := parseConversationResume(req.Resume)
-	if err != nil {
-		writeHTTPError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if resumeReq.Requested && req.Input != "" {
-		writeHTTPError(w, http.StatusBadRequest, "input and resume are mutually exclusive")
-		return
-	}
-	if resumeReq.Requested && req.SessionID == "" {
-		writeHTTPError(w, http.StatusBadRequest, "session_id is required for resume")
-		return
-	}
-	if !resumeReq.Requested && req.Input == "" {
-		writeHTTPError(w, http.StatusBadRequest, "input is required")
+	req, resumeReq, ok := s.readConversationRequest(w, r)
+	if !ok {
 		return
 	}
 
@@ -181,6 +158,40 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 			Message:   err.Error(),
 		})
 	}
+}
+
+func (s *Service) readConversationRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+) (conversationRequest, conversationResumeRequest, bool) {
+	var req conversationRequest
+	body := r.Body
+	if s.maxBodyBytes > 0 {
+		body = http.MaxBytesReader(w, r.Body, s.maxBodyBytes)
+	}
+	if err := json.NewDecoder(body).Decode(&req); err != nil {
+		writeHTTPError(w, http.StatusBadRequest, "invalid JSON body")
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
+	req.Input = strings.TrimSpace(req.Input)
+	resumeReq, err := parseConversationResume(req.Resume)
+	if err != nil {
+		writeHTTPError(w, http.StatusBadRequest, err.Error())
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
+	if resumeReq.Requested && req.Input != "" {
+		writeHTTPError(w, http.StatusBadRequest, "input and resume are mutually exclusive")
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
+	if resumeReq.Requested && req.SessionID == "" {
+		writeHTTPError(w, http.StatusBadRequest, "session_id is required for resume")
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
+	if !resumeReq.Requested && req.Input == "" {
+		writeHTTPError(w, http.StatusBadRequest, "input is required")
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
+	return req, resumeReq, true
 }
 
 func (s *Service) authorizeConversation(
@@ -704,13 +715,6 @@ func (s *Service) resolveConversationResumeApproval(
 		}
 	}
 	return approval, promptRequestID, nil
-}
-
-func notifyConversationActivity(ch chan<- struct{}) {
-	select {
-	case ch <- struct{}{}:
-	default:
-	}
 }
 
 func parseConversationResume(raw json.RawMessage) (conversationResumeRequest, error) {
