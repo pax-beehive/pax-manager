@@ -34,6 +34,7 @@ func Register(r *server.Hertz) {
 						_agent_id := _agents.Group("/:agent_id", _agent_idMw()...)
 						_agent_id.POST("/approvals", append(_createnodeagentapprovalMw(), handler.CreateNodeAgentApproval)...)
 						_agent_id.GET("/mailbox", append(_pullnodeagentmailboxMw(), handler.PullNodeAgentMailbox)...)
+						_agent_id.POST("/sessions", append(_reportnodeagentsessionsMw(), handler.ReportNodeAgentSessions)...)
 						{
 							_approvals := _agent_id.Group("/approvals", _approvalsMw()...)
 							_approvals.GET("/:approval_id", append(_getnodeagentapprovalMw(), handler.GetNodeAgentApproval)...)
@@ -74,6 +75,7 @@ func Register(r *server.Hertz) {
 					_user_id.POST("/api-keys", append(_createuserapikeyMw(), handler.CreateUserAPIKey)...)
 					_user_id.GET("/approval-grants", append(_listuserapprovalgrantsMw(), handler.ListUserApprovalGrants)...)
 					_user_id.GET("/approvals", append(_listuserapprovalsMw(), handler.ListUserApprovals)...)
+					_user_id.GET("/audit-events", append(_listuserauditeventsMw(), handler.ListUserAuditEvents)...)
 					_user_id.GET("/me", append(_getcurrentuserMw(), handler.GetCurrentUser)...)
 					_user_id.POST("/node-registration-tokens", append(_createnoderegistrationtokenMw(), handler.CreateNodeRegistrationToken)...)
 					_user_id.GET("/nodes", append(_listnodesMw(), handler.ListNodes)...)

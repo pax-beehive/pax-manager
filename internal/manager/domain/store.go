@@ -241,6 +241,8 @@ type Store interface {
 		grantID string,
 		req RevokeApprovalGrantRequest,
 	) (AgentApproval, error)
+	UpsertAuditEvent(ctx context.Context, event AgentAuditEvent) (AgentAuditEvent, error)
+	ListAuditEvents(ctx context.Context, filter AuditEventFilter) ([]AgentAuditEvent, error)
 	ListMailbox(ctx context.Context, filter MailboxFilter) ([]MailboxMessage, error)
 	PullMailbox(
 		ctx context.Context,

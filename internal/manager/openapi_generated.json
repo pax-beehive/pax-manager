@@ -158,6 +158,86 @@
         },
         "type": "object"
       },
+      "AgentAuditEvent": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "approval_id": {
+            "type": "string"
+          },
+          "approval_status": {
+            "type": "string"
+          },
+          "decided_at": {
+            "type": "string"
+          },
+          "decided_by_user_id": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "decision_scope": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "event_key": {
+            "type": "string"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string"
+          },
+          "owner_user_id": {
+            "type": "string"
+          },
+          "raw": {
+            "type": "object"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "risk_level": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tool_input": {
+            "type": "object"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "turn_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AgentListData": {
         "properties": {
           "agents": {
@@ -436,6 +516,32 @@
           },
           "data": {
             "$ref": "#/components/schemas/ApprovalData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AuditEventListData": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AgentAuditEvent"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "AuditEventListResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AuditEventListData"
           },
           "message": {
             "type": "string"
@@ -1300,6 +1406,36 @@
             "type": "string"
           },
           "status": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListUserAuditEventsRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "approval_id": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "q": {
+            "type": "string"
+          },
+          "session_id": {
             "type": "string"
           },
           "user_id": {
@@ -4838,6 +4974,167 @@
           }
         ],
         "summary": "Decide approval",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/audit-events": {
+      "get": {
+        "description": "Lists normalized agent and session audit events visible to the current user.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by agent identifier.",
+            "in": "query",
+            "name": "agent_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by approval identifier.",
+            "in": "query",
+            "name": "approval_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by approval decision.",
+            "in": "query",
+            "name": "decision",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by audit event type.",
+            "in": "query",
+            "name": "event_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of events to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Keyword search over title, summary, tool name, reason, raw event, and tool input.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by session identifier.",
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListUserAuditEventsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEventListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List agent audit events",
         "tags": [
           "user"
         ]

@@ -673,6 +673,49 @@ struct ApprovalGrantListData {
   1: optional list<AgentApproval> grants
 }
 
+struct AgentAuditEvent {
+  1: optional string event_id
+  2: optional string owner_user_id
+  3: optional string node_id
+  4: optional string agent_id
+  5: optional string session_id
+  6: optional string turn_id
+  7: optional string message_id
+  8: optional string approval_id
+  9: optional string event_type
+  10: optional string source_type
+  11: optional string source_id
+  12: optional string event_key
+  13: optional string title
+  14: optional string summary
+  15: optional string tool_name
+  16: optional JSON tool_input
+  17: optional string reason
+  18: optional string risk_level
+  19: optional string approval_status
+  20: optional string decision
+  21: optional string decision_scope
+  22: optional string decided_by_user_id
+  23: optional string decided_at
+  24: optional string occurred_at
+  25: optional JSON raw
+}
+
+struct AuditEventListData {
+  1: optional list<AgentAuditEvent> events
+}
+
+struct ListUserAuditEventsRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string q (api.query = "q")
+  3: optional string event_type (api.query = "event_type")
+  4: optional string agent_id (api.query = "agent_id")
+  5: optional string session_id (api.query = "session_id")
+  6: optional string approval_id (api.query = "approval_id")
+  7: optional string decision (api.query = "decision")
+  8: optional i32 limit (api.query = "limit")
+}
+
 struct ResolveSecretData {
   1: optional string status
   2: optional string approval_id
@@ -932,6 +975,12 @@ struct ApprovalListResponse {
 
 struct ApprovalGrantListResponse {
   1: optional ApprovalGrantListData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct AuditEventListResponse {
+  1: optional AuditEventListData data
   2: optional i32 code
   3: optional string message
 }
@@ -1392,6 +1441,24 @@ service PaxManagerAPI {
     openapi.description = "Lists normalized approval requests visible to the current user.",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier."
+  )
+
+  AuditEventListResponse ListUserAuditEvents(
+    1: optional ListUserAuditEventsRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/audit-events",
+    openapi.tag = "user",
+    openapi.summary = "List agent audit events",
+    openapi.description = "Lists normalized agent and session audit events visible to the current user.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.query.q = "Keyword search over title, summary, tool name, reason, raw event, and tool input.",
+    openapi.query.event_type = "Filter by audit event type.",
+    openapi.query.agent_id = "Filter by agent identifier.",
+    openapi.query.session_id = "Filter by session identifier.",
+    openapi.query.approval_id = "Filter by approval identifier.",
+    openapi.query.decision = "Filter by approval decision.",
+    openapi.query.limit = "Maximum number of events to return."
   )
 
   ApprovalResponse GetUserApproval(

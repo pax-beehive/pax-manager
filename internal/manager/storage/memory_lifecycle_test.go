@@ -309,8 +309,28 @@ func TestMemoryNodeAgentMailboxAndApprovalLifecycle(t *testing.T) {
 		store.MarkNodeMessageResult(ctx, node.NodeID, userMessage.MessageID, MessageResultRequest{
 			Status: "completed",
 			Result: "node ok",
+			Events: json.RawMessage(
+				`[{"entity_type":"tool","event_type":"call","turnId":"turn_1","callId":"call_1","name":"shell","arguments":"{\"command\":\"go test ./...\"}"},{"entity_type":"tool","event_type":"result","turnId":"turn_1","callId":"call_1","name":"shell","output":"ok"}]`,
+			),
+			FileChanges: []FileChange{{Path: "internal/manager/audit.go", Tool: "apply_patch"}},
 		}),
 	)
+	audit, err := store.ListAuditEvents(ctx, AuditEventFilter{
+		Principal: principal,
+		Query:     "go test",
+		EventType: domain.AuditEventToolCallRequested,
+	})
+	require.NoError(t, err)
+	require.Len(t, audit, 1)
+	require.Equal(t, domain.AuditEventToolCallRequested, audit[0].EventType)
+	require.Equal(t, "shell", audit[0].ToolName)
+	fileAudit, err := store.ListAuditEvents(ctx, AuditEventFilter{
+		Principal: principal,
+		EventType: domain.AuditEventFileChanged,
+	})
+	require.NoError(t, err)
+	require.Len(t, fileAudit, 1)
+	require.Equal(t, "File changed: internal/manager/audit.go", fileAudit[0].Title)
 	userMessage, err = store.CreateMailboxMessage(ctx, principal, CreateMailboxRequest{
 		NodeID:    node.NodeID,
 		AgentID:   agent.AgentID,
@@ -417,6 +437,19 @@ func TestMemoryNodeAgentMailboxAndApprovalLifecycle(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, revoked.GrantRevokedAt)
+	approvalAudit, err := store.ListAuditEvents(ctx, AuditEventFilter{
+		Principal:  principal,
+		ApprovalID: approval.ApprovalID,
+	})
+	require.NoError(t, err)
+	require.Len(t, approvalAudit, 3)
+	approvalAuditTypes := map[string]bool{}
+	for _, event := range approvalAudit {
+		approvalAuditTypes[event.EventType] = true
+	}
+	require.True(t, approvalAuditTypes[domain.AuditEventApprovalRequested])
+	require.True(t, approvalAuditTypes[domain.AuditEventApprovalDecided])
+	require.True(t, approvalAuditTypes[domain.AuditEventApprovalRevoked])
 	_, err = store.RevokeApprovalGrant(
 		ctx,
 		principal,

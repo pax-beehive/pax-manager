@@ -52,6 +52,7 @@ type MemoryStore struct {
 	teamMemexDocuments        map[teamMemexDocumentKey]TeamMemexDocument
 	teamMemexRuns             map[string]TeamMemexRun
 	approvals                 map[string]AgentApproval
+	auditEvents               map[string]AgentAuditEvent
 	secrets                   map[string]Secret
 	secretVersions            map[string]SecretVersion
 	secretVersionIDs          map[string][]string
@@ -95,6 +96,7 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		teamMemexDocuments:        make(map[teamMemexDocumentKey]TeamMemexDocument),
 		teamMemexRuns:             make(map[string]TeamMemexRun),
 		approvals:                 make(map[string]AgentApproval),
+		auditEvents:               make(map[string]AgentAuditEvent),
 		secrets:                   make(map[string]Secret),
 		secretVersions:            make(map[string]SecretVersion),
 		secretVersionIDs:          make(map[string][]string),
@@ -1546,6 +1548,9 @@ func (s *MemoryStore) CreateApproval(
 		RawPayload:        jsonDefault(req.RawPayload, "{}"),
 	}
 	s.approvals[approvalID] = approval
+	for _, event := range auditEventsForApprovalRequested(approval) {
+		s.upsertAuditEventLocked(event)
+	}
 	return approval, nil
 }
 
@@ -1632,6 +1637,9 @@ func (s *MemoryStore) DecideApproval(
 	approval.DecidedByUserID = principal.User.UserID
 	approval.DecidedAt = &now
 	s.approvals[approvalID] = approval
+	for _, event := range auditEventsForApprovalDecided(approval) {
+		s.upsertAuditEventLocked(event)
+	}
 	return approval, nil
 }
 
@@ -1743,6 +1751,9 @@ func (s *MemoryStore) RevokeApprovalGrant(
 	approval.GrantRevokedByUserID = principal.User.UserID
 	approval.GrantRevocationReason = req.Reason
 	s.approvals[grantID] = approval
+	for _, event := range auditEventsForApprovalRevoked(approval) {
+		s.upsertAuditEventLocked(event)
+	}
 	return approval, nil
 }
 
@@ -1957,6 +1968,9 @@ func (s *MemoryStore) MarkNodeMessageResult(
 			msg.TokenUsage = req.TokenUsage
 			msg.CompletedAt = &completedAt
 			s.mailbox[id] = msg
+			for _, event := range auditEventsForMailbox(msg) {
+				s.upsertAuditEventLocked(event)
+			}
 			return nil
 		}
 	}
@@ -2031,6 +2045,9 @@ func (s *MemoryStore) CreateNodeOutboundMessage(
 	s.mailbox[msg.ID] = msg
 	if err := s.saveMailboxHistoryLocked(msg); err != nil {
 		return MailboxMessage{}, err
+	}
+	for _, event := range auditEventsForMailbox(msg) {
+		s.upsertAuditEventLocked(event)
 	}
 	msg.SessionID = s.nativeSessionIDLocked(msg.AgentID, msg.SessionID)
 	msg.Payload = replacePayloadSessionID(msg.Payload, msg.SessionID)

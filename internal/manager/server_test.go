@@ -4512,7 +4512,7 @@ func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {
 				"/api/v1/node/messages/"+created.MessageID+"/result",
 				bytes.NewReader(
 					[]byte(
-						`{"status":"completed","content":"done","token_usage":{"inputTokens":10,"outputTokens":5,"reasoningTokens":2}}`,
+						`{"status":"completed","content":"done","events":[{"entity_type":"tool","event_type":"call","turnId":"turn_1","callId":"call_1","name":"shell","arguments":"{\"command\":\"go test ./...\"}"},{"entity_type":"tool","event_type":"result","turnId":"turn_1","callId":"call_1","name":"shell","output":"ok"}],"file_changes":[{"path":"internal/manager/audit.go","tool":"apply_patch"}],"token_usage":{"inputTokens":10,"outputTokens":5,"reasoningTokens":2}}`,
 					),
 				),
 			)
@@ -4544,8 +4544,34 @@ func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {
 					outboundRec.Body.String(),
 				)
 			}
+
+			assertAuditToolCallEvent(t, srv, userHeaders)
 		},
 	)
+}
+
+func assertAuditToolCallEvent(t *testing.T, srv *Service, userHeaders func(*http.Request)) {
+	t.Helper()
+
+	auditReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/audit-events?q=go%20test&event_type=tool_call_requested",
+		nil,
+	)
+	userHeaders(auditReq)
+	auditRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(auditRec, auditReq)
+	if auditRec.Code != http.StatusOK {
+		t.Fatalf("audit code = %d, body = %s", auditRec.Code, auditRec.Body.String())
+	}
+	audit := decodeData[struct {
+		Events []AgentAuditEvent `json:"events"`
+	}](t, auditRec.Body.Bytes())
+	if len(audit.Events) != 1 ||
+		audit.Events[0].EventType != domain.AuditEventToolCallRequested ||
+		audit.Events[0].ToolName != "shell" {
+		t.Fatalf("audit events = %+v", audit.Events)
+	}
 }
 
 func TestNodeAPIUserNodeAgentSessionHistory(t *testing.T) {

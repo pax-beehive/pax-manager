@@ -476,3 +476,13 @@ func _getusersecretMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _reportnodeagentsessionsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listuserauditeventsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

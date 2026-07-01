@@ -406,6 +406,25 @@ func ListUserApprovals(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, httpStatusOK(err), map[string]any{"approvals": approvals}, err)
 }
 
+func ListUserAuditEvents(c context.Context, ctx *app.RequestContext) {
+	principal, err := serviceFromContext(ctx).userPrincipal(c, ctx)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	events, err := serviceFromContext(ctx).store.ListAuditEvents(c, AuditEventFilter{
+		Principal:  principal,
+		Query:      string(ctx.QueryArgs().Peek("q")),
+		EventType:  string(ctx.QueryArgs().Peek("event_type")),
+		AgentID:    string(ctx.QueryArgs().Peek("agent_id")),
+		SessionID:  string(ctx.QueryArgs().Peek("session_id")),
+		ApprovalID: string(ctx.QueryArgs().Peek("approval_id")),
+		Decision:   string(ctx.QueryArgs().Peek("decision")),
+		Limit:      queryInt(ctx, "limit"),
+	})
+	writeEndpointResult(ctx, httpStatusOK(err), map[string]any{"events": events}, err)
+}
+
 func GetUserApproval(c context.Context, ctx *app.RequestContext) {
 	principal, err := serviceFromContext(ctx).userPrincipal(c, ctx)
 	if err != nil {

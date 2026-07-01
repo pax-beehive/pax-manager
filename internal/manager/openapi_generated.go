@@ -58,6 +58,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/user/:user_id/secrets", CreateUserSecret)
 	h.GET("/api/v1/user/:user_id/secrets/:secret_id", GetUserSecret)
 	h.GET("/api/v1/user/:user_id/approvals", ListUserApprovals)
+	h.GET("/api/v1/user/:user_id/audit-events", ListUserAuditEvents)
 	h.GET("/api/v1/user/:user_id/approvals/:approval_id", GetUserApproval)
 	h.POST("/api/v1/user/:user_id/approvals/:approval_id/decision", DecideUserApproval)
 	h.GET("/api/v1/user/:user_id/approval-grants", ListUserApprovalGrants)

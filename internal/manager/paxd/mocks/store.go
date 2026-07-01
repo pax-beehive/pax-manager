@@ -979,53 +979,6 @@ func (_c *MockStore_UpdateOffset_Call) RunAndReturn(run func(context.Context, st
 	return _c
 }
 
-// UpsertAgentStatus provides a mock function with given fields: ctx, report
-func (_m *MockStore) UpsertAgentStatus(ctx context.Context, report domain.AgentStatusReport) error {
-	ret := _m.Called(ctx, report)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpsertAgentStatus")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, domain.AgentStatusReport) error); ok {
-		r0 = rf(ctx, report)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// MockStore_UpsertAgentStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpsertAgentStatus'
-type MockStore_UpsertAgentStatus_Call struct {
-	*mock.Call
-}
-
-// UpsertAgentStatus is a helper method to define mock.On call
-//   - ctx context.Context
-//   - report domain.AgentStatusReport
-func (_e *MockStore_Expecter) UpsertAgentStatus(ctx interface{}, report interface{}) *MockStore_UpsertAgentStatus_Call {
-	return &MockStore_UpsertAgentStatus_Call{Call: _e.mock.On("UpsertAgentStatus", ctx, report)}
-}
-
-func (_c *MockStore_UpsertAgentStatus_Call) Run(run func(ctx context.Context, report domain.AgentStatusReport)) *MockStore_UpsertAgentStatus_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(domain.AgentStatusReport))
-	})
-	return _c
-}
-
-func (_c *MockStore_UpsertAgentStatus_Call) Return(_a0 error) *MockStore_UpsertAgentStatus_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockStore_UpsertAgentStatus_Call) RunAndReturn(run func(context.Context, domain.AgentStatusReport) error) *MockStore_UpsertAgentStatus_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // UpsertAgentSessions provides a mock function with given fields: ctx, node, agentID, sessions
 func (_m *MockStore) UpsertAgentSessions(ctx context.Context, node domain.Node, agentID string, sessions []domain.SessionStatusInput) error {
 	ret := _m.Called(ctx, node, agentID, sessions)
@@ -1071,6 +1024,53 @@ func (_c *MockStore_UpsertAgentSessions_Call) Return(_a0 error) *MockStore_Upser
 }
 
 func (_c *MockStore_UpsertAgentSessions_Call) RunAndReturn(run func(context.Context, domain.Node, string, []domain.SessionStatusInput) error) *MockStore_UpsertAgentSessions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpsertAgentStatus provides a mock function with given fields: ctx, report
+func (_m *MockStore) UpsertAgentStatus(ctx context.Context, report domain.AgentStatusReport) error {
+	ret := _m.Called(ctx, report)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpsertAgentStatus")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.AgentStatusReport) error); ok {
+		r0 = rf(ctx, report)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStore_UpsertAgentStatus_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpsertAgentStatus'
+type MockStore_UpsertAgentStatus_Call struct {
+	*mock.Call
+}
+
+// UpsertAgentStatus is a helper method to define mock.On call
+//   - ctx context.Context
+//   - report domain.AgentStatusReport
+func (_e *MockStore_Expecter) UpsertAgentStatus(ctx interface{}, report interface{}) *MockStore_UpsertAgentStatus_Call {
+	return &MockStore_UpsertAgentStatus_Call{Call: _e.mock.On("UpsertAgentStatus", ctx, report)}
+}
+
+func (_c *MockStore_UpsertAgentStatus_Call) Run(run func(ctx context.Context, report domain.AgentStatusReport)) *MockStore_UpsertAgentStatus_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.AgentStatusReport))
+	})
+	return _c
+}
+
+func (_c *MockStore_UpsertAgentStatus_Call) Return(_a0 error) *MockStore_UpsertAgentStatus_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStore_UpsertAgentStatus_Call) RunAndReturn(run func(context.Context, domain.AgentStatusReport) error) *MockStore_UpsertAgentStatus_Call {
 	_c.Call.Return(run)
 	return _c
 }

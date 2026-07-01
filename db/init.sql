@@ -184,6 +184,43 @@ CREATE INDEX IF NOT EXISTS idx_mailbox_node ON mailbox(node_id, status, id);
 CREATE INDEX IF NOT EXISTS idx_mailbox_created ON mailbox(created_at);
 CREATE INDEX IF NOT EXISTS idx_mailbox_session ON mailbox(session_id, id);
 
+CREATE TABLE IF NOT EXISTS agent_audit_events (
+    event_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id),
+    node_id TEXT REFERENCES nodes(node_id),
+    agent_id TEXT REFERENCES agents(agent_id) ON DELETE CASCADE,
+    session_id TEXT,
+    turn_id TEXT,
+    message_id TEXT,
+    approval_id TEXT,
+    event_type TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    event_key TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    tool_name TEXT NOT NULL DEFAULT '',
+    tool_input JSONB,
+    reason TEXT NOT NULL DEFAULT '',
+    risk_level TEXT NOT NULL DEFAULT '',
+    approval_status TEXT NOT NULL DEFAULT '',
+    decision TEXT NOT NULL DEFAULT '',
+    decision_scope TEXT NOT NULL DEFAULT '',
+    decided_by_user_id TEXT NOT NULL DEFAULT '',
+    decided_at TIMESTAMPTZ,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    raw JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(source_type, source_id, event_type, event_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_audit_owner_time ON agent_audit_events(owner_user_id, occurred_at DESC, event_id);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_agent_time ON agent_audit_events(agent_id, occurred_at DESC, event_id);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_session_time ON agent_audit_events(session_id, occurred_at DESC, event_id);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_approval ON agent_audit_events(approval_id);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_event_type ON agent_audit_events(event_type, occurred_at DESC);
+
 CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY,
     message_id TEXT UNIQUE NOT NULL,

@@ -441,6 +441,61 @@ type AgentApproval struct {
 	ResponseError         string           `json:"response_error,omitempty"`
 }
 
+const (
+	AuditEventToolCallRequested = "tool_call_requested"
+	AuditEventToolCallCompleted = "tool_call_completed"
+	AuditEventApprovalRequested = "approval_requested"
+	AuditEventApprovalDecided   = "approval_decided"
+	AuditEventApprovalRevoked   = "approval_grant_revoked"
+	AuditEventFileChanged       = "file_changed"
+	AuditEventMessageCompleted  = "message_completed"
+	AuditSourceApproval         = "approval"
+	AuditSourceMailbox          = "mailbox"
+)
+
+type AgentAuditEvent struct {
+	EventID         string          `json:"event_id"`
+	OwnerUserID     string          `json:"owner_user_id"`
+	NodeID          string          `json:"node_id,omitempty"`
+	AgentID         string          `json:"agent_id,omitempty"`
+	SessionID       string          `json:"session_id,omitempty"`
+	TurnID          string          `json:"turn_id,omitempty"`
+	MessageID       string          `json:"message_id,omitempty"`
+	ApprovalID      string          `json:"approval_id,omitempty"`
+	EventType       string          `json:"event_type"`
+	SourceType      string          `json:"source_type"`
+	SourceID        string          `json:"source_id"`
+	EventKey        string          `json:"event_key"`
+	Title           string          `json:"title,omitempty"`
+	Summary         string          `json:"summary,omitempty"`
+	ToolName        string          `json:"tool_name,omitempty"`
+	ToolInput       json.RawMessage `json:"tool_input,omitempty"`
+	Reason          string          `json:"reason,omitempty"`
+	RiskLevel       string          `json:"risk_level,omitempty"`
+	ApprovalStatus  string          `json:"approval_status,omitempty"`
+	Decision        string          `json:"decision,omitempty"`
+	DecisionScope   string          `json:"decision_scope,omitempty"`
+	DecidedByUserID string          `json:"decided_by_user_id,omitempty"`
+	DecidedAt       *time.Time      `json:"decided_at,omitempty"`
+	OccurredAt      time.Time       `json:"occurred_at"`
+	Raw             json.RawMessage `json:"raw,omitempty"`
+}
+
+type AuditEventFilter struct {
+	Principal  UserPrincipal
+	Query      string
+	EventType  string
+	AgentID    string
+	SessionID  string
+	ApprovalID string
+	Decision   string
+	Limit      int
+}
+
+type AuditEventListData struct {
+	Events []AgentAuditEvent `json:"events"`
+}
+
 type FileChange struct {
 	Path       string `json:"path"`
 	Tool       string `json:"tool"`

@@ -1707,6 +1707,9 @@ func (s *PostgresStore) CreateApproval(
 	if err != nil {
 		return AgentApproval{}, err
 	}
+	if err := upsertAuditEvents(ctx, s, auditEventsForApprovalRequested(approval)); err != nil {
+		return AgentApproval{}, err
+	}
 	return s.translateApprovalToNative(ctx, s.db, approval)
 }
 
@@ -1789,7 +1792,14 @@ func (s *PostgresStore) DecideApproval(
 		RETURNING `+approvalReturningSQL+`
 	`, approvalID, decision, req.DecisionOption, scope, grantNodeID, grantAgentID, grantSessionID,
 		jsonDefault(req.GrantBody, "{}"), principal.User.UserID, now)
-	return scanApproval(row)
+	approval, err = scanApproval(row)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	if err := upsertAuditEvents(ctx, s, auditEventsForApprovalDecided(approval)); err != nil {
+		return AgentApproval{}, err
+	}
+	return approval, nil
 }
 
 func (s *PostgresStore) RecordApprovalResponse(
@@ -2158,6 +2168,18 @@ func (s *PostgresStore) MarkMessageResult(
 	if affected == 0 {
 		return ErrNotFound
 	}
+	msg, err := scanMailbox(s.db.QueryRowContext(
+		ctx,
+		mailboxSelectSQL+` WHERE agent_id = $1 AND message_id = $2`,
+		agentID,
+		messageID,
+	))
+	if err != nil {
+		return err
+	}
+	if err := upsertAuditEvents(ctx, s, auditEventsForMailbox(msg)); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -2202,6 +2224,18 @@ func (s *PostgresStore) MarkNodeMessageResult(
 	}
 	if affected == 0 {
 		return ErrNotFound
+	}
+	msg, err := scanMailbox(s.db.QueryRowContext(
+		ctx,
+		mailboxSelectSQL+` WHERE node_id = $1 AND message_id = $2`,
+		nodeID,
+		messageID,
+	))
+	if err != nil {
+		return err
+	}
+	if err := upsertAuditEvents(ctx, s, auditEventsForMailbox(msg)); err != nil {
+		return err
 	}
 	return nil
 }
@@ -2289,6 +2323,9 @@ func (s *PostgresStore) CreateNodeOutboundMessage(
 		return MailboxMessage{}, err
 	}
 	if err := s.saveMailboxHistory(ctx, msg); err != nil {
+		return MailboxMessage{}, err
+	}
+	if err := upsertAuditEvents(ctx, s, auditEventsForMailbox(msg)); err != nil {
 		return MailboxMessage{}, err
 	}
 	msg.SessionID, err = s.nativeSessionID(ctx, s.db, msg.AgentID, msg.SessionID)
