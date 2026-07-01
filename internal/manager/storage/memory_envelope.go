@@ -45,35 +45,35 @@ func (s *MemoryStore) GetEnvelopeAgentRecipient(
 	if !ok {
 		return User{}, ErrNotFound
 	}
-	if !s.envelopeAgentsShareTeamLocked(principal.User.UserID, fromAgentID, toAgentID) {
+	sourceAgent, ok := s.agents[fromAgentID]
+	if !ok || sourceAgent.OwnerUserID != principal.User.UserID {
+		return User{}, ErrNotFound
+	}
+	if !s.envelopeUsersShareTeamLocked(principal.User.UserID, targetAgent.OwnerUserID) {
 		return User{}, ErrNotFound
 	}
 	return targetUser, nil
 }
 
-func (s *MemoryStore) envelopeAgentsShareTeamLocked(
-	userID string,
-	fromAgentID string,
-	toAgentID string,
+func (s *MemoryStore) envelopeUsersShareTeamLocked(
+	senderUserID string,
+	receiverUserID string,
 ) bool {
-	for _, fromTeamAgent := range s.teamAgents {
-		if fromTeamAgent.AgentID != fromAgentID || fromTeamAgent.RemovedAt != nil {
+	for _, senderMember := range s.teamMembers {
+		if senderMember.UserID != senderUserID ||
+			senderMember.Status != domain.TeamMemberStatusActive {
 			continue
 		}
-		team, ok := s.teams[fromTeamAgent.TeamID]
+		team, ok := s.teams[senderMember.TeamID]
 		if !ok || team.Status != domain.TeamStatusActive {
 			continue
 		}
-		member, ok := s.teamMembers[teamMemberKey{TeamID: fromTeamAgent.TeamID, UserID: userID}]
-		if !ok || member.Status != domain.TeamMemberStatusActive {
-			continue
-		}
-		for _, toTeamAgent := range s.teamAgents {
-			if toTeamAgent.TeamID == fromTeamAgent.TeamID &&
-				toTeamAgent.AgentID == toAgentID &&
-				toTeamAgent.RemovedAt == nil {
-				return true
-			}
+		receiverMember, ok := s.teamMembers[teamMemberKey{
+			TeamID: senderMember.TeamID,
+			UserID: receiverUserID,
+		}]
+		if ok && receiverMember.Status == domain.TeamMemberStatusActive {
+			return true
 		}
 	}
 	return false

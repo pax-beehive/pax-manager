@@ -161,7 +161,7 @@ func (s *Service) resolveEnvelopeRecipient(
 		if errors.Is(err, domain.ErrNotFound) {
 			return "", "", apperr.Error{
 				Status:  http.StatusForbidden,
-				Message: "agents must share an active team",
+				Message: "sender and recipient users must share an active team",
 			}
 		}
 		return "", "", err

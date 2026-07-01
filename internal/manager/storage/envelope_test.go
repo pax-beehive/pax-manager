@@ -56,7 +56,7 @@ func TestMemoryEnvelopeStore(t *testing.T) {
 		require.Equal(t, "env_1", got.EnvelopeID)
 	})
 
-	t.Run("Given a team agent envelope route then recipient owner is resolved", func(t *testing.T) {
+	t.Run("Given team member agent owners then recipient owner is resolved", func(t *testing.T) {
 		ctx := context.Background()
 		now := time.Date(2026, 6, 23, 12, 0, 0, 0, time.UTC)
 		store := NewMemoryStore(func() time.Time { return now })
@@ -80,22 +80,6 @@ func TestMemoryEnvelopeStore(t *testing.T) {
 			OwnerUserID: recipient.UserID,
 			Status:      "online",
 		}
-		_, err = store.AddTeamAgent(
-			ctx,
-			UserPrincipal{User: sender},
-			teamID,
-			AddTeamAgentRequest{AgentID: "agent_from"},
-			now,
-		)
-		require.NoError(t, err)
-		_, err = store.AddTeamAgent(
-			ctx,
-			UserPrincipal{User: recipient},
-			teamID,
-			AddTeamAgentRequest{AgentID: "agent_to"},
-			now,
-		)
-		require.NoError(t, err)
 
 		got, err := store.GetEnvelopeAgentRecipient(
 			ctx,
@@ -114,6 +98,41 @@ func TestMemoryEnvelopeStore(t *testing.T) {
 			"agent_from",
 			"agent_to",
 		)
+		require.ErrorIs(t, err, ErrNotFound)
+	})
+
+	t.Run("Given source agent is not owned by sender then route is rejected", func(t *testing.T) {
+		ctx := context.Background()
+		now := time.Date(2026, 6, 23, 12, 0, 0, 0, time.UTC)
+		store := NewMemoryStore(func() time.Time { return now })
+		sender, err := store.EnsureUser(ctx, "sender@example.com", "", "user")
+		require.NoError(t, err)
+		recipient, err := store.EnsureUser(ctx, "recipient@example.com", "", "user")
+		require.NoError(t, err)
+		other, err := store.EnsureUser(ctx, "other@example.com", "", "user")
+		require.NoError(t, err)
+		teamID := "team_1"
+		seedTeam(t, ctx, store, teamID, sender, map[string]User{
+			domain.TeamRoleOperator: recipient,
+		}, now)
+		store.agents["agent_from"] = Agent{
+			AgentID:     "agent_from",
+			OwnerUserID: other.UserID,
+			Status:      "online",
+		}
+		store.agents["agent_to"] = Agent{
+			AgentID:     "agent_to",
+			OwnerUserID: recipient.UserID,
+			Status:      "online",
+		}
+
+		_, err = store.GetEnvelopeAgentRecipient(
+			ctx,
+			UserPrincipal{User: sender},
+			"agent_from",
+			"agent_to",
+		)
+
 		require.ErrorIs(t, err, ErrNotFound)
 	})
 

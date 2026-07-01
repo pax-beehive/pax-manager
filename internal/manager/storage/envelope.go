@@ -96,27 +96,27 @@ func (s *PostgresStore) GetEnvelopeAgentRecipient(
 			SELECT u.user_id, u.email, u.display_name, u.role, u.created_at
 			FROM users u
 			JOIN agents target_agent ON target_agent.owner_user_id = u.user_id
+			JOIN agents source_agent ON source_agent.agent_id = ?
 			WHERE target_agent.agent_id = ?
+				AND source_agent.owner_user_id = ?
 				AND EXISTS (
 					SELECT 1
-					FROM team_agents from_ta
-					JOIN team_agents to_ta ON to_ta.team_id = from_ta.team_id
-					JOIN team_members tm ON tm.team_id = from_ta.team_id
-					JOIN teams t ON t.team_id = from_ta.team_id
-					WHERE from_ta.agent_id = ?
-						AND to_ta.agent_id = ?
-						AND from_ta.removed_at IS NULL
-						AND to_ta.removed_at IS NULL
-						AND tm.user_id = ?
-						AND tm.status = ?
+					FROM team_members sender_tm
+					JOIN team_members receiver_tm ON receiver_tm.team_id = sender_tm.team_id
+					JOIN teams t ON t.team_id = sender_tm.team_id
+					WHERE sender_tm.user_id = ?
+						AND receiver_tm.user_id = target_agent.owner_user_id
+						AND sender_tm.status = ?
+						AND receiver_tm.status = ?
 						AND t.status = ?
 				)
 			LIMIT 1
 		`,
-			toAgentID,
 			fromAgentID,
 			toAgentID,
 			principal.User.UserID,
+			principal.User.UserID,
+			domain.TeamMemberStatusActive,
 			domain.TeamMemberStatusActive,
 			domain.TeamStatusActive,
 		).

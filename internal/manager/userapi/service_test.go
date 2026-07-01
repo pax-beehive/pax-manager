@@ -1588,7 +1588,7 @@ func TestEnvelopeFlow(t *testing.T) {
 	})
 
 	t.Run(
-		"Given from and to agents sharing a team then it creates an envelope",
+		"Given from and to agent owners sharing a team then it creates an envelope",
 		func(t *testing.T) {
 			ctx := context.Background()
 			principal := userPrincipal("usr_sender", false)
@@ -1678,7 +1678,7 @@ func TestEnvelopeFlow(t *testing.T) {
 		require.Contains(t, err.Error(), "from_agent_id and to_agent_id must be provided together")
 	})
 
-	t.Run("Given agents without a shared team then it rejects the envelope", func(t *testing.T) {
+	t.Run("Given users without a shared team then it rejects the envelope", func(t *testing.T) {
 		ctx := context.Background()
 		principal := userPrincipal("usr_sender", false)
 		payload := json.RawMessage(`{"capsule":{"capsule_id":"kcap_1","title":"team handoff"}}`)
@@ -1713,7 +1713,7 @@ func TestEnvelopeFlow(t *testing.T) {
 		var appErr apperr.Error
 		require.ErrorAs(t, err, &appErr)
 		require.Equal(t, http.StatusForbidden, appErr.Status)
-		require.Contains(t, err.Error(), "agents must share an active team")
+		require.Contains(t, err.Error(), "sender and recipient users must share an active team")
 	})
 
 	t.Run(
