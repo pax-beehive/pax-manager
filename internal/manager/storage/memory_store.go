@@ -35,6 +35,7 @@ type MemoryStore struct {
 	offsets                   map[string]int64
 	nextTransportID           int64
 	transportJournal          map[transportFrameKey]TransportFrame
+	transportQueueState       map[transportQueueStateKey]transportQueueState
 	nextMessageID             int64
 	nextPartID                int64
 	messages                  map[string]Message
@@ -81,6 +82,7 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		mailbox:                   make(map[int64]MailboxMessage),
 		offsets:                   make(map[string]int64),
 		transportJournal:          make(map[transportFrameKey]TransportFrame),
+		transportQueueState:       make(map[transportQueueStateKey]transportQueueState),
 		messages:                  make(map[string]Message),
 		messageLogical:            make(map[string]string),
 		messageParts:              make(map[messagePartKey]MessagePart),

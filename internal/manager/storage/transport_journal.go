@@ -75,31 +75,36 @@ func (s *PostgresStore) SaveInboundIfAbsent(
 	frame.CreatedAt = now
 	frame.UpdatedAt = now
 
-	row := s.db.QueryRowContext(ctx, `
-		INSERT INTO transport_journal (
-			queue_id, agent_id, stream, seq, direction, local_direction, kind,
-			payload_json, metadata_json, status, error_message, error,
-			retry_count, created_at, updated_at, received_at
-		)
-		VALUES ($1,$2,$3,$4,$5,$5,$6,$7,$8,$9,$10,NULLIF($10,''),0,$11,$12,$12)
-		ON CONFLICT (queue_id, stream, seq, direction) DO NOTHING
-		RETURNING `+reliableFrameReturningSQL+`
-	`, frame.Key.QueueID, reliableFrameAgentID(frame), string(frame.Key.Stream), frame.Key.Seq,
-		string(frame.Key.Direction), string(frame.Kind), nullablePayload(frame.Payload),
-		mustMarshalReliableMetadata(frame.Metadata), string(frame.Status), frame.ErrorMessage,
-		frame.CreatedAt, frame.UpdatedAt)
-	stored, err := scanReliableFrame(row)
-	if err == sql.ErrNoRows {
-		stored, err = s.getReliableFrame(ctx, frame.Key)
-		if err != nil {
-			return false, reliablemq.Frame{}, err
-		}
-		return false, stored, nil
-	}
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false, reliablemq.Frame{}, err
 	}
-	return true, stored, nil
+	defer func() { _ = tx.Rollback() }()
+
+	applied, err := s.inboundAppliedThroughTx(ctx, tx, frame.Key.QueueID, frame.Key.Stream)
+	if err != nil {
+		return false, reliablemq.Frame{}, err
+	}
+	if frame.Key.Seq <= applied {
+		frame.Status = reliablemq.StatusApplied
+		if err := tx.Commit(); err != nil {
+			return false, reliablemq.Frame{}, err
+		}
+		return false, frame, nil
+	}
+
+	inserted, err := insertReliableFrameTx(ctx, tx, frame)
+	if err != nil {
+		return false, reliablemq.Frame{}, err
+	}
+	stored, err := getReliableFrameTx(ctx, tx, frame.Key)
+	if err != nil {
+		return false, reliablemq.Frame{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, reliablemq.Frame{}, err
+	}
+	return inserted, stored, nil
 }
 
 func (s *PostgresStore) ListOutboundReplay(
@@ -160,7 +165,20 @@ func (s *PostgresStore) AckOutboundThrough(
 }
 
 func (s *PostgresStore) MarkApplied(ctx context.Context, key reliablemq.FrameKey) error {
-	return s.updateReliableFrameStatus(ctx, key, reliablemq.StatusApplied, "")
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := s.updateReliableFrameStatusTx(ctx, tx, key, reliablemq.StatusApplied, ""); err != nil {
+		return err
+	}
+	if key.Direction == reliablemq.DirectionInbound {
+		if err := s.updateInboundAppliedThroughTx(ctx, tx, key.QueueID, key.Stream, key.Seq); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *PostgresStore) MarkRejected(
@@ -240,6 +258,21 @@ func (s *PostgresStore) NextTransportSeq(
 	queueID := agentID
 	normalizedStream := normalizeReliableStream(stream)
 	normalizedDirection := reliablemq.Direction(direction)
+	if normalizedDirection == reliablemq.DirectionOutbound {
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return 0, err
+		}
+		defer func() { _ = tx.Rollback() }()
+		next, err := s.nextOutboundSeqTx(ctx, tx, queueID, normalizedStream)
+		if err != nil {
+			return 0, err
+		}
+		if err := tx.Commit(); err != nil {
+			return 0, err
+		}
+		return next, nil
+	}
 	row := s.db.QueryRowContext(ctx, `
 		SELECT COALESCE(MAX(seq), 0) + 1
 		FROM transport_journal
@@ -381,12 +414,8 @@ func (s *PostgresStore) appendOutboundReliableFrame(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var seq int64
-	if err := tx.QueryRowContext(ctx, `
-		SELECT COALESCE(MAX(seq), 0) + 1
-		FROM transport_journal
-		WHERE queue_id = $1 AND stream = $2 AND direction = $3
-	`, queueID, string(stream), string(reliablemq.DirectionOutbound)).Scan(&seq); err != nil {
+	seq, err := s.allocateOutboundSeqTx(ctx, tx, queueID, stream)
+	if err != nil {
 		return reliablemq.Frame{}, err
 	}
 	now := s.now().UTC()
@@ -415,6 +444,109 @@ func (s *PostgresStore) appendOutboundReliableFrame(
 		return reliablemq.Frame{}, err
 	}
 	return frame, nil
+}
+
+func (s *PostgresStore) allocateOutboundSeqTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	queueID string,
+	stream reliablemq.Stream,
+) (int64, error) {
+	if err := s.ensureQueueStateTx(ctx, tx, queueID, stream); err != nil {
+		return 0, err
+	}
+	var seq int64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT next_outbound_seq
+		FROM transport_queue_state
+		WHERE queue_id = $1 AND stream = $2
+		FOR UPDATE
+	`, queueID, string(stream)).Scan(&seq); err != nil {
+		return 0, err
+	}
+	_, err := tx.ExecContext(ctx, `
+		UPDATE transport_queue_state
+		SET next_outbound_seq = next_outbound_seq + 1, updated_at = $1
+		WHERE queue_id = $2 AND stream = $3
+	`, s.now().UTC(), queueID, string(stream))
+	if err != nil {
+		return 0, err
+	}
+	return seq, nil
+}
+
+func (s *PostgresStore) nextOutboundSeqTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	queueID string,
+	stream reliablemq.Stream,
+) (int64, error) {
+	if err := s.ensureQueueStateTx(ctx, tx, queueID, stream); err != nil {
+		return 0, err
+	}
+	var seq int64
+	err := tx.QueryRowContext(ctx, `
+		SELECT next_outbound_seq
+		FROM transport_queue_state
+		WHERE queue_id = $1 AND stream = $2
+	`, queueID, string(stream)).Scan(&seq)
+	return seq, err
+}
+
+func (s *PostgresStore) ensureQueueStateTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	queueID string,
+	stream reliablemq.Stream,
+) error {
+	now := s.now().UTC()
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO transport_queue_state (
+			queue_id, stream, next_outbound_seq, inbound_applied_through, created_at, updated_at
+		)
+		SELECT $1, $2, COALESCE(MAX(seq), 0) + 1, 0, $3, $4
+		FROM transport_journal
+		WHERE queue_id = $5 AND stream = $6 AND direction = $7
+		ON CONFLICT (queue_id, stream) DO NOTHING
+	`, queueID, string(stream), now, now, queueID, string(stream), string(reliablemq.DirectionOutbound))
+	return err
+}
+
+func (s *PostgresStore) inboundAppliedThroughTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	queueID string,
+	stream reliablemq.Stream,
+) (int64, error) {
+	if err := s.ensureQueueStateTx(ctx, tx, queueID, stream); err != nil {
+		return 0, err
+	}
+	var applied int64
+	err := tx.QueryRowContext(ctx, `
+		SELECT inbound_applied_through
+		FROM transport_queue_state
+		WHERE queue_id = $1 AND stream = $2
+	`, queueID, string(stream)).Scan(&applied)
+	return applied, err
+}
+
+func (s *PostgresStore) updateInboundAppliedThroughTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	queueID string,
+	stream reliablemq.Stream,
+	seq int64,
+) error {
+	if err := s.ensureQueueStateTx(ctx, tx, queueID, stream); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `
+		UPDATE transport_queue_state
+		SET inbound_applied_through = GREATEST(inbound_applied_through, $1),
+			updated_at = $2
+		WHERE queue_id = $3 AND stream = $4
+	`, seq, s.now().UTC(), queueID, string(stream))
+	return err
 }
 
 func (s *PostgresStore) insertReliableFrame(
@@ -488,6 +620,19 @@ func (s *PostgresStore) getReliableFrame(
 	return scanReliableFrame(row)
 }
 
+func getReliableFrameTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	key reliablemq.FrameKey,
+) (reliablemq.Frame, error) {
+	row := tx.QueryRowContext(ctx, `
+		SELECT `+reliableFrameReturningSQL+`
+		FROM transport_journal
+		WHERE queue_id = $1 AND stream = $2 AND seq = $3 AND direction = $4
+	`, key.QueueID, string(key.Stream), key.Seq, string(key.Direction))
+	return scanReliableFrame(row)
+}
+
 func (s *PostgresStore) listReliableFrames(
 	ctx context.Context,
 	queueID string,
@@ -537,6 +682,24 @@ func (s *PostgresStore) updateReliableFrameStatus(
 	status reliablemq.Status,
 	errMsg string,
 ) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := s.updateReliableFrameStatusTx(ctx, tx, key, status, errMsg); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *PostgresStore) updateReliableFrameStatusTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	key reliablemq.FrameKey,
+	status reliablemq.Status,
+	errMsg string,
+) error {
 	now := s.now().UTC()
 	column := timestampColumnForReliableStatus(status)
 	query := `
@@ -553,7 +716,7 @@ func (s *PostgresStore) updateReliableFrameStatus(
 			AND stream = $` + strconvArg(len(args)-2) + `
 			AND seq = $` + strconvArg(len(args)-1) + `
 			AND direction = $` + strconvArg(len(args))
-	_, err := s.db.ExecContext(ctx, query, args...)
+	_, err := tx.ExecContext(ctx, query, args...)
 	return err
 }
 

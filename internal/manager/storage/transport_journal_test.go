@@ -316,6 +316,40 @@ func TestMemoryReliableTransportJournalOutboundLifecycle(t *testing.T) {
 	}
 }
 
+func TestMemoryReliableTransportJournalSeqSurvivesSweptRows(t *testing.T) {
+	now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	ctx := context.Background()
+
+	first, err := store.AppendOutboundData(ctx, "queue_1", reliablemq.StreamACP, json.RawMessage(`{"n":1}`), nil)
+	if err != nil {
+		t.Fatalf("append first: %v", err)
+	}
+	second, err := store.AppendOutboundData(ctx, "queue_1", reliablemq.StreamACP, json.RawMessage(`{"n":2}`), nil)
+	if err != nil {
+		t.Fatalf("append second: %v", err)
+	}
+	if first.Key.Seq != 1 || second.Key.Seq != 2 {
+		t.Fatalf("initial seqs = %d,%d", first.Key.Seq, second.Key.Seq)
+	}
+	store.mu.Lock()
+	for key := range store.transportJournal {
+		if key.QueueID == "queue_1" && key.Stream == string(reliablemq.StreamACP) &&
+			key.Direction == string(reliablemq.DirectionOutbound) {
+			delete(store.transportJournal, key)
+		}
+	}
+	store.mu.Unlock()
+
+	third, err := store.AppendOutboundData(ctx, "queue_1", reliablemq.StreamACP, json.RawMessage(`{"n":3}`), nil)
+	if err != nil {
+		t.Fatalf("append third: %v", err)
+	}
+	if third.Key.Seq != 3 {
+		t.Fatalf("third seq = %d, want 3", third.Key.Seq)
+	}
+}
+
 func TestMemoryReliableTransportJournalInboundLifecycle(t *testing.T) {
 	now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
 	store := NewMemoryStore(func() time.Time { return now })
@@ -356,6 +390,36 @@ func TestMemoryReliableTransportJournalInboundLifecycle(t *testing.T) {
 	}
 	if len(inboundReplay) != 0 {
 		t.Fatalf("applied inbound replay = %+v, want none", inboundReplay)
+	}
+}
+
+func TestMemoryReliableTransportJournalAppliedInboundSurvivesSweptRow(t *testing.T) {
+	now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	ctx := context.Background()
+	inbound := reliablemq.Frame{
+		Key:      reliablemq.FrameKey{QueueID: "queue_1", Stream: reliablemq.StreamACP, Seq: 1, Direction: reliablemq.DirectionInbound},
+		Kind:     reliablemq.FrameKindData,
+		Payload:  json.RawMessage(`{"result":true}`),
+		Metadata: reliablemq.Metadata{"agent_id": "agent_1"},
+	}
+	inserted, stored, err := store.SaveInboundIfAbsent(ctx, inbound)
+	if err != nil || !inserted {
+		t.Fatalf("save inbound inserted=%v frame=%+v err=%v", inserted, stored, err)
+	}
+	if err := store.MarkApplied(ctx, inbound.Key); err != nil {
+		t.Fatalf("mark applied: %v", err)
+	}
+	store.mu.Lock()
+	delete(store.transportJournal, makeReliableTransportFrameKey(inbound.Key))
+	store.mu.Unlock()
+
+	inserted, stored, err = store.SaveInboundIfAbsent(ctx, inbound)
+	if err != nil {
+		t.Fatalf("save swept duplicate: %v", err)
+	}
+	if inserted || stored.Status != reliablemq.StatusApplied {
+		t.Fatalf("swept duplicate inserted=%v frame=%+v", inserted, stored)
 	}
 }
 

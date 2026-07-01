@@ -71,6 +71,12 @@ func (s *MemoryStore) SaveInboundIfAbsent(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	applied := s.inboundAppliedThroughLocked(frame.Key.QueueID, frame.Key.Stream)
+	if frame.Key.Seq <= applied {
+		frame = frame.Clone()
+		frame.Status = reliablemq.StatusApplied
+		return false, frame, nil
+	}
 	key := makeReliableTransportFrameKey(frame.Key)
 	if existing, ok := s.transportJournal[key]; ok {
 		return false, reliableFromTransportFrame(existing), nil
@@ -406,7 +412,7 @@ func (s *MemoryStore) appendReliableOutbound(
 		Key: reliablemq.FrameKey{
 			QueueID:   queueID,
 			Stream:    stream,
-			Seq:       s.nextReliableSeqLocked(queueID, stream, reliablemq.DirectionOutbound),
+			Seq:       s.allocateReliableOutboundSeqLocked(queueID, stream),
 			Direction: reliablemq.DirectionOutbound,
 		},
 		Kind:         kind,
@@ -484,6 +490,9 @@ func (s *MemoryStore) updateReliableStatus(
 	frame.UpdatedAt = now
 	setTransportStatusTimestamp(&frame, string(status), now)
 	s.transportJournal[mapKey] = frame
+	if status == reliablemq.StatusApplied && key.Direction == reliablemq.DirectionInbound {
+		s.updateInboundAppliedThroughLocked(key.QueueID, key.Stream, key.Seq, now)
+	}
 	return nil
 }
 
@@ -507,6 +516,9 @@ func (s *MemoryStore) nextReliableSeqLocked(
 	stream reliablemq.Stream,
 	direction reliablemq.Direction,
 ) int64 {
+	if direction == reliablemq.DirectionOutbound {
+		return s.nextOutboundSeqLocked(queueID, stream)
+	}
 	var maxSeq int64
 	for key := range s.transportJournal {
 		if key.QueueID == queueID &&
@@ -517,6 +529,87 @@ func (s *MemoryStore) nextReliableSeqLocked(
 		}
 	}
 	return maxSeq + 1
+}
+
+func (s *MemoryStore) allocateReliableOutboundSeqLocked(
+	queueID string,
+	stream reliablemq.Stream,
+) int64 {
+	key := transportQueueStateKey{QueueID: queueID, Stream: string(stream)}
+	state, ok := s.transportQueueState[key]
+	if !ok {
+		state = transportQueueState{NextOutboundSeq: s.nextOutboundSeqFromJournalLocked(queueID, stream)}
+	}
+	seq := state.NextOutboundSeq
+	if seq <= 0 {
+		seq = 1
+	}
+	state.NextOutboundSeq = seq + 1
+	state.UpdatedAt = s.now().UTC()
+	if state.CreatedAt.IsZero() {
+		state.CreatedAt = state.UpdatedAt
+	}
+	s.transportQueueState[key] = state
+	return seq
+}
+
+func (s *MemoryStore) nextOutboundSeqLocked(queueID string, stream reliablemq.Stream) int64 {
+	key := transportQueueStateKey{QueueID: queueID, Stream: string(stream)}
+	if state, ok := s.transportQueueState[key]; ok && state.NextOutboundSeq > 0 {
+		return state.NextOutboundSeq
+	}
+	return s.nextOutboundSeqFromJournalLocked(queueID, stream)
+}
+
+func (s *MemoryStore) nextOutboundSeqFromJournalLocked(queueID string, stream reliablemq.Stream) int64 {
+	var maxSeq int64
+	for key := range s.transportJournal {
+		if key.QueueID == queueID &&
+			key.Stream == string(stream) &&
+			key.Direction == string(reliablemq.DirectionOutbound) &&
+			key.Seq > maxSeq {
+			maxSeq = key.Seq
+		}
+	}
+	return maxSeq + 1
+}
+
+func (s *MemoryStore) inboundAppliedThroughLocked(queueID string, stream reliablemq.Stream) int64 {
+	key := transportQueueStateKey{QueueID: queueID, Stream: string(stream)}
+	return s.transportQueueState[key].InboundAppliedThrough
+}
+
+func (s *MemoryStore) updateInboundAppliedThroughLocked(
+	queueID string,
+	stream reliablemq.Stream,
+	seq int64,
+	now time.Time,
+) {
+	key := transportQueueStateKey{QueueID: queueID, Stream: string(stream)}
+	state := s.transportQueueState[key]
+	if state.CreatedAt.IsZero() {
+		state.CreatedAt = now
+	}
+	if state.NextOutboundSeq == 0 {
+		state.NextOutboundSeq = s.nextOutboundSeqFromJournalLocked(queueID, stream)
+	}
+	if state.InboundAppliedThrough < seq {
+		state.InboundAppliedThrough = seq
+	}
+	state.UpdatedAt = now
+	s.transportQueueState[key] = state
+}
+
+type transportQueueStateKey struct {
+	QueueID string
+	Stream  string
+}
+
+type transportQueueState struct {
+	NextOutboundSeq       int64
+	InboundAppliedThrough int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 func (s *MemoryStore) prepareReliableFrameLocked(frame *reliablemq.Frame) {
