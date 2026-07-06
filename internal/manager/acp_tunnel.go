@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -168,6 +169,26 @@ func (h *ACPTunnelHub) claim(agentID string, sessionID string) (*ACPTunnelAgent,
 }
 
 func (h *ACPTunnelHub) claimAny(agentID string, sessionIDs ...string) (*ACPTunnelAgent, error) {
+	conn, err := h.findAny(agentID, sessionIDs...)
+	if err != nil {
+		return nil, err
+	}
+
+	state := conn.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.paired {
+		return nil, apperr.Error{
+			Status:  http.StatusConflict,
+			Message: "agent tunnel already in use",
+		}
+	}
+	state.paired = true
+	conn.paired = true
+	return conn, nil
+}
+
+func (h *ACPTunnelHub) findAny(agentID string, sessionIDs ...string) (*ACPTunnelAgent, error) {
 	h.mu.RLock()
 	var conn *ACPTunnelAgent
 	seen := map[string]struct{}{}
@@ -185,19 +206,66 @@ func (h *ACPTunnelHub) claimAny(agentID string, sessionIDs ...string) (*ACPTunne
 	if conn == nil {
 		return nil, apperr.Error{Status: http.StatusNotFound, Message: "agent tunnel not connected"}
 	}
+	return conn, nil
+}
 
+func (h *ACPTunnelHub) debugSnapshot(agentID string) string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	entries := make([]string, 0, len(h.agents))
+	for key, conn := range h.agents {
+		if agentID != "" && key.agentID != agentID {
+			continue
+		}
+		state := conn.liveState()
+		state.mu.Lock()
+		liveSessionID := state.sessionID
+		paired := state.paired
+		hasUser := state.userWS != nil
+		waiters := len(state.responseWaiters)
+		subscribers := len(state.sseSubscribers)
+		state.mu.Unlock()
+
+		entries = append(entries, fmt.Sprintf(
+			"agent=%s registered_session=%s live_session=%s connection=%s paired=%t user=%t waiters=%d sse=%d",
+			key.agentID,
+			key.sessionID,
+			liveSessionID,
+			conn.queueID(),
+			paired,
+			hasUser,
+			waiters,
+			subscribers,
+		))
+	}
+	sort.Strings(entries)
+	if len(entries) == 0 {
+		return "(none)"
+	}
+	return strings.Join(entries, "; ")
+}
+
+func (h *ACPTunnelHub) borrowAny(agentID string, sessionIDs ...string) (*ACPTunnelAgent, func(), error) {
+	conn, err := h.findAny(agentID, sessionIDs...)
+	if err != nil {
+		return nil, func() {}, err
+	}
 	state := conn.liveState()
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	if state.paired {
-		return nil, apperr.Error{
+		if state.userWS != nil {
+			return conn, func() {}, nil
+		}
+		return nil, func() {}, apperr.Error{
 			Status:  http.StatusConflict,
 			Message: "agent tunnel already in use",
 		}
 	}
 	state.paired = true
 	conn.paired = true
-	return conn, nil
+	return conn, func() { h.release(conn) }, nil
 }
 
 func (h *ACPTunnelHub) claimAnyWait(
@@ -240,11 +308,58 @@ func (h *ACPTunnelHub) claimAnyWait(
 	}
 }
 
+func (h *ACPTunnelHub) borrowAnyWait(
+	ctx context.Context,
+	waitFor time.Duration,
+	interval time.Duration,
+	agentID string,
+	sessionIDs ...string,
+) (*ACPTunnelAgent, func(), error) {
+	if waitFor <= 0 {
+		return h.borrowAny(agentID, sessionIDs...)
+	}
+	if interval <= 0 {
+		interval = 50 * time.Millisecond
+	}
+
+	deadline := time.NewTimer(waitFor)
+	defer deadline.Stop()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		conn, release, err := h.borrowAny(agentID, sessionIDs...)
+		if err == nil {
+			return conn, release, nil
+		}
+		if !isAgentTunnelNotConnected(err) {
+			return nil, func() {}, err
+		}
+		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			return nil, func() {}, ctx.Err()
+		case <-deadline.C:
+			return nil, func() {}, lastErr
+		case <-ticker.C:
+		}
+	}
+}
+
 func isAgentTunnelNotConnected(err error) bool {
 	var httpErr apperr.Error
 	return errors.As(err, &httpErr) &&
 		httpErr.Status == http.StatusNotFound &&
 		httpErr.Message == "agent tunnel not connected"
+}
+
+func isAgentTunnelAlreadyInUse(err error) bool {
+	var httpErr apperr.Error
+	return errors.As(err, &httpErr) &&
+		httpErr.Status == http.StatusConflict &&
+		httpErr.Message == "agent tunnel already in use"
 }
 
 func (h *ACPTunnelHub) release(conn *ACPTunnelAgent) {
@@ -1134,7 +1249,6 @@ func relayUserFramesToAgent(
 		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
 			continue
 		}
-		originalPayload := append([]byte(nil), payload...)
 		frame := newACPFrameContext(agentConn, acpUserToAgent, messageType, payload)
 		if err := pipeline.Handle(
 			ctx,
@@ -1143,7 +1257,7 @@ func relayUserFramesToAgent(
 				if err := agentConn.writeToAgent(ctx, frame.messageType, frame.payload); err != nil {
 					return err
 				}
-				return projectACPUserPrompt(ctx, agentConn, originalPayload)
+				return projectACPUserPrompt(ctx, agentConn, frame.payload)
 			},
 		); err != nil {
 			return err
@@ -1181,23 +1295,23 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 	reliableFrame reliablemq.Frame,
 ) error {
 	payload := reliableFrame.Payload
-	if err := projectACPTransportMessage(
-		ctx,
-		a.store,
-		a.agentID,
-		a.ownerUserID,
-		a.nodeID,
-		domain.TransportStreamPaxdToManager,
-		reliableFrame.Key.Seq,
-		a.historyGroupID(reliableFrame.Key.Seq, payload),
-		payload,
-	); err != nil {
-		return err
-	}
-
 	frame := newACPFrameContext(a, acpAgentToUser, websocket.TextMessage, []byte(payload))
 	err := pipeline.Handle(ctx, frame, func(_ context.Context, frame *acpFrameContext) error {
+		if err := projectACPTransportMessage(
+			ctx,
+			a.store,
+			a.agentID,
+			a.ownerUserID,
+			a.nodeID,
+			domain.TransportStreamPaxdToManager,
+			reliableFrame.Key.Seq,
+			a.historyGroupID(reliableFrame.Key.Seq, frame.payload),
+			frame.payload,
+		); err != nil {
+			return err
+		}
 		requestID := acpJSONRPCID(frame.frame)
+		frameSessionID := frameSessionID(frame.frame)
 		deliveredWaiter := a.notifyResponseWaiter(requestID, frame.payload)
 		deliveredSSE := a.broadcastSSE(frame.payload)
 		userWS := a.currentUser()
@@ -1209,6 +1323,9 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 					slog.String("agent_id", a.agentID),
 					slog.String("connection_id", a.queueID()),
 					slog.String("session_id", a.currentSessionID()),
+					slog.String("frame_session_id", frameSessionID),
+					slog.String("frame_request_id", requestID),
+					slog.String("frame_method", frame.frame.Method),
 				)
 			}
 			return nil
@@ -1239,7 +1356,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 		a.closeUser()
 		return nil
 	}
-	a.observeHistoryBoundary(payload)
+	a.observeHistoryBoundary(frame.payload)
 	return nil
 }
 

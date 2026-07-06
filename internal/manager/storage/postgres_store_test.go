@@ -3,10 +3,15 @@ package storage
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPostgresStoreHelperDecisionTables(t *testing.T) {
@@ -31,6 +36,23 @@ func TestPostgresStoreHelperDecisionTables(t *testing.T) {
 	if got := jsonOrDefault(nil, "[]"); string(got) != `[]` {
 		t.Fatalf("nil json default = %s", got)
 	}
+}
+
+func TestPostgresSchemaGivenLegacyDuplicateActiveInvocationsThenExpiresOlderRowsBeforeUniqueIndex(t *testing.T) {
+	initSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "init.sql"))
+	require.NoError(t, err)
+
+	sql := string(initSQL)
+	dedupeIndex := strings.Index(sql, "WITH duplicate_active_invocations AS")
+	uniqueIndex := strings.Index(sql, "CREATE UNIQUE INDEX IF NOT EXISTS idx_active_invocation_target_session")
+
+	require.NotEqual(t, -1, dedupeIndex)
+	require.NotEqual(t, -1, uniqueIndex)
+	assert.Less(t, dedupeIndex, uniqueIndex)
+	assert.Contains(t, sql, "ROW_NUMBER() OVER")
+	assert.Contains(t, sql, "SET status = 'expired'")
+	assert.Contains(t, sql, "AND target_runtime_agent_id IS NOT NULL")
+	assert.Contains(t, sql, "AND target_session_id <> ''")
 }
 
 func TestSecretVersionLookup(t *testing.T) {

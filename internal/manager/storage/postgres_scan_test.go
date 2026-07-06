@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
@@ -158,6 +160,116 @@ func TestRuntimeStateFromMetadata(t *testing.T) {
 	}
 }
 
+func TestAgentConversationGivenRowsWhenScanningThenHydratesDomainModels(t *testing.T) {
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	archivedAt := now.Add(time.Hour)
+	expiresAt := now.Add(2 * time.Hour)
+	revokedAt := now.Add(3 * time.Hour)
+
+	rep, err := scanRepresentativeAgent(fakeRow{
+		"rep_1",
+		"profile_1",
+		"agent_1",
+		"user",
+		"user_1",
+		"policy_1",
+		domain.ConversationStatusActive,
+		"user_1",
+		now,
+		now.Add(time.Minute),
+		&archivedAt,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "rep_1", rep.RepresentativeAgentID)
+	require.Equal(t, "agent_1", rep.RuntimeAgentID)
+	require.Equal(t, &archivedAt, rep.ArchivedAt)
+
+	conversation, err := scanConversation(fakeRow{
+		"conv_1",
+		domain.ConversationTypeAgentThread,
+		"personal",
+		"user_1",
+		domain.ConversationHistoryFullHistory,
+		domain.ConversationStatusActive,
+		now,
+		&archivedAt,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "conv_1", conversation.ConversationID)
+	require.Equal(t, "user_1", conversation.BoundaryID)
+	require.Equal(t, &archivedAt, conversation.ArchivedAt)
+
+	binding, err := scanConversationAgentBinding(fakeRow{
+		"bind_1",
+		"conv_1",
+		"rep_1",
+		domain.ConversationAgentRelationshipParticipant,
+		"user_1",
+		domain.ConversationAgentAccessFromBinding,
+		domain.ConversationAgentBindingStatusActive,
+		now,
+		&archivedAt,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "bind_1", binding.BindingID)
+	require.Equal(t, domain.ConversationAgentRelationshipParticipant, binding.RelationshipType)
+	require.Equal(t, &archivedAt, binding.ArchivedAt)
+
+	invocation, err := scanConversationAgentInvocation(fakeRow{
+		"inv_1",
+		"conv_1",
+		"inv_parent",
+		"rep_source",
+		"agent_source",
+		"sess_source",
+		"rep_1",
+		"agent_target",
+		"sess_1",
+		"receipt_hash",
+		"user_1",
+		domain.ConversationAgentAccessCurrentTurn,
+		[]byte(`["msg_1"]`),
+		3,
+		2,
+		domain.ConversationAgentInvocationStatusActive,
+		now,
+		&expiresAt,
+		&revokedAt,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "inv_1", invocation.InvocationID)
+	require.Equal(t, "inv_parent", invocation.ParentInvocationID)
+	require.Equal(t, "rep_source", invocation.SourceRepresentativeAgentID)
+	require.Equal(t, "agent_source", invocation.SourceRuntimeAgentID)
+	require.Equal(t, "sess_source", invocation.SourceSessionID)
+	require.Equal(t, "rep_1", invocation.TargetRepresentativeAgentID)
+	require.Equal(t, "agent_target", invocation.TargetRuntimeAgentID)
+	require.Equal(t, "sess_1", invocation.TargetSessionID)
+	require.Equal(t, "receipt_hash", invocation.ReceiptTokenHash)
+	require.JSONEq(t, `["msg_1"]`, string(invocation.SelectedMessageIDsJSON))
+	require.Equal(t, 3, invocation.MaxTurns)
+	require.Equal(t, 2, invocation.RemainingTurns)
+	require.Equal(t, &expiresAt, invocation.ExpiresAt)
+	require.Equal(t, &revokedAt, invocation.RevokedAt)
+}
+
+func TestAgentConversationGivenTurnLimitsWhenNormalizingThenBoundsAreApplied(t *testing.T) {
+	require.Equal(t, 1, normalizedMaxTurns(0))
+	require.Equal(t, 1, normalizedMaxTurns(-2))
+	require.Equal(t, 4, normalizedMaxTurns(4))
+	require.Equal(t, 10, normalizedMaxTurns(99))
+}
+
+func TestAgentConversationGivenSameInputsWhenBindingIDGeneratedThenItIsStable(t *testing.T) {
+	first := deterministicConversationBindingID("conv_1", "rep_1")
+	second := deterministicConversationBindingID("conv_1", "rep_1")
+	other := deterministicConversationBindingID("conv_1", "rep_2")
+
+	require.Equal(t, first, second)
+	require.NotEqual(t, first, other)
+	require.Len(t, first, len("bind_")+24)
+}
+
 func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 	now := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
 	lastMessageAt := now.Add(time.Minute)
@@ -166,6 +278,10 @@ func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 		"node_1",
 		"agent_1",
 		"sess_manager",
+		"conv_1",
+		"profile_1",
+		"rep_1",
+		"usr_creator",
 		"Ship tests",
 		"codex",
 		"native_1",
@@ -206,6 +322,12 @@ func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 			session.TokenOutput,
 			session.TokenTotal,
 		)
+	}
+	if session.ConversationID != "conv_1" ||
+		session.ProfileID != "profile_1" ||
+		session.RepresentativeAgentID != "rep_1" ||
+		session.CreatedByUserID != "usr_creator" {
+		t.Fatalf("conversation session fields = %+v", session)
 	}
 	if !reflect.DeepEqual(session.WorkspaceRoots, []string{"/workspace", "/tmp/project"}) {
 		t.Fatalf("workspace roots = %#v", session.WorkspaceRoots)

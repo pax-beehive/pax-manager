@@ -1453,6 +1453,20 @@ func (s *PostgresStore) CreateNodeAgentSession(
 	if err := upsertSessionTx(ctx, dbExecer{s.db}, req.NodeID, req.AgentID, input, now); err != nil {
 		return AgentSession{}, err
 	}
+	if req.ConversationID != "" || req.ProfileID != "" ||
+		req.RepresentativeAgentID != "" || req.CreatedByUserID != "" {
+		if _, err := s.db.ExecContext(ctx, `
+			UPDATE agent_sessions
+			SET conversation_id = COALESCE(NULLIF($3,''), conversation_id),
+				profile_id = COALESCE(NULLIF($4,''), profile_id),
+				representative_agent_id = COALESCE(NULLIF($5,''), representative_agent_id),
+				created_by_user_id = COALESCE(NULLIF($6,''), created_by_user_id)
+			WHERE agent_id = $1 AND session_id = $2
+		`, req.AgentID, req.SessionID, req.ConversationID, req.ProfileID,
+			req.RepresentativeAgentID, req.CreatedByUserID); err != nil {
+			return AgentSession{}, err
+		}
+	}
 	return scanSession(s.db.QueryRowContext(ctx, sessionSelectSQL+`
 		WHERE agent_sessions.agent_id = $1 AND agent_sessions.session_id = $2
 	`, req.AgentID, req.SessionID))
@@ -2360,6 +2374,8 @@ func (s *PostgresStore) UpdateNodeOffset(ctx context.Context, nodeID string, off
 
 const sessionSelectSQL = `
 	SELECT agent_sessions.id, COALESCE(agent_sessions.node_id, ''), agent_sessions.agent_id, session_id,
+		COALESCE(conversation_id, ''), COALESCE(profile_id, ''),
+		COALESCE(representative_agent_id, ''), COALESCE(created_by_user_id, ''),
 		COALESCE(session_name, ''), COALESCE(agent_sessions.agent_type, ''),
 		COALESCE(native_id, ''), COALESCE(project_id, ''), COALESCE(preview, ''),
 		COALESCE(workspace_roots, '[]'::jsonb), COALESCE(source, ''), agent_sessions.status,
@@ -2666,7 +2682,7 @@ func upsertSessionTx(
 			node_id = COALESCE(EXCLUDED.node_id, agent_sessions.node_id),
 			session_name = EXCLUDED.session_name,
 			agent_type = EXCLUDED.agent_type,
-			native_id = EXCLUDED.native_id,
+			native_id = COALESCE(NULLIF(EXCLUDED.native_id, ''), agent_sessions.native_id),
 			project_id = EXCLUDED.project_id,
 			preview = EXCLUDED.preview,
 			workspace_roots = EXCLUDED.workspace_roots,

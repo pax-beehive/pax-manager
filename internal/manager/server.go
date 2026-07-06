@@ -23,20 +23,21 @@ import (
 )
 
 type Service struct {
-	cfg             Config
-	store           Store
-	clock           func() time.Time
-	agentWS         *AgentWSHub
-	acpTunnels      *ACPTunnelHub
-	acpRuntime      *acpRuntimeProjector
-	maxBodyBytes    int64
-	apiLimiter      *rateLimiter
-	registerLimiter *rateLimiter
-	auth            *auth.Service
-	secrets         auth.Secrets
-	paxd            *paxd.Service
-	userapi         *userapi.Service
-	paxdArtifacts   paxdArtifactBackend
+	cfg              Config
+	store            Store
+	clock            func() time.Time
+	agentWS          *AgentWSHub
+	acpTunnels       *ACPTunnelHub
+	acpRuntime       *acpRuntimeProjector
+	maxBodyBytes     int64
+	apiLimiter       *rateLimiter
+	registerLimiter  *rateLimiter
+	auth             *auth.Service
+	secrets          auth.Secrets
+	paxd             *paxd.Service
+	userapi          *userapi.Service
+	paxdArtifacts    paxdArtifactBackend
+	backgroundRunner func(context.Context, func(context.Context))
 }
 
 type Server = Service
@@ -62,6 +63,9 @@ func newServer(cfg Config, store Store) *Service {
 			time.Now,
 		),
 		secrets: secrets,
+		backgroundRunner: func(ctx context.Context, task func(context.Context)) {
+			go task(context.WithoutCancel(ctx))
+		},
 	}
 	s.acpRuntime = newACPRuntimeProjector(store, func() time.Time { return s.clock() })
 	authService := auth.NewService(store, store, serviceAdminPolicy{s: s}, secrets, auth.Config{
@@ -258,6 +262,13 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		routeUserConversation,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleConversation)),
 	)
+	h.POST(routeDeliverAgentConversation, NodeAuth(), DeliverAgentConversation)
+	h.POST(routeStartAgentConversation, NodeAuth(), StartAgentConversation)
+	h.GET(routeGetAgentOwnerInfo, GetAgentOwnerInfo)
+	h.GET(routeListRepresentativeAgents, ListRepresentativeAgents)
+	h.POST(routeUpsertRepresentativeAgent, UpsertRepresentativeAgent)
+	h.POST(routeStartUserAgentInquiry, StartUserAgentInquiry)
+	h.GET(routeListAgentConversationMessages, ListAgentConversationMessages)
 	h.GET(routeDownloadGenericArtifact, s.handleDownloadGenericArtifact)
 	h.GET(routeDownloadPaxdArtifact, s.handleDownloadPaxdArtifact)
 	h.GET(routeDownloadPaxlArtifact, s.handleDownloadPaxlArtifact)

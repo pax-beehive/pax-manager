@@ -224,6 +224,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_audit_event_type ON agent_audit_events(even
 CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY,
     message_id TEXT UNIQUE NOT NULL,
+    conversation_id TEXT,
     owner_user_id TEXT REFERENCES users(user_id),
     node_id TEXT REFERENCES nodes(node_id),
     agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
@@ -242,6 +243,8 @@ CREATE TABLE IF NOT EXISTS messages (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS conversation_id TEXT;
+
 CREATE TABLE IF NOT EXISTS message_parts (
     id BIGSERIAL PRIMARY KEY,
     message_id TEXT NOT NULL REFERENCES messages(message_id) ON DELETE CASCADE,
@@ -257,6 +260,8 @@ CREATE TABLE IF NOT EXISTS message_parts (
 
 CREATE INDEX IF NOT EXISTS idx_messages_agent_created ON messages(agent_id, created_at, id);
 CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_at, id);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at, id)
+    WHERE conversation_id IS NOT NULL AND conversation_id <> '';
 CREATE INDEX IF NOT EXISTS idx_message_parts_message ON message_parts(message_id, part_index);
 
 CREATE TABLE IF NOT EXISTS message_offsets (
@@ -1037,3 +1042,297 @@ CREATE INDEX IF NOT EXISTS idx_agent_approvals_grant_lookup
     );
 CREATE INDEX IF NOT EXISTS idx_agent_approvals_resource
     ON agent_approvals(owner_user_id, resource_type, resource_ref, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_profiles (
+    profile_id TEXT PRIMARY KEY,
+    owner_type TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    card_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    instructions_md TEXT NOT NULL DEFAULT '',
+    default_model TEXT NOT NULL DEFAULT '',
+    tool_policy_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_by_user_id TEXT REFERENCES users(user_id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    archived_at TIMESTAMPTZ
+);
+
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS owner_type TEXT NOT NULL DEFAULT 'user';
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS owner_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS card_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS instructions_md TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS default_model TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS tool_policy_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS created_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_agent_profiles_owner_status
+    ON agent_profiles(owner_type, owner_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_profiles_created_by
+    ON agent_profiles(created_by_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS representative_agents (
+    representative_agent_id TEXT PRIMARY KEY,
+    profile_id TEXT NOT NULL REFERENCES agent_profiles(profile_id),
+    runtime_agent_id TEXT NOT NULL REFERENCES agents(agent_id),
+    represents_type TEXT NOT NULL,
+    represents_id TEXT NOT NULL,
+    approval_policy_id TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_by_user_id TEXT REFERENCES users(user_id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    archived_at TIMESTAMPTZ
+);
+
+ALTER TABLE representative_agents ADD COLUMN IF NOT EXISTS profile_id TEXT REFERENCES agent_profiles(profile_id);
+ALTER TABLE representative_agents ADD COLUMN IF NOT EXISTS runtime_agent_id TEXT REFERENCES agents(agent_id);
+ALTER TABLE representative_agents ADD COLUMN IF NOT EXISTS represents_type TEXT NOT NULL DEFAULT 'user';
+ALTER TABLE representative_agents ADD COLUMN IF NOT EXISTS represents_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE representative_agents ADD COLUMN IF NOT EXISTS approval_policy_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE representative_agents ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE representative_agents ADD COLUMN IF NOT EXISTS created_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE representative_agents ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE representative_agents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE representative_agents ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_representative_agents_profile
+    ON representative_agents(profile_id, status);
+CREATE INDEX IF NOT EXISTS idx_representative_agents_runtime
+    ON representative_agents(runtime_agent_id, status);
+CREATE INDEX IF NOT EXISTS idx_representative_agents_represents
+    ON representative_agents(represents_type, represents_id, status);
+
+CREATE TABLE IF NOT EXISTS conversations (
+    conversation_id TEXT PRIMARY KEY,
+    conversation_type TEXT NOT NULL,
+    boundary_type TEXT NOT NULL DEFAULT 'personal',
+    boundary_id TEXT NOT NULL DEFAULT '',
+    history_policy TEXT NOT NULL DEFAULT 'full_history',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    archived_at TIMESTAMPTZ
+);
+
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS conversation_type TEXT NOT NULL DEFAULT 'direct';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS boundary_type TEXT NOT NULL DEFAULT 'personal';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS boundary_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS history_policy TEXT NOT NULL DEFAULT 'full_history';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_conversations_boundary_status
+    ON conversations(boundary_type, boundary_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversations_type_status
+    ON conversations(conversation_type, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS conversation_members (
+    conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'member',
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    left_at TIMESTAMPTZ,
+    PRIMARY KEY (conversation_id, user_id)
+);
+
+ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member';
+ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS left_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_conversation_members_user_active
+    ON conversation_members(user_id, conversation_id)
+    WHERE left_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_conversation_members_conversation_active
+    ON conversation_members(conversation_id, joined_at)
+    WHERE left_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS conversation_agent_bindings (
+    binding_id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    representative_agent_id TEXT NOT NULL REFERENCES representative_agents(representative_agent_id),
+    relationship_type TEXT NOT NULL DEFAULT 'assistant',
+    added_by_user_id TEXT NOT NULL REFERENCES users(user_id),
+    access_mode TEXT NOT NULL DEFAULT 'from_binding',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    archived_at TIMESTAMPTZ
+);
+
+ALTER TABLE conversation_agent_bindings ADD COLUMN IF NOT EXISTS conversation_id TEXT REFERENCES conversations(conversation_id) ON DELETE CASCADE;
+ALTER TABLE conversation_agent_bindings ADD COLUMN IF NOT EXISTS representative_agent_id TEXT REFERENCES representative_agents(representative_agent_id);
+ALTER TABLE conversation_agent_bindings ADD COLUMN IF NOT EXISTS relationship_type TEXT NOT NULL DEFAULT 'assistant';
+ALTER TABLE conversation_agent_bindings ADD COLUMN IF NOT EXISTS added_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE conversation_agent_bindings ADD COLUMN IF NOT EXISTS access_mode TEXT NOT NULL DEFAULT 'from_binding';
+ALTER TABLE conversation_agent_bindings ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE conversation_agent_bindings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE conversation_agent_bindings ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_conversation_agent_bindings_conversation
+    ON conversation_agent_bindings(conversation_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversation_agent_bindings_representative
+    ON conversation_agent_bindings(representative_agent_id, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS conversation_agent_invocations (
+    invocation_id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    parent_invocation_id TEXT REFERENCES conversation_agent_invocations(invocation_id),
+    source_representative_agent_id TEXT NOT NULL REFERENCES representative_agents(representative_agent_id),
+    source_runtime_agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    source_session_id TEXT NOT NULL DEFAULT '',
+    target_representative_agent_id TEXT NOT NULL REFERENCES representative_agents(representative_agent_id),
+    target_runtime_agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    target_session_id TEXT NOT NULL DEFAULT '',
+    receipt_token_hash TEXT NOT NULL DEFAULT '',
+    representative_agent_id TEXT NOT NULL REFERENCES representative_agents(representative_agent_id),
+    session_id TEXT NOT NULL DEFAULT '',
+    requested_by_user_id TEXT NOT NULL REFERENCES users(user_id),
+    access_mode TEXT NOT NULL DEFAULT 'current_turn',
+    selected_message_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    max_turns INTEGER NOT NULL DEFAULT 1,
+    remaining_turns INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ
+);
+
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS conversation_id TEXT REFERENCES conversations(conversation_id) ON DELETE CASCADE;
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS parent_invocation_id TEXT REFERENCES conversation_agent_invocations(invocation_id);
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS source_representative_agent_id TEXT REFERENCES representative_agents(representative_agent_id);
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS source_runtime_agent_id TEXT REFERENCES agents(agent_id) ON DELETE CASCADE;
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS source_session_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS target_representative_agent_id TEXT REFERENCES representative_agents(representative_agent_id);
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS target_runtime_agent_id TEXT REFERENCES agents(agent_id) ON DELETE CASCADE;
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS target_session_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS receipt_token_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS representative_agent_id TEXT REFERENCES representative_agents(representative_agent_id);
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS session_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS requested_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS access_mode TEXT NOT NULL DEFAULT 'current_turn';
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS selected_message_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS max_turns INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS remaining_turns INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE conversation_agent_invocations ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_conversation_agent_invocations_conversation
+    ON conversation_agent_invocations(conversation_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversation_agent_invocations_representative
+    ON conversation_agent_invocations(representative_agent_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversation_agent_invocations_session
+    ON conversation_agent_invocations(session_id)
+    WHERE session_id <> '';
+CREATE INDEX IF NOT EXISTS idx_conversation_agent_invocations_parent
+    ON conversation_agent_invocations(parent_invocation_id)
+    WHERE parent_invocation_id IS NOT NULL AND parent_invocation_id <> '';
+CREATE INDEX IF NOT EXISTS idx_conversation_agent_invocations_source
+    ON conversation_agent_invocations(source_runtime_agent_id, source_session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversation_agent_invocations_target
+    ON conversation_agent_invocations(target_runtime_agent_id, target_session_id, created_at DESC);
+DROP INDEX IF EXISTS idx_active_inquiry_target_session;
+WITH duplicate_active_invocations AS (
+    SELECT invocation_id
+    FROM (
+        SELECT invocation_id,
+               ROW_NUMBER() OVER (
+                   PARTITION BY target_runtime_agent_id, target_session_id
+                   ORDER BY created_at DESC, invocation_id DESC
+               ) AS row_number
+        FROM conversation_agent_invocations
+        WHERE status = 'active'
+          AND target_runtime_agent_id IS NOT NULL
+          AND target_session_id <> ''
+    ) ranked_active_invocations
+    WHERE row_number > 1
+)
+UPDATE conversation_agent_invocations
+SET status = 'expired',
+    expires_at = COALESCE(expires_at, NOW())
+WHERE invocation_id IN (SELECT invocation_id FROM duplicate_active_invocations);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_active_invocation_target_session
+    ON conversation_agent_invocations(target_runtime_agent_id, target_session_id)
+    WHERE status = 'active'
+      AND target_runtime_agent_id IS NOT NULL
+      AND target_session_id <> '';
+
+CREATE TABLE IF NOT EXISTS access_grants (
+    grant_id TEXT PRIMARY KEY,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    subject_type TEXT NOT NULL,
+    subject_id TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    created_by_user_id TEXT REFERENCES users(user_id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    revoked_by_user_id TEXT REFERENCES users(user_id),
+    revocation_reason TEXT NOT NULL DEFAULT '',
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS resource_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS resource_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS subject_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS subject_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS action TEXT NOT NULL DEFAULT '';
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS created_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS revoked_by_user_id TEXT REFERENCES users(user_id);
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS revocation_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE access_grants ADD COLUMN IF NOT EXISTS metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE INDEX IF NOT EXISTS idx_access_grants_resource_action
+    ON access_grants(resource_type, resource_id, action, revoked_at, expires_at);
+CREATE INDEX IF NOT EXISTS idx_access_grants_subject_action
+    ON access_grants(subject_type, subject_id, action, revoked_at, expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_access_grants_unique_active
+    ON access_grants(resource_type, resource_id, subject_type, subject_id, action)
+    WHERE revoked_at IS NULL;
+
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS conversation_id TEXT REFERENCES conversations(conversation_id);
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS profile_id TEXT REFERENCES agent_profiles(profile_id);
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS representative_agent_id TEXT REFERENCES representative_agents(representative_agent_id);
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS created_by_user_id TEXT REFERENCES users(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_conversation
+    ON agent_sessions(conversation_id, created_at DESC)
+    WHERE conversation_id IS NOT NULL AND conversation_id <> '';
+CREATE INDEX IF NOT EXISTS idx_sessions_profile
+    ON agent_sessions(profile_id, created_at DESC)
+    WHERE profile_id IS NOT NULL AND profile_id <> '';
+CREATE INDEX IF NOT EXISTS idx_sessions_representative
+    ON agent_sessions(representative_agent_id, created_at DESC)
+    WHERE representative_agent_id IS NOT NULL AND representative_agent_id <> '';
+
+CREATE TABLE IF NOT EXISTS agent_session_participants (
+    session_id TEXT NOT NULL,
+    participant_type TEXT NOT NULL,
+    participant_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    left_at TIMESTAMPTZ,
+    PRIMARY KEY (session_id, participant_type, participant_id, role)
+);
+
+ALTER TABLE agent_session_participants ADD COLUMN IF NOT EXISTS added_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE agent_session_participants ADD COLUMN IF NOT EXISTS left_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_agent_session_participants_participant
+    ON agent_session_participants(participant_type, participant_id, session_id)
+    WHERE left_at IS NULL;

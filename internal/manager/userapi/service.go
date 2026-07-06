@@ -927,6 +927,7 @@ func (s *Service) listSessionHistory(
 			Parts:   parts,
 		})
 	}
+	history = domain.NormalTranscriptMessages(history)
 	return http.StatusOK, map[string]any{"messages": history}, nil
 }
 

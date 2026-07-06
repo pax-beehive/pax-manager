@@ -107,6 +107,7 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/v1/node/agents/register",
 		"/api/v1/user/{user_id}/agents/{agent_id}/tunnel",
 		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel",
+		"/api/v1/node/conversation/deliver",
 		"/api/v1/public/artifacts/download",
 		"/api/v1/public/paxd/download",
 		"/api/v1/public/paxl/download",
@@ -1781,6 +1782,8 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
 	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "/tmp")
 	assertACPParamArray(t, sessionNewEnv.Payload, "mcpServers")
+	assertACPMCPEnvInPayload(t, sessionNewEnv.Payload, "PAX_AGENT_ID", fixture.agentID)
+	assertACPMCPEnvPrefixInPayload(t, sessionNewEnv.Payload, "PAX_SESSION_ID", "sess_")
 	writeAgentDataFrame(
 		t,
 		agentWS,
@@ -1824,6 +1827,21 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	}
 	if strings.Contains(string(body), "native-session-1") {
 		t.Fatalf("SSE body leaked native session id:\n%s", body)
+	}
+	messages, err := srv.store.ListMessages(t.Context(), fixture.agentID, sessionEvent.SessionID, 10)
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	for _, msg := range messages {
+		require.Equal(t, sessionEvent.SessionID, msg.SessionID)
+		require.NotEqual(t, "native-session-1", msg.SessionID)
+		if msg.Direction == domain.MessageDirectionAgentToUser {
+			require.NotContains(t, string(msg.RawJSON), "native-session-1")
+			parts, err := srv.store.ListMessageParts(t.Context(), msg.MessageID)
+			require.NoError(t, err)
+			for _, part := range parts {
+				require.NotContains(t, string(part.PayloadJSON), "native-session-1")
+			}
+		}
 	}
 	requireConversationEvent(t, events, "done")
 }
@@ -3438,6 +3456,548 @@ func postNodeAgentSessions(
 	return rec
 }
 
+func createNodeAgentForFixture(
+	t *testing.T,
+	srv *Server,
+	fixture conversationTestFixture,
+	name string,
+) Agent {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+fixture.nodeID+"/agents",
+		bytes.NewReader([]byte(`{"name":"`+name+`","agent_type":"codex"}`)),
+	)
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	setJSON(req)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		Agent Agent `json:"agent"`
+	}](t, rec.Body.Bytes())
+	require.NotEmpty(t, got.Agent.AgentID)
+	return got.Agent
+}
+
+func upsertRepresentativeAgentForTest(
+	t *testing.T,
+	srv *Server,
+	runtimeAgentID string,
+	displayName string,
+) domain.RepresentativeAgent {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/representative-agents",
+		bytes.NewReader([]byte(`{
+			"runtime_agent_id":"`+runtimeAgentID+`",
+			"display_name":"`+displayName+`"
+		}`)),
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	setJSON(req)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		RepresentativeAgent domain.RepresentativeAgent `json:"representative_agent"`
+	}](t, rec.Body.Bytes())
+	require.NotEmpty(t, got.RepresentativeAgent.RepresentativeAgentID)
+	return got.RepresentativeAgent
+}
+
+func createTeamForOwnerInfoTest(t *testing.T, srv *Server, name string) domain.Team {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/teams",
+		bytes.NewReader([]byte(`{"name":"`+name+`"}`)),
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	setJSON(req)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		Team domain.Team `json:"team"`
+	}](t, rec.Body.Bytes())
+	require.NotEmpty(t, got.Team.TeamID)
+	return got.Team
+}
+
+func upsertRepresentativeAgentForOwnerInfoTest(
+	t *testing.T,
+	srv *Server,
+	runtimeAgentID string,
+	req domain.UpsertRepresentativeAgentRequest,
+) domain.RepresentativeAgent {
+	t.Helper()
+	req.RuntimeAgentID = runtimeAgentID
+	body, err := json.Marshal(req)
+	require.NoError(t, err)
+	httpReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/representative-agents",
+		bytes.NewReader(body),
+	)
+	httpReq.Header.Set("X-User-Email", "todd@example.com")
+	setJSON(httpReq)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, httpReq)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		RepresentativeAgent domain.RepresentativeAgent `json:"representative_agent"`
+	}](t, rec.Body.Bytes())
+	require.NotEmpty(t, got.RepresentativeAgent.RepresentativeAgentID)
+	return got.RepresentativeAgent
+}
+
+func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenValidatesContract(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
+	sourceRep := upsertRepresentativeAgentForTest(t, srv, fixture.agentID, "source")
+	rep := upsertRepresentativeAgentForTest(t, srv, targetAgent.AgentID, "reviewer")
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader([]byte(`{
+			"source":{"agent_id":"`+fixture.agentID+`","representative_agent_id":"`+sourceRep.RepresentativeAgentID+`","session_id":"sess_source"},
+			"target":{"kind":"representative","representative_agent_id":"`+rep.RepresentativeAgentID+`"},
+			"context":{"latest_response":false,"artifacts":true},
+			"instruction":"Ask this agent to review the request contract.",
+			"reason":"contract test"
+		}`)),
+	)
+	req.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(req)
+	rec := httptest.NewRecorder()
+
+	srv.routes().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		Contract      string                      `json:"contract_version"`
+		Receipt       string                      `json:"receipt_token"`
+		Delivery      domain.ConversationDelivery `json:"delivery"`
+		DeliveryError string                      `json:"delivery_error"`
+	}](t, rec.Body.Bytes())
+	assert.Equal(t, "conversation_delivery.v1", got.Contract)
+	assert.NotEmpty(t, got.Receipt)
+	assert.Equal(t, got.Receipt, got.Delivery.ReceiptToken)
+	assert.Equal(t, "pending", got.Delivery.DeliveryStatus)
+	assert.NotEmpty(t, got.DeliveryError)
+	assert.Equal(t, domain.ConversationAgentInvocationStatusActive, got.Delivery.Invocation.Status)
+	assert.Equal(t, sourceRep.RepresentativeAgentID, got.Delivery.Invocation.SourceRepresentativeAgentID)
+	assert.Equal(t, fixture.agentID, got.Delivery.Invocation.SourceRuntimeAgentID)
+	assert.Equal(t, "sess_source", got.Delivery.Invocation.SourceSessionID)
+	assert.Equal(t, targetAgent.AgentID, got.Delivery.Invocation.TargetRuntimeAgentID)
+	assert.Equal(t, got.Delivery.TargetSession.SessionID, got.Delivery.Invocation.TargetSessionID)
+	assert.False(t, got.Delivery.Context.LatestResponse)
+	assert.False(t, got.Delivery.Context.ToolCalls)
+	assert.False(t, got.Delivery.Context.ReasoningSummary)
+	assert.True(t, got.Delivery.Context.Artifacts)
+	require.Len(t, got.Delivery.PromptMessage.Parts, 1)
+	assert.Equal(t, "Ask this agent to review the request contract.", got.Delivery.PromptMessage.Parts[0].Text)
+}
+
+func TestConversationDeliveryGivenTargetSessionAlreadyHasActiveInvocationWhenPostedThenReturnsConflict(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
+	upsertRepresentativeAgentForTest(t, srv, fixture.agentID, "source")
+	rep := upsertRepresentativeAgentForTest(t, srv, targetAgent.AgentID, "reviewer")
+
+	body := []byte(`{
+			"source":{"agent_id":"` + fixture.agentID + `","session_id":"sess_source"},
+			"target":{"kind":"representative","representative_agent_id":"` + rep.RepresentativeAgentID + `","session_id":"sess_target"},
+			"instruction":"Please answer this."
+		}`)
+	firstReq := httptest.NewRequest(http.MethodPost, "/api/v1/node/conversation/deliver", bytes.NewReader(body))
+	firstReq.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(firstReq)
+	firstRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(firstRec, firstReq)
+	require.Equal(t, http.StatusAccepted, firstRec.Code, firstRec.Body.String())
+
+	secondReq := httptest.NewRequest(http.MethodPost, "/api/v1/node/conversation/deliver", bytes.NewReader(body))
+	secondReq.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(secondReq)
+	secondRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(secondRec, secondReq)
+
+	require.Equal(t, http.StatusConflict, secondRec.Code, secondRec.Body.String())
+	assert.Contains(t, secondRec.Body.String(), "conflict")
+}
+
+func TestConversationDeliveryGivenActiveInvocationTargetWhenPostedThenRepliesToCurrentSession(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
+	sourceRep := upsertRepresentativeAgentForTest(t, srv, fixture.agentID, "source")
+	targetRep := upsertRepresentativeAgentForTest(t, srv, targetAgent.AgentID, "reviewer")
+	parentReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader([]byte(`{
+			"source":{"agent_id":"`+fixture.agentID+`","representative_agent_id":"`+sourceRep.RepresentativeAgentID+`","session_id":"sess_source"},
+			"target":{"kind":"representative","representative_agent_id":"`+targetRep.RepresentativeAgentID+`","session_id":"sess_target"},
+			"instruction":"Please answer this."
+		}`)),
+	)
+	parentReq.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(parentReq)
+	parentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(parentRec, parentReq)
+	require.Equal(t, http.StatusAccepted, parentRec.Code, parentRec.Body.String())
+	parent := decodeData[struct {
+		Delivery domain.ConversationDelivery `json:"delivery"`
+	}](t, parentRec.Body.Bytes())
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader([]byte(`{
+			"source":{"agent_id":"`+targetAgent.AgentID+`","representative_agent_id":"`+targetRep.RepresentativeAgentID+`","session_id":"sess_target"},
+			"target":{"kind":"active_invocation"},
+			"context":{},
+			"instruction":"Here is the answer."
+		}`)),
+	)
+	req.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(req)
+	rec := httptest.NewRecorder()
+
+	srv.routes().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		Delivery domain.ConversationDelivery `json:"delivery"`
+	}](t, rec.Body.Bytes())
+	assert.Equal(t, parent.Delivery.Invocation.InvocationID, got.Delivery.Invocation.InvocationID)
+	assert.Empty(t, got.Delivery.Invocation.ParentInvocationID)
+	assert.Equal(t, domain.ConversationAgentInvocationStatusCompleted, got.Delivery.Invocation.Status)
+	assert.Equal(t, parent.Delivery.Conversation.ConversationID, got.Delivery.Conversation.ConversationID)
+	assert.Equal(t, fixture.agentID, got.Delivery.Invocation.SourceRuntimeAgentID)
+	assert.Equal(t, "sess_source", got.Delivery.Invocation.SourceSessionID)
+	assert.Equal(t, targetAgent.AgentID, got.Delivery.Invocation.TargetRuntimeAgentID)
+	assert.Equal(t, "sess_target", got.Delivery.Invocation.TargetSessionID)
+	assert.Equal(t, "sess_target", got.Delivery.SourceSession.SessionID)
+	assert.Equal(t, "sess_source", got.Delivery.TargetSession.SessionID)
+	require.Len(t, got.Delivery.PromptMessage.Parts, 1)
+	assert.Equal(t, "Here is the answer.", got.Delivery.PromptMessage.Parts[0].Text)
+	assert.True(t, got.Delivery.Context.LatestResponse)
+	assert.False(t, got.Delivery.Context.ToolCalls)
+	assert.False(t, got.Delivery.Context.ReasoningSummary)
+	assert.False(t, got.Delivery.Context.Artifacts)
+
+	secondReplyReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader([]byte(`{
+			"source":{"agent_id":"`+targetAgent.AgentID+`","session_id":"sess_target"},
+			"target":{"kind":"active_invocation"},
+			"instruction":"Answer again."
+		}`)),
+	)
+	secondReplyReq.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(secondReplyReq)
+	secondReplyRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(secondReplyRec, secondReplyReq)
+	require.Equal(t, http.StatusNotFound, secondReplyRec.Code, secondReplyRec.Body.String())
+}
+
+func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTargetTunnel(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
+	sourceRep := upsertRepresentativeAgentForTest(t, srv, fixture.agentID, "source")
+	targetRep := upsertRepresentativeAgentForTest(t, srv, targetAgent.AgentID, "reviewer")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	targetWS := dialMockAgentTunnel(t, baseWS, fixture.nodeAPIKey, targetAgent.AgentID)
+	defer func() { _ = targetWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, targetAgent.AgentID, "")
+
+	recCh := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/node/conversation/deliver",
+			bytes.NewReader([]byte(`{
+				"source":{"agent_id":"`+fixture.agentID+`","representative_agent_id":"`+sourceRep.RepresentativeAgentID+`","session_id":"sess_source"},
+				"target":{"kind":"representative","representative_agent_id":"`+targetRep.RepresentativeAgentID+`"},
+				"instruction":"Please answer this."
+			}`)),
+		)
+		req.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+		setJSON(req)
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		recCh <- rec
+	}()
+
+	respondMockACPRequest(t, targetWS, 1, "initialize", json.RawMessage(`{"protocolVersion":1}`))
+	sessionNewEnv, sessionNew := readMockACPRequest(t, targetWS, "session/new")
+	assertACPMCPEnv(t, sessionNew.Params, "PAX_AGENT_ID", targetAgent.AgentID)
+	assertACPMCPEnv(t, sessionNew.Params, "PAX_REPRESENTATIVE_AGENT_ID", targetRep.RepresentativeAgentID)
+	targetManagerSessionID := assertACPMCPEnvPrefix(t, sessionNew.Params, "PAX_SESSION_ID", "sess_")
+	writeMockACPResponse(
+		t,
+		targetWS,
+		sessionNewEnv.QueueID,
+		2,
+		sessionNew.ID,
+		json.RawMessage(`{"sessionId":"native-target"}`),
+	)
+	setModeEnv, setMode := readMockACPRequest(t, targetWS, "session/set_mode")
+	require.Equal(t, "native-target", findStringFromRaw(setMode.Params, "sessionId", "session_id"))
+	require.Equal(t, "full-access", findStringFromRaw(setMode.Params, "modeId", "mode_id"))
+	writeMockACPResponse(
+		t,
+		targetWS,
+		setModeEnv.QueueID,
+		3,
+		setMode.ID,
+		json.RawMessage(`{}`),
+	)
+	targetPromptEnv, targetPrompt := readMockACPRequest(t, targetWS, "session/prompt")
+	targetPromptText := acpPromptText(targetPrompt.Params)
+	require.Contains(t, targetPromptText, "You must answer this inquiry by calling the pax-conversation reply tool")
+	require.Contains(t, targetPromptText, "must pass your final answer explicitly in the tool input")
+	require.Contains(t, targetPromptText, "Please answer this.")
+	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
+	require.Equal(t, "native-target", targetNativeSessionID)
+	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 4, targetNativeSessionID, "working")
+	writeMockACPResponse(
+		t,
+		targetWS,
+		targetPromptEnv.QueueID,
+		5,
+		targetPrompt.ID,
+		json.RawMessage(`{"stopReason":"end_turn"}`),
+	)
+
+	var rec *httptest.ResponseRecorder
+	select {
+	case rec = <-recCh:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for conversation delivery response")
+	}
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		Delivery domain.ConversationDelivery `json:"delivery"`
+	}](t, rec.Body.Bytes())
+	assert.Equal(t, "delivered", got.Delivery.DeliveryStatus)
+	require.Equal(t, targetManagerSessionID, got.Delivery.TargetSession.SessionID)
+	messages, err := srv.store.ListMessages(t.Context(), targetAgent.AgentID, got.Delivery.TargetSession.SessionID, 10)
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	assert.Equal(t, domain.MessageDirectionAgentToUser, messages[len(messages)-1].Direction)
+}
+
+func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOriginalSourceTunnel(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess_source", "native-source")
+	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
+	sourceRep := upsertRepresentativeAgentForTest(t, srv, fixture.agentID, "source")
+	targetRep := upsertRepresentativeAgentForTest(t, srv, targetAgent.AgentID, "reviewer")
+
+	parentReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader([]byte(`{
+			"source":{"agent_id":"`+fixture.agentID+`","representative_agent_id":"`+sourceRep.RepresentativeAgentID+`","session_id":"sess_source"},
+			"target":{"kind":"representative","representative_agent_id":"`+targetRep.RepresentativeAgentID+`"},
+			"instruction":"Please answer this."
+		}`)),
+	)
+	parentReq.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(parentReq)
+	parentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(parentRec, parentReq)
+	require.Equal(t, http.StatusAccepted, parentRec.Code, parentRec.Body.String())
+	parent := decodeData[struct {
+		Delivery domain.ConversationDelivery `json:"delivery"`
+	}](t, parentRec.Body.Bytes())
+	require.Equal(t, "pending", parent.Delivery.DeliveryStatus)
+	targetSessionID := parent.Delivery.TargetSession.SessionID
+	require.NotEmpty(t, targetSessionID)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	sourceWS := dialMockAgentTunnel(t, baseWS, fixture.nodeAPIKey, fixture.agentID)
+	defer func() { _ = sourceWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	recCh := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/node/conversation/deliver",
+			bytes.NewReader([]byte(`{
+				"source":{"agent_id":"`+targetAgent.AgentID+`","representative_agent_id":"`+targetRep.RepresentativeAgentID+`","session_id":"`+targetSessionID+`"},
+				"target":{"kind":"active_invocation"},
+				"instruction":"Here is the answer."
+			}`)),
+		)
+		req.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+		setJSON(req)
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		recCh <- rec
+	}()
+
+	sourcePromptEnv, sourcePrompt := readMockACPRequest(t, sourceWS, "session/prompt")
+	sourcePromptText := acpPromptText(sourcePrompt.Params)
+	require.Contains(t, sourcePromptText, "Your Pax conversation inquiry has received a reply")
+	require.Contains(t, sourcePromptText, "Do not call the pax-conversation reply tool here")
+	require.Contains(t, sourcePromptText, "do not try to fetch a reply through that tool")
+	require.Contains(t, sourcePromptText, "Here is the answer.")
+	sourceNativeSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
+	require.Equal(t, "native-source", sourceNativeSessionID)
+	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 1, sourceNativeSessionID, "received")
+	writeMockACPResponse(
+		t,
+		sourceWS,
+		sourcePromptEnv.QueueID,
+		2,
+		sourcePrompt.ID,
+		json.RawMessage(`{"stopReason":"end_turn"}`),
+	)
+
+	var rec *httptest.ResponseRecorder
+	select {
+	case rec = <-recCh:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for reply delivery response")
+	}
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		Delivery domain.ConversationDelivery `json:"delivery"`
+	}](t, rec.Body.Bytes())
+	assert.Equal(t, "delivered", got.Delivery.DeliveryStatus)
+	assert.Equal(t, domain.ConversationAgentInvocationStatusCompleted, got.Delivery.Invocation.Status)
+	assert.Equal(t, "sess_source", got.Delivery.TargetSession.SessionID)
+	messages, err := srv.store.ListMessages(t.Context(), fixture.agentID, "sess_source", 10)
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	assert.Equal(t, domain.MessageDirectionAgentToUser, messages[len(messages)-1].Direction)
+}
+
+func TestConversationDeliveryGivenBusyOriginalSourceTunnelWhenReplyPostedThenQueuesAndPromptsAfterRelease(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess_source", "native-source")
+	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
+	sourceRep := upsertRepresentativeAgentForTest(t, srv, fixture.agentID, "source")
+	targetRep := upsertRepresentativeAgentForTest(t, srv, targetAgent.AgentID, "reviewer")
+
+	parentReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader([]byte(`{
+			"source":{"agent_id":"`+fixture.agentID+`","representative_agent_id":"`+sourceRep.RepresentativeAgentID+`","session_id":"sess_source"},
+			"target":{"kind":"representative","representative_agent_id":"`+targetRep.RepresentativeAgentID+`"},
+			"instruction":"Please answer this."
+		}`)),
+	)
+	parentReq.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(parentReq)
+	parentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(parentRec, parentReq)
+	require.Equal(t, http.StatusAccepted, parentRec.Code, parentRec.Body.String())
+	parent := decodeData[struct {
+		Delivery domain.ConversationDelivery `json:"delivery"`
+	}](t, parentRec.Body.Bytes())
+	require.Equal(t, "pending", parent.Delivery.DeliveryStatus)
+	targetSessionID := parent.Delivery.TargetSession.SessionID
+	require.NotEmpty(t, targetSessionID)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	sourceWS := dialMockAgentTunnel(t, baseWS, fixture.nodeAPIKey, fixture.agentID)
+	defer func() { _ = sourceWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	busyConn, err := srv.acpTunnels.claimAny(fixture.agentID, "sess_source", "native-source", "")
+	require.NoError(t, err)
+
+	replyReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader([]byte(`{
+			"source":{"agent_id":"`+targetAgent.AgentID+`","representative_agent_id":"`+targetRep.RepresentativeAgentID+`","session_id":"`+targetSessionID+`"},
+			"target":{"kind":"active_invocation"},
+			"instruction":"Here is the queued answer."
+		}`)),
+	)
+	replyReq.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(replyReq)
+	replyRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(replyRec, replyReq)
+	require.Equal(t, http.StatusAccepted, replyRec.Code, replyRec.Body.String())
+	got := decodeData[struct {
+		Delivery      domain.ConversationDelivery `json:"delivery"`
+		DeliveryError string                      `json:"delivery_error,omitempty"`
+	}](t, replyRec.Body.Bytes())
+	assert.Equal(t, conversationDeliveryQueuedStatus, got.Delivery.DeliveryStatus)
+	assert.Empty(t, got.DeliveryError)
+
+	srv.acpTunnels.release(busyConn)
+
+	sourcePromptEnv, sourcePrompt := readMockACPRequest(t, sourceWS, "session/prompt")
+	sourcePromptText := acpPromptText(sourcePrompt.Params)
+	require.Contains(t, sourcePromptText, "Your Pax conversation inquiry has received a reply")
+	require.Contains(t, sourcePromptText, "Here is the queued answer.")
+	sourceNativeSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
+	require.Equal(t, "native-source", sourceNativeSessionID)
+	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 1, sourceNativeSessionID, "received queued")
+	writeMockACPResponse(
+		t,
+		sourceWS,
+		sourcePromptEnv.QueueID,
+		2,
+		sourcePrompt.ID,
+		json.RawMessage(`{"stopReason":"end_turn"}`),
+	)
+
+	waitAgentToUserMessage(t, srv, fixture.agentID, "sess_source")
+}
+
+func TestConversationDeliveryGivenInvalidTargetWhenPostedThenReturnsBadRequest(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader([]byte(`{"target":{"kind":"somewhere"}}`)),
+	)
+	req.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(req)
+	rec := httptest.NewRecorder()
+
+	srv.routes().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "target.kind must be representative or active_invocation")
+}
+
 func listNodeAgentSessions(
 	t *testing.T,
 	srv *Server,
@@ -3458,6 +4018,21 @@ func listNodeAgentSessions(
 		Sessions []AgentSession `json:"sessions"`
 	}](t, rec.Body.Bytes())
 	return got.Sessions
+}
+
+func requireListedSession(
+	t *testing.T,
+	sessions []AgentSession,
+	sessionID string,
+) AgentSession {
+	t.Helper()
+	for _, session := range sessions {
+		if session.SessionID == sessionID {
+			return session
+		}
+	}
+	t.Fatalf("session %s not found in %+v", sessionID, sessions)
+	return AgentSession{}
 }
 
 func createConversationTestSession(
@@ -3695,6 +4270,108 @@ func readNextManagerToAgentData(t *testing.T, agentWS *websocket.Conn) acpTunnel
 	}
 }
 
+func readMockACPRequest(
+	t *testing.T,
+	agentWS *websocket.Conn,
+	wantMethod string,
+) (acpTunnelEnvelope, acpJSONRPCMessage) {
+	t.Helper()
+	env := readNextManagerToAgentData(t, agentWS)
+	writeMockAgentAck(t, agentWS, env)
+	var req acpJSONRPCMessage
+	require.NoError(t, json.Unmarshal(env.Payload, &req))
+	require.Equal(t, wantMethod, req.Method, string(env.Payload))
+	return env, req
+}
+
+func dialMockAgentTunnel(
+	t *testing.T,
+	baseWS string,
+	paxKey string,
+	agentID string,
+) *websocket.Conn {
+	t.Helper()
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID,
+		http.Header{"X-Pax-Key": []string{paxKey}},
+	)
+	require.NoError(t, err)
+	return agentWS
+}
+
+func respondMockACPRequest(
+	t *testing.T,
+	agentWS *websocket.Conn,
+	seq int64,
+	wantMethod string,
+	result json.RawMessage,
+) acpJSONRPCMessage {
+	t.Helper()
+	env, req := readMockACPRequest(t, agentWS, wantMethod)
+	writeMockACPResponse(t, agentWS, env.QueueID, seq, req.ID, result)
+	return req
+}
+
+func writeMockAgentAck(t *testing.T, agentWS *websocket.Conn, env acpTunnelEnvelope) {
+	t.Helper()
+	ack := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
+		Type:    acpTunnelTypeAck,
+		QueueID: env.QueueID,
+		Stream:  env.Stream,
+		Seq:     env.Seq,
+	})
+	require.NoError(t, agentWS.WriteMessage(websocket.TextMessage, ack))
+}
+
+func writeMockACPResponse(
+	t *testing.T,
+	agentWS *websocket.Conn,
+	queueID string,
+	seq int64,
+	id json.RawMessage,
+	result json.RawMessage,
+) {
+	t.Helper()
+	payload, err := json.Marshal(struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id"`
+		Result  json.RawMessage `json:"result"`
+	}{
+		JSONRPC: "2.0",
+		ID:      id,
+		Result:  result,
+	})
+	require.NoError(t, err)
+	writeAgentDataFrame(t, agentWS, queueID, seq, payload)
+}
+
+func writeMockACPChunk(
+	t *testing.T,
+	agentWS *websocket.Conn,
+	queueID string,
+	seq int64,
+	sessionID string,
+	text string,
+) {
+	t.Helper()
+	payload, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "session/update",
+		"params": map[string]any{
+			"sessionId": sessionID,
+			"update": map[string]any{
+				"sessionUpdate": "agent_message_chunk",
+				"content": map[string]any{
+					"type": "text",
+					"text": text,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	writeAgentDataFrame(t, agentWS, queueID, seq, payload)
+}
+
 func assertNoManagerToAgentData(t *testing.T, agentWS *websocket.Conn) {
 	t.Helper()
 	if err := agentWS.SetReadDeadline(time.Now().Add(250 * time.Millisecond)); err != nil {
@@ -3731,6 +4408,56 @@ func assertACPMethod(t *testing.T, payload json.RawMessage, want string) {
 	}
 }
 
+func assertACPMCPEnv(t *testing.T, params json.RawMessage, name string, want string) {
+	t.Helper()
+	require.Equal(t, want, acpMCPEnvValue(t, params, name))
+}
+
+func assertACPMCPEnvInPayload(t *testing.T, payload json.RawMessage, name string, want string) {
+	t.Helper()
+	require.Equal(t, want, acpMCPEnvValue(t, acpParams(t, payload), name))
+}
+
+func assertACPMCPEnvPrefix(t *testing.T, params json.RawMessage, name string, prefix string) string {
+	t.Helper()
+	got := acpMCPEnvValue(t, params, name)
+	require.True(t, strings.HasPrefix(got, prefix), "%s = %q, want prefix %q", name, got, prefix)
+	return got
+}
+
+func assertACPMCPEnvPrefixInPayload(t *testing.T, payload json.RawMessage, name string, prefix string) string {
+	t.Helper()
+	got := acpMCPEnvValue(t, acpParams(t, payload), name)
+	require.True(t, strings.HasPrefix(got, prefix), "%s = %q, want prefix %q", name, got, prefix)
+	return got
+}
+
+func acpMCPEnvValue(t *testing.T, params json.RawMessage, name string) string {
+	t.Helper()
+	var body struct {
+		MCPServers []struct {
+			Name string `json:"name"`
+			Env  []struct {
+				Name  string `json:"name"`
+				Value string `json:"value"`
+			} `json:"env"`
+		} `json:"mcpServers"`
+	}
+	require.NoError(t, json.Unmarshal(params, &body))
+	for _, server := range body.MCPServers {
+		if server.Name != "pax-conversation" {
+			continue
+		}
+		for _, env := range server.Env {
+			if env.Name == name {
+				return env.Value
+			}
+		}
+	}
+	t.Fatalf("MCP env %s not found in %s", name, string(params))
+	return ""
+}
+
 func assertACPID(t *testing.T, payload json.RawMessage, want int) {
 	t.Helper()
 	var got acpJSONRPCMessage
@@ -3740,6 +4467,15 @@ func assertACPID(t *testing.T, payload json.RawMessage, want int) {
 	if string(got.ID) != strconv.Itoa(want) {
 		t.Fatalf("ACP id = %s, want %d; payload=%s", got.ID, want, payload)
 	}
+}
+
+func acpParams(t *testing.T, payload json.RawMessage) json.RawMessage {
+	t.Helper()
+	var got struct {
+		Params json.RawMessage `json:"params"`
+	}
+	require.NoError(t, json.Unmarshal(payload, &got))
+	return got.Params
 }
 
 func assertACPParamString(t *testing.T, payload json.RawMessage, key string, want string) {
@@ -3921,6 +4657,27 @@ func waitACPTunnelUserAttached(
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("user tunnel %s/%s was not attached", agentID, sessionID)
+}
+
+func waitAgentToUserMessage(
+	t *testing.T,
+	srv *Server,
+	agentID string,
+	sessionID string,
+) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		messages, err := srv.store.ListMessages(t.Context(), agentID, sessionID, 10)
+		require.NoError(t, err)
+		for _, msg := range messages {
+			if msg.Direction == domain.MessageDirectionAgentToUser {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("agent-to-user message for %s/%s was not projected", agentID, sessionID)
 }
 
 func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {
@@ -4346,6 +5103,271 @@ func TestNodeAgentSessionReportEndpoint(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 		assert.Empty(t, listNodeAgentSessions(t, srv, fixture))
 	})
+}
+
+func TestAgentConversationEndpointGivenMissingFieldsWhenStartedThenReturnsBadRequest(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/agents/"+agentID+"/conversations",
+		bytes.NewReader([]byte(`{"input":"   "}`)),
+	)
+	setJSON(req)
+	req.Header.Set("X-Pax-Key", paxKey)
+	rec := httptest.NewRecorder()
+
+	srv.routes().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+}
+
+func TestRepresentativeAgentEndpointGivenOwnedAgentWhenUpsertedThenItCanBeListed(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	createReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/representative-agents",
+		bytes.NewReader([]byte(`{
+			"runtime_agent_id":"`+agentID+`",
+			"display_name":"Inquiry source"
+		}`)),
+	)
+	createReq.Header.Set("X-User-Email", "todd@example.com")
+	setJSON(createReq)
+	createRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createRec, createReq)
+	require.Equal(t, http.StatusOK, createRec.Code, createRec.Body.String())
+	created := decodeData[struct {
+		RepresentativeAgent domain.RepresentativeAgent `json:"representative_agent"`
+		Profile             domain.AgentProfile        `json:"profile"`
+	}](t, createRec.Body.Bytes())
+	require.Equal(t, agentID, created.RepresentativeAgent.RuntimeAgentID)
+	require.Equal(t, "Inquiry source", created.Profile.DisplayName)
+
+	listReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/representative-agents?runtime_agent_id="+agentID,
+		nil,
+	)
+	listReq.Header.Set("X-User-Email", "todd@example.com")
+	listRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(listRec, listReq)
+	require.Equal(t, http.StatusOK, listRec.Code, listRec.Body.String())
+	listed := decodeData[struct {
+		RepresentativeAgents []domain.RepresentativeAgent `json:"representative_agents"`
+	}](t, listRec.Body.Bytes())
+	require.Len(t, listed.RepresentativeAgents, 1)
+	require.Equal(t, created.RepresentativeAgent.RepresentativeAgentID, listed.RepresentativeAgents[0].RepresentativeAgentID)
+}
+
+func TestAgentOwnerInfoEndpointGivenAgentIDWhenFetchedThenReturnsUserOwner(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agent-owner-info?agent_id="+agentID,
+		nil,
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	got := decodeData[struct {
+		OwnerInfo domain.AgentOwnerInfo `json:"owner_info"`
+	}](t, rec.Body.Bytes())
+	assert.Equal(t, agentID, got.OwnerInfo.Agent.AgentID)
+	require.Equal(t, "user", got.OwnerInfo.Owner.Kind)
+	require.NotNil(t, got.OwnerInfo.Owner.User)
+	assert.Equal(t, "todd@example.com", got.OwnerInfo.Owner.User.Email)
+	assert.Nil(t, got.OwnerInfo.Owner.Team)
+}
+
+func TestAgentOwnerInfoEndpointGivenTeamRepresentativeWhenFetchedThenReturnsTeamOwner(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+	team := createTeamForOwnerInfoTest(t, srv, "Core")
+	rep := upsertRepresentativeAgentForOwnerInfoTest(t, srv, agentID, domain.UpsertRepresentativeAgentRequest{
+		RuntimeAgentID: agentID,
+		DisplayName:    "Core reviewer",
+		RepresentsType: "team",
+		RepresentsID:   team.TeamID,
+	})
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agent-owner-info?representative_agent_id="+rep.RepresentativeAgentID,
+		nil,
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	got := decodeData[struct {
+		OwnerInfo domain.AgentOwnerInfo `json:"owner_info"`
+	}](t, rec.Body.Bytes())
+	assert.Equal(t, agentID, got.OwnerInfo.Agent.AgentID)
+	require.NotNil(t, got.OwnerInfo.RepresentativeAgent)
+	assert.Equal(t, rep.RepresentativeAgentID, got.OwnerInfo.RepresentativeAgent.RepresentativeAgentID)
+	require.NotNil(t, got.OwnerInfo.Profile)
+	assert.Equal(t, "Core reviewer", got.OwnerInfo.Profile.DisplayName)
+	require.Equal(t, "team", got.OwnerInfo.Owner.Kind)
+	require.NotNil(t, got.OwnerInfo.Owner.Team)
+	assert.Equal(t, team.TeamID, got.OwnerInfo.Owner.Team.TeamID)
+	assert.Equal(t, "Core", got.OwnerInfo.Owner.Team.Name)
+	assert.Equal(t, domain.TeamRoleOwner, got.OwnerInfo.Owner.Team.MyRole)
+	assert.Equal(t, 1, got.OwnerInfo.Owner.Team.MemberCount)
+	assert.Equal(t, 0, got.OwnerInfo.Owner.Team.AgentCount)
+}
+
+func TestAgentOwnerInfoEndpointGivenTeamRepresentativeWhenCallerCannotSeeTeamThenHidesTeamOwner(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+	team := createTeamForOwnerInfoTest(t, srv, "Core")
+	rep := upsertRepresentativeAgentForOwnerInfoTest(t, srv, agentID, domain.UpsertRepresentativeAgentRequest{
+		RuntimeAgentID: agentID,
+		DisplayName:    "Core reviewer",
+		RepresentsType: "team",
+		RepresentsID:   team.TeamID,
+	})
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agent-owner-info?representative_agent_id="+rep.RepresentativeAgentID,
+		nil,
+	)
+	req.Header.Set("X-User-Email", "admin@example.com")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+}
+
+func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	source := testNodeAgent(t, srv, "todd@example.com")
+	targetAgent := createNodeAgentForFixture(t, srv, source, "counter-b")
+	sourceRep := upsertRepresentativeAgentForTest(t, srv, source.agentID, "counter-a")
+	targetRep := upsertRepresentativeAgentForTest(t, srv, targetAgent.AgentID, "counter-b")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	sourceWS := dialMockAgentTunnel(t, baseWS, source.nodeAPIKey, source.agentID)
+	defer func() { _ = sourceWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, source.agentID, "")
+	targetWS := dialMockAgentTunnel(t, baseWS, source.nodeAPIKey, targetAgent.AgentID)
+	defer func() { _ = targetWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, targetAgent.AgentID, "")
+
+	recCh := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/node/agents/"+source.agentID+"/conversations",
+			bytes.NewReader([]byte(`{
+				"from_representative_agent_id":"`+sourceRep.RepresentativeAgentID+`",
+				"to_representative_agent_id":"`+targetRep.RepresentativeAgentID+`",
+				"input":"count from 1 to 2",
+				"max_turns":2
+			}`)),
+		)
+		req.Header.Set("X-Pax-Key", source.nodeAPIKey)
+		setJSON(req)
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		recCh <- rec
+	}()
+
+	respondMockACPRequest(t, sourceWS, 1, "initialize", json.RawMessage(`{"protocolVersion":1}`))
+	respondMockACPRequest(t, sourceWS, 2, "session/new", json.RawMessage(`{"sessionId":"native-source"}`))
+	respondMockACPRequest(t, sourceWS, 3, "session/set_mode", json.RawMessage(`{}`))
+	respondMockACPRequest(t, targetWS, 1, "initialize", json.RawMessage(`{"protocolVersion":1}`))
+	respondMockACPRequest(t, targetWS, 2, "session/new", json.RawMessage(`{"sessionId":"native-target"}`))
+	respondMockACPRequest(t, targetWS, 3, "session/set_mode", json.RawMessage(`{}`))
+
+	targetPromptEnv, targetPrompt := readMockACPRequest(t, targetWS, "session/prompt")
+	require.Equal(t, "count from 1 to 2", acpPromptText(targetPrompt.Params))
+	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
+	require.Equal(t, "native-target", targetNativeSessionID)
+	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 4, targetNativeSessionID, "1")
+	writeMockACPResponse(
+		t,
+		targetWS,
+		targetPromptEnv.QueueID,
+		5,
+		targetPrompt.ID,
+		json.RawMessage(`{"stopReason":"end_turn"}`),
+	)
+
+	sourcePromptEnv, sourcePrompt := readMockACPRequest(t, sourceWS, "session/prompt")
+	require.Equal(t, "1", acpPromptText(sourcePrompt.Params))
+	sourceNativeSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
+	require.Equal(t, "native-source", sourceNativeSessionID)
+	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 4, sourceNativeSessionID, "2")
+	writeMockACPResponse(
+		t,
+		sourceWS,
+		sourcePromptEnv.QueueID,
+		5,
+		sourcePrompt.ID,
+		json.RawMessage(`{"stopReason":"end_turn"}`),
+	)
+
+	var rec *httptest.ResponseRecorder
+	select {
+	case rec = <-recCh:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for agent conversation response")
+	}
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		SourceSession AgentSession              `json:"source_session"`
+		TargetSession AgentSession              `json:"target_session"`
+		Delivery      agentConversationDelivery `json:"delivery"`
+	}](t, rec.Body.Bytes())
+	require.Equal(t, "delivered", got.Delivery.Status)
+
+	sourceAgent, err := srv.store.GetNodeAgent(t.Context(), source.nodeID, source.agentID)
+	require.NoError(t, err)
+	sourceSessions, err := srv.store.ListAgentSessions(
+		t.Context(),
+		UserPrincipal{User: User{UserID: sourceAgent.OwnerUserID}},
+		source.agentID,
+	)
+	require.NoError(t, err)
+	sourceSession := requireListedSession(t, sourceSessions, got.SourceSession.SessionID)
+	require.Equal(t, "native-source", sourceSession.NativeID)
+	targetSessions, err := srv.store.ListAgentSessions(
+		t.Context(),
+		UserPrincipal{User: User{UserID: sourceAgent.OwnerUserID}},
+		targetAgent.AgentID,
+	)
+	require.NoError(t, err)
+	targetSession := requireListedSession(t, targetSessions, got.TargetSession.SessionID)
+	require.Equal(t, "native-target", targetSession.NativeID)
+}
+
+func TestAgentConversationEndpointGivenMissingConversationWhenListingMessagesThenReturnsNotFound(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/conversations/conv_1/messages",
+		nil,
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+
+	srv.routes().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 }
 
 func TestNodeAPIUserNodeAgentSessionMessageRoundTrip(t *testing.T) {

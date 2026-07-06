@@ -13,97 +13,109 @@ import (
 )
 
 type MemoryStore struct {
-	mu                        sync.Mutex
-	now                       func() time.Time
-	nextMailbox               int64
-	nextSession               int64
-	nodes                     map[string]Node
-	agents                    map[string]Agent
-	apiKeys                   map[string]string
-	nodeAPIKeys               map[string]string
-	users                     map[string]User
-	usersByEmail              map[string]string
-	regTokens                 map[string]registrationToken
-	nodeRegistrations         map[string]NodeRegistrationSession
-	nodeRegistrationPairCodes map[string]string
-	paxlDeviceLogins          map[string]PaxlDeviceLoginSession
-	paxlDeviceLoginUserCodes  map[string]string
-	userAPIKeys               map[string]UserAPIKey
-	userAPIKeyHashes          map[string]string
-	sessions                  map[string]AgentSession
-	mailbox                   map[int64]MailboxMessage
-	offsets                   map[string]int64
-	nextTransportID           int64
-	transportJournal          map[transportFrameKey]TransportFrame
-	transportQueueState       map[transportQueueStateKey]transportQueueState
-	nextMessageID             int64
-	nextPartID                int64
-	messages                  map[string]Message
-	messageLogical            map[string]string
-	messageParts              map[messagePartKey]MessagePart
-	knowledgeCapsules         map[string]KnowledgeCapsule
-	knowledgeInjections       map[string]SessionKnowledgeInjection
-	envelopes                 map[string]Envelope
-	friends                   map[string]Friend
-	teams                     map[string]Team
-	teamMembers               map[teamMemberKey]TeamMember
-	teamInvites               map[string]TeamInvite
-	teamAgents                map[teamAgentKey]TeamAgent
-	teamAuditEvents           map[string]TeamAuditEvent
-	teamMemexDocuments        map[teamMemexDocumentKey]TeamMemexDocument
-	teamMemexRuns             map[string]TeamMemexRun
-	approvals                 map[string]AgentApproval
-	auditEvents               map[string]AgentAuditEvent
-	secrets                   map[string]Secret
-	secretVersions            map[string]SecretVersion
-	secretVersionIDs          map[string][]string
-	secretAccess              []SecretAccessEvent
-	paxdArtifacts             map[string]PaxdArtifact
-	paxdArtifactKeys          map[string]string
+	mu                           sync.Mutex
+	now                          func() time.Time
+	nextMailbox                  int64
+	nextSession                  int64
+	nodes                        map[string]Node
+	agents                       map[string]Agent
+	apiKeys                      map[string]string
+	nodeAPIKeys                  map[string]string
+	users                        map[string]User
+	usersByEmail                 map[string]string
+	regTokens                    map[string]registrationToken
+	nodeRegistrations            map[string]NodeRegistrationSession
+	nodeRegistrationPairCodes    map[string]string
+	paxlDeviceLogins             map[string]PaxlDeviceLoginSession
+	paxlDeviceLoginUserCodes     map[string]string
+	userAPIKeys                  map[string]UserAPIKey
+	userAPIKeyHashes             map[string]string
+	sessions                     map[string]AgentSession
+	mailbox                      map[int64]MailboxMessage
+	offsets                      map[string]int64
+	nextTransportID              int64
+	transportJournal             map[transportFrameKey]TransportFrame
+	transportQueueState          map[transportQueueStateKey]transportQueueState
+	nextMessageID                int64
+	nextPartID                   int64
+	messages                     map[string]Message
+	messageLogical               map[string]string
+	messageParts                 map[messagePartKey]MessagePart
+	knowledgeCapsules            map[string]KnowledgeCapsule
+	knowledgeInjections          map[string]SessionKnowledgeInjection
+	envelopes                    map[string]Envelope
+	friends                      map[string]Friend
+	teams                        map[string]Team
+	teamMembers                  map[teamMemberKey]TeamMember
+	teamInvites                  map[string]TeamInvite
+	teamAgents                   map[teamAgentKey]TeamAgent
+	teamAuditEvents              map[string]TeamAuditEvent
+	teamMemexDocuments           map[teamMemexDocumentKey]TeamMemexDocument
+	teamMemexRuns                map[string]TeamMemexRun
+	agentProfiles                map[string]domain.AgentProfile
+	representativeAgents         map[string]domain.RepresentativeAgent
+	conversations                map[string]domain.Conversation
+	conversationMembers          map[string]domain.ConversationMember
+	conversationAgentBindings    map[string]domain.ConversationAgentBinding
+	conversationAgentInvocations map[string]domain.ConversationAgentInvocation
+	approvals                    map[string]AgentApproval
+	auditEvents                  map[string]AgentAuditEvent
+	secrets                      map[string]Secret
+	secretVersions               map[string]SecretVersion
+	secretVersionIDs             map[string][]string
+	secretAccess                 []SecretAccessEvent
+	paxdArtifacts                map[string]PaxdArtifact
+	paxdArtifactKeys             map[string]string
 }
 
 func NewMemoryStore(now func() time.Time) *MemoryStore {
 	return &MemoryStore{
-		now:                       now,
-		nodes:                     make(map[string]Node),
-		agents:                    make(map[string]Agent),
-		apiKeys:                   make(map[string]string),
-		nodeAPIKeys:               make(map[string]string),
-		users:                     make(map[string]User),
-		usersByEmail:              make(map[string]string),
-		regTokens:                 make(map[string]registrationToken),
-		nodeRegistrations:         make(map[string]NodeRegistrationSession),
-		nodeRegistrationPairCodes: make(map[string]string),
-		paxlDeviceLogins:          make(map[string]PaxlDeviceLoginSession),
-		paxlDeviceLoginUserCodes:  make(map[string]string),
-		userAPIKeys:               make(map[string]UserAPIKey),
-		userAPIKeyHashes:          make(map[string]string),
-		sessions:                  make(map[string]AgentSession),
-		mailbox:                   make(map[int64]MailboxMessage),
-		offsets:                   make(map[string]int64),
-		transportJournal:          make(map[transportFrameKey]TransportFrame),
-		transportQueueState:       make(map[transportQueueStateKey]transportQueueState),
-		messages:                  make(map[string]Message),
-		messageLogical:            make(map[string]string),
-		messageParts:              make(map[messagePartKey]MessagePart),
-		knowledgeCapsules:         make(map[string]KnowledgeCapsule),
-		knowledgeInjections:       make(map[string]SessionKnowledgeInjection),
-		envelopes:                 make(map[string]Envelope),
-		friends:                   make(map[string]Friend),
-		teams:                     make(map[string]Team),
-		teamMembers:               make(map[teamMemberKey]TeamMember),
-		teamInvites:               make(map[string]TeamInvite),
-		teamAgents:                make(map[teamAgentKey]TeamAgent),
-		teamAuditEvents:           make(map[string]TeamAuditEvent),
-		teamMemexDocuments:        make(map[teamMemexDocumentKey]TeamMemexDocument),
-		teamMemexRuns:             make(map[string]TeamMemexRun),
-		approvals:                 make(map[string]AgentApproval),
-		auditEvents:               make(map[string]AgentAuditEvent),
-		secrets:                   make(map[string]Secret),
-		secretVersions:            make(map[string]SecretVersion),
-		secretVersionIDs:          make(map[string][]string),
-		paxdArtifacts:             make(map[string]PaxdArtifact),
-		paxdArtifactKeys:          make(map[string]string),
+		now:                          now,
+		nodes:                        make(map[string]Node),
+		agents:                       make(map[string]Agent),
+		apiKeys:                      make(map[string]string),
+		nodeAPIKeys:                  make(map[string]string),
+		users:                        make(map[string]User),
+		usersByEmail:                 make(map[string]string),
+		regTokens:                    make(map[string]registrationToken),
+		nodeRegistrations:            make(map[string]NodeRegistrationSession),
+		nodeRegistrationPairCodes:    make(map[string]string),
+		paxlDeviceLogins:             make(map[string]PaxlDeviceLoginSession),
+		paxlDeviceLoginUserCodes:     make(map[string]string),
+		userAPIKeys:                  make(map[string]UserAPIKey),
+		userAPIKeyHashes:             make(map[string]string),
+		sessions:                     make(map[string]AgentSession),
+		mailbox:                      make(map[int64]MailboxMessage),
+		offsets:                      make(map[string]int64),
+		transportJournal:             make(map[transportFrameKey]TransportFrame),
+		transportQueueState:          make(map[transportQueueStateKey]transportQueueState),
+		messages:                     make(map[string]Message),
+		messageLogical:               make(map[string]string),
+		messageParts:                 make(map[messagePartKey]MessagePart),
+		knowledgeCapsules:            make(map[string]KnowledgeCapsule),
+		knowledgeInjections:          make(map[string]SessionKnowledgeInjection),
+		envelopes:                    make(map[string]Envelope),
+		friends:                      make(map[string]Friend),
+		teams:                        make(map[string]Team),
+		teamMembers:                  make(map[teamMemberKey]TeamMember),
+		teamInvites:                  make(map[string]TeamInvite),
+		teamAgents:                   make(map[teamAgentKey]TeamAgent),
+		teamAuditEvents:              make(map[string]TeamAuditEvent),
+		teamMemexDocuments:           make(map[teamMemexDocumentKey]TeamMemexDocument),
+		teamMemexRuns:                make(map[string]TeamMemexRun),
+		agentProfiles:                make(map[string]domain.AgentProfile),
+		representativeAgents:         make(map[string]domain.RepresentativeAgent),
+		conversations:                make(map[string]domain.Conversation),
+		conversationMembers:          make(map[string]domain.ConversationMember),
+		conversationAgentBindings:    make(map[string]domain.ConversationAgentBinding),
+		conversationAgentInvocations: make(map[string]domain.ConversationAgentInvocation),
+		approvals:                    make(map[string]AgentApproval),
+		auditEvents:                  make(map[string]AgentAuditEvent),
+		secrets:                      make(map[string]Secret),
+		secretVersions:               make(map[string]SecretVersion),
+		secretVersionIDs:             make(map[string][]string),
+		paxdArtifacts:                make(map[string]PaxdArtifact),
+		paxdArtifactKeys:             make(map[string]string),
 	}
 }
 
@@ -1198,7 +1210,21 @@ func (s *MemoryStore) CreateNodeAgentSession(
 		}
 		input.SessionID = generated
 	}
-	return s.upsertSessionLocked(req.NodeID, req.AgentID, input, now), nil
+	session := s.upsertSessionLocked(req.NodeID, req.AgentID, input, now)
+	if req.ConversationID != "" {
+		session.ConversationID = req.ConversationID
+	}
+	if req.ProfileID != "" {
+		session.ProfileID = req.ProfileID
+	}
+	if req.RepresentativeAgentID != "" {
+		session.RepresentativeAgentID = req.RepresentativeAgentID
+	}
+	if req.CreatedByUserID != "" {
+		session.CreatedByUserID = req.CreatedByUserID
+	}
+	s.sessions[sessionKey(req.AgentID, input.SessionID)] = session
+	return session, nil
 }
 
 func (s *MemoryStore) AuthenticateAgent(ctx context.Context, apiKeyHash string) (Agent, error) {
@@ -2192,7 +2218,9 @@ func (s *MemoryStore) upsertSessionLocked(
 	existing.NodeID = nodeID
 	existing.SessionName = input.SessionName
 	existing.AgentType = input.AgentType
-	existing.NativeID = input.NativeID
+	if input.NativeID != "" {
+		existing.NativeID = input.NativeID
+	}
 	existing.ProjectID = input.ProjectID
 	existing.Preview = input.Preview
 	existing.WorkspaceRoots = append([]string(nil), input.WorkspaceRoots...)

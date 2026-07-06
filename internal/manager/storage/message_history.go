@@ -15,6 +15,9 @@ func (s *PostgresStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	if err := validateMessage(msg); err != nil {
 		return err
 	}
+	if msg.ConversationID == "" && msg.AgentID != "" && msg.SessionID != "" {
+		msg.ConversationID = s.messageConversationID(ctx, msg.AgentID, msg.SessionID)
+	}
 	now := s.now().UTC()
 	if msg.CreatedAt.IsZero() {
 		msg.CreatedAt = now
@@ -22,16 +25,17 @@ func (s *PostgresStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	msg.UpdatedAt = now
 	row := s.db.QueryRowContext(ctx, `
 		INSERT INTO messages (
-			message_id, owner_user_id, node_id, agent_id, session_id, source, direction,
+			message_id, conversation_id, owner_user_id, node_id, agent_id, session_id, source, direction,
 			role, status, message_type, parent_message_id, turn_id, response_id,
 			logical_key, raw_json, created_at, updated_at
 		)
 		VALUES (
-			$1,NULLIF($2,''),NULLIF($3,''),$4,NULLIF($5,''),$6,$7,
-			NULLIF($8,''),NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),
-			NULLIF($13,''),NULLIF($14,''),$15,$16,$17
+			$1,NULLIF($2,''),NULLIF($3,''),NULLIF($4,''),$5,NULLIF($6,''),$7,$8,
+			NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),NULLIF($13,''),
+			NULLIF($14,''),NULLIF($15,''),$16,$17,$18
 		)
 		ON CONFLICT (message_id) DO UPDATE SET
+			conversation_id = COALESCE(EXCLUDED.conversation_id, messages.conversation_id),
 			owner_user_id = COALESCE(EXCLUDED.owner_user_id, messages.owner_user_id),
 			node_id = COALESCE(EXCLUDED.node_id, messages.node_id),
 			session_id = COALESCE(EXCLUDED.session_id, messages.session_id),
@@ -44,7 +48,7 @@ func (s *PostgresStore) UpsertMessage(ctx context.Context, msg *Message) error {
 			raw_json = COALESCE(EXCLUDED.raw_json, messages.raw_json),
 			updated_at = EXCLUDED.updated_at
 		RETURNING `+messageReturningSQL+`
-	`, msg.MessageID, msg.OwnerUserID, msg.NodeID, msg.AgentID, msg.SessionID, msg.Source,
+	`, msg.MessageID, msg.ConversationID, msg.OwnerUserID, msg.NodeID, msg.AgentID, msg.SessionID, msg.Source,
 		msg.Direction, msg.Role, msg.Status, msg.MessageType, msg.ParentMessageID, msg.TurnID,
 		msg.ResponseID, msg.LogicalKey, nullRaw(msg.RawJSON), msg.CreatedAt, msg.UpdatedAt)
 	saved, err := scanMessage(row)
@@ -53,6 +57,21 @@ func (s *PostgresStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	}
 	*msg = saved
 	return nil
+}
+
+func (s *PostgresStore) messageConversationID(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+) string {
+	var conversationID string
+	_ = s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(conversation_id, '')
+		FROM agent_sessions
+		WHERE agent_id = $1 AND session_id = $2
+		LIMIT 1
+	`, agentID, sessionID).Scan(&conversationID)
+	return conversationID
 }
 
 func (s *PostgresStore) UpsertMessagePart(ctx context.Context, part *MessagePart) error {
@@ -155,6 +174,57 @@ func (s *PostgresStore) ListMessages(
 	return messages, rows.Err()
 }
 
+func (s *PostgresStore) ListConversationMessages(
+	ctx context.Context,
+	principal UserPrincipal,
+	conversationID string,
+	limit int,
+) ([]domain.MessageWithParts, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	if conversationID == "" {
+		return nil, domain.ErrNotFound
+	}
+	var canRead bool
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM conversation_members
+			WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL
+		)
+	`, conversationID, principal.User.UserID).Scan(&canRead); err != nil {
+		return nil, err
+	}
+	if !canRead {
+		return nil, ErrNotFound
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+messageReturningSQL+`
+		FROM messages
+		WHERE conversation_id = $1
+		ORDER BY created_at ASC, id ASC
+		LIMIT $2
+	`, conversationID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]domain.MessageWithParts, 0)
+	for rows.Next() {
+		msg, err := scanMessage(rows)
+		if err != nil {
+			return nil, err
+		}
+		parts, err := s.ListMessageParts(ctx, msg.MessageID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, domain.MessageWithParts{Message: msg, Parts: parts})
+	}
+	return out, rows.Err()
+}
+
 func (s *PostgresStore) messageHistorySessionIDs(
 	ctx context.Context,
 	agentID string,
@@ -202,6 +272,11 @@ func (s *MemoryStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if msg.ConversationID == "" && msg.AgentID != "" && msg.SessionID != "" {
+		if session, ok := s.sessions[sessionKey(msg.AgentID, msg.SessionID)]; ok {
+			msg.ConversationID = session.ConversationID
+		}
+	}
 	s.prepareMessageLocked(msg)
 	if msg.LogicalKey != "" {
 		if existingID, ok := s.messageLogical[msg.LogicalKey]; ok && existingID != msg.MessageID {
@@ -218,6 +293,48 @@ func (s *MemoryStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	}
 	s.messages[msg.MessageID] = cloneMessage(*msg)
 	return nil
+}
+
+func (s *MemoryStore) ListConversationMessages(
+	ctx context.Context,
+	principal UserPrincipal,
+	conversationID string,
+	limit int,
+) ([]domain.MessageWithParts, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if conversationID == "" || !s.canReadConversationLocked(principal.User.UserID, conversationID) {
+		return nil, ErrNotFound
+	}
+	messages := make([]Message, 0)
+	for _, msg := range s.messages {
+		if msg.ConversationID == conversationID {
+			messages = append(messages, cloneMessage(msg))
+		}
+	}
+	sort.Slice(messages, func(i, j int) bool {
+		return messages[i].ID < messages[j].ID
+	})
+	if len(messages) > limit {
+		messages = messages[:limit]
+	}
+	out := make([]domain.MessageWithParts, 0, len(messages))
+	for _, msg := range messages {
+		parts := make([]MessagePart, 0)
+		for key, part := range s.messageParts {
+			if key.MessageID == msg.MessageID {
+				parts = append(parts, cloneMessagePart(part))
+			}
+		}
+		sort.Slice(parts, func(i, j int) bool {
+			return parts[i].PartIndex < parts[j].PartIndex
+		})
+		out = append(out, domain.MessageWithParts{Message: msg, Parts: parts})
+	}
+	return out, nil
 }
 
 func (s *MemoryStore) ListMessages(
@@ -353,7 +470,7 @@ func (s *MemoryStore) AppendMessagePartText(
 }
 
 const messageReturningSQL = `
-	id, message_id, COALESCE(owner_user_id, ''), COALESCE(node_id, ''), agent_id,
+	id, message_id, COALESCE(conversation_id, ''), COALESCE(owner_user_id, ''), COALESCE(node_id, ''), agent_id,
 	COALESCE(session_id, ''), source, direction, COALESCE(role, ''), COALESCE(status, ''),
 	COALESCE(message_type, ''), COALESCE(parent_message_id, ''), COALESCE(turn_id, ''),
 	COALESCE(response_id, ''), COALESCE(logical_key, ''), COALESCE(raw_json, '{}'::jsonb),
@@ -368,6 +485,7 @@ func scanMessage(row interface{ Scan(dest ...any) error }) (Message, error) {
 	if err := row.Scan(
 		&msg.ID,
 		&msg.MessageID,
+		&msg.ConversationID,
 		&msg.OwnerUserID,
 		&msg.NodeID,
 		&msg.AgentID,
