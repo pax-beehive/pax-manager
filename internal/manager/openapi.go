@@ -61,9 +61,72 @@ func openAPIDocument(serverURL string) ([]byte, error) {
 	}
 	doc["servers"] = []map[string]string{{"url": serverURL}}
 	addACPWebSocketPaths(doc)
+	addAgentFleetPaths(doc)
 	addSessionHistoryPath(doc)
+	addNodeConversationDeliveryPath(doc)
 	addPaxdArtifactPaths(doc)
 	return json.MarshalIndent(doc, "", "  ")
+}
+
+func addAgentFleetPaths(doc map[string]any) {
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		paths = map[string]any{}
+		doc["paths"] = paths
+	}
+	userPathParam := map[string]any{
+		"name":        "user_id",
+		"in":          "path",
+		"required":    true,
+		"schema":      map[string]string{"type": "string"},
+		"description": "User ID or self.",
+	}
+	agentPathParam := map[string]any{
+		"name":        "agent_id",
+		"in":          "path",
+		"required":    true,
+		"schema":      map[string]string{"type": "string"},
+		"description": "Agent identifier.",
+	}
+	paths[openAPIUserAgentsPath] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "List agents",
+			"description": "Lists agents visible to the current user.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  []map[string]any{userPathParam},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Visible agents."},
+				"401": map[string]string{"description": "User authentication failed."},
+			},
+		},
+	}
+	paths[openAPIUserAgentPath] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "Get agent",
+			"description": "Gets one agent visible to the current user.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  []map[string]any{userPathParam, agentPathParam},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Agent."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent not found."},
+			},
+		},
+		"delete": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "Delete agent",
+			"description": "Soft-deletes an agent owned by the current user, hides it from fleet lists, and revokes its API key.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  []map[string]any{userPathParam, agentPathParam},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Deleted agent."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent not found."},
+			},
+		},
+	}
 }
 
 func addSessionHistoryPath(doc map[string]any) {
@@ -112,6 +175,71 @@ func addSessionHistoryPath(doc map[string]any) {
 				"200": map[string]string{"description": "Session history messages."},
 				"401": map[string]string{"description": "User authentication failed."},
 				"404": map[string]string{"description": "Agent or session not found."},
+			},
+		},
+	}
+}
+
+func addNodeConversationDeliveryPath(doc map[string]any) {
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		paths = map[string]any{}
+		doc["paths"] = paths
+	}
+	paths[openAPINodeConversationDeliver] = map[string]any{
+		"post": map[string]any{
+			"tags":        []string{"node"},
+			"summary":     "Deliver conversation context to another agent",
+			"description": "Node-scoped command endpoint used by paxd conversation MCP. The target can be a representative agent or the current session's active invocation.",
+			"security":    []map[string][]string{{"nodeBearer": {}}},
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{
+							"type":     "object",
+							"required": []string{"target"},
+							"properties": map[string]any{
+								"source": map[string]any{
+									"type":        "object",
+									"description": "Required for representative and active_invocation delivery. For model-facing MCP calls, paxd should fill this from local context.",
+									"properties": map[string]any{
+										"agent_id":                map[string]string{"type": "string"},
+										"representative_agent_id": map[string]string{"type": "string"},
+										"session_id":              map[string]string{"type": "string"},
+									},
+								},
+								"target": map[string]any{
+									"type":        "object",
+									"description": "Delivery target. kind=representative asks another representative agent; kind=active_invocation replies to the current session's active invocation.",
+									"required":    []string{"kind"},
+									"properties": map[string]any{
+										"kind":                    map[string]any{"type": "string", "enum": []string{"representative", "active_invocation"}},
+										"representative_agent_id": map[string]string{"type": "string"},
+										"session_id":              map[string]string{"type": "string"},
+									},
+								},
+								"context": map[string]any{
+									"type":        "object",
+									"description": "Context inclusion policy. Omitted fields use server defaults; latest_response defaults to true.",
+									"properties": map[string]any{
+										"latest_response":   map[string]string{"type": "boolean"},
+										"tool_calls":        map[string]string{"type": "boolean"},
+										"reasoning_summary": map[string]string{"type": "boolean"},
+										"artifacts":         map[string]string{"type": "boolean"},
+									},
+								},
+								"instruction": map[string]string{"type": "string"},
+								"reason":      map[string]string{"type": "string"},
+							},
+						},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"202": map[string]string{"description": "Delivery accepted."},
+				"400": map[string]string{"description": "Invalid target or source."},
+				"401": map[string]string{"description": "Node authentication failed."},
 			},
 		},
 	}

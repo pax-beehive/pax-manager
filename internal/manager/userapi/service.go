@@ -74,12 +74,22 @@ type SecretStore interface {
 
 type FleetStore interface {
 	ListAgents(ctx context.Context, principal domain.UserPrincipal) ([]domain.Agent, error)
+	DeleteAgent(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.DeleteAgentRequest,
+	) (domain.Agent, error)
 	ListNodes(ctx context.Context, principal domain.UserPrincipal) ([]domain.Node, error)
 	GetNode(ctx context.Context, principal domain.UserPrincipal, nodeID string) (domain.Node, error)
 	UpdateNode(
 		ctx context.Context,
 		principal domain.UserPrincipal,
 		req domain.UpdateNodeRequest,
+	) (domain.Node, error)
+	DeleteNode(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.DeleteNodeRequest,
 	) (domain.Node, error)
 	ListNodeAgents(
 		ctx context.Context,
@@ -95,6 +105,11 @@ type FleetStore interface {
 		ctx context.Context,
 		principal domain.UserPrincipal,
 		req domain.UpdateAgentProfileRequest,
+	) (domain.Agent, error)
+	DeleteNodeAgent(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.DeleteAgentRequest,
 	) (domain.Agent, error)
 	CreateNodeAgentSession(
 		ctx context.Context,
@@ -606,6 +621,25 @@ func (s *Service) UpdateNode(
 	return http.StatusOK, node, nil
 }
 
+func (s *Service) DeleteNode(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.DeleteNodeRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if req.NodeID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "node_id is required"}
+	}
+	node, err := s.store.DeleteNode(c, principal, req)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, node, nil
+}
+
 func (s *Service) ListNodeAgents(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -663,6 +697,28 @@ func (s *Service) UpdateNodeAgent(
 	return http.StatusOK, agent, nil
 }
 
+func (s *Service) DeleteNodeAgent(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.DeleteAgentRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if req.NodeID == "" || req.AgentID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id and agent_id are required",
+		}
+	}
+	agent, err := s.store.DeleteNodeAgent(c, principal, req)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, agent, nil
+}
+
 func (s *Service) CreateNodeAgentSession(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -701,6 +757,30 @@ func (s *Service) GetAgent(
 		}
 	}
 	agent, err := s.store.GetAgent(c, principal, agentID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, agent, nil
+}
+
+func (s *Service) DeleteAgent(
+	c context.Context,
+	meta auth.RequestMetadata,
+	agentID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if agentID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "agent_id is required",
+		}
+	}
+	agent, err := s.store.DeleteAgent(c, principal, domain.DeleteAgentRequest{
+		AgentID: agentID,
+	})
 	if err != nil {
 		return 0, nil, err
 	}
@@ -927,6 +1007,7 @@ func (s *Service) listSessionHistory(
 			Parts:   parts,
 		})
 	}
+	history = domain.NormalTranscriptMessages(history)
 	return http.StatusOK, map[string]any{"messages": history}, nil
 }
 

@@ -79,6 +79,10 @@ func GetAgent(c context.Context, ctx *app.RequestContext) {
 	serviceFromContext(ctx).GetAgent(c, ctx, &req)
 }
 
+func DeleteAgent(c context.Context, ctx *app.RequestContext) {
+	serviceFromContext(ctx).handleDeleteAgent(c, ctx, agentIDFromUserAgentPath(ctx))
+}
+
 func ListAgentSessions(c context.Context, ctx *app.RequestContext) {
 	req := hzapi.ListAgentSessionsRequest{}
 	req.AgentID = ptrString(ctx.Param("agentId"))
@@ -139,6 +143,8 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"CreateNodeRegistrationToken":   CreateNodeRegistrationToken,
 	"CreateUserSecret":              CreateUserSecret,
 	"DecideUserApproval":            DecideUserApproval,
+	"DeleteNode":                    DeleteNode,
+	"DeleteNodeAgent":               DeleteNodeAgent,
 	"GetCurrentUser":                GetCurrentUser,
 	"GetNode":                       GetNode,
 	"GetNodeAgent":                  GetNodeAgent,
@@ -274,6 +280,18 @@ func (s *Service) GetAgent(
 		agentID = agentIDFromUserAgentPath(ctx)
 	}
 	s.handleGetAgent(c, ctx, agentID)
+}
+
+func (s *Service) DeleteAgent(
+	c context.Context,
+	ctx *app.RequestContext,
+	req *hzapi.GetAgentRequest,
+) {
+	agentID := req.GetAgentID()
+	if agentID == "" {
+		agentID = agentIDFromUserAgentPath(ctx)
+	}
+	s.handleDeleteAgent(c, ctx, agentID)
 }
 
 func (s *Service) ListAgentSessions(
@@ -418,6 +436,9 @@ func agentIDFromUserAgentPath(ctx *app.RequestContext) string {
 	if agentID := ctx.Param("agentId"); agentID != "" {
 		return agentID
 	}
+	if agentID := ctx.Param("agent_id"); agentID != "" {
+		return agentID
+	}
 	if raw, ok := ctx.Get("routeAgentID"); ok {
 		if agentID, ok := raw.(string); ok && agentID != "" {
 			return agentID
@@ -475,13 +496,24 @@ func mergeCreateMailboxBody(ctx *app.RequestContext, req *CreateMailboxRequest) 
 }
 
 func agentIDFromPath(path string) string {
-	const prefix = "/api/user/agents/"
-	if !strings.HasPrefix(path, prefix) {
-		return ""
+	for _, prefix := range []string{"/api/user/agents/", "/api/v1/user/"} {
+		if !strings.Contains(path, prefix) {
+			continue
+		}
+		_, rest, ok := strings.Cut(path, prefix)
+		if !ok {
+			continue
+		}
+		if prefix == "/api/v1/user/" {
+			_, rest, ok = strings.Cut(rest, "/agents/")
+			if !ok {
+				continue
+			}
+		}
+		agentID, _, _ := strings.Cut(rest, "/")
+		return agentID
 	}
-	rest := strings.TrimPrefix(path, prefix)
-	agentID, _, _ := strings.Cut(rest, "/")
-	return agentID
+	return ""
 }
 
 func sessionIDFromPath(path string) string {

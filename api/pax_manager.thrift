@@ -471,6 +471,11 @@ struct UpdateNodeRequest {
   5: optional JSON user_metadata
 }
 
+struct DeleteNodeRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+}
+
 struct GetNodeAgentRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
@@ -485,6 +490,12 @@ struct UpdateNodeAgentRequest {
   5: optional string description
   6: optional JSON card
   7: optional JSON user_metadata
+}
+
+struct DeleteNodeAgentRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string agent_id (api.path = "agent_id")
 }
 
 struct ListNodeAgentMessagesRequest {
@@ -1202,6 +1213,17 @@ service PaxManagerAPI {
     openapi.path.node_id = "Node identifier."
   )
 
+  NodeResponse DeleteNode(1: optional DeleteNodeRequest request) (
+    api.delete = "/api/v1/user/:user_id/nodes/:node_id",
+    openapi.tag = "user",
+    openapi.summary = "Delete node",
+    openapi.description = "Soft-deletes a node owned by the current user, hides it from fleet lists, revokes its API key, and soft-deletes hosted agents.",
+    openapi.status = "200",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
   AgentListResponse ListNodeAgents(
     1: optional ListNodeAgentsRequest request
   ) (
@@ -1243,6 +1265,18 @@ service PaxManagerAPI {
     openapi.tag = "user",
     openapi.summary = "Update node agent profile",
     openapi.description = "Updates user-maintained agent name, description, card, and metadata.",
+    openapi.status = "200",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.agent_id = "Agent identifier."
+  )
+
+  AgentResponse DeleteNodeAgent(1: optional DeleteNodeAgentRequest request) (
+    api.delete = "/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id",
+    openapi.tag = "user",
+    openapi.summary = "Delete node agent",
+    openapi.description = "Soft-deletes an agent owned by the current user, hides it from fleet lists, and revokes its API key.",
     openapi.status = "200",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",

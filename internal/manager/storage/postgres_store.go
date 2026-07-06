@@ -1074,6 +1074,7 @@ func (s *PostgresStore) AuthenticateNode(ctx context.Context, apiKeyHash string)
 		SELECT `+nodeSelectColumns+`
 		FROM nodes
 		WHERE api_key_hash = $1
+			AND deleted_at IS NULL
 	`, apiKeyHash)
 	return scanNode(row)
 }
@@ -1083,6 +1084,7 @@ func (s *PostgresStore) AuthenticateAgent(ctx context.Context, apiKeyHash string
 		SELECT `+agentSelectColumns+`
 		FROM agents
 		WHERE api_key_hash = $1
+			AND deleted_at IS NULL
 	`, apiKeyHash)
 	return scanAgent(row)
 }
@@ -1183,6 +1185,7 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 		UPDATE agents
 		SET status = 'online', last_heartbeat = $2, hostname = COALESCE(NULLIF($3, ''), hostname)
 		WHERE agent_id = $1
+			AND deleted_at IS NULL
 	`, report.AgentID, now, report.Hostname)
 	if err != nil {
 		return err
@@ -1225,7 +1228,7 @@ func (s *PostgresStore) UpsertAgentSessions(
 
 	var exists bool
 	if err := tx.QueryRowContext(ctx, `
-		SELECT EXISTS(SELECT 1 FROM agents WHERE agent_id = $1 AND node_id = $2)
+		SELECT EXISTS(SELECT 1 FROM agents WHERE agent_id = $1 AND node_id = $2 AND deleted_at IS NULL)
 	`, agentID, node.NodeID).Scan(&exists); err != nil {
 		return err
 	}
@@ -1255,6 +1258,7 @@ func (s *PostgresStore) ListNodes(ctx context.Context, principal UserPrincipal) 
 		SELECT ` + nodeSelectColumns + `
 		FROM nodes
 		WHERE owner_user_id = $1
+			AND deleted_at IS NULL
 	`
 	args := []any{principal.User.UserID}
 	query += ` ORDER BY registered_at ASC`
@@ -1276,6 +1280,7 @@ func (s *PostgresStore) GetNode(
 		FROM nodes
 		WHERE node_id = $1
 			AND owner_user_id = $2
+			AND deleted_at IS NULL
 	`
 	args := []any{nodeID, principal.User.UserID}
 	return scanNode(s.db.QueryRowContext(ctx, query, args...))
@@ -1293,9 +1298,66 @@ func (s *PostgresStore) UpdateNode(
 			user_metadata = COALESCE($5, user_metadata)
 		WHERE node_id = $1
 			AND owner_user_id = $2
+			AND deleted_at IS NULL
 		RETURNING `+nodeSelectColumns+`
 	`, req.NodeID, principal.User.UserID, req.Name, req.Description, nullRaw(req.UserMetadata))
 	return scanNode(row)
+}
+
+func (s *PostgresStore) DeleteNode(
+	ctx context.Context,
+	principal UserPrincipal,
+	req DeleteNodeRequest,
+) (Node, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Node{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	node, err := scanNode(tx.QueryRowContext(ctx, `
+		SELECT `+nodeSelectColumns+`
+		FROM nodes
+		WHERE node_id = $1
+			AND owner_user_id = $2
+			AND deleted_at IS NULL
+		FOR UPDATE
+	`, req.NodeID, principal.User.UserID))
+	if err != nil {
+		return Node{}, err
+	}
+
+	now := s.now().UTC()
+	tombstoneSuffix := strconv.FormatInt(now.UnixNano(), 10)
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE agents
+		SET deleted_at = COALESCE(deleted_at, $3),
+			deleted_by_user_id = COALESCE(deleted_by_user_id, $2),
+			status = 'deleted',
+			last_heartbeat = NULL,
+			api_key_hash = 'revoked:agent:' || agent_id || ':' || $4
+		WHERE node_id = $1
+			AND deleted_at IS NULL
+	`, req.NodeID, principal.User.UserID, now, tombstoneSuffix); err != nil {
+		return Node{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE nodes
+		SET deleted_at = $3,
+			deleted_by_user_id = $2,
+			status = 'deleted',
+			last_heartbeat = NULL,
+			api_key_hash = 'revoked:node:' || node_id || ':' || $4
+		WHERE node_id = $1
+			AND owner_user_id = $2
+			AND deleted_at IS NULL
+	`, req.NodeID, principal.User.UserID, now, tombstoneSuffix); err != nil {
+		return Node{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Node{}, err
+	}
+	return node, nil
 }
 
 func (s *PostgresStore) GetNodeAgent(
@@ -1306,7 +1368,9 @@ func (s *PostgresStore) GetNodeAgent(
 	row := s.db.QueryRowContext(ctx, `
 		SELECT `+agentSelectColumns+`
 		FROM agents
-		WHERE node_id = $1 AND agent_id = $2
+		WHERE node_id = $1
+			AND agent_id = $2
+			AND deleted_at IS NULL
 	`, nodeID, agentID)
 	return scanAgent(row)
 }
@@ -1320,6 +1384,7 @@ func (s *PostgresStore) ListNodeAgents(
 		SELECT `+agentSelectColumns+`
 		FROM agents
 		WHERE node_id = $1
+			AND deleted_at IS NULL
 			AND (
 				owner_user_id = $2
 				OR `+teamAgentAccessSQL("agents.agent_id", "$2")+`
@@ -1406,10 +1471,56 @@ func (s *PostgresStore) UpdateNodeAgent(
 		WHERE node_id = $1
 			AND agent_id = $2
 			AND owner_user_id = $3
+			AND deleted_at IS NULL
 		RETURNING `+agentSelectColumns+`
 	`, req.NodeID, req.AgentID, principal.User.UserID, req.Name, req.Description,
 		nullRaw(req.Card), nullRaw(req.UserMetadata))
 	return scanAgent(row)
+}
+
+func (s *PostgresStore) DeleteNodeAgent(
+	ctx context.Context,
+	principal UserPrincipal,
+	req DeleteAgentRequest,
+) (Agent, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Agent{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	agent, err := scanAgent(tx.QueryRowContext(ctx, `
+		SELECT `+agentSelectColumns+`
+		FROM agents
+		WHERE node_id = $1
+			AND agent_id = $2
+			AND owner_user_id = $3
+			AND deleted_at IS NULL
+		FOR UPDATE
+	`, req.NodeID, req.AgentID, principal.User.UserID))
+	if err != nil {
+		return Agent{}, err
+	}
+
+	now := s.now().UTC()
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE agents
+		SET deleted_at = $4,
+			deleted_by_user_id = $3,
+			status = 'deleted',
+			last_heartbeat = NULL,
+			api_key_hash = 'revoked:agent:' || agent_id || ':' || $5
+		WHERE node_id = $1
+			AND agent_id = $2
+			AND owner_user_id = $3
+			AND deleted_at IS NULL
+	`, req.NodeID, req.AgentID, principal.User.UserID, now, strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		return Agent{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Agent{}, err
+	}
+	return agent, nil
 }
 
 func (s *PostgresStore) CreateNodeAgentSession(
@@ -1426,7 +1537,7 @@ func (s *PostgresStore) CreateNodeAgentSession(
 	}
 	var ownerUserID string
 	if err := s.db.QueryRowContext(ctx, `
-		SELECT owner_user_id FROM agents WHERE agent_id = $1 AND node_id = $2
+		SELECT owner_user_id FROM agents WHERE agent_id = $1 AND node_id = $2 AND deleted_at IS NULL
 	`, req.AgentID, req.NodeID).Scan(&ownerUserID); err != nil {
 		return AgentSession{}, mapSQLError(err)
 	}
@@ -1453,6 +1564,20 @@ func (s *PostgresStore) CreateNodeAgentSession(
 	if err := upsertSessionTx(ctx, dbExecer{s.db}, req.NodeID, req.AgentID, input, now); err != nil {
 		return AgentSession{}, err
 	}
+	if req.ConversationID != "" || req.ProfileID != "" ||
+		req.RepresentativeAgentID != "" || req.CreatedByUserID != "" {
+		if _, err := s.db.ExecContext(ctx, `
+			UPDATE agent_sessions
+			SET conversation_id = COALESCE(NULLIF($3,''), conversation_id),
+				profile_id = COALESCE(NULLIF($4,''), profile_id),
+				representative_agent_id = COALESCE(NULLIF($5,''), representative_agent_id),
+				created_by_user_id = COALESCE(NULLIF($6,''), created_by_user_id)
+			WHERE agent_id = $1 AND session_id = $2
+		`, req.AgentID, req.SessionID, req.ConversationID, req.ProfileID,
+			req.RepresentativeAgentID, req.CreatedByUserID); err != nil {
+			return AgentSession{}, err
+		}
+	}
 	return scanSession(s.db.QueryRowContext(ctx, sessionSelectSQL+`
 		WHERE agent_sessions.agent_id = $1 AND agent_sessions.session_id = $2
 	`, req.AgentID, req.SessionID))
@@ -1462,8 +1587,11 @@ func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal)
 	query := `
 		SELECT ` + agentSelectColumns + `
 		FROM agents
-		WHERE owner_user_id = $1
-			OR ` + teamAgentAccessSQL("agents.agent_id", "$1") + `
+		WHERE deleted_at IS NULL
+			AND (
+				owner_user_id = $1
+				OR ` + teamAgentAccessSQL("agents.agent_id", "$1") + `
+			)
 	`
 	args := []any{principal.User.UserID}
 	query += ` ORDER BY registered_at ASC`
@@ -1484,6 +1612,7 @@ func (s *PostgresStore) GetAgent(
 		SELECT ` + agentSelectColumns + `
 		FROM agents
 		WHERE agent_id = $1
+			AND deleted_at IS NULL
 			AND (
 				owner_user_id = $2
 				OR ` + teamAgentAccessSQL("agents.agent_id", "$2") + `
@@ -1494,12 +1623,55 @@ func (s *PostgresStore) GetAgent(
 	return scanAgent(row)
 }
 
+func (s *PostgresStore) DeleteAgent(
+	ctx context.Context,
+	principal UserPrincipal,
+	req DeleteAgentRequest,
+) (Agent, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Agent{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	agent, err := scanAgent(tx.QueryRowContext(ctx, `
+		SELECT `+agentSelectColumns+`
+		FROM agents
+		WHERE agent_id = $1
+			AND owner_user_id = $2
+			AND deleted_at IS NULL
+		FOR UPDATE
+	`, req.AgentID, principal.User.UserID))
+	if err != nil {
+		return Agent{}, err
+	}
+
+	now := s.now().UTC()
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE agents
+		SET deleted_at = $3,
+			deleted_by_user_id = $2,
+			status = 'deleted',
+			last_heartbeat = NULL,
+			api_key_hash = 'revoked:agent:' || agent_id || ':' || $4
+		WHERE agent_id = $1
+			AND owner_user_id = $2
+			AND deleted_at IS NULL
+	`, req.AgentID, principal.User.UserID, now, strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		return Agent{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Agent{}, err
+	}
+	return agent, nil
+}
+
 func (s *PostgresStore) ListAgentSessions(
 	ctx context.Context,
 	principal UserPrincipal,
 	agentID string,
 ) ([]AgentSession, error) {
-	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.agent_id = $1`
+	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.agent_id = $1 AND a.deleted_at IS NULL`
 	query += ` AND (
 		a.owner_user_id = $2
 		OR ` + teamAgentAccessSQL("a.agent_id", "$2") + `
@@ -1519,7 +1691,7 @@ func (s *PostgresStore) GetSession(
 	principal UserPrincipal,
 	sessionID string,
 ) (AgentSession, error) {
-	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.session_id = $1`
+	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.session_id = $1 AND a.deleted_at IS NULL`
 	query += ` AND (
 		a.owner_user_id = $2
 		OR ` + teamAgentAccessSQL("a.agent_id", "$2") + `
@@ -1606,7 +1778,7 @@ func (s *PostgresStore) CreateMailboxMessage(
 	}
 	var ownerUserID string
 	var agentNodeID string
-	agentQuery := `SELECT owner_user_id, COALESCE(node_id, '') FROM agents WHERE agent_id = $1`
+	agentQuery := `SELECT owner_user_id, COALESCE(node_id, '') FROM agents WHERE agent_id = $1 AND deleted_at IS NULL`
 	agentArgs := []any{req.AgentID}
 	if req.NodeID != "" {
 		agentQuery += ` AND node_id = $2`
@@ -1666,7 +1838,7 @@ func (s *PostgresStore) CreateApproval(
 ) (AgentApproval, error) {
 	var ownerUserID string
 	if err := s.db.QueryRowContext(ctx, `
-		SELECT owner_user_id FROM agents WHERE agent_id = $1 AND node_id = $2
+		SELECT owner_user_id FROM agents WHERE agent_id = $1 AND node_id = $2 AND deleted_at IS NULL
 	`, req.AgentID, node.NodeID).Scan(&ownerUserID); err != nil {
 		return AgentApproval{}, mapSQLError(err)
 	}
@@ -2275,7 +2447,7 @@ func (s *PostgresStore) CreateNodeOutboundMessage(
 ) (MailboxMessage, error) {
 	var ownerUserID string
 	if err := s.db.QueryRowContext(ctx, `
-		SELECT owner_user_id FROM agents WHERE agent_id = $1 AND node_id = $2
+		SELECT owner_user_id FROM agents WHERE agent_id = $1 AND node_id = $2 AND deleted_at IS NULL
 	`, req.AgentID, node.NodeID).Scan(&ownerUserID); err != nil {
 		return MailboxMessage{}, mapSQLError(err)
 	}
@@ -2360,6 +2532,8 @@ func (s *PostgresStore) UpdateNodeOffset(ctx context.Context, nodeID string, off
 
 const sessionSelectSQL = `
 	SELECT agent_sessions.id, COALESCE(agent_sessions.node_id, ''), agent_sessions.agent_id, session_id,
+		COALESCE(conversation_id, ''), COALESCE(profile_id, ''),
+		COALESCE(representative_agent_id, ''), COALESCE(created_by_user_id, ''),
 		COALESCE(session_name, ''), COALESCE(agent_sessions.agent_type, ''),
 		COALESCE(native_id, ''), COALESCE(project_id, ''), COALESCE(preview, ''),
 		COALESCE(workspace_roots, '[]'::jsonb), COALESCE(source, ''), agent_sessions.status,
@@ -2666,7 +2840,7 @@ func upsertSessionTx(
 			node_id = COALESCE(EXCLUDED.node_id, agent_sessions.node_id),
 			session_name = EXCLUDED.session_name,
 			agent_type = EXCLUDED.agent_type,
-			native_id = EXCLUDED.native_id,
+			native_id = COALESCE(NULLIF(EXCLUDED.native_id, ''), agent_sessions.native_id),
 			project_id = EXCLUDED.project_id,
 			preview = EXCLUDED.preview,
 			workspace_roots = EXCLUDED.workspace_roots,

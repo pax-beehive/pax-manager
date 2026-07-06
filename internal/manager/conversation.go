@@ -268,8 +268,11 @@ func (s *Service) createConversationSession(
 		ctx,
 		"session/new",
 		map[string]any{
-			"cwd":        "/tmp",
-			"mcpServers": []any{},
+			"cwd": "/tmp",
+			"mcpServers": agentConversationMCPServers(domain.AgentSession{
+				AgentID:   runner.agentConn.agentID,
+				SessionID: managerSessionID,
+			}),
 		},
 		nil,
 	)
@@ -433,7 +436,6 @@ func conversationRequestPayload(
 }
 
 func (r *conversationRunner) sendRaw(ctx context.Context, payload []byte) error {
-	originalPayload := append([]byte(nil), payload...)
 	frame := newACPFrameContext(r.agentConn, acpUserToAgent, websocket.TextMessage, payload)
 	return r.service.userACPFramePipeline().Handle(
 		ctx,
@@ -442,7 +444,7 @@ func (r *conversationRunner) sendRaw(ctx context.Context, payload []byte) error 
 			if err := r.agentConn.writeToAgent(ctx, frame.messageType, frame.payload); err != nil {
 				return err
 			}
-			return projectACPUserPrompt(ctx, r.agentConn, originalPayload)
+			return projectACPUserPrompt(ctx, r.agentConn, frame.payload)
 		},
 	)
 }

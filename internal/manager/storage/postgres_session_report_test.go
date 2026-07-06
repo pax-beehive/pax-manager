@@ -23,10 +23,11 @@ var (
 )
 
 type scriptedPostgresScript struct {
-	queries   []scriptedRows
-	execCount int
-	committed bool
-	rolled    bool
+	queries     []scriptedRows
+	execResults []int64
+	execCount   int
+	committed   bool
+	rolled      bool
 }
 
 type scriptedRows struct {
@@ -172,7 +173,12 @@ func (c *scriptedPostgresConn) ExecContext(
 	args []driver.NamedValue,
 ) (driver.Result, error) {
 	c.script.execCount++
-	return driver.RowsAffected(1), nil
+	if len(c.script.execResults) == 0 {
+		return driver.RowsAffected(1), nil
+	}
+	affected := c.script.execResults[0]
+	c.script.execResults = c.script.execResults[1:]
+	return driver.RowsAffected(affected), nil
 }
 
 func (c *scriptedPostgresConn) QueryContext(

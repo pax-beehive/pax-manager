@@ -48,8 +48,37 @@ func projectACPTransportMessage(
 	historyGroupID string,
 	payload json.RawMessage,
 ) error {
+	return projectACPTransportMessageWithTextSink(
+		ctx,
+		store,
+		immediateACPHistoryTextSink{store: store},
+		agentID,
+		ownerUserID,
+		nodeID,
+		stream,
+		seq,
+		historyGroupID,
+		payload,
+	)
+}
+
+func projectACPTransportMessageWithTextSink(
+	ctx context.Context,
+	store domain.Store,
+	textSink acpHistoryTextSink,
+	agentID string,
+	ownerUserID string,
+	nodeID string,
+	stream string,
+	seq int64,
+	historyGroupID string,
+	payload json.RawMessage,
+) error {
 	if stream != domain.TransportStreamPaxdToManager {
 		return nil
+	}
+	if textSink == nil {
+		textSink = immediateACPHistoryTextSink{store: store}
 	}
 	var rpc acpHistoryRPC
 	_ = json.Unmarshal(payload, &rpc)
@@ -58,10 +87,16 @@ func projectACPTransportMessage(
 	fields := extractACPHistoryFields(payload, rpc)
 	fields, projection := classifyACPHistoryProjection(rpc, fields)
 	if projection == acpHistoryProjectionNone {
+		if len(rpc.Result) > 0 || len(rpc.Error) > 0 {
+			return textSink.Flush(ctx)
+		}
 		return nil
 	}
 	textProjection := projection == acpHistoryProjectionText
 	if !textProjection {
+		if err := textSink.Flush(ctx); err != nil {
+			return err
+		}
 		historyGroupID = ""
 	}
 	fields.SessionID = canonicalACPHistorySessionID(
@@ -103,18 +138,24 @@ func projectACPTransportMessage(
 	if !textProjection {
 		msg.RawJSON = append(json.RawMessage(nil), payload...)
 	}
+	if textProjection {
+		if err := textSink.EnsureMessage(ctx, &msg); err != nil {
+			return err
+		}
+		return textSink.AppendText(ctx, msg.MessageID, 0, fields.Content)
+	}
 	if err := store.UpsertMessage(ctx, &msg); err != nil {
 		return err
 	}
-	if textProjection {
-		return store.AppendMessagePartText(ctx, msg.MessageID, 0, fields.Content, nil)
-	}
-	return store.UpsertMessagePart(ctx, &domain.MessagePart{
+	if err := store.UpsertMessagePart(ctx, &domain.MessagePart{
 		MessageID:   msg.MessageID,
 		PartIndex:   0,
 		PartType:    domain.MessagePartRawJSON,
 		PayloadJSON: append(json.RawMessage(nil), payload...),
-	})
+	}); err != nil {
+		return err
+	}
+	return projectACPPaxInvocationPendingDisplay(ctx, store, msg)
 }
 
 func projectACPUserPrompt(
@@ -147,6 +188,7 @@ func projectACPUserPrompt(
 	if sessionID == "" || content == "" {
 		return nil
 	}
+	paxMeta, hasPaxMeta := paxInvocationPromptMetadataFromRaw(rpc.Params)
 	logicalKey := fmt.Sprintf(
 		"acp:%s:%s:%s:%s:user_prompt",
 		agent.agentID,
@@ -164,20 +206,218 @@ func projectACPUserPrompt(
 		Direction:   domain.MessageDirectionUserToAgent,
 		Role:        "user",
 		Status:      "sent",
-		MessageType: "user_message",
+		MessageType: domain.MessageTypeUser,
 		LogicalKey:  logicalKey,
 		RawJSON:     append(json.RawMessage(nil), payload...),
+	}
+	if hasPaxMeta {
+		msg.MessageType = domain.MessageTypePaxUser
 	}
 	if err := agent.store.UpsertMessage(ctx, &msg); err != nil {
 		return err
 	}
-	return agent.store.UpsertMessagePart(ctx, &domain.MessagePart{
+	if err := agent.store.UpsertMessagePart(ctx, &domain.MessagePart{
 		MessageID:   msg.MessageID,
 		PartIndex:   0,
 		PartType:    domain.MessagePartText,
 		Text:        content,
 		PayloadJSON: append(json.RawMessage(nil), payload...),
+	}); err != nil {
+		return err
+	}
+	if hasPaxMeta {
+		return projectACPPaxInvocationDisplay(ctx, agent, msg, paxMeta)
+	}
+	return nil
+}
+
+func projectACPPaxInvocationDisplay(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+	parent domain.Message,
+	meta paxInvocationPromptMetadata,
+) error {
+	logicalKey := "acp:" + agent.agentID + ":" + domain.TransportStreamManagerToPaxd + ":" +
+		parent.SessionID + ":" + meta.InvocationID + ":" + meta.Phase + ":" + meta.Side + ":display"
+	msg := domain.Message{
+		MessageID:       acpHistoryMessageID(logicalKey),
+		ConversationID:  parent.ConversationID,
+		OwnerUserID:     parent.OwnerUserID,
+		NodeID:          parent.NodeID,
+		AgentID:         parent.AgentID,
+		SessionID:       parent.SessionID,
+		Source:          parent.Source,
+		Direction:       parent.Direction,
+		Role:            parent.Role,
+		Status:          parent.Status,
+		MessageType:     domain.MessageTypePaxInvocation,
+		ParentMessageID: parent.MessageID,
+		LogicalKey:      logicalKey,
+	}
+	msg.RawJSON, _ = paxInvocationDisplayRawForPrompt(parent.MessageID, meta)
+	if err := agent.store.UpsertMessage(ctx, &msg); err != nil {
+		return err
+	}
+	_, text := paxInvocationDisplayRawForPrompt(parent.MessageID, meta)
+	return agent.store.UpsertMessagePart(ctx, &domain.MessagePart{
+		MessageID:   msg.MessageID,
+		PartIndex:   0,
+		PartType:    domain.MessagePartText,
+		Text:        text,
+		PayloadJSON: append(json.RawMessage(nil), msg.RawJSON...),
 	})
+}
+
+func projectACPPaxInvocationPendingDisplay(
+	ctx context.Context,
+	store domain.Store,
+	terminal domain.Message,
+) error {
+	if terminal.MessageType != "tool_call_update" || !acpHistoryTerminalToolCallUpdate(terminal.RawJSON) {
+		return nil
+	}
+	toolCallID := acpHistoryToolCallIDFromRaw(terminal.RawJSON)
+	if toolCallID == "" {
+		return nil
+	}
+	messages, err := store.ListMessages(ctx, terminal.AgentID, terminal.SessionID, 1000)
+	if err != nil {
+		return err
+	}
+	pending, pendingRaw, ok := acpHistoryPendingInvocationForToolCall(messages, toolCallID)
+	if !ok {
+		return nil
+	}
+	replaces := acpHistoryToolCallReplaceMessageIDs(messages, toolCallID, pendingRaw.PromptMessageID, pending.MessageID)
+	if len(replaces) == 0 {
+		return nil
+	}
+	raw, text := paxInvocationDisplayRawForPending(replaces, pendingRaw)
+	logicalKey := "agent_conversation:" + pendingRaw.InvocationID + ":" + pendingRaw.Phase + ":" + pendingRaw.Side + ":display"
+	msg := domain.Message{
+		MessageID:       acpHistoryMessageID(logicalKey),
+		ConversationID:  terminal.ConversationID,
+		OwnerUserID:     terminal.OwnerUserID,
+		NodeID:          terminal.NodeID,
+		AgentID:         terminal.AgentID,
+		SessionID:       terminal.SessionID,
+		Source:          terminal.Source,
+		Direction:       terminal.Direction,
+		Role:            terminal.Role,
+		Status:          terminal.Status,
+		MessageType:     domain.MessageTypePaxInvocation,
+		ParentMessageID: terminal.MessageID,
+		LogicalKey:      logicalKey,
+		RawJSON:         raw,
+	}
+	if pending.ConversationID != "" {
+		msg.ConversationID = pending.ConversationID
+	}
+	if msg.ConversationID == "" {
+		msg.ConversationID = terminal.ConversationID
+	}
+	if err := store.UpsertMessage(ctx, &msg); err != nil {
+		return err
+	}
+	return store.UpsertMessagePart(ctx, &domain.MessagePart{
+		MessageID:   msg.MessageID,
+		PartIndex:   0,
+		PartType:    domain.MessagePartText,
+		Text:        text,
+		PayloadJSON: append(json.RawMessage(nil), raw...),
+	})
+}
+
+func acpHistoryPendingInvocationForToolCall(
+	messages []domain.Message,
+	toolCallID string,
+) (domain.Message, paxInvocationPendingRaw, bool) {
+	for i := len(messages) - 1; i >= 0; i-- {
+		message := messages[i]
+		if message.MessageType != domain.MessageTypePaxInvocationPending {
+			continue
+		}
+		var raw paxInvocationPendingRaw
+		if len(message.RawJSON) == 0 || json.Unmarshal(message.RawJSON, &raw) != nil {
+			continue
+		}
+		if strings.TrimSpace(raw.ToolCallID) != toolCallID || strings.TrimSpace(raw.InvocationID) == "" {
+			continue
+		}
+		if raw.InvocationType == "" {
+			raw.InvocationType = "agent_conversation"
+		}
+		return message, raw, true
+	}
+	return domain.Message{}, paxInvocationPendingRaw{}, false
+}
+
+func acpHistoryToolCallReplaceMessageIDs(
+	messages []domain.Message,
+	toolCallID string,
+	promptMessageID string,
+	pendingMessageID string,
+) []string {
+	replaces := make([]string, 0, 4)
+	for _, message := range messages {
+		if message.MessageType != "tool_call" && message.MessageType != "tool_call_update" {
+			continue
+		}
+		if acpHistoryToolCallIDFromRaw(message.RawJSON) == toolCallID {
+			replaces = appendUniqueString(replaces, message.MessageID)
+		}
+	}
+	replaces = appendUniqueString(replaces, strings.TrimSpace(promptMessageID))
+	return appendUniqueString(replaces, strings.TrimSpace(pendingMessageID))
+}
+
+func acpHistoryTerminalToolCallUpdate(raw json.RawMessage) bool {
+	status := strings.ToLower(acpHistoryToolCallUpdateStatus(raw))
+	return status == "completed" || status == "failed" || status == "canceled" || status == "cancelled"
+}
+
+func acpHistoryToolCallUpdateStatus(raw json.RawMessage) string {
+	var rpc struct {
+		Params struct {
+			Update map[string]any `json:"update"`
+		} `json:"params"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &rpc) != nil || rpc.Params.Update == nil {
+		return ""
+	}
+	return stringMapField(rpc.Params.Update, "status")
+}
+
+func acpHistoryToolCallIDFromRaw(raw json.RawMessage) string {
+	var rpc struct {
+		Params struct {
+			Update map[string]any `json:"update"`
+		} `json:"params"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &rpc) != nil || rpc.Params.Update == nil {
+		return ""
+	}
+	return firstNonEmpty(
+		stringMapField(rpc.Params.Update, "toolCallId"),
+		stringMapField(rpc.Params.Update, "tool_call_id"),
+	)
+}
+
+func stringMapField(values map[string]any, key string) string {
+	value, _ := values[key].(string)
+	return strings.TrimSpace(value)
+}
+
+func appendUniqueString(values []string, value string) []string {
+	if value == "" {
+		return values
+	}
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
 }
 
 func projectACPUserRawFrame(
@@ -186,7 +426,7 @@ func projectACPUserRawFrame(
 	payload []byte,
 	rpc acpHistoryRPC,
 ) error {
-	if len(rpc.Result) == 0 && len(rpc.Error) == 0 {
+	if rpc.Method == "" && len(rpc.Result) == 0 && len(rpc.Error) == 0 {
 		return nil
 	}
 	sessionID := canonicalACPHistorySessionID(
@@ -234,6 +474,16 @@ func projectACPUserRawFrame(
 }
 
 func acpUserRawFrameMessageType(rpc acpHistoryRPC) string {
+	if rpc.Method != "" {
+		switch rpc.Method {
+		case "initialize":
+			return "acp_initialize"
+		case "session/new":
+			return "acp_session_new"
+		default:
+			return "acp_request"
+		}
+	}
 	var result struct {
 		Outcome struct {
 			Outcome  string `json:"outcome"`
