@@ -68,6 +68,8 @@ CREATE INDEX IF NOT EXISTS idx_nodes_owner ON nodes(owner_user_id);
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'paxd';
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS user_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS deleted_by_user_id TEXT REFERENCES users(user_id);
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS owner_user_id TEXT REFERENCES users(user_id);
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(node_id);
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
@@ -80,9 +82,15 @@ ALTER TABLE agents ADD COLUMN IF NOT EXISTS hermes_version TEXT NOT NULL DEFAULT
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS api_endpoint TEXT NOT NULL DEFAULT 'http://localhost:8642';
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS user_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS metadata JSONB;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS deleted_by_user_id TEXT REFERENCES users(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_agents_owner ON agents(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_agents_node ON agents(node_id);
+CREATE INDEX IF NOT EXISTS idx_nodes_owner_active ON nodes(owner_user_id, registered_at)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_agents_node_active ON agents(node_id, registered_at)
+    WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS agent_sessions (
     id BIGSERIAL PRIMARY KEY,

@@ -11,6 +11,8 @@ const (
 
 	routeLegacyListAgents         = "/api/user/agents"
 	routeLegacyGetAgent           = "/api/user/agents/:agentId"
+	routeUserAgents               = "/api/v1/user/:user_id/agents"
+	routeUserAgent                = "/api/v1/user/:user_id/agents/:agent_id"
 	routeLegacyListAgentSessions  = "/api/user/agents/:agentId/sessions"
 	routeLegacyGetAgentSession    = "/api/user/agents/:agentId/sessions/:sessionId"
 	routeLegacyAgentMessages      = "/api/user/agents/:agentId/messages"
@@ -103,6 +105,8 @@ const (
 	routePublishPaxdArtifact     = "/api/v1/admin/paxd/artifacts"
 
 	openAPISessionHistoryPath       = "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history"
+	openAPIUserAgentsPath           = "/api/v1/user/{user_id}/agents"
+	openAPIUserAgentPath            = "/api/v1/user/{user_id}/agents/{agent_id}"
 	openAPIUserACPTunnelPath        = "/api/v1/user/{user_id}/agents/{agent_id}/tunnel"
 	openAPIUserSessionACPTunnelPath = "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel"
 	openAPINodeConversationDeliver  = "/api/v1/node/conversation/deliver"

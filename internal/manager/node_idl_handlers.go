@@ -201,6 +201,19 @@ func UpdateNode(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func DeleteNode(c context.Context, ctx *app.RequestContext) {
+	req := DeleteNodeRequest{
+		UserID: ctx.Param("user_id"),
+		NodeID: ctx.Param("node_id"),
+	}
+	status, data, err := serviceFromContext(ctx).userapi.DeleteNode(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func ListNodeAgents(c context.Context, ctx *app.RequestContext) {
 	status, data, err := serviceFromContext(ctx).userapi.ListNodeAgents(
 		c,
@@ -242,6 +255,20 @@ func UpdateNodeAgent(c context.Context, ctx *app.RequestContext) {
 	req.NodeID = ctx.Param("node_id")
 	req.AgentID = ctx.Param("agent_id")
 	status, data, err := serviceFromContext(ctx).userapi.UpdateNodeAgent(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func DeleteNodeAgent(c context.Context, ctx *app.RequestContext) {
+	req := DeleteAgentRequest{
+		UserID:  ctx.Param("user_id"),
+		NodeID:  ctx.Param("node_id"),
+		AgentID: ctx.Param("agent_id"),
+	}
+	status, data, err := serviceFromContext(ctx).userapi.DeleteNodeAgent(
 		c,
 		requestMetadata(ctx),
 		req,

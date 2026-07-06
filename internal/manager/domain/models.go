@@ -1372,6 +1372,11 @@ type UpdateNodeRequest struct {
 	UserMetadata json.RawMessage `json:"user_metadata"`
 }
 
+type DeleteNodeRequest struct {
+	UserID string `json:"user_id"`
+	NodeID string `json:"node_id"`
+}
+
 type UpdateAgentProfileRequest struct {
 	UserID       string          `json:"user_id"`
 	NodeID       string          `json:"node_id"`
@@ -1380,6 +1385,12 @@ type UpdateAgentProfileRequest struct {
 	Description  string          `json:"description"`
 	Card         json.RawMessage `json:"card"`
 	UserMetadata json.RawMessage `json:"user_metadata"`
+}
+
+type DeleteAgentRequest struct {
+	UserID  string `json:"user_id"`
+	NodeID  string `json:"node_id"`
+	AgentID string `json:"agent_id"`
 }
 
 type CreateSessionRequest struct {

@@ -1538,6 +1538,64 @@ func (_c *MockStore_GetAgent_Call) RunAndReturn(run func(context.Context, domain
 	return _c
 }
 
+// DeleteAgent provides a mock function with given fields: ctx, principal, req
+func (_m *MockStore) DeleteAgent(ctx context.Context, principal domain.UserPrincipal, req domain.DeleteAgentRequest) (domain.Agent, error) {
+	ret := _m.Called(ctx, principal, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteAgent")
+	}
+
+	var r0 domain.Agent
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.DeleteAgentRequest) (domain.Agent, error)); ok {
+		return rf(ctx, principal, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.DeleteAgentRequest) domain.Agent); ok {
+		r0 = rf(ctx, principal, req)
+	} else {
+		r0 = ret.Get(0).(domain.Agent)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.DeleteAgentRequest) error); ok {
+		r1 = rf(ctx, principal, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_DeleteAgent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteAgent'
+type MockStore_DeleteAgent_Call struct {
+	*mock.Call
+}
+
+// DeleteAgent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - req domain.DeleteAgentRequest
+func (_e *MockStore_Expecter) DeleteAgent(ctx interface{}, principal interface{}, req interface{}) *MockStore_DeleteAgent_Call {
+	return &MockStore_DeleteAgent_Call{Call: _e.mock.On("DeleteAgent", ctx, principal, req)}
+}
+
+func (_c *MockStore_DeleteAgent_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, req domain.DeleteAgentRequest)) *MockStore_DeleteAgent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.DeleteAgentRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_DeleteAgent_Call) Return(_a0 domain.Agent, _a1 error) *MockStore_DeleteAgent_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_DeleteAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.DeleteAgentRequest) (domain.Agent, error)) *MockStore_DeleteAgent_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetEnvelope provides a mock function with given fields: ctx, principal, envelopeID
 func (_m *MockStore) GetEnvelope(ctx context.Context, principal domain.UserPrincipal, envelopeID string) (domain.Envelope, error) {
 	ret := _m.Called(ctx, principal, envelopeID)
@@ -1825,6 +1883,64 @@ func (_c *MockStore_GetNode_Call) Return(_a0 domain.Node, _a1 error) *MockStore_
 }
 
 func (_c *MockStore_GetNode_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Node, error)) *MockStore_GetNode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteNode provides a mock function with given fields: ctx, principal, req
+func (_m *MockStore) DeleteNode(ctx context.Context, principal domain.UserPrincipal, req domain.DeleteNodeRequest) (domain.Node, error) {
+	ret := _m.Called(ctx, principal, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteNode")
+	}
+
+	var r0 domain.Node
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.DeleteNodeRequest) (domain.Node, error)); ok {
+		return rf(ctx, principal, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.DeleteNodeRequest) domain.Node); ok {
+		r0 = rf(ctx, principal, req)
+	} else {
+		r0 = ret.Get(0).(domain.Node)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.DeleteNodeRequest) error); ok {
+		r1 = rf(ctx, principal, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_DeleteNode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteNode'
+type MockStore_DeleteNode_Call struct {
+	*mock.Call
+}
+
+// DeleteNode is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - req domain.DeleteNodeRequest
+func (_e *MockStore_Expecter) DeleteNode(ctx interface{}, principal interface{}, req interface{}) *MockStore_DeleteNode_Call {
+	return &MockStore_DeleteNode_Call{Call: _e.mock.On("DeleteNode", ctx, principal, req)}
+}
+
+func (_c *MockStore_DeleteNode_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, req domain.DeleteNodeRequest)) *MockStore_DeleteNode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.DeleteNodeRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_DeleteNode_Call) Return(_a0 domain.Node, _a1 error) *MockStore_DeleteNode_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_DeleteNode_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.DeleteNodeRequest) (domain.Node, error)) *MockStore_DeleteNode_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -4003,6 +4119,64 @@ func (_c *MockStore_UpdateNodeAgent_Call) Return(_a0 domain.Agent, _a1 error) *M
 }
 
 func (_c *MockStore_UpdateNodeAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.UpdateAgentProfileRequest) (domain.Agent, error)) *MockStore_UpdateNodeAgent_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteNodeAgent provides a mock function with given fields: ctx, principal, req
+func (_m *MockStore) DeleteNodeAgent(ctx context.Context, principal domain.UserPrincipal, req domain.DeleteAgentRequest) (domain.Agent, error) {
+	ret := _m.Called(ctx, principal, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteNodeAgent")
+	}
+
+	var r0 domain.Agent
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.DeleteAgentRequest) (domain.Agent, error)); ok {
+		return rf(ctx, principal, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.DeleteAgentRequest) domain.Agent); ok {
+		r0 = rf(ctx, principal, req)
+	} else {
+		r0 = ret.Get(0).(domain.Agent)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.DeleteAgentRequest) error); ok {
+		r1 = rf(ctx, principal, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_DeleteNodeAgent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteNodeAgent'
+type MockStore_DeleteNodeAgent_Call struct {
+	*mock.Call
+}
+
+// DeleteNodeAgent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - req domain.DeleteAgentRequest
+func (_e *MockStore_Expecter) DeleteNodeAgent(ctx interface{}, principal interface{}, req interface{}) *MockStore_DeleteNodeAgent_Call {
+	return &MockStore_DeleteNodeAgent_Call{Call: _e.mock.On("DeleteNodeAgent", ctx, principal, req)}
+}
+
+func (_c *MockStore_DeleteNodeAgent_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, req domain.DeleteAgentRequest)) *MockStore_DeleteNodeAgent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.DeleteAgentRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_DeleteNodeAgent_Call) Return(_a0 domain.Agent, _a1 error) *MockStore_DeleteNodeAgent_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_DeleteNodeAgent_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.DeleteAgentRequest) (domain.Agent, error)) *MockStore_DeleteNodeAgent_Call {
 	_c.Call.Return(run)
 	return _c
 }

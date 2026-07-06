@@ -693,6 +693,51 @@ func TestAgents(t *testing.T) {
 		},
 	)
 
+	t.Run("Given a valid agent delete then it delegates to storage", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		agent := domain.Agent{AgentID: "agent_1", OwnerUserID: "usr_self"}
+		req := domain.DeleteAgentRequest{AgentID: "agent_1"}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().DeleteAgent(ctx, principal, req).Return(agent, nil).Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, data, err := svc.DeleteAgent(ctx, auth.RequestMetadata{}, "agent_1")
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, agent, data)
+	})
+
+	t.Run("Given an empty agent ID when deleting an agent then it returns bad request", func(t *testing.T) {
+		ctx := context.Background()
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().
+			Principal(ctx, auth.RequestMetadata{}).
+			Return(userPrincipal("usr_self", false), nil).
+			Once()
+
+		svc := userapi.NewService(
+			userapimocks.NewMockStore(t),
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		_, _, err := svc.DeleteAgent(ctx, auth.RequestMetadata{}, "")
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+	})
+
 	t.Run(
 		"Given a node-scoped agent request with a different node then it returns not found",
 		func(t *testing.T) {
@@ -1065,6 +1110,49 @@ func TestNodeService(t *testing.T) {
 		require.Equal(t, node, data)
 	})
 
+	t.Run("Given a valid node delete then it delegates to storage", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		req := domain.DeleteNodeRequest{NodeID: "node_1"}
+		node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self", Name: "workstation"}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().DeleteNode(ctx, principal, req).Return(node, nil).Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, data, err := svc.DeleteNode(ctx, auth.RequestMetadata{}, req)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, node, data)
+	})
+
+	t.Run("Given an empty node ID when deleting node then it returns bad request", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+		svc := userapi.NewService(
+			userapimocks.NewMockStore(t),
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		_, _, err := svc.DeleteNode(ctx, auth.RequestMetadata{}, domain.DeleteNodeRequest{})
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+	})
+
 	t.Run(
 		"Given a node agent create without node ID then it returns bad request",
 		func(t *testing.T) {
@@ -1120,6 +1208,51 @@ func TestNodeService(t *testing.T) {
 			require.Equal(t, bootstrap, resp["bootstrap_message"])
 		},
 	)
+
+	t.Run("Given a valid node agent delete then it delegates to storage", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		req := domain.DeleteAgentRequest{NodeID: "node_1", AgentID: "agent_1"}
+		agent := domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().DeleteNodeAgent(ctx, principal, req).Return(agent, nil).Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, data, err := svc.DeleteNodeAgent(ctx, auth.RequestMetadata{}, req)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, agent, data)
+	})
+
+	t.Run("Given a missing node agent delete target then it returns bad request", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+		svc := userapi.NewService(
+			userapimocks.NewMockStore(t),
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		_, _, err := svc.DeleteNodeAgent(ctx, auth.RequestMetadata{}, domain.DeleteAgentRequest{
+			NodeID: "node_1",
+		})
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+	})
 }
 
 func TestMailbox(t *testing.T) {
