@@ -116,6 +116,441 @@ func TestMemorySecretAndArtifactLifecycle(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
+func TestMemoryAgentConversationGivenSameOwnerAgentsWhenStartedThenCreatesBindingsSessionsAndHistory(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{
+			NodeID:    node.NodeID,
+			Name:      "reviewer",
+			AgentType: "codex",
+		},
+	)
+	require.NoError(t, err)
+	seedMemoryRepresentativeAgent(store, "rep_source", "profile_source", sourceAgent.AgentID, owner.UserID, now)
+	seedMemoryRepresentativeAgent(store, "rep_target", "profile_target", targetAgent.AgentID, owner.UserID, now)
+
+	start, err := store.StartAgentConversation(ctx, node, domain.StartAgentConversationRequest{
+		FromRuntimeAgentID:      sourceAgent.AgentID,
+		ToRepresentativeAgentID: "rep_target",
+		Input:                   "Please review this plan.",
+		MaxTurns:                3,
+	})
+	require.NoError(t, err)
+	require.Equal(t, domain.ConversationTypeAgentThread, start.Conversation.ConversationType)
+	require.Equal(t, "rep_source", start.SourceBinding.RepresentativeAgentID)
+	require.Equal(t, "rep_target", start.TargetBinding.RepresentativeAgentID)
+	require.Empty(t, start.Invocation.ParentInvocationID)
+	require.Equal(t, "rep_source", start.Invocation.SourceRepresentativeAgentID)
+	require.Equal(t, sourceAgent.AgentID, start.Invocation.SourceRuntimeAgentID)
+	require.Equal(t, start.SourceSession.SessionID, start.Invocation.SourceSessionID)
+	require.Equal(t, "rep_target", start.Invocation.TargetRepresentativeAgentID)
+	require.Equal(t, targetAgent.AgentID, start.Invocation.TargetRuntimeAgentID)
+	require.Equal(t, start.TargetSession.SessionID, start.Invocation.TargetSessionID)
+	require.Equal(t, 3, start.Invocation.MaxTurns)
+	require.Equal(t, 3, start.Invocation.RemainingTurns)
+	require.Equal(t, start.Conversation.ConversationID, start.SourceSession.ConversationID)
+	require.Equal(t, start.Conversation.ConversationID, start.TargetSession.ConversationID)
+	require.Equal(t, "rep_source", start.SourceSession.RepresentativeAgentID)
+	require.Equal(t, "rep_target", start.TargetSession.RepresentativeAgentID)
+	require.Equal(t, domain.MessageDirectionUserToAgent, start.PromptMessage.Direction)
+	require.Equal(t, domain.MessageTypePaxUser, start.PromptMessage.MessageType)
+
+	messages, err := store.ListConversationMessages(
+		ctx,
+		UserPrincipal{User: owner},
+		start.Conversation.ConversationID,
+		10,
+	)
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "Please review this plan.", messages[0].Parts[0].Text)
+	require.Equal(t, domain.MessageTypePaxUser, messages[0].MessageType)
+	require.Equal(t, domain.MessageTypePaxInvocation, messages[1].MessageType)
+	require.Equal(t, messages[0].MessageID, messages[1].ParentMessageID)
+	require.Contains(t, string(messages[1].RawJSON), messages[0].MessageID)
+	normal := domain.NormalTranscriptMessages(messages)
+	require.Len(t, normal, 1)
+	require.Equal(t, domain.MessageTypePaxInvocation, normal[0].MessageType)
+
+	require.NoError(t, store.CompleteAgentConversationInvocation(ctx, start.Invocation.InvocationID))
+	require.Equal(
+		t,
+		domain.ConversationAgentInvocationStatusCompleted,
+		store.conversationAgentInvocations[start.Invocation.InvocationID].Status,
+	)
+}
+
+func TestMemoryAgentConversationDisplayGivenToolCallThenCreatesPendingInvocation(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, agent := seedMemoryNodeAgent(t, ctx, store, now)
+	conversationID := "conv_tool_group"
+	sessionID := "sess_tool_group"
+	toolCall := Message{
+		MessageID:      "msg_tool_call",
+		ConversationID: conversationID,
+		OwnerUserID:    owner.UserID,
+		NodeID:         node.NodeID,
+		AgentID:        agent.AgentID,
+		SessionID:      sessionID,
+		Source:         domain.MessageSourceACPTunnel,
+		Direction:      domain.MessageDirectionAgentToUser,
+		Role:           "assistant",
+		Status:         "received",
+		MessageType:    "tool_call",
+		RawJSON:        json.RawMessage(`{"method":"session/update","params":{"sessionId":"sess_tool_group","update":{"sessionUpdate":"tool_call","toolCallId":"tool_1"}}}`),
+	}
+	require.NoError(t, store.UpsertMessage(ctx, &toolCall))
+	prompt, err := store.createConversationPromptMessageLocked(
+		conversationID,
+		agent,
+		sessionID,
+		"Ask another agent.",
+		sourceInvocationPromptDisplay(
+			domain.ConversationAgentInvocation{InvocationID: "inv_1"},
+			"rep_source",
+			agent.AgentID,
+			sessionID,
+			"rep_target",
+			"agent_target",
+			"sess_target",
+			"inquiry",
+			"source",
+			"Asked target for input.",
+			"Ask another agent.",
+		),
+		now,
+	)
+	require.NoError(t, err)
+
+	messages, err := store.ListMessages(ctx, agent.AgentID, sessionID, 20)
+	require.NoError(t, err)
+	require.NotContains(t, messageTypes(messages), domain.MessageTypePaxInvocation)
+	pending := requireMessageType(t, messages, domain.MessageTypePaxInvocationPending)
+	require.Equal(t, "msg_tool_call", pending.ParentMessageID)
+	require.Contains(t, string(pending.RawJSON), `"tool_call_id":"tool_1"`)
+	require.Contains(t, string(pending.RawJSON), `"prompt_message_id":"`+prompt.MessageID+`"`)
+	require.Contains(t, string(pending.RawJSON), `"replaces_message_ids":["msg_tool_call","`+prompt.MessageID+`"]`)
+	normal := domain.NormalTranscriptMessages([]domain.MessageWithParts{
+		{Message: messages[0]},
+		{Message: messages[1]},
+		{Message: pending},
+	})
+	require.Len(t, normal, 1)
+	require.Equal(t, domain.MessageTypePaxInvocationPending, normal[0].MessageType)
+	require.Equal(t, pending.MessageID, normal[0].MessageID)
+}
+
+func TestMemoryAgentConversationReplyGivenMultipleSessionsThenUsesSourceSessionInvocation(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{
+			NodeID:    node.NodeID,
+			Name:      "target",
+			AgentType: "codex",
+		},
+	)
+	require.NoError(t, err)
+	seedMemoryRepresentativeAgent(store, "rep_source", "profile_source", sourceAgent.AgentID, owner.UserID, now)
+	seedMemoryRepresentativeAgent(store, "rep_target", "profile_target", targetAgent.AgentID, owner.UserID, now)
+	stale, err := store.createConversationInvocationLocked(
+		"conv_stale",
+		"",
+		"rep_source",
+		sourceAgent.AgentID,
+		"sess_A",
+		"rep_target",
+		targetAgent.AgentID,
+		"sess_C_stale",
+		owner.UserID,
+		1,
+		"",
+		now,
+	)
+	require.NoError(t, err)
+	current, err := store.createConversationInvocationLocked(
+		"conv_current",
+		"",
+		"rep_source",
+		sourceAgent.AgentID,
+		"sess_B",
+		"rep_target",
+		targetAgent.AgentID,
+		"sess_C",
+		owner.UserID,
+		1,
+		"",
+		now,
+	)
+	require.NoError(t, err)
+
+	delivery, err := store.DeliverAgentConversation(ctx, node, domain.DeliverConversationRequest{
+		Source: domain.ConversationDeliverySource{
+			AgentID:               targetAgent.AgentID,
+			RepresentativeAgentID: "rep_target",
+			SessionID:             "sess_C",
+		},
+		Target:      domain.ConversationDeliveryTarget{Kind: domain.ConversationDeliveryTargetActiveInvocation},
+		Instruction: "reply from C",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, current.InvocationID, delivery.Invocation.InvocationID)
+	require.NotEqual(t, stale.InvocationID, delivery.Invocation.InvocationID)
+	require.Equal(t, "sess_C", delivery.SourceSession.SessionID)
+	require.Equal(t, "sess_B", delivery.TargetSession.SessionID)
+}
+
+func TestMemoryAgentConversationReplyGivenMismatchedSourceSessionThenDoesNotFallback(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{
+			NodeID:    node.NodeID,
+			Name:      "target",
+			AgentType: "codex",
+		},
+	)
+	require.NoError(t, err)
+	seedMemoryRepresentativeAgent(store, "rep_source", "profile_source", sourceAgent.AgentID, owner.UserID, now)
+	seedMemoryRepresentativeAgent(store, "rep_target", "profile_target", targetAgent.AgentID, owner.UserID, now)
+	_, err = store.createConversationInvocationLocked(
+		"conv_stale",
+		"",
+		"rep_source",
+		sourceAgent.AgentID,
+		"sess_A",
+		"rep_target",
+		targetAgent.AgentID,
+		"sess_C_stale",
+		owner.UserID,
+		1,
+		"",
+		now,
+	)
+	require.NoError(t, err)
+
+	_, err = store.DeliverAgentConversation(ctx, node, domain.DeliverConversationRequest{
+		Source: domain.ConversationDeliverySource{
+			AgentID:               targetAgent.AgentID,
+			RepresentativeAgentID: "rep_target",
+			SessionID:             "sess_unknown",
+		},
+		Target:      domain.ConversationDeliveryTarget{Kind: domain.ConversationDeliveryTargetActiveInvocation},
+		Instruction: "must not go to A",
+	})
+
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestMemoryRepresentativeAgentGivenOwnedRuntimeAgentWhenUpsertedThenItCanBeListed(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, _, agent := seedMemoryNodeAgent(t, ctx, store, now)
+	principal := UserPrincipal{User: owner}
+
+	rep, profile, err := store.UpsertRepresentativeAgent(
+		ctx,
+		principal,
+		domain.UpsertRepresentativeAgentRequest{
+			RuntimeAgentID: agent.AgentID,
+			DisplayName:    "Primary reviewer",
+			Description:    "Reviews inquiries from other agents.",
+		},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, agent.AgentID, rep.RuntimeAgentID)
+	require.Equal(t, owner.UserID, rep.RepresentsID)
+	require.Equal(t, "Primary reviewer", profile.DisplayName)
+	require.Equal(t, profile.ProfileID, rep.ProfileID)
+
+	listed, err := store.ListRepresentativeAgents(ctx, principal, agent.AgentID)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	require.Equal(t, rep.RepresentativeAgentID, listed[0].RepresentativeAgentID)
+}
+
+func TestMemoryAgentConversationGivenUserOwnedSourceWhenStartedForUserThenCreatesHistory(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{
+			NodeID:    node.NodeID,
+			Name:      "target",
+			AgentType: "codex",
+		},
+	)
+	require.NoError(t, err)
+	principal := UserPrincipal{User: owner}
+	sourceRep, _, err := store.UpsertRepresentativeAgent(ctx, principal, domain.UpsertRepresentativeAgentRequest{
+		RuntimeAgentID: sourceAgent.AgentID,
+		DisplayName:    "Source",
+	})
+	require.NoError(t, err)
+	targetRep, _, err := store.UpsertRepresentativeAgent(ctx, principal, domain.UpsertRepresentativeAgentRequest{
+		RuntimeAgentID: targetAgent.AgentID,
+		DisplayName:    "Target",
+	})
+	require.NoError(t, err)
+
+	start, err := store.StartAgentConversationForUser(ctx, principal, domain.StartAgentConversationRequest{
+		FromRuntimeAgentID:        sourceAgent.AgentID,
+		FromRepresentativeAgentID: sourceRep.RepresentativeAgentID,
+		ToRepresentativeAgentID:   targetRep.RepresentativeAgentID,
+		Input:                     "Can you answer this inquiry?",
+		MaxTurns:                  2,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, sourceRep.RepresentativeAgentID, start.SourceRepresentative.RepresentativeAgentID)
+	require.Equal(t, targetRep.RepresentativeAgentID, start.TargetRepresentative.RepresentativeAgentID)
+	require.Equal(t, 2, start.Invocation.MaxTurns)
+	messages, err := store.ListConversationMessages(ctx, principal, start.Conversation.ConversationID, 10)
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, "Can you answer this inquiry?", messages[0].Parts[0].Text)
+	normal := domain.NormalTranscriptMessages(messages)
+	require.Len(t, normal, 1)
+	require.Equal(t, domain.MessageTypePaxInvocation, normal[0].MessageType)
+}
+
+func TestMemoryAgentConversationGivenSharedTeamUsersWhenStartedThenBothUsersCanReadHistory(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetOwner, err := store.EnsureUser(ctx, "target@example.com", "Target", "user")
+	require.NoError(t, err)
+	targetNode, err := store.RegisterNode(ctx, targetOwner, RegisterNodeRequest{
+		Name:     "Target Mac",
+		Hostname: "target",
+		OS:       "darwin",
+	}, "target_node_hash")
+	require.NoError(t, err)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: targetOwner},
+		CreateAgentRequest{NodeID: targetNode.NodeID, Name: "target", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+	seedTeam(t, ctx, store, "team_shared", owner, map[string]User{
+		domain.TeamRoleMember: targetOwner,
+	}, now)
+	seedMemoryRepresentativeAgent(store, "rep_source", "profile_source", sourceAgent.AgentID, owner.UserID, now)
+	seedMemoryRepresentativeAgent(store, "rep_target", "profile_target", targetAgent.AgentID, targetOwner.UserID, now)
+
+	start, err := store.StartAgentConversation(ctx, node, domain.StartAgentConversationRequest{
+		FromRuntimeAgentID:      sourceAgent.AgentID,
+		ToRepresentativeAgentID: "rep_target",
+		Input:                   "Can you inspect this?",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, start.Invocation.MaxTurns)
+	require.Equal(t, domain.ConversationMemberRoleMember, store.conversationMembers[start.Conversation.ConversationID+":"+targetOwner.UserID].Role)
+	targetMessages, err := store.ListConversationMessages(
+		ctx,
+		UserPrincipal{User: targetOwner},
+		start.Conversation.ConversationID,
+		10,
+	)
+	require.NoError(t, err)
+	require.Len(t, targetMessages, 2)
+	require.Len(t, domain.NormalTranscriptMessages(targetMessages), 1)
+}
+
+func TestMemoryAgentConversationGivenUnrelatedUsersWhenStartedThenReturnsUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetOwner, err := store.EnsureUser(ctx, "target@example.com", "Target", "user")
+	require.NoError(t, err)
+	targetNode, err := store.RegisterNode(ctx, targetOwner, RegisterNodeRequest{
+		Name:     "Target Mac",
+		Hostname: "target",
+		OS:       "darwin",
+	}, "target_node_hash")
+	require.NoError(t, err)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: targetOwner},
+		CreateAgentRequest{NodeID: targetNode.NodeID, Name: "target", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+	seedMemoryRepresentativeAgent(store, "rep_source", "profile_source", sourceAgent.AgentID, owner.UserID, now)
+	seedMemoryRepresentativeAgent(store, "rep_target", "profile_target", targetAgent.AgentID, targetOwner.UserID, now)
+
+	_, err = store.StartAgentConversation(ctx, node, domain.StartAgentConversationRequest{
+		FromRuntimeAgentID:      sourceAgent.AgentID,
+		ToRepresentativeAgentID: "rep_target",
+		Input:                   "Can you inspect this?",
+	})
+
+	require.ErrorIs(t, err, ErrUnauthorized)
+}
+
+func TestMemoryAgentConversationGivenNonMemberWhenListingHistoryThenReturnsNotFound(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	outsider, err := store.EnsureUser(ctx, "outsider@example.com", "Outsider", "user")
+	require.NoError(t, err)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{NodeID: node.NodeID, Name: "target", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+	seedMemoryRepresentativeAgent(store, "rep_source", "profile_source", sourceAgent.AgentID, owner.UserID, now)
+	seedMemoryRepresentativeAgent(store, "rep_target", "profile_target", targetAgent.AgentID, owner.UserID, now)
+	start, err := store.StartAgentConversation(ctx, node, domain.StartAgentConversationRequest{
+		FromRuntimeAgentID:      sourceAgent.AgentID,
+		ToRepresentativeAgentID: "rep_target",
+		Input:                   "Keep this private.",
+	})
+	require.NoError(t, err)
+
+	_, err = store.ListConversationMessages(
+		ctx,
+		UserPrincipal{User: outsider},
+		start.Conversation.ConversationID,
+		10,
+	)
+
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestMemoryAgentConversationGivenMissingInvocationWhenCompletingThenReturnsNotFound(t *testing.T) {
+	store := NewMemoryStore(func() time.Time { return time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC) })
+
+	err := store.CompleteAgentConversationInvocation(context.Background(), "missing_invocation")
+
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
 func TestMemoryNodeRegistrationLifecycle(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
@@ -469,6 +904,34 @@ func TestMemoryNodeAgentMailboxAndApprovalLifecycle(t *testing.T) {
 	require.True(t, errors.Is(err, ErrNotFound))
 }
 
+func TestMemoryCreateNodeAgentSessionGivenExistingNativeWhenUpsertOmitsNativeThenPreservesNative(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 4, 9, 30, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, agent := seedMemoryNodeAgent(t, ctx, store, now)
+	principal := UserPrincipal{User: owner}
+
+	session, err := store.CreateNodeAgentSession(ctx, principal, CreateSessionRequest{
+		NodeID:    node.NodeID,
+		AgentID:   agent.AgentID,
+		SessionID: "sess_manager",
+		NativeID:  "native_session",
+		Source:    domain.MessageSourceACPTunnel,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "native_session", session.NativeID)
+
+	now = now.Add(time.Minute)
+	session, err = store.CreateNodeAgentSession(ctx, principal, CreateSessionRequest{
+		NodeID:    node.NodeID,
+		AgentID:   agent.AgentID,
+		SessionID: "sess_manager",
+		Source:    domain.MessageSourceACPTunnel,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "native_session", session.NativeID)
+}
+
 func TestMemoryAgentStatusAndMailboxEdgeCases(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
@@ -559,4 +1022,43 @@ func seedMemoryNodeAgent(
 	require.NoError(t, err)
 	require.NotEmpty(t, bootstrap.MessageID)
 	return owner, node, agent
+}
+
+func seedMemoryRepresentativeAgent(
+	store *MemoryStore,
+	representativeAgentID string,
+	profileID string,
+	runtimeAgentID string,
+	representsID string,
+	now time.Time,
+) {
+	store.representativeAgents[representativeAgentID] = domain.RepresentativeAgent{
+		RepresentativeAgentID: representativeAgentID,
+		ProfileID:             profileID,
+		RuntimeAgentID:        runtimeAgentID,
+		RepresentsType:        "user",
+		RepresentsID:          representsID,
+		Status:                domain.ConversationStatusActive,
+		CreatedAt:             now,
+		UpdatedAt:             now,
+	}
+}
+
+func requireMessageType(t *testing.T, messages []Message, messageType string) Message {
+	t.Helper()
+	for _, message := range messages {
+		if message.MessageType == messageType {
+			return message
+		}
+	}
+	require.Failf(t, "missing message type", "message type %q not found in %+v", messageType, messages)
+	return Message{}
+}
+
+func messageTypes(messages []Message) []string {
+	types := make([]string, 0, len(messages))
+	for _, message := range messages {
+		types = append(types, message.MessageType)
+	}
+	return types
 }

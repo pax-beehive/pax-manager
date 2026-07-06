@@ -69,32 +69,287 @@ type Node struct {
 }
 
 type AgentSession struct {
-	ID             int64                `json:"id"`
-	NodeID         string               `json:"node_id,omitempty"`
-	AgentID        string               `json:"agent_id"`
-	SessionID      string               `json:"session_id"`
-	SessionName    string               `json:"name,omitempty"`
-	AgentType      string               `json:"agent_type,omitempty"`
-	NativeID       string               `json:"-"`
-	ProjectID      string               `json:"project_id,omitempty"`
-	Preview        string               `json:"preview,omitempty"`
-	WorkspaceRoots []string             `json:"workspace_roots,omitempty"`
-	Source         string               `json:"source,omitempty"`
-	Status         string               `json:"status"`
-	CurrentTask    string               `json:"current_task,omitempty"`
-	LastMessageAt  *time.Time           `json:"last_message_at,omitempty"`
-	MessageCount   int                  `json:"message_count"`
-	TokenInput     int64                `json:"token_input"`
-	TokenOutput    int64                `json:"token_output"`
-	TokenTotal     int64                `json:"token_total"`
-	TokenUsage     TokenUsage           `json:"token_usage"`
-	Model          string               `json:"model,omitempty"`
-	RunID          string               `json:"run_id,omitempty"`
-	RunStatus      string               `json:"run_status,omitempty"`
-	CreatedAt      time.Time            `json:"created_at"`
-	UpdatedAt      time.Time            `json:"updated_at"`
-	Metadata       json.RawMessage      `json:"metadata,omitempty"`
-	RuntimeState   *SessionRuntimeState `json:"runtime_state,omitempty"`
+	ID                    int64                `json:"id"`
+	NodeID                string               `json:"node_id,omitempty"`
+	AgentID               string               `json:"agent_id"`
+	SessionID             string               `json:"session_id"`
+	ConversationID        string               `json:"conversation_id,omitempty"`
+	ProfileID             string               `json:"profile_id,omitempty"`
+	RepresentativeAgentID string               `json:"representative_agent_id,omitempty"`
+	CreatedByUserID       string               `json:"created_by_user_id,omitempty"`
+	SessionName           string               `json:"name,omitempty"`
+	AgentType             string               `json:"agent_type,omitempty"`
+	NativeID              string               `json:"-"`
+	ProjectID             string               `json:"project_id,omitempty"`
+	Preview               string               `json:"preview,omitempty"`
+	WorkspaceRoots        []string             `json:"workspace_roots,omitempty"`
+	Source                string               `json:"source,omitempty"`
+	Status                string               `json:"status"`
+	CurrentTask           string               `json:"current_task,omitempty"`
+	LastMessageAt         *time.Time           `json:"last_message_at,omitempty"`
+	MessageCount          int                  `json:"message_count"`
+	TokenInput            int64                `json:"token_input"`
+	TokenOutput           int64                `json:"token_output"`
+	TokenTotal            int64                `json:"token_total"`
+	TokenUsage            TokenUsage           `json:"token_usage"`
+	Model                 string               `json:"model,omitempty"`
+	RunID                 string               `json:"run_id,omitempty"`
+	RunStatus             string               `json:"run_status,omitempty"`
+	CreatedAt             time.Time            `json:"created_at"`
+	UpdatedAt             time.Time            `json:"updated_at"`
+	Metadata              json.RawMessage      `json:"metadata,omitempty"`
+	RuntimeState          *SessionRuntimeState `json:"runtime_state,omitempty"`
+}
+
+const (
+	ConversationTypeDirect           = "direct"
+	ConversationTypeGroup            = "group"
+	ConversationTypeAgentThread      = "agent_thread"
+	ConversationTypeEscalationThread = "escalation_thread"
+
+	ConversationStatusActive   = "active"
+	ConversationStatusArchived = "archived"
+
+	ConversationHistoryFullHistory   = "full_history"
+	ConversationHistoryFromJoin      = "from_join"
+	ConversationHistoryNone          = "none"
+	ConversationHistoryAdminApproved = "admin_approved"
+
+	ConversationMemberRoleOwner  = "owner"
+	ConversationMemberRoleAdmin  = "admin"
+	ConversationMemberRoleMember = "member"
+
+	ConversationAgentRelationshipAssistant      = "assistant"
+	ConversationAgentRelationshipRepresentative = "representative"
+	ConversationAgentRelationshipReviewer       = "reviewer"
+	ConversationAgentRelationshipParticipant    = "participant"
+
+	ConversationAgentAccessThreadHistory       = "thread_history"
+	ConversationAgentAccessFromBinding         = "from_binding"
+	ConversationAgentAccessSelectedMessages    = "selected_messages"
+	ConversationAgentAccessCurrentTurn         = "current_turn"
+	ConversationAgentAccessSinceInvited        = "since_invited"
+	ConversationAgentAccessFullHistoryApproved = "full_history_approved"
+
+	ConversationAgentBindingStatusActive   = "active"
+	ConversationAgentBindingStatusArchived = "archived"
+
+	ConversationAgentInvocationStatusActive    = "active"
+	ConversationAgentInvocationStatusCompleted = "completed"
+	ConversationAgentInvocationStatusRevoked   = "revoked"
+	ConversationAgentInvocationStatusCancelled = "cancelled"
+	ConversationAgentInvocationStatusExpired   = "expired"
+)
+
+type AgentProfile struct {
+	ProfileID       string          `json:"profile_id"`
+	OwnerType       string          `json:"owner_type"`
+	OwnerID         string          `json:"owner_id"`
+	DisplayName     string          `json:"display_name"`
+	Description     string          `json:"description,omitempty"`
+	Card            json.RawMessage `json:"card,omitempty"`
+	InstructionsMD  string          `json:"instructions_md,omitempty"`
+	DefaultModel    string          `json:"default_model,omitempty"`
+	ToolPolicy      json.RawMessage `json:"tool_policy,omitempty"`
+	Metadata        json.RawMessage `json:"metadata,omitempty"`
+	Status          string          `json:"status"`
+	CreatedByUserID string          `json:"created_by_user_id,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	ArchivedAt      *time.Time      `json:"archived_at,omitempty"`
+}
+
+type RepresentativeAgent struct {
+	RepresentativeAgentID string     `json:"representative_agent_id"`
+	ProfileID             string     `json:"profile_id"`
+	RuntimeAgentID        string     `json:"runtime_agent_id"`
+	RepresentsType        string     `json:"represents_type"`
+	RepresentsID          string     `json:"represents_id"`
+	ApprovalPolicyID      string     `json:"approval_policy_id,omitempty"`
+	Status                string     `json:"status"`
+	CreatedByUserID       string     `json:"created_by_user_id,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+	ArchivedAt            *time.Time `json:"archived_at,omitempty"`
+}
+
+type AgentOwnerInfoRequest struct {
+	AgentID               string
+	RepresentativeAgentID string
+}
+
+type AgentOwnerInfo struct {
+	Agent               Agent                `json:"agent"`
+	RepresentativeAgent *RepresentativeAgent `json:"representative_agent,omitempty"`
+	Profile             *AgentProfile        `json:"profile,omitempty"`
+	Owner               AgentOwnerSubject    `json:"owner"`
+}
+
+type AgentOwnerSubject struct {
+	Kind string       `json:"kind"`
+	User *User        `json:"user,omitempty"`
+	Team *TeamSummary `json:"team,omitempty"`
+}
+
+type UpsertRepresentativeAgentRequest struct {
+	RuntimeAgentID   string          `json:"runtime_agent_id"`
+	ProfileID        string          `json:"profile_id,omitempty"`
+	DisplayName      string          `json:"display_name,omitempty"`
+	Description      string          `json:"description,omitempty"`
+	RepresentsType   string          `json:"represents_type,omitempty"`
+	RepresentsID     string          `json:"represents_id,omitempty"`
+	ApprovalPolicyID string          `json:"approval_policy_id,omitempty"`
+	Card             json.RawMessage `json:"card,omitempty"`
+	Metadata         json.RawMessage `json:"metadata,omitempty"`
+}
+
+type Conversation struct {
+	ConversationID   string     `json:"conversation_id"`
+	ConversationType string     `json:"conversation_type"`
+	BoundaryType     string     `json:"boundary_type"`
+	BoundaryID       string     `json:"boundary_id,omitempty"`
+	HistoryPolicy    string     `json:"history_policy"`
+	Status           string     `json:"status"`
+	CreatedAt        time.Time  `json:"created_at"`
+	ArchivedAt       *time.Time `json:"archived_at,omitempty"`
+}
+
+type ConversationMember struct {
+	ConversationID string     `json:"conversation_id"`
+	UserID         string     `json:"user_id"`
+	Role           string     `json:"role"`
+	JoinedAt       time.Time  `json:"joined_at"`
+	LeftAt         *time.Time `json:"left_at,omitempty"`
+}
+
+type ConversationAgentBinding struct {
+	BindingID             string     `json:"binding_id"`
+	ConversationID        string     `json:"conversation_id"`
+	RepresentativeAgentID string     `json:"representative_agent_id"`
+	RelationshipType      string     `json:"relationship_type"`
+	AddedByUserID         string     `json:"added_by_user_id"`
+	AccessMode            string     `json:"access_mode"`
+	Status                string     `json:"status"`
+	CreatedAt             time.Time  `json:"created_at"`
+	ArchivedAt            *time.Time `json:"archived_at,omitempty"`
+}
+
+type ConversationAgentInvocation struct {
+	InvocationID                string          `json:"invocation_id"`
+	ConversationID              string          `json:"conversation_id"`
+	ParentInvocationID          string          `json:"parent_invocation_id,omitempty"`
+	SourceRepresentativeAgentID string          `json:"source_representative_agent_id"`
+	SourceRuntimeAgentID        string          `json:"source_runtime_agent_id"`
+	SourceSessionID             string          `json:"source_session_id"`
+	TargetRepresentativeAgentID string          `json:"target_representative_agent_id"`
+	TargetRuntimeAgentID        string          `json:"target_runtime_agent_id"`
+	TargetSessionID             string          `json:"target_session_id"`
+	ReceiptTokenHash            string          `json:"-"`
+	RequestedByUserID           string          `json:"requested_by_user_id"`
+	AccessMode                  string          `json:"access_mode"`
+	SelectedMessageIDsJSON      json.RawMessage `json:"selected_message_ids,omitempty"`
+	MaxTurns                    int             `json:"max_turns,omitempty"`
+	RemainingTurns              int             `json:"remaining_turns,omitempty"`
+	Status                      string          `json:"status"`
+	CreatedAt                   time.Time       `json:"created_at"`
+	ExpiresAt                   *time.Time      `json:"expires_at,omitempty"`
+	RevokedAt                   *time.Time      `json:"revoked_at,omitempty"`
+}
+
+type StartAgentConversationRequest struct {
+	FromRuntimeAgentID        string `json:"-"`
+	FromRepresentativeAgentID string `json:"from_representative_agent_id,omitempty"`
+	ToRepresentativeAgentID   string `json:"to_representative_agent_id"`
+	ConversationID            string `json:"conversation_id,omitempty"`
+	Input                     string `json:"input"`
+	MaxTurns                  int    `json:"max_turns,omitempty"`
+}
+
+type AgentConversationStart struct {
+	Conversation         Conversation                `json:"conversation"`
+	SourceBinding        ConversationAgentBinding    `json:"source_binding"`
+	TargetBinding        ConversationAgentBinding    `json:"target_binding"`
+	Invocation           ConversationAgentInvocation `json:"invocation"`
+	SourceRepresentative RepresentativeAgent         `json:"source_representative"`
+	TargetRepresentative RepresentativeAgent         `json:"target_representative"`
+	SourceRuntimeAgent   Agent                       `json:"source_runtime_agent"`
+	TargetRuntimeAgent   Agent                       `json:"target_runtime_agent"`
+	SourceSession        AgentSession                `json:"source_session"`
+	TargetSession        AgentSession                `json:"target_session"`
+	PromptMessage        MessageWithParts            `json:"prompt_message"`
+}
+
+const (
+	ConversationDeliveryTargetRepresentative   = "representative"
+	ConversationDeliveryTargetActiveInvocation = "active_invocation"
+)
+
+type DeliverConversationRequest struct {
+	Source      ConversationDeliverySource         `json:"source,omitempty"`
+	Target      ConversationDeliveryTarget         `json:"target"`
+	Context     ConversationDeliveryContextRequest `json:"context,omitempty"`
+	Instruction string                             `json:"instruction,omitempty"`
+	Reason      string                             `json:"reason,omitempty"`
+}
+
+type ConversationDelivery struct {
+	Conversation     Conversation                 `json:"conversation"`
+	Invocation       ConversationAgentInvocation  `json:"invocation"`
+	ParentInvocation *ConversationAgentInvocation `json:"parent_invocation,omitempty"`
+	SourceSession    AgentSession                 `json:"source_session"`
+	TargetSession    AgentSession                 `json:"target_session"`
+	PromptMessage    MessageWithParts             `json:"prompt_message"`
+	Context          ConversationDeliveryContext  `json:"context"`
+	Instruction      string                       `json:"instruction,omitempty"`
+	Reason           string                       `json:"reason,omitempty"`
+	DeliveryStatus   string                       `json:"delivery_status"`
+	ReceiptToken     string                       `json:"receipt_token,omitempty"`
+}
+
+type ConversationDeliverySource struct {
+	AgentID               string `json:"agent_id,omitempty"`
+	RepresentativeAgentID string `json:"representative_agent_id,omitempty"`
+	SessionID             string `json:"session_id,omitempty"`
+}
+
+type ConversationDeliveryTarget struct {
+	Kind                  string `json:"kind"`
+	RepresentativeAgentID string `json:"representative_agent_id,omitempty"`
+	SessionID             string `json:"session_id,omitempty"`
+	InvocationID          string `json:"invocation_id,omitempty"`
+}
+
+type ConversationDeliveryContextRequest struct {
+	LatestResponse   *bool `json:"latest_response,omitempty"`
+	ToolCalls        *bool `json:"tool_calls,omitempty"`
+	ReasoningSummary *bool `json:"reasoning_summary,omitempty"`
+	Artifacts        *bool `json:"artifacts,omitempty"`
+}
+
+type ConversationDeliveryContext struct {
+	LatestResponse   bool `json:"latest_response"`
+	ToolCalls        bool `json:"tool_calls"`
+	ReasoningSummary bool `json:"reasoning_summary"`
+	Artifacts        bool `json:"artifacts"`
+}
+
+func (r ConversationDeliveryContextRequest) Effective() ConversationDeliveryContext {
+	ctx := ConversationDeliveryContext{
+		LatestResponse: true,
+	}
+	if r.LatestResponse != nil {
+		ctx.LatestResponse = *r.LatestResponse
+	}
+	if r.ToolCalls != nil {
+		ctx.ToolCalls = *r.ToolCalls
+	}
+	if r.ReasoningSummary != nil {
+		ctx.ReasoningSummary = *r.ReasoningSummary
+	}
+	if r.Artifacts != nil {
+		ctx.Artifacts = *r.Artifacts
+	}
+	return ctx
 }
 
 type MailboxMessage struct {
@@ -128,8 +383,14 @@ const (
 	MessageSourceMailbox   = "mailbox"
 	MessageSourceACPTunnel = "acp_tunnel"
 
-	MessageDirectionUserToAgent = "user_to_agent"
-	MessageDirectionAgentToUser = "agent_to_user"
+	MessageDirectionUserToAgent  = "user_to_agent"
+	MessageDirectionAgentToUser  = "agent_to_user"
+	MessageDirectionAgentToAgent = "agent_to_agent"
+
+	MessageTypePaxInvocation        = "pax:invocation"
+	MessageTypePaxInvocationPending = "pax:invocation_pending"
+	MessageTypePaxUser              = "pax:user_message"
+	MessageTypeUser                 = "user_message"
 
 	MessagePartText     = "text"
 	MessagePartRawJSON  = "raw_json"
@@ -141,6 +402,7 @@ const (
 type Message struct {
 	ID              int64           `json:"id"`
 	MessageID       string          `json:"message_id"`
+	ConversationID  string          `json:"conversation_id,omitempty"`
 	OwnerUserID     string          `json:"owner_user_id,omitempty"`
 	NodeID          string          `json:"node_id,omitempty"`
 	AgentID         string          `json:"agent_id"`
@@ -1121,17 +1383,21 @@ type UpdateAgentProfileRequest struct {
 }
 
 type CreateSessionRequest struct {
-	UserID         string          `json:"user_id"`
-	NodeID         string          `json:"node_id"`
-	AgentID        string          `json:"agent_id"`
-	SessionID      string          `json:"session_id"`
-	SessionName    string          `json:"name"`
-	AgentType      string          `json:"agent_type"`
-	NativeID       string          `json:"native_id"`
-	ProjectID      string          `json:"project_id"`
-	WorkspaceRoots []string        `json:"workspace_roots"`
-	Source         string          `json:"source"`
-	Metadata       json.RawMessage `json:"metadata"`
+	UserID                string          `json:"user_id"`
+	NodeID                string          `json:"node_id"`
+	AgentID               string          `json:"agent_id"`
+	SessionID             string          `json:"session_id"`
+	ConversationID        string          `json:"conversation_id"`
+	ProfileID             string          `json:"profile_id"`
+	RepresentativeAgentID string          `json:"representative_agent_id"`
+	CreatedByUserID       string          `json:"created_by_user_id"`
+	SessionName           string          `json:"name"`
+	AgentType             string          `json:"agent_type"`
+	NativeID              string          `json:"native_id"`
+	ProjectID             string          `json:"project_id"`
+	WorkspaceRoots        []string        `json:"workspace_roots"`
+	Source                string          `json:"source"`
+	Metadata              json.RawMessage `json:"metadata"`
 }
 
 type OffsetRequest struct {

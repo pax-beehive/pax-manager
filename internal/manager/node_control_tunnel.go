@@ -71,11 +71,6 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 		if messageType != websocket.TextMessage {
 			continue
 		}
-		logging.Info(
-			ctx,
-			"node control tunnel received frame",
-			slog.Int("bytes", len(payload)),
-		)
 		if err := s.handleNodeControlTunnelFrame(ctx, node, payload); err != nil {
 			logging.Warn(
 				ctx,

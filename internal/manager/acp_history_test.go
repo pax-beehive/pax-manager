@@ -344,6 +344,226 @@ func TestACPHistoryProjectsUserPrompt(t *testing.T) {
 	}
 }
 
+func TestACPHistoryGivenPaxInvocationPromptThenProjectsDisplayReplacement(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	agent := &ACPTunnelAgent{
+		agentID:     "agent-target",
+		ownerUserID: "user-target",
+		nodeID:      "node-target",
+		sessionID:   "sess_target",
+		store:       store,
+	}
+
+	payload := []byte(`{
+		"jsonrpc":"2.0",
+		"id":7,
+		"method":"session/prompt",
+		"params":{
+			"sessionId":"sess_target",
+			"prompt":[{"type":"text","text":"wrapped inquiry"}],
+			"pax_invocation":{
+				"invocation_id":"inv_1",
+				"invocation_type":"agent_conversation",
+				"phase":"inquiry",
+				"side":"target",
+				"sender":{"representative_agent_id":"rep_source","agent_id":"agent_source","session_id":"sess_source"},
+				"receiver":{"representative_agent_id":"rep_target","agent_id":"agent_target","session_id":"sess_target"},
+				"content":{"display_text":"Agent source asked for input.","original_text":"wrapped inquiry"}
+			}
+		}
+	}`)
+
+	err := projectACPUserPrompt(ctx, agent, payload)
+
+	require.NoError(t, err)
+	messages, err := store.ListMessages(ctx, agent.agentID, agent.sessionID, 100)
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	assert.Equal(t, domain.MessageTypePaxUser, messages[0].MessageType)
+	assert.Equal(t, domain.MessageTypePaxInvocation, messages[1].MessageType)
+	assert.Equal(t, messages[0].MessageID, messages[1].ParentMessageID)
+	assert.Contains(t, string(messages[1].RawJSON), `"replaces_message_ids":["`+messages[0].MessageID+`"]`)
+	parts, err := store.ListMessageParts(ctx, messages[1].MessageID)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, "Agent source asked for input.", parts[0].Text)
+}
+
+func TestACPHistoryGivenPendingInvocationWhenTerminalToolUpdateArrivesThenProjectsDisplayReplacement(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	toolCallRaw := json.RawMessage(`{
+		"jsonrpc":"2.0",
+		"method":"session/update",
+		"params":{
+			"sessionId":"sess_source",
+			"update":{"sessionUpdate":"tool_call","toolCallId":"tool_1","title":"pax conversation"}
+		}
+	}`)
+	err := projectACPTransportMessage(
+		ctx,
+		store,
+		"agent_source",
+		"user_source",
+		"node_source",
+		domain.TransportStreamPaxdToManager,
+		1,
+		"",
+		toolCallRaw,
+	)
+	require.NoError(t, err)
+	messages, err := store.ListMessages(ctx, "agent_source", "sess_source", 100)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	toolCallMessageID := messages[0].MessageID
+
+	prompt := domain.Message{
+		MessageID:      "msg_prompt",
+		ConversationID: "conv_1",
+		OwnerUserID:    "user_source",
+		NodeID:         "node_source",
+		AgentID:        "agent_source",
+		SessionID:      "sess_source",
+		Source:         domain.MessageSourceACPTunnel,
+		Direction:      domain.MessageDirectionUserToAgent,
+		Role:           "user",
+		Status:         "sent",
+		MessageType:    domain.MessageTypePaxUser,
+		LogicalKey:     "test:prompt",
+	}
+	require.NoError(t, store.UpsertMessage(ctx, &prompt))
+	pendingRaw, err := json.Marshal(paxInvocationPendingRaw{
+		InvocationID:    "inv_1",
+		InvocationType:  "agent_conversation",
+		Phase:           "inquiry",
+		Side:            "source",
+		ToolCallID:      "tool_1",
+		PromptMessageID: prompt.MessageID,
+		ReplacesMessageID: []string{
+			toolCallMessageID,
+			prompt.MessageID,
+		},
+		Sender: paxInvocationPromptEndpoint{
+			RepresentativeAgentID: "rep_source",
+			AgentID:               "agent_source",
+			SessionID:             "sess_source",
+		},
+		Receiver: paxInvocationPromptEndpoint{
+			RepresentativeAgentID: "rep_target",
+			AgentID:               "agent_target",
+			SessionID:             "sess_target",
+		},
+		Content: paxInvocationPromptContent{
+			DisplayText:  "Asked target for input.",
+			OriginalText: "Ask another agent.",
+		},
+	})
+	require.NoError(t, err)
+	pending := domain.Message{
+		MessageID:       "msg_pending",
+		ConversationID:  "conv_1",
+		OwnerUserID:     "user_source",
+		NodeID:          "node_source",
+		AgentID:         "agent_source",
+		SessionID:       "sess_source",
+		Source:          domain.MessageSourceACPTunnel,
+		Direction:       domain.MessageDirectionUserToAgent,
+		Role:            "user",
+		Status:          "pending",
+		MessageType:     domain.MessageTypePaxInvocationPending,
+		ParentMessageID: toolCallMessageID,
+		LogicalKey:      "agent_conversation:inv_1:inquiry:source:pending",
+		RawJSON:         pendingRaw,
+	}
+	require.NoError(t, store.UpsertMessage(ctx, &pending))
+
+	toolProgressRaw := json.RawMessage(`{
+		"jsonrpc":"2.0",
+		"method":"session/update",
+		"params":{
+			"sessionId":"sess_source",
+			"update":{"sessionUpdate":"tool_call_update","toolCallId":"tool_1","status":"running"}
+		}
+	}`)
+	err = projectACPTransportMessage(
+		ctx,
+		store,
+		"agent_source",
+		"user_source",
+		"node_source",
+		domain.TransportStreamPaxdToManager,
+		2,
+		"",
+		toolProgressRaw,
+	)
+	require.NoError(t, err)
+
+	toolUpdateRaw := json.RawMessage(`{
+		"jsonrpc":"2.0",
+		"method":"session/update",
+		"params":{
+			"sessionId":"sess_source",
+			"update":{"sessionUpdate":"tool_call_update","toolCallId":"tool_1","status":"completed"}
+		}
+	}`)
+	err = projectACPTransportMessage(
+		ctx,
+		store,
+		"agent_source",
+		"user_source",
+		"node_source",
+		domain.TransportStreamPaxdToManager,
+		3,
+		"",
+		toolUpdateRaw,
+	)
+	require.NoError(t, err)
+
+	messages, err = store.ListMessages(ctx, "agent_source", "sess_source", 100)
+	require.NoError(t, err)
+	var toolUpdate domain.Message
+	var toolProgress domain.Message
+	var display domain.Message
+	for _, message := range messages {
+		switch message.MessageType {
+		case "tool_call_update":
+			if acpHistoryTerminalToolCallUpdate(message.RawJSON) {
+				toolUpdate = message
+			} else {
+				toolProgress = message
+			}
+		case domain.MessageTypePaxInvocation:
+			display = message
+		}
+	}
+	require.NotEmpty(t, toolProgress.MessageID)
+	require.NotEmpty(t, toolUpdate.MessageID)
+	require.NotEmpty(t, display.MessageID)
+	assert.Equal(t, toolUpdate.MessageID, display.ParentMessageID)
+	assert.Contains(t, string(display.RawJSON), `"`+toolCallMessageID+`"`)
+	assert.Contains(t, string(display.RawJSON), `"`+toolProgress.MessageID+`"`)
+	assert.Contains(t, string(display.RawJSON), `"`+toolUpdate.MessageID+`"`)
+	assert.Contains(t, string(display.RawJSON), `"msg_prompt"`)
+	assert.Contains(t, string(display.RawJSON), `"msg_pending"`)
+	parts, err := store.ListMessageParts(ctx, display.MessageID)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, "Asked target for input.", parts[0].Text)
+
+	normalInput := make([]domain.MessageWithParts, 0, len(messages))
+	for _, message := range messages {
+		normalInput = append(normalInput, domain.MessageWithParts{Message: message})
+	}
+	normal := domain.NormalTranscriptMessages(normalInput)
+	require.Len(t, normal, 1)
+	assert.Equal(t, domain.MessageTypePaxInvocation, normal[0].MessageType)
+}
+
 func TestACPHistoryGivenPermissionRequestThenProjectsRawFrame(t *testing.T) {
 	ctx := context.Background()
 	store := storage.NewMemoryStore(func() time.Time {
@@ -425,6 +645,70 @@ func TestACPHistoryGivenPermissionResponseThenProjectsRawFrame(t *testing.T) {
 	assert.Empty(t, parts[0].Text)
 	assert.Contains(t, string(parts[0].PayloadJSON), `"id":0`)
 	assert.Contains(t, string(parts[0].PayloadJSON), `"optionId":"allow_once"`)
+}
+
+func TestACPHistoryGivenSessionNewRequestThenProjectsRawFrame(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	agent := &ACPTunnelAgent{
+		agentID:     "agent_1",
+		ownerUserID: "user_1",
+		nodeID:      "node_1",
+		sessionID:   "sess_conversation",
+		store:       store,
+	}
+	payload := []byte(
+		`{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/tmp","mcpServers":[{"name":"pax-conversation","command":"paxd","args":["mcp","conversation","serve"],"env":[{"name":"PAX_AGENT_ID","value":"agent_1"}]}]}}`,
+	)
+
+	err := projectACPUserPrompt(ctx, agent, payload)
+	require.NoError(t, err)
+
+	messages, err := store.ListMessages(ctx, "agent_1", "sess_conversation", 100)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	msg := messages[0]
+	assert.Equal(t, domain.MessageDirectionUserToAgent, msg.Direction)
+	assert.Equal(t, "user", msg.Role)
+	assert.Equal(t, "acp_session_new", msg.MessageType)
+	assert.Equal(t, string(payload), string(msg.RawJSON))
+
+	parts, err := store.ListMessageParts(ctx, msg.MessageID)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, domain.MessagePartRawJSON, parts[0].PartType)
+	assert.Empty(t, parts[0].Text)
+	assert.Contains(t, string(parts[0].PayloadJSON), `"method":"session/new"`)
+	assert.Contains(t, string(parts[0].PayloadJSON), `"mcpServers"`)
+	assert.Contains(t, string(parts[0].PayloadJSON), `"pax-conversation"`)
+}
+
+func TestACPHistoryGivenInitializeRequestThenProjectsRawFrame(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	agent := &ACPTunnelAgent{
+		agentID:     "agent_1",
+		ownerUserID: "user_1",
+		nodeID:      "node_1",
+		sessionID:   "sess_conversation",
+		store:       store,
+	}
+	payload := []byte(
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}`,
+	)
+
+	err := projectACPUserPrompt(ctx, agent, payload)
+	require.NoError(t, err)
+
+	messages, err := store.ListMessages(ctx, "agent_1", "sess_conversation", 100)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	assert.Equal(t, "acp_initialize", messages[0].MessageType)
+	assert.Equal(t, string(payload), string(messages[0].RawJSON))
 }
 
 func TestACPHistoryKeepsDistinctUserPromptIDs(t *testing.T) {

@@ -246,6 +246,7 @@ func TestScanMessageAndMessagePartRows(t *testing.T) {
 	msg, err := scanMessage(fakeRow{
 		int64(7),
 		"msg_1",
+		"conv_1",
 		"usr_owner",
 		"node_1",
 		"agent_1",
@@ -267,6 +268,7 @@ func TestScanMessageAndMessagePartRows(t *testing.T) {
 		t.Fatalf("scan message: %v", err)
 	}
 	if msg.ID != 7 ||
+		msg.ConversationID != "conv_1" ||
 		msg.Direction != domain.MessageDirectionAgentToUser ||
 		string(msg.RawJSON) != `{"event":"completed"}` {
 		t.Fatalf("message = %+v", msg)

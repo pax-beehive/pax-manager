@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,6 +77,60 @@ func TestACPTunnelHubClaimAnyWaitRetriesUntilAgentTunnelReconnects(t *testing.T)
 
 	require.NoError(t, err)
 	require.Same(t, agentConn, got)
+}
+
+func TestACPTunnelHubBorrowAnyGivenPairedSessionTunnelThenReturnsWithoutReleasingUserPair(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1", sessionID: "sess-1"}
+	hub.add("agent-1", "sess-1", agentConn)
+	state := agentConn.liveState()
+	state.mu.Lock()
+	state.paired = true
+	state.userWS = &websocket.Conn{}
+	agentConn.paired = true
+	state.mu.Unlock()
+
+	got, release, err := hub.borrowAny("agent-1", "sess-1")
+	require.NoError(t, err)
+	require.Same(t, agentConn, got)
+	release()
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	require.True(t, state.paired)
+	require.True(t, agentConn.paired)
+}
+
+func TestACPTunnelHubBorrowAnyGivenPairedWithoutUserThenReturnsConflict(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1", sessionID: "sess-1"}
+	hub.add("agent-1", "sess-1", agentConn)
+	state := agentConn.liveState()
+	state.mu.Lock()
+	state.paired = true
+	agentConn.paired = true
+	state.mu.Unlock()
+
+	got, release, err := hub.borrowAny("agent-1", "sess-1")
+	defer release()
+
+	require.Error(t, err)
+	require.Nil(t, got)
+}
+
+func TestACPTunnelHubBorrowAnyGivenUnpairedSessionTunnelThenReleaseClearsPair(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1", sessionID: "sess-1"}
+	hub.add("agent-1", "sess-1", agentConn)
+
+	got, release, err := hub.borrowAny("agent-1", "sess-1")
+	require.NoError(t, err)
+	require.Same(t, agentConn, got)
+	require.True(t, agentConn.paired)
+
+	release()
+
+	require.False(t, agentConn.paired)
 }
 
 func TestACPTunnelHubClaimAnyWaitStopsWhenContextIsCanceled(t *testing.T) {

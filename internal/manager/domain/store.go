@@ -194,6 +194,43 @@ type Store interface {
 	) ([]AgentSession, error)
 	GetSession(ctx context.Context, principal UserPrincipal, sessionID string) (AgentSession, error)
 	UpdateSessionRuntimeState(ctx context.Context, state SessionRuntimeState) error
+	ListRepresentativeAgents(
+		ctx context.Context,
+		principal UserPrincipal,
+		runtimeAgentID string,
+	) ([]RepresentativeAgent, error)
+	GetAgentOwnerInfo(
+		ctx context.Context,
+		principal UserPrincipal,
+		req AgentOwnerInfoRequest,
+	) (AgentOwnerInfo, error)
+	UpsertRepresentativeAgent(
+		ctx context.Context,
+		principal UserPrincipal,
+		req UpsertRepresentativeAgentRequest,
+	) (RepresentativeAgent, AgentProfile, error)
+	StartAgentConversation(
+		ctx context.Context,
+		node Node,
+		req StartAgentConversationRequest,
+	) (AgentConversationStart, error)
+	StartAgentConversationForUser(
+		ctx context.Context,
+		principal UserPrincipal,
+		req StartAgentConversationRequest,
+	) (AgentConversationStart, error)
+	DeliverAgentConversation(
+		ctx context.Context,
+		node Node,
+		req DeliverConversationRequest,
+	) (ConversationDelivery, error)
+	CompleteAgentConversationInvocation(ctx context.Context, invocationID string) error
+	ListConversationMessages(
+		ctx context.Context,
+		principal UserPrincipal,
+		conversationID string,
+		limit int,
+	) ([]MessageWithParts, error)
 	ListSessionMessages(
 		ctx context.Context,
 		principal UserPrincipal,
