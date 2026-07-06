@@ -991,6 +991,86 @@ func TestMemoryAgentStatusAndMailboxEdgeCases(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
+func TestMemoryFleetDeletionLifecycle(t *testing.T) {
+	t.Run("Given a registered agent when deleting it then normal fleet reads hide it", func(t *testing.T) {
+		ctx := context.Background()
+		now := time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC)
+		store := NewMemoryStore(func() time.Time { return now })
+		owner, err := store.EnsureUser(ctx, "owner@example.com", "Owner", "user")
+		require.NoError(t, err)
+		agent, err := store.RegisterAgent(ctx, owner, RegisterAgentRequest{
+			Name:     "legacy codex",
+			Hostname: "studio",
+			OS:       "darwin",
+		}, "agent_hash")
+		require.NoError(t, err)
+		principal := UserPrincipal{User: owner}
+
+		authenticated, err := store.AuthenticateAgent(ctx, "agent_hash")
+		require.NoError(t, err)
+		require.Equal(t, agent.AgentID, authenticated.AgentID)
+		deleted, err := store.DeleteAgent(ctx, principal, DeleteAgentRequest{AgentID: agent.AgentID})
+
+		require.NoError(t, err)
+		require.Equal(t, agent.AgentID, deleted.AgentID)
+		agents, err := store.ListAgents(ctx, principal)
+		require.NoError(t, err)
+		require.Empty(t, agents)
+		_, err = store.GetAgent(ctx, principal, agent.AgentID)
+		require.ErrorIs(t, err, ErrNotFound)
+		_, err = store.AuthenticateAgent(ctx, "agent_hash")
+		require.ErrorIs(t, err, ErrUnauthorized)
+	})
+
+	t.Run("Given a node agent when deleting it then normal fleet reads hide it", func(t *testing.T) {
+		ctx := context.Background()
+		now := time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC)
+		store := NewMemoryStore(func() time.Time { return now })
+		owner, node, agent := seedMemoryNodeAgent(t, ctx, store, now)
+		principal := UserPrincipal{User: owner}
+
+		deleted, err := store.DeleteNodeAgent(ctx, principal, DeleteAgentRequest{
+			NodeID:  node.NodeID,
+			AgentID: agent.AgentID,
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, agent.AgentID, deleted.AgentID)
+		_, err = store.GetNodeAgent(ctx, node.NodeID, agent.AgentID)
+		require.ErrorIs(t, err, ErrNotFound)
+		_, err = store.GetAgent(ctx, principal, agent.AgentID)
+		require.ErrorIs(t, err, ErrNotFound)
+		agents, err := store.ListNodeAgents(ctx, principal, node.NodeID)
+		require.NoError(t, err)
+		require.Empty(t, agents)
+	})
+
+	t.Run("Given a node when deleting it then node key is revoked and agents are hidden", func(t *testing.T) {
+		ctx := context.Background()
+		now := time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC)
+		store := NewMemoryStore(func() time.Time { return now })
+		owner, node, agent := seedMemoryNodeAgent(t, ctx, store, now)
+		principal := UserPrincipal{User: owner}
+
+		authenticated, err := store.AuthenticateNode(ctx, "node_hash")
+		require.NoError(t, err)
+		require.Equal(t, node.NodeID, authenticated.NodeID)
+		deleted, err := store.DeleteNode(ctx, principal, DeleteNodeRequest{NodeID: node.NodeID})
+
+		require.NoError(t, err)
+		require.Equal(t, node.NodeID, deleted.NodeID)
+		nodes, err := store.ListNodes(ctx, principal)
+		require.NoError(t, err)
+		require.Empty(t, nodes)
+		_, err = store.GetNode(ctx, principal, node.NodeID)
+		require.ErrorIs(t, err, ErrNotFound)
+		_, err = store.GetAgent(ctx, principal, agent.AgentID)
+		require.ErrorIs(t, err, ErrNotFound)
+		_, err = store.AuthenticateNode(ctx, "node_hash")
+		require.ErrorIs(t, err, ErrUnauthorized)
+	})
+}
+
 func seedMemoryNodeAgent(
 	t *testing.T,
 	ctx context.Context,

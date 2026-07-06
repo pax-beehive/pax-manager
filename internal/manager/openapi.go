@@ -61,10 +61,72 @@ func openAPIDocument(serverURL string) ([]byte, error) {
 	}
 	doc["servers"] = []map[string]string{{"url": serverURL}}
 	addACPWebSocketPaths(doc)
+	addAgentFleetPaths(doc)
 	addSessionHistoryPath(doc)
 	addNodeConversationDeliveryPath(doc)
 	addPaxdArtifactPaths(doc)
 	return json.MarshalIndent(doc, "", "  ")
+}
+
+func addAgentFleetPaths(doc map[string]any) {
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		paths = map[string]any{}
+		doc["paths"] = paths
+	}
+	userPathParam := map[string]any{
+		"name":        "user_id",
+		"in":          "path",
+		"required":    true,
+		"schema":      map[string]string{"type": "string"},
+		"description": "User ID or self.",
+	}
+	agentPathParam := map[string]any{
+		"name":        "agent_id",
+		"in":          "path",
+		"required":    true,
+		"schema":      map[string]string{"type": "string"},
+		"description": "Agent identifier.",
+	}
+	paths[openAPIUserAgentsPath] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "List agents",
+			"description": "Lists agents visible to the current user.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  []map[string]any{userPathParam},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Visible agents."},
+				"401": map[string]string{"description": "User authentication failed."},
+			},
+		},
+	}
+	paths[openAPIUserAgentPath] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "Get agent",
+			"description": "Gets one agent visible to the current user.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  []map[string]any{userPathParam, agentPathParam},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Agent."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent not found."},
+			},
+		},
+		"delete": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "Delete agent",
+			"description": "Soft-deletes an agent owned by the current user, hides it from fleet lists, and revokes its API key.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  []map[string]any{userPathParam, agentPathParam},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Deleted agent."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent not found."},
+			},
+		},
+	}
 }
 
 func addSessionHistoryPath(doc map[string]any) {

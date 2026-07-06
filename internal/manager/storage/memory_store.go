@@ -1069,6 +1069,29 @@ func (s *MemoryStore) UpdateNode(
 	return node, nil
 }
 
+func (s *MemoryStore) DeleteNode(
+	ctx context.Context,
+	principal UserPrincipal,
+	req DeleteNodeRequest,
+) (Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	node, ok := s.nodes[req.NodeID]
+	if !ok || !canAccessOwner(principal, node.OwnerUserID) {
+		return Node{}, ErrNotFound
+	}
+	s.deleteNodeAPIKeysLocked(req.NodeID)
+	for agentID, agent := range s.agents {
+		if agent.NodeID != req.NodeID {
+			continue
+		}
+		s.deleteAgentAPIKeysLocked(agentID)
+		delete(s.agents, agentID)
+	}
+	delete(s.nodes, req.NodeID)
+	return node, nil
+}
+
 func (s *MemoryStore) GetNodeAgent(
 	ctx context.Context,
 	nodeID string,
@@ -1181,6 +1204,38 @@ func (s *MemoryStore) UpdateNodeAgent(
 	return agent, nil
 }
 
+func (s *MemoryStore) DeleteNodeAgent(
+	ctx context.Context,
+	principal UserPrincipal,
+	req DeleteAgentRequest,
+) (Agent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[req.AgentID]
+	if !ok || agent.NodeID != req.NodeID || !canAccessOwner(principal, agent.OwnerUserID) {
+		return Agent{}, ErrNotFound
+	}
+	s.deleteAgentAPIKeysLocked(req.AgentID)
+	delete(s.agents, req.AgentID)
+	return agent, nil
+}
+
+func (s *MemoryStore) DeleteAgent(
+	ctx context.Context,
+	principal UserPrincipal,
+	req DeleteAgentRequest,
+) (Agent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agent, ok := s.agents[req.AgentID]
+	if !ok || !canAccessOwner(principal, agent.OwnerUserID) {
+		return Agent{}, ErrNotFound
+	}
+	s.deleteAgentAPIKeysLocked(req.AgentID)
+	delete(s.agents, req.AgentID)
+	return agent, nil
+}
+
 func (s *MemoryStore) CreateNodeAgentSession(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -1240,6 +1295,22 @@ func (s *MemoryStore) AuthenticateAgent(ctx context.Context, apiKeyHash string) 
 		return Agent{}, ErrUnauthorized
 	}
 	return agent, nil
+}
+
+func (s *MemoryStore) deleteNodeAPIKeysLocked(nodeID string) {
+	for keyHash, currentNodeID := range s.nodeAPIKeys {
+		if currentNodeID == nodeID {
+			delete(s.nodeAPIKeys, keyHash)
+		}
+	}
+}
+
+func (s *MemoryStore) deleteAgentAPIKeysLocked(agentID string) {
+	for keyHash, currentAgentID := range s.apiKeys {
+		if currentAgentID == agentID {
+			delete(s.apiKeys, keyHash)
+		}
+	}
 }
 
 func (s *MemoryStore) UpsertAgentStatus(ctx context.Context, report AgentStatusReport) error {

@@ -167,6 +167,7 @@ type Store interface {
 	ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error)
 	GetNode(ctx context.Context, principal UserPrincipal, nodeID string) (Node, error)
 	UpdateNode(ctx context.Context, principal UserPrincipal, req UpdateNodeRequest) (Node, error)
+	DeleteNode(ctx context.Context, principal UserPrincipal, req DeleteNodeRequest) (Node, error)
 	GetNodeAgent(ctx context.Context, nodeID string, agentID string) (Agent, error)
 	ListNodeAgents(ctx context.Context, principal UserPrincipal, nodeID string) ([]Agent, error)
 	CreateNodeAgent(
@@ -179,6 +180,7 @@ type Store interface {
 		principal UserPrincipal,
 		req UpdateAgentProfileRequest,
 	) (Agent, error)
+	DeleteNodeAgent(ctx context.Context, principal UserPrincipal, req DeleteAgentRequest) (Agent, error)
 	CreateNodeAgentSession(
 		ctx context.Context,
 		principal UserPrincipal,
@@ -187,6 +189,7 @@ type Store interface {
 	UpsertAgentStatus(ctx context.Context, report AgentStatusReport) error
 	ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error)
 	GetAgent(ctx context.Context, principal UserPrincipal, agentID string) (Agent, error)
+	DeleteAgent(ctx context.Context, principal UserPrincipal, req DeleteAgentRequest) (Agent, error)
 	ListAgentSessions(
 		ctx context.Context,
 		principal UserPrincipal,

@@ -1684,6 +1684,8 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("thought user delta = %s", gotThoughtDelta)
 	}
 
+	waitAgentMessagePartText(t, srv, agentID, "sess-1", "agent_message_chunk", "hi")
+	waitAgentMessagePartText(t, srv, agentID, "sess-1", "agent_thought_chunk", "thinking")
 	messages, err := srv.store.ListMessages(t.Context(), agentID, "sess-1", 100)
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
@@ -4678,6 +4680,45 @@ func waitAgentToUserMessage(
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("agent-to-user message for %s/%s was not projected", agentID, sessionID)
+}
+
+func waitAgentMessagePartText(
+	t *testing.T,
+	srv *Server,
+	agentID string,
+	sessionID string,
+	messageType string,
+	wantText string,
+) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	var lastText string
+	for time.Now().Before(deadline) {
+		messages, err := srv.store.ListMessages(t.Context(), agentID, sessionID, 100)
+		require.NoError(t, err)
+		for _, msg := range messages {
+			if msg.MessageType != messageType {
+				continue
+			}
+			parts, err := srv.store.ListMessageParts(t.Context(), msg.MessageID)
+			require.NoError(t, err)
+			for _, part := range parts {
+				lastText = part.Text
+				if part.Text == wantText {
+					return
+				}
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf(
+		"message part text for %s/%s type %s = %q, want %q",
+		agentID,
+		sessionID,
+		messageType,
+		lastText,
+		wantText,
+	)
 }
 
 func TestACPTunnelAcceptsNodeKeyForNodeAgent(t *testing.T) {

@@ -13,11 +13,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/node/agents/:agent_id/sessions", NodeAuth(), ReportNodeAgentSessions)
 	h.GET("/api/v1/node/mailbox", NodeAuth(), PullNodeMailbox)
 	h.GET("/api/v1/node/agents/:agent_id/mailbox", NodeAuth(), PullNodeAgentMailbox)
-	h.GET(
-		"/api/v1/node/agents/:agent_id/sessions/:session_id/mailbox",
-		NodeAuth(),
-		PullNodeAgentSessionMailbox,
-	)
+	h.GET("/api/v1/node/agents/:agent_id/sessions/:session_id/mailbox", NodeAuth(), PullNodeAgentSessionMailbox)
 	h.POST("/api/v1/node/messages/offset", NodeAuth(), UpdateNodeMailboxOffset)
 	h.POST("/api/v1/node/messages/:message_id/result", NodeAuth(), ReportNodeMessageResult)
 	h.POST("/api/v1/node/messages/:message_id/delivered", NodeAuth(), MarkNodeMessageDelivered)
@@ -30,26 +26,19 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/user/:user_id/nodes", ListNodes)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id", GetNode)
 	h.PATCH("/api/v1/user/:user_id/nodes/:node_id", UpdateNode)
+	h.DELETE("/api/v1/user/:user_id/nodes/:node_id", DeleteNode)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents", ListNodeAgents)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents", CreateNodeAgent)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id", GetNodeAgent)
 	h.PATCH("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id", UpdateNodeAgent)
+	h.DELETE("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id", DeleteNodeAgent)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/messages", ListNodeAgentMessages)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/messages", CreateNodeAgentMessage)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions", ListNodeAgentSessions)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions", CreateNodeAgentSession)
-	h.GET(
-		"/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id",
-		GetNodeAgentSession,
-	)
-	h.GET(
-		"/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages",
-		ListNodeAgentSessionMessages,
-	)
-	h.POST(
-		"/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages",
-		CreateNodeAgentSessionMessage,
-	)
+	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id", GetNodeAgentSession)
+	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages", ListNodeAgentSessionMessages)
+	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages", CreateNodeAgentSessionMessage)
 	h.GET("/api/v1/user/:user_id/api-keys", ListUserAPIKeys)
 	h.POST("/api/v1/user/:user_id/api-keys", CreateUserAPIKey)
 	h.DELETE("/api/v1/user/:user_id/api-keys/:key_id", RevokeUserAPIKey)

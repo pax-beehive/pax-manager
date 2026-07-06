@@ -57,15 +57,17 @@ type ACPTunnelAgent struct {
 }
 
 type acpTunnelLiveState struct {
-	mu                sync.Mutex
-	sessionID         string
-	paired            bool
-	userWS            *websocket.Conn
-	responseWaiters   map[string]chan []byte
-	sseSubscribers    map[*acpSSESubscriber]struct{}
-	historyGroups     acpHistoryGroups
-	pendingSessionNew acpPendingSessionNews
-	managerRequestSeq int64
+	mu                       sync.Mutex
+	sessionID                string
+	paired                   bool
+	userWS                   *websocket.Conn
+	responseWaiters          map[string]chan []byte
+	sseSubscribers           map[*acpSSESubscriber]struct{}
+	historyGroups            acpHistoryGroups
+	projectedHistoryMessages map[string]struct{}
+	historyTextBatcher       *acpHistoryTextBatcher
+	pendingSessionNew        acpPendingSessionNews
+	managerRequestSeq        int64
 }
 
 func (a *ACPTunnelAgent) liveState() *acpTunnelLiveState {
@@ -713,6 +715,9 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 	s.acpTunnels.add(initial.AgentID, initial.SessionID, conn)
 	logging.Info(ctx, "agent acp tunnel connected")
 	defer func() {
+		if err := conn.flushHistoryText(context.Background()); err != nil {
+			logging.Error(ctx, "agent acp tunnel history text flush failed", logging.Err(err))
+		}
 		s.acpTunnels.remove(initial.AgentID, initial.SessionID, conn)
 		conn.closeUser()
 		_ = ws.Close()
@@ -1297,9 +1302,10 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 	payload := reliableFrame.Payload
 	frame := newACPFrameContext(a, acpAgentToUser, websocket.TextMessage, []byte(payload))
 	err := pipeline.Handle(ctx, frame, func(_ context.Context, frame *acpFrameContext) error {
-		if err := projectACPTransportMessage(
+		if err := projectACPTransportMessageWithTextSink(
 			ctx,
 			a.store,
+			acpAgentHistoryTextSink{agent: a},
 			a.agentID,
 			a.ownerUserID,
 			a.nodeID,

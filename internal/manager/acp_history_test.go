@@ -297,6 +297,87 @@ func TestACPHistoryGivenNonTextUpdateBetweenTextChunksThenStartsANewGroup(t *tes
 	assert.NotEqual(t, messages[0].MessageID, messages[2].MessageID)
 }
 
+func TestACPHistoryGivenRepeatedTextChunksThenEnsuresMessageOnce(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	sink := &countingACPHistoryTextSink{store: store}
+	agent := &ACPTunnelAgent{
+		agentID:     "agent_once",
+		ownerUserID: "user_once",
+		nodeID:      "node_once",
+		sessionID:   "sess_once",
+	}
+	frames := []json.RawMessage{
+		json.RawMessage(
+			`{"method":"session/update","params":{"sessionId":"sess_once","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"h"}}},"jsonrpc":"2.0"}`,
+		),
+		json.RawMessage(
+			`{"method":"session/update","params":{"sessionId":"sess_once","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"i"}}},"jsonrpc":"2.0"}`,
+		),
+	}
+
+	for i, frame := range frames {
+		seq := int64(i + 1)
+		err := projectACPTransportMessageWithTextSink(
+			ctx,
+			store,
+			sink,
+			agent.agentID,
+			agent.ownerUserID,
+			agent.nodeID,
+			domain.TransportStreamPaxdToManager,
+			seq,
+			agent.historyGroupID(seq, frame),
+			frame,
+		)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, 1, sink.ensureCalls)
+	assert.Equal(t, 2, sink.appendCalls)
+	messages, err := store.ListMessages(ctx, agent.agentID, agent.sessionID, 10)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	parts, err := store.ListMessageParts(ctx, messages[0].MessageID)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, "hi", parts[0].Text)
+}
+
+func TestACPHistoryTextBatcherGivenBufferedChunksThenFlushesCombinedText(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	msg := domain.Message{
+		MessageID:   "msg_batch",
+		AgentID:     "agent_batch",
+		SessionID:   "sess_batch",
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionAgentToUser,
+		Role:        "assistant",
+		Status:      "received",
+		MessageType: "agent_message_chunk",
+		LogicalKey:  "test:batch",
+	}
+	require.NoError(t, store.UpsertMessage(ctx, &msg))
+	batcher := newACPHistoryTextBatcher(store, time.Hour, 1000)
+
+	require.NoError(t, batcher.AppendText(ctx, msg.MessageID, 0, "h"))
+	require.NoError(t, batcher.AppendText(ctx, msg.MessageID, 0, "i"))
+	parts, err := store.ListMessageParts(ctx, msg.MessageID)
+	require.NoError(t, err)
+	assert.Empty(t, parts)
+
+	require.NoError(t, batcher.Flush(ctx))
+	parts, err = store.ListMessageParts(ctx, msg.MessageID)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, "hi", parts[0].Text)
+}
+
 func TestACPHistoryProjectsUserPrompt(t *testing.T) {
 	ctx := context.Background()
 	store := storage.NewMemoryStore(func() time.Time {
@@ -923,4 +1004,40 @@ func TestACPHistoryPreservesToolCallRawPayload(t *testing.T) {
 	if string(messages[0].RawJSON) != string(raw) {
 		t.Fatalf("message raw json = %s, want %s", messages[0].RawJSON, raw)
 	}
+}
+
+type countingACPHistoryTextSink struct {
+	store       domain.Store
+	seen        map[string]struct{}
+	ensureCalls int
+	appendCalls int
+	flushCalls  int
+}
+
+func (s *countingACPHistoryTextSink) EnsureMessage(ctx context.Context, msg *domain.Message) error {
+	if s.seen == nil {
+		s.seen = make(map[string]struct{})
+	}
+	if _, ok := s.seen[msg.MessageID]; ok {
+		return nil
+	}
+	s.ensureCalls++
+	s.seen[msg.MessageID] = struct{}{}
+	return s.store.UpsertMessage(ctx, msg)
+}
+
+func (s *countingACPHistoryTextSink) AppendText(
+	ctx context.Context,
+	messageID string,
+	partIndex int,
+	delta string,
+) error {
+	s.appendCalls++
+	return s.store.AppendMessagePartText(ctx, messageID, partIndex, delta, nil)
+}
+
+func (s *countingACPHistoryTextSink) Flush(ctx context.Context) error {
+	_ = ctx
+	s.flushCalls++
+	return nil
 }

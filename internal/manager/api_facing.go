@@ -16,6 +16,11 @@ func (s *Service) handleGetAgent(c context.Context, ctx *app.RequestContext, age
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func (s *Service) handleDeleteAgent(c context.Context, ctx *app.RequestContext, agentID string) {
+	status, data, err := s.userapi.DeleteAgent(c, requestMetadata(ctx), agentID)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func (s *Service) handleListAgentSessions(
 	c context.Context,
 	ctx *app.RequestContext,
