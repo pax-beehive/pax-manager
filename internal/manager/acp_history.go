@@ -48,8 +48,37 @@ func projectACPTransportMessage(
 	historyGroupID string,
 	payload json.RawMessage,
 ) error {
+	return projectACPTransportMessageWithTextSink(
+		ctx,
+		store,
+		immediateACPHistoryTextSink{store: store},
+		agentID,
+		ownerUserID,
+		nodeID,
+		stream,
+		seq,
+		historyGroupID,
+		payload,
+	)
+}
+
+func projectACPTransportMessageWithTextSink(
+	ctx context.Context,
+	store domain.Store,
+	textSink acpHistoryTextSink,
+	agentID string,
+	ownerUserID string,
+	nodeID string,
+	stream string,
+	seq int64,
+	historyGroupID string,
+	payload json.RawMessage,
+) error {
 	if stream != domain.TransportStreamPaxdToManager {
 		return nil
+	}
+	if textSink == nil {
+		textSink = immediateACPHistoryTextSink{store: store}
 	}
 	var rpc acpHistoryRPC
 	_ = json.Unmarshal(payload, &rpc)
@@ -58,10 +87,16 @@ func projectACPTransportMessage(
 	fields := extractACPHistoryFields(payload, rpc)
 	fields, projection := classifyACPHistoryProjection(rpc, fields)
 	if projection == acpHistoryProjectionNone {
+		if len(rpc.Result) > 0 || len(rpc.Error) > 0 {
+			return textSink.Flush(ctx)
+		}
 		return nil
 	}
 	textProjection := projection == acpHistoryProjectionText
 	if !textProjection {
+		if err := textSink.Flush(ctx); err != nil {
+			return err
+		}
 		historyGroupID = ""
 	}
 	fields.SessionID = canonicalACPHistorySessionID(
@@ -103,11 +138,14 @@ func projectACPTransportMessage(
 	if !textProjection {
 		msg.RawJSON = append(json.RawMessage(nil), payload...)
 	}
+	if textProjection {
+		if err := textSink.EnsureMessage(ctx, &msg); err != nil {
+			return err
+		}
+		return textSink.AppendText(ctx, msg.MessageID, 0, fields.Content)
+	}
 	if err := store.UpsertMessage(ctx, &msg); err != nil {
 		return err
-	}
-	if textProjection {
-		return store.AppendMessagePartText(ctx, msg.MessageID, 0, fields.Content, nil)
 	}
 	if err := store.UpsertMessagePart(ctx, &domain.MessagePart{
 		MessageID:   msg.MessageID,
