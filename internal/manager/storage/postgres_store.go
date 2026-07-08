@@ -1677,7 +1677,7 @@ func (s *PostgresStore) ListAgentSessions(
 		OR ` + teamAgentAccessSQL("a.agent_id", "$2") + `
 	)`
 	args := []any{agentID, principal.User.UserID}
-	query += ` ORDER BY agent_sessions.updated_at DESC`
+	query += ` ORDER BY COALESCE(agent_sessions.last_message_at, agent_sessions.updated_at) DESC, agent_sessions.updated_at DESC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

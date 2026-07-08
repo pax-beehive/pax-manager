@@ -1424,9 +1424,21 @@ func (s *MemoryStore) ListAgentSessions(
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
+		left := sessionActivityTime(out[i])
+		right := sessionActivityTime(out[j])
+		if !left.Equal(right) {
+			return left.After(right)
+		}
 		return out[i].UpdatedAt.After(out[j].UpdatedAt)
 	})
 	return out, nil
+}
+
+func sessionActivityTime(session AgentSession) time.Time {
+	if session.LastMessageAt != nil {
+		return *session.LastMessageAt
+	}
+	return session.UpdatedAt
 }
 
 func (s *MemoryStore) GetSession(
