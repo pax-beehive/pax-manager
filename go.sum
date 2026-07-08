@@ -585,6 +585,8 @@ github.com/otiai10/mint v1.3.0/go.mod h1:F5AjcsTsWUqX+Na9fpHb52P8pcRX2CI6A3ctIT9
 github.com/otiai10/mint v1.3.1/go.mod h1:/yxELlJQ0ufhjUwhshSj+wFjZ78CnZ48/1wtmBH1OTc=
 github.com/pax-beehive/paxkit v0.0.0-20260701212726-4cf7b380e25c h1:mzGB89qSHT5RS4Q98myiu50XMsIX2A0h9X46ZZwtjNE=
 github.com/pax-beehive/paxkit v0.0.0-20260701212726-4cf7b380e25c/go.mod h1:0QcXIKVBmmTsmN7jAdVpbC22BIADCp6Q/790mEz/csw=
+github.com/pax-beehive/paxkit v0.0.0-20260708061620-2ab374664664 h1:TyYtVuholVtICMqUxaGbeigglClzWZMx99oychwsxqM=
+github.com/pax-beehive/paxkit v0.0.0-20260708061620-2ab374664664/go.mod h1:0QcXIKVBmmTsmN7jAdVpbC22BIADCp6Q/790mEz/csw=
 github.com/pelletier/go-toml v1.9.5 h1:4yBQzkHv+7BHq2PQUZF3Mx0IYxG7LsP222s7Agd3ve8=
 github.com/pelletier/go-toml v1.9.5/go.mod h1:u1nR/EPcESfeI/szUZKdtJ0xRNbUoANCkoOuaOx1Y+c=
 github.com/pelletier/go-toml/v2 v2.3.1 h1:MYEvvGnQjeNkRF1qUuGolNtNExTDwct51yp7olPtrEc=
