@@ -16,12 +16,11 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/pax-beehive/paxkit/reliablemq"
-
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
+	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
 type ACPTunnelHub struct {
@@ -50,6 +49,7 @@ type ACPTunnelAgent struct {
 	responseWaiters   map[string]chan []byte
 	sseSubscribers    map[*acpSSESubscriber]struct{}
 	store             domain.Store
+	transportStore    reliablemq.DurableStore
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
 	managerRequestSeq int64
@@ -89,6 +89,13 @@ func (a *ACPTunnelAgent) liveState() *acpTunnelLiveState {
 		}
 	}
 	return a.live
+}
+
+func (a *ACPTunnelAgent) durableTransportStore() reliablemq.DurableStore {
+	if a.transportStore != nil {
+		return a.transportStore
+	}
+	return a.store
 }
 
 func (a *ACPTunnelAgent) setLiveState(state *acpTunnelLiveState) {
@@ -575,8 +582,13 @@ func (a *ACPTunnelAgent) writeToAgent(ctx context.Context, messageType int, payl
 	if err := json.Unmarshal(payload, &raw); err != nil {
 		return fmt.Errorf("wrap acp frame: payload must be JSON: %w", err)
 	}
-	engine := reliablemq.NewEngine(reliablemq.Config{}, a.store, a.reliableSender(messageType), nil)
-	_, err := engine.Send(ctx, reliablemq.OutboundMessage{
+	engine := reliablemq.NewEngine(
+		reliablemq.Config{},
+		a.durableTransportStore(),
+		a.reliableSender(messageType),
+		nil,
+	)
+	frame, err := engine.Send(ctx, reliablemq.OutboundMessage{
 		QueueID: a.queueID(),
 		Stream:  reliablemq.StreamACP,
 		Payload: append(json.RawMessage(nil), raw...),
@@ -586,8 +598,28 @@ func (a *ACPTunnelAgent) writeToAgent(ctx context.Context, messageType int, payl
 		},
 	})
 	if err != nil {
+		logging.Error(
+			ctx,
+			"agent acp tunnel outbound frame failed",
+			append(
+				a.transportLogAttrs(),
+				slog.Int("payload_bytes", len(payload)),
+				logging.Err(err),
+			)...,
+		)
 		return err
 	}
+	logging.Info(
+		ctx,
+		"agent acp tunnel outbound frame queued",
+		append(
+			a.transportLogAttrs(),
+			slog.String("stream", string(frame.Key.Stream)),
+			slog.Int64("seq", frame.Key.Seq),
+			slog.String("status", string(frame.Status)),
+			slog.Int("payload_bytes", len(payload)),
+		)...,
+	)
 	return nil
 }
 
@@ -624,12 +656,13 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 ) error {
 	engine := reliablemq.NewEngine(
 		reliablemq.Config{},
-		a.store,
+		a.durableTransportStore(),
 		a.reliableSender(websocket.TextMessage),
 		reliablemq.DispatcherFunc(func(dispatchCtx context.Context, frame reliablemq.Frame) error {
 			return a.dispatchReliableACPFrame(dispatchCtx, pipeline, frame)
 		}),
 	)
+	reconciled := false
 	for {
 		messageType, payload, err := a.ws.ReadMessage()
 		if err != nil {
@@ -645,6 +678,24 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 		if env.QueueID != a.queueID() {
 			return fmt.Errorf("unexpected reliablemq queue_id %q", env.QueueID)
 		}
+		if env.Type == reliablemq.EnvelopeTypeReconcileRequest {
+			action, err := a.respondPaxdProducerReconcile(ctx, env)
+			if err != nil {
+				return err
+			}
+			if action == reliablemq.ReconcileActionRotate {
+				continue
+			}
+			if !reconciled {
+				reconciled = true
+				if a.hasAsyncReceivers() {
+					if err := a.replayUnackedToAgent(ctx); err != nil {
+						return fmt.Errorf("replay unacked manager frames after reconcile: %w", err)
+					}
+				}
+			}
+			continue
+		}
 		if env.Metadata == nil {
 			env.Metadata = reliablemq.Metadata{}
 		}
@@ -654,7 +705,29 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 		if env.Metadata["node_id"] == "" {
 			env.Metadata["node_id"] = a.nodeID
 		}
+		logging.Info(
+			ctx,
+			"agent acp tunnel inbound envelope received",
+			append(
+				a.transportLogAttrs(),
+				slog.String("envelope_type", string(env.Type)),
+				slog.String("stream", string(env.Stream)),
+				slog.Int64("seq", env.Seq),
+				slog.Int("payload_bytes", len(env.Payload)),
+			)...,
+		)
 		if err := engine.Receive(ctx, env); err != nil {
+			logging.Error(
+				ctx,
+				"agent acp tunnel inbound envelope failed",
+				append(
+					a.transportLogAttrs(),
+					slog.String("envelope_type", string(env.Type)),
+					slog.String("stream", string(env.Stream)),
+					slog.Int64("seq", env.Seq),
+					logging.Err(err),
+				)...,
+			)
 			return err
 		}
 	}
@@ -704,13 +777,14 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	conn := &ACPTunnelAgent{
-		agentID:      initial.AgentID,
-		connectionID: firstNonEmpty(initial.ConnectionID, initial.AgentID),
-		nodeID:       initial.NodeID,
-		ownerUserID:  initial.OwnerUserID,
-		sessionID:    initial.SessionID,
-		ws:           ws,
-		store:        s.store,
+		agentID:        initial.AgentID,
+		connectionID:   firstNonEmpty(initial.ConnectionID, initial.AgentID),
+		nodeID:         initial.NodeID,
+		ownerUserID:    initial.OwnerUserID,
+		sessionID:      initial.SessionID,
+		ws:             ws,
+		store:          s.store,
+		transportStore: s.transportStore,
 	}
 	s.acpTunnels.add(initial.AgentID, initial.SessionID, conn)
 	logging.Info(ctx, "agent acp tunnel connected")
@@ -724,10 +798,6 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		logging.Info(ctx, "agent acp tunnel disconnected")
 	}()
 
-	if err := conn.replayUnackedToAgent(r.Context()); err != nil {
-		logging.Warn(ctx, "agent acp tunnel replay failed", logging.Err(err))
-		return
-	}
 	err = runACPActors(r.Context(), acpActor{
 		name:  "agent_tunnel",
 		attrs: conn.actorAttrs(),
@@ -937,6 +1007,7 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 			"user acp tunnel claim failed",
 			slog.Int("status", status),
 			slog.String("reason", message),
+			slog.String("available_tunnels", s.acpTunnels.debugSnapshot(agentID)),
 			logging.Err(err),
 		)
 		writeHTTPEndpointError(w, err)
@@ -1287,11 +1358,103 @@ func (a *ACPTunnelAgent) observeHistoryBoundary(payload json.RawMessage) {
 func (a *ACPTunnelAgent) replayUnackedToAgent(ctx context.Context) error {
 	engine := reliablemq.NewEngine(
 		reliablemq.Config{},
-		a.store,
+		a.durableTransportStore(),
 		a.reliableSender(websocket.TextMessage),
 		nil,
 	)
 	return engine.ReplayOutbound(ctx, a.queueID(), reliablemq.StreamACP, 1000)
+}
+
+const maxACPReconcileAdvanceGap = 100000
+
+func (a *ACPTunnelAgent) respondPaxdProducerReconcile(ctx context.Context, request reliablemq.Envelope) (reliablemq.ReconcileAction, error) {
+	if request.Type != reliablemq.EnvelopeTypeReconcileRequest {
+		return "", fmt.Errorf("expected reconcile_request, got %q", request.Type)
+	}
+	if request.QueueID != a.queueID() {
+		return "", fmt.Errorf("unexpected reconcile queue_id %q", request.QueueID)
+	}
+	if request.Stream != reliablemq.StreamACP {
+		return "", fmt.Errorf("unexpected reconcile stream %q", request.Stream)
+	}
+
+	ackedThrough, err := a.consumerAckedThrough(ctx, request.QueueID, request.Stream)
+	if err != nil {
+		return "", fmt.Errorf("load consumer checkpoint: %w", err)
+	}
+	response := a.reconcilePaxdProducerResponse(request, ackedThrough)
+	data, err := reliablemq.MarshalEnvelope(response)
+	if err != nil {
+		return "", err
+	}
+	a.agentWriteMu.Lock()
+	err = a.ws.WriteMessage(websocket.TextMessage, data)
+	a.agentWriteMu.Unlock()
+	if err != nil {
+		return "", fmt.Errorf("write reconcile response: %w", err)
+	}
+	logging.Info(
+		ctx,
+		"agent acp tunnel reconciled paxd producer",
+		append(
+			a.transportLogAttrs(),
+			slog.String("action", string(response.Action)),
+			slog.Int64("producer_next_seq", request.ProducerNextSeq),
+			slog.Int64("producer_replay_from", request.ReplayFrom),
+			slog.Int64("producer_replay_through", request.ReplayThrough),
+			slog.Int64("consumer_acked_through", ackedThrough),
+			slog.Int64("replay_from", response.From),
+			slog.Int64("replay_through", response.Through),
+			slog.Int64("advance_producer_next_seq", response.AdvanceProducerNextSeq),
+		)...,
+	)
+	return response.Action, nil
+}
+
+func (a *ACPTunnelAgent) consumerAckedThrough(
+	ctx context.Context,
+	queueID string,
+	stream reliablemq.Stream,
+) (int64, error) {
+	store, ok := a.durableTransportStore().(reliablemq.ReconcileConsumerStore)
+	if !ok {
+		return 0, nil
+	}
+	return store.ConsumerAckedThrough(ctx, queueID, stream)
+}
+
+func (a *ACPTunnelAgent) reconcilePaxdProducerResponse(
+	request reliablemq.Envelope,
+	consumerAckedThrough int64,
+) reliablemq.Envelope {
+	producerLastSeq := request.ProducerNextSeq - 1
+	response := reliablemq.Envelope{
+		Type:                 reliablemq.EnvelopeTypeReconcileResponse,
+		QueueID:              request.QueueID,
+		Stream:               request.Stream,
+		ConsumerAckedThrough: consumerAckedThrough,
+	}
+	switch {
+	case consumerAckedThrough == producerLastSeq:
+		response.Action = reliablemq.ReconcileActionAligned
+	case consumerAckedThrough < producerLastSeq:
+		from := consumerAckedThrough + 1
+		if request.ReplayFrom > 0 && request.ReplayFrom <= from && request.ReplayThrough >= producerLastSeq {
+			response.Action = reliablemq.ReconcileActionReplay
+			response.From = from
+			response.Through = producerLastSeq
+		} else {
+			response.Action = reliablemq.ReconcileActionRotate
+		}
+	default:
+		if consumerAckedThrough-producerLastSeq <= maxACPReconcileAdvanceGap {
+			response.Action = reliablemq.ReconcileActionAdvanceProducer
+			response.AdvanceProducerNextSeq = consumerAckedThrough + 1
+		} else {
+			response.Action = reliablemq.ReconcileActionRotate
+		}
+	}
+	return response
 }
 
 func (a *ACPTunnelAgent) dispatchReliableACPFrame(
@@ -1321,6 +1484,21 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 		deliveredWaiter := a.notifyResponseWaiter(requestID, frame.payload)
 		deliveredSSE := a.broadcastSSE(frame.payload)
 		userWS := a.currentUser()
+		logging.Info(
+			ctx,
+			"agent acp tunnel inbound frame dispatched",
+			append(
+				a.transportLogAttrs(),
+				slog.String("stream", string(reliableFrame.Key.Stream)),
+				slog.Int64("seq", reliableFrame.Key.Seq),
+				slog.String("request_id", requestID),
+				slog.String("method", frame.frame.Method),
+				slog.String("frame_session_id", frameSessionID),
+				slog.Bool("delivered_waiter", deliveredWaiter),
+				slog.Bool("delivered_sse", deliveredSSE),
+				slog.Bool("user_connected", userWS != nil),
+			)...,
+		)
 		if userWS == nil {
 			if !deliveredWaiter && !deliveredSSE && !a.hasAsyncReceivers() {
 				logging.Warn(
@@ -1368,15 +1546,61 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 
 func (a *ACPTunnelAgent) reliableSender(messageType int) reliablemq.Sender {
 	return reliablemq.SenderFunc(func(ctx context.Context, env reliablemq.Envelope) error {
-		_ = ctx
 		data, err := reliablemq.MarshalEnvelope(env)
 		if err != nil {
 			return err
 		}
 		a.agentWriteMu.Lock()
 		defer a.agentWriteMu.Unlock()
-		return a.ws.WriteMessage(messageType, data)
+		if err := a.ws.WriteMessage(messageType, data); err != nil {
+			logging.Error(
+				ctx,
+				"agent acp tunnel websocket envelope write failed",
+				append(
+					a.transportLogAttrs(),
+					slog.String("envelope_type", string(env.Type)),
+					slog.String("stream", string(env.Stream)),
+					slog.Int64("seq", env.Seq),
+					slog.Int("payload_bytes", len(env.Payload)),
+					logging.Err(err),
+				)...,
+			)
+			return err
+		}
+		logging.Info(
+			ctx,
+			"agent acp tunnel websocket envelope written",
+			append(
+				a.transportLogAttrs(),
+				slog.String("envelope_type", string(env.Type)),
+				slog.String("stream", string(env.Stream)),
+				slog.Int64("seq", env.Seq),
+				slog.Int("payload_bytes", len(env.Payload)),
+			)...,
+		)
+		return nil
 	})
+}
+
+func (a *ACPTunnelAgent) transportLogAttrs() []slog.Attr {
+	attrs := []slog.Attr{
+		slog.String("agent_id", a.agentID),
+		slog.String("connection_id", a.queueID()),
+		slog.String("session_id", a.currentSessionID()),
+	}
+	if store, ok := a.durableTransportStore().(*reliablemq.ConsumerWriteBehindStore); ok {
+		stats := store.Stats()
+		attrs = append(
+			attrs,
+			slog.Bool("write_behind_degraded", stats.Degraded),
+			slog.Int("write_behind_dirty_frames", stats.DirtyFrames),
+			slog.Int("write_behind_dirty_patches", stats.DirtyPatches),
+			slog.Int64("write_behind_dirty_bytes", stats.DirtyBytes),
+			slog.Int("write_behind_consecutive_failures", stats.ConsecutiveFlushFailures),
+			slog.String("write_behind_last_error", stats.LastFlushError),
+		)
+	}
+	return attrs
 }
 
 func (a *ACPTunnelAgent) queueID() string {

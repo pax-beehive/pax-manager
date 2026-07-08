@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pax-beehive/paxkit/reliablemq"
 	"github.com/stretchr/testify/require"
 )
 
@@ -266,6 +267,81 @@ func TestRunACPActorsRecoversPanic(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "panic") {
 		t.Fatalf("err = %v, want panic error", err)
+	}
+}
+
+func TestACPTunnelReconcilePaxdProducerResponse(t *testing.T) {
+	agent := &ACPTunnelAgent{}
+	tests := []struct {
+		name                 string
+		request              reliablemq.Envelope
+		consumerAckedThrough int64
+		wantAction           reliablemq.ReconcileAction
+		wantFrom             int64
+		wantThrough          int64
+		wantAdvanceNext      int64
+	}{
+		{
+			name: "aligned when producer and consumer match",
+			request: reliablemq.Envelope{
+				Type:            reliablemq.EnvelopeTypeReconcileRequest,
+				QueueID:         "queue_1",
+				Stream:          reliablemq.StreamACP,
+				ProducerNextSeq: 4,
+			},
+			consumerAckedThrough: 3,
+			wantAction:           reliablemq.ReconcileActionAligned,
+		},
+		{
+			name: "replay when consumer is behind and producer has the range",
+			request: reliablemq.Envelope{
+				Type:            reliablemq.EnvelopeTypeReconcileRequest,
+				QueueID:         "queue_1",
+				Stream:          reliablemq.StreamACP,
+				ProducerNextSeq: 4,
+				ReplayFrom:      2,
+				ReplayThrough:   3,
+			},
+			consumerAckedThrough: 1,
+			wantAction:           reliablemq.ReconcileActionReplay,
+			wantFrom:             2,
+			wantThrough:          3,
+		},
+		{
+			name: "advance producer when consumer is ahead",
+			request: reliablemq.Envelope{
+				Type:            reliablemq.EnvelopeTypeReconcileRequest,
+				QueueID:         "queue_1",
+				Stream:          reliablemq.StreamACP,
+				ProducerNextSeq: 4,
+			},
+			consumerAckedThrough: 8,
+			wantAction:           reliablemq.ReconcileActionAdvanceProducer,
+			wantAdvanceNext:      9,
+		},
+		{
+			name: "rotate when consumer is behind missing nonreplayable range",
+			request: reliablemq.Envelope{
+				Type:            reliablemq.EnvelopeTypeReconcileRequest,
+				QueueID:         "queue_1",
+				Stream:          reliablemq.StreamACP,
+				ProducerNextSeq: 4,
+			},
+			consumerAckedThrough: 1,
+			wantAction:           reliablemq.ReconcileActionRotate,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := agent.reconcilePaxdProducerResponse(tt.request, tt.consumerAckedThrough)
+
+			require.Equal(t, tt.wantAction, response.Action)
+			require.Equal(t, tt.consumerAckedThrough, response.ConsumerAckedThrough)
+			require.Equal(t, tt.wantFrom, response.From)
+			require.Equal(t, tt.wantThrough, response.Through)
+			require.Equal(t, tt.wantAdvanceNext, response.AdvanceProducerNextSeq)
+		})
 	}
 }
 
