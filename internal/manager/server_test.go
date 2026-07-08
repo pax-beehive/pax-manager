@@ -1122,6 +1122,51 @@ func TestUserIdentityRejectsLocalHeaderUnlessEnabled(t *testing.T) {
 	}
 }
 
+func TestNewServerDefaultsACPTransportToDurableStore(t *testing.T) {
+	store := NewMemoryStore(time.Now)
+	srv := newServer(Config{}, store)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, srv.CloseTransportStore(ctx))
+	})
+	writeBehind, ok := srv.transportStore.(*reliablemq.ConsumerWriteBehindStore)
+	require.True(t, ok)
+	flusher, ok := srv.transportFlusher.(*reliablemq.ConsumerWriteBehindStore)
+	require.True(t, ok)
+	require.Same(t, writeBehind, flusher)
+}
+
+func TestNewServerConsumerWriteBehindTransportKeepsOutboundDurable(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore(time.Now)
+	first, err := store.AppendOutboundData(
+		ctx,
+		"queue_1",
+		reliablemq.StreamACP,
+		json.RawMessage(`{"n":1}`),
+		nil,
+	)
+	require.NoError(t, err)
+	require.NoError(t, store.AckOutboundThrough(ctx, first.Key.QueueID, first.Key.Stream, first.Key.Seq))
+
+	srv := newServer(Config{}, store)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, srv.CloseTransportStore(closeCtx))
+	})
+	frame, err := srv.transportStore.AppendOutboundData(
+		ctx,
+		"queue_1",
+		reliablemq.StreamACP,
+		json.RawMessage(`{"n":1}`),
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), frame.Key.Seq)
+}
+
 func TestAdminStatusFollowsCurrentConfig(t *testing.T) {
 	now := func() time.Time { return time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC) }
 	store := NewMemoryStore(now)
@@ -1575,6 +1620,66 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 		domain.TransportDirectionInbound,
 		domain.TransportStatusApplied,
 	)
+}
+
+func TestACPTunnelWriteBehindStoreRelaysInitialize(t *testing.T) {
+	srv, paxKey := testServer(t, "todd@example.com")
+	writeBehind, ok := srv.transportStore.(*reliablemq.ConsumerWriteBehindStore)
+	require.True(t, ok)
+	agentID := testAgentID(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleUserACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID,
+		agentHeader,
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, agentID, "")
+
+	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
+	userWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/user/self/agents/"+agentID+"/tunnel",
+		userHeader,
+	)
+	require.NoError(t, err)
+	defer func() { _ = userWS.Close() }()
+
+	requestPayload := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
+	require.NoError(t, userWS.WriteMessage(websocket.TextMessage, requestPayload))
+	_, gotRequest, err := agentWS.ReadMessage()
+	require.NoError(t, err)
+	requestEnv := decodeACPTunnelEnvelope(t, gotRequest)
+	require.Equal(t, acpTunnelTypeData, requestEnv.Type)
+	require.Equal(t, acpTunnelStreamManagerToPaxd, requestEnv.Stream)
+	require.Equal(t, int64(1), requestEnv.Seq)
+	require.JSONEq(t, string(requestPayload), string(requestEnv.Payload))
+
+	requestAck := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
+		Type:    acpTunnelTypeAck,
+		QueueID: requestEnv.QueueID,
+		Stream:  acpTunnelStreamManagerToPaxd,
+		Seq:     requestEnv.Seq,
+	})
+	require.NoError(t, agentWS.WriteMessage(websocket.TextMessage, requestAck))
+
+	responsePayload := json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`)
+	writeAgentDataFrame(t, agentWS, requestEnv.QueueID, 1, responsePayload)
+	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 1)
+
+	_, gotResponse, err := userWS.ReadMessage()
+	require.NoError(t, err)
+	require.JSONEq(t, string(responsePayload), string(gotResponse))
+	require.Eventually(t, func() bool {
+		return writeBehind.Stats().DirtyFrames == 0
+	}, time.Second, time.Millisecond)
 }
 
 //nolint:gocyclo
@@ -2352,6 +2457,7 @@ func TestConversationContinuesWhenAgentTunnelReconnectsDuringPrompt(t *testing.T
 	require.NoError(t, err)
 	defer func() { _ = secondAgentWS.Close() }()
 
+	completeMockAgentReconcile(t, secondAgentWS, promptEnv.QueueID, 1)
 	replayedPromptEnv := readNextManagerToAgentData(t, secondAgentWS)
 	assert.Equal(t, promptEnv.Seq, replayedPromptEnv.Seq)
 	assertACPMethod(t, replayedPromptEnv.Payload, "session/prompt")
@@ -2833,7 +2939,7 @@ func TestConversationHelpersCoverErrorBranches(t *testing.T) {
 	}
 }
 
-func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
+func TestACPTunnelDoesNotReplayUnackedUserFrameWithoutReceiverAfterAgentReconnect(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
 
@@ -2901,34 +3007,10 @@ func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	}
 	defer func() { _ = secondAgentWS.Close() }()
 
+	require.NoError(t, secondAgentWS.SetReadDeadline(time.Now().Add(100*time.Millisecond)))
 	_, replayed, err := secondAgentWS.ReadMessage()
-	if err != nil {
-		t.Fatalf("read replayed request: %v", err)
-	}
-	replayEnv := decodeACPTunnelEnvelope(t, replayed)
-	if replayEnv.Stream != acpTunnelStreamManagerToPaxd ||
-		replayEnv.Seq != 1 ||
-		string(replayEnv.Payload) != string(requestPayload) {
-		t.Fatalf("replayed agent payload = %s", replayed)
-	}
-	replayAck := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
-		Type:    acpTunnelTypeAck,
-		QueueID: replayEnv.QueueID,
-		Stream:  acpTunnelStreamManagerToPaxd,
-		Seq:     replayEnv.Seq,
-	})
-	if err := secondAgentWS.WriteMessage(websocket.TextMessage, replayAck); err != nil {
-		t.Fatalf("write replay ack: %v", err)
-	}
-	waitTransportStatus(
-		t,
-		srv,
-		agentID,
-		domain.TransportStreamManagerToPaxd,
-		replayEnv.Seq,
-		domain.TransportDirectionOutbound,
-		domain.TransportStatusAcked,
-	)
+	require.Error(t, err, "unexpected replayed frame: %s", string(replayed))
+	require.NoError(t, secondAgentWS.SetReadDeadline(time.Time{}))
 }
 
 func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
@@ -4284,6 +4366,36 @@ func readMockACPRequest(
 	require.NoError(t, json.Unmarshal(env.Payload, &req))
 	require.Equal(t, wantMethod, req.Method, string(env.Payload))
 	return env, req
+}
+
+func completeMockAgentReconcile(
+	t *testing.T,
+	agentWS *websocket.Conn,
+	queueID string,
+	producerNextSeq int64,
+) reliablemq.Envelope {
+	t.Helper()
+	request, err := reliablemq.MarshalEnvelope(reliablemq.ReconcileRequestEnvelope(reliablemq.ProducerReconcileCheckpoint{
+		QueueID:         queueID,
+		Stream:          reliablemq.StreamACP,
+		ProducerNextSeq: producerNextSeq,
+	}))
+	require.NoError(t, err)
+	require.NoError(t, agentWS.WriteMessage(websocket.TextMessage, request))
+	require.NoError(t, agentWS.SetReadDeadline(time.Now().Add(2*time.Second)))
+	defer func() {
+		require.NoError(t, agentWS.SetReadDeadline(time.Time{}))
+	}()
+	messageType, payload, err := agentWS.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, websocket.TextMessage, messageType)
+	response, err := reliablemq.UnmarshalEnvelope(payload)
+	require.NoError(t, err)
+	require.Equal(t, reliablemq.EnvelopeTypeReconcileResponse, response.Type)
+	require.Equal(t, queueID, response.QueueID)
+	require.Equal(t, reliablemq.StreamACP, response.Stream)
+	require.NotEqual(t, reliablemq.ReconcileActionRotate, response.Action)
+	return response
 }
 
 func dialMockAgentTunnel(
@@ -5855,6 +5967,11 @@ func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 		AdminEmails:          map[string]bool{"admin@example.com": true},
 	}, store)
 	srv.clock = now
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, srv.CloseTransportStore(ctx))
+	})
 
 	tokenReq := httptest.NewRequest(
 		http.MethodPost,

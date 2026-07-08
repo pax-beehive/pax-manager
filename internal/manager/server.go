@@ -12,6 +12,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	hertzserver "github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/adaptor"
+	"github.com/pax-beehive/paxkit/reliablemq"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
@@ -25,6 +26,11 @@ import (
 type Service struct {
 	cfg              Config
 	store            Store
+	transportStore   reliablemq.DurableStore
+	transportFlusher interface {
+		Flush(context.Context) error
+		Close(context.Context) error
+	}
 	clock            func() time.Time
 	agentWS          *AgentWSHub
 	acpTunnels       *ACPTunnelHub
@@ -48,15 +54,34 @@ func newServer(cfg Config, store Store) *Service {
 		cfg.PaxdVerificationBaseURL = managerconfig.DefaultPaxdVerificationBaseURL
 	}
 	secrets := auth.Secrets{}
+	transportBaseStore := store
 	store = newCanonicalSessionStore(store)
+	transportStore := reliablemq.NewConsumerWriteBehindStore(
+		transportBaseStore,
+		reliablemq.WithConsumerWriteBehindRequireBatchStore(),
+		reliablemq.WithConsumerWriteBehindFlushFailureHandler(func(err error, stats reliablemq.ConsumerWriteBehindStats) {
+			logging.Error(
+				context.Background(),
+				"acp transport consumer write-behind flush failed",
+				logging.Err(err),
+				slog.Int("dirty_frames", stats.DirtyFrames),
+				slog.Int("dirty_patches", stats.DirtyPatches),
+				slog.Int64("dirty_bytes", stats.DirtyBytes),
+				slog.Int("consecutive_failures", stats.ConsecutiveFlushFailures),
+				slog.String("last_flush_error", stats.LastFlushError),
+			)
+		}),
+	)
 	s := &Service{
-		cfg:          cfg,
-		store:        store,
-		clock:        time.Now,
-		agentWS:      NewAgentWSHub(),
-		acpTunnels:   NewACPTunnelHub(),
-		maxBodyBytes: cfg.MaxBodyBytes,
-		apiLimiter:   newRateLimiter(cfg.APIRateLimitPerMinute, cfg.APIRateLimitBurst, time.Now),
+		cfg:              cfg,
+		store:            store,
+		transportStore:   transportStore,
+		transportFlusher: transportStore,
+		clock:            time.Now,
+		agentWS:          NewAgentWSHub(),
+		acpTunnels:       NewACPTunnelHub(),
+		maxBodyBytes:     cfg.MaxBodyBytes,
+		apiLimiter:       newRateLimiter(cfg.APIRateLimitPerMinute, cfg.APIRateLimitBurst, time.Now),
 		registerLimiter: newRateLimiter(
 			cfg.RegisterLimitPerMinute,
 			cfg.RegisterLimitBurst,
@@ -86,6 +111,13 @@ func newServer(cfg Config, store Store) *Service {
 	s.configureTeamMemexExecutor()
 	s.paxdArtifacts = newGCPPaxdArtifactBackend(cfg)
 	return s
+}
+
+func (s *Service) CloseTransportStore(ctx context.Context) error {
+	if s == nil || s.transportFlusher == nil {
+		return nil
+	}
+	return s.transportFlusher.Close(ctx)
 }
 
 func (s *Service) configureTeamMemexExecutor() {

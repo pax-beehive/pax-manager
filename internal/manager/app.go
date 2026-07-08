@@ -26,6 +26,14 @@ func Run(ctx context.Context) error {
 	defer closeStore()
 
 	srv := newServer(cfg, store)
+	logging.Info(ctx, "acp transport consumer write-behind enabled")
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := srv.CloseTransportStore(closeCtx); err != nil {
+			logging.Warn(ctx, "close transport store failed", slog.String("error", err.Error()))
+		}
+	}()
 	addr := ":" + cfg.Port
 
 	logging.Info(ctx, "pax-manager listening", slog.String("addr", "http://localhost"+addr))

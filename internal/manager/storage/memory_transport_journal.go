@@ -131,6 +131,98 @@ func (s *MemoryStore) ListInboundReplay(
 	)
 }
 
+func (s *MemoryStore) LoadQueueState(
+	ctx context.Context,
+	queueID string,
+	stream reliablemq.Stream,
+) (reliablemq.QueueState, error) {
+	_ = ctx
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := transportQueueStateKey{QueueID: queueID, Stream: string(stream)}
+	state := s.transportQueueState[key]
+	if state.NextOutboundSeq <= 0 {
+		state.NextOutboundSeq = s.nextOutboundSeqFromJournalLocked(queueID, stream)
+	}
+	return reliablemq.QueueState{
+		NextOutboundSeq:       state.NextOutboundSeq,
+		InboundAppliedThrough: state.InboundAppliedThrough,
+	}, nil
+}
+
+func (s *MemoryStore) ConsumerAckedThrough(
+	ctx context.Context,
+	queueID string,
+	stream reliablemq.Stream,
+) (int64, error) {
+	_ = ctx
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var through int64
+	next := int64(1)
+	for {
+		frame, ok := s.transportJournal[transportFrameKey{
+			QueueID:   queueID,
+			Stream:    string(stream),
+			Seq:       next,
+			Direction: string(reliablemq.DirectionInbound),
+		}]
+		if !ok || !isReliableConsumerAckedStatus(frame.Status) {
+			break
+		}
+		through = next
+		next++
+	}
+	return through, nil
+}
+
+func (s *MemoryStore) ApplyBatch(ctx context.Context, batch reliablemq.StoreBatch) error {
+	_ = ctx
+	for _, frame := range batch.Frames {
+		if err := s.applyReliableBatchFrame(frame); err != nil {
+			return err
+		}
+	}
+	for _, patch := range batch.Patches {
+		if patch.HasMetadata {
+			if err := s.UpdateMetadata(ctx, patch.Key, patch.Metadata); err != nil {
+				return err
+			}
+		}
+		switch patch.Status {
+		case "":
+		case reliablemq.StatusSent:
+			if err := s.MarkSent(ctx, patch.Key); err != nil {
+				return err
+			}
+		case reliablemq.StatusAcked:
+			if err := s.AckOutboundThrough(ctx, patch.Key.QueueID, patch.Key.Stream, patch.Key.Seq); err != nil {
+				return err
+			}
+		case reliablemq.StatusApplied:
+			if err := s.MarkApplied(ctx, patch.Key); err != nil {
+				return err
+			}
+		case reliablemq.StatusRejected:
+			if err := s.MarkRejected(ctx, patch.Key, patch.ErrorMessage); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("%w: invalid status %q", reliablemq.ErrInvalidFrame, patch.Status)
+		}
+		if patch.ErrorMessage != "" && patch.Status != reliablemq.StatusRejected {
+			if patch.Key.Direction == reliablemq.DirectionOutbound {
+				if err := s.RecordSendFailure(ctx, patch.Key, patch.ErrorMessage); err != nil {
+					return err
+				}
+			} else if err := s.RecordDispatchFailure(ctx, patch.Key, patch.ErrorMessage); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (s *MemoryStore) MarkSent(ctx context.Context, key reliablemq.FrameKey) error {
 	_ = ctx
 	return s.updateReliableStatus(key, reliablemq.StatusSent, "")
@@ -496,6 +588,42 @@ func (s *MemoryStore) updateReliableStatus(
 	return nil
 }
 
+func (s *MemoryStore) applyReliableBatchFrame(frame reliablemq.Frame) error {
+	if err := reliablemq.ValidateFrame(frame); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now().UTC()
+	frame = frame.Clone()
+	if frame.CreatedAt.IsZero() {
+		frame.CreatedAt = now
+	}
+	if frame.UpdatedAt.IsZero() {
+		frame.UpdatedAt = frame.CreatedAt
+	}
+	if frame.Key.Direction == reliablemq.DirectionOutbound {
+		s.updateNextOutboundSeqAtLeastLocked(frame.Key.QueueID, frame.Key.Stream, frame.Key.Seq+1, now)
+	}
+	key := makeReliableTransportFrameKey(frame.Key)
+	compat := transportFrameFromReliable(frame, frame.Metadata["agent_id"])
+	if existing, ok := s.transportJournal[key]; ok {
+		compat.ID = existing.ID
+		if compat.CreatedAt.IsZero() {
+			compat.CreatedAt = existing.CreatedAt
+		}
+	} else {
+		s.nextTransportID++
+		compat.ID = s.nextTransportID
+	}
+	setTransportStatusTimestamp(&compat, compat.Status, frame.UpdatedAt)
+	s.transportJournal[key] = cloneTransportFrame(compat)
+	if frame.Key.Direction == reliablemq.DirectionInbound && frame.Status == reliablemq.StatusApplied {
+		s.updateInboundAppliedThroughLocked(frame.Key.QueueID, frame.Key.Stream, frame.Key.Seq, now)
+	}
+	return nil
+}
+
 func (s *MemoryStore) updateReliableError(key reliablemq.FrameKey, errorMessage string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -572,6 +700,24 @@ func (s *MemoryStore) nextOutboundSeqFromJournalLocked(queueID string, stream re
 		}
 	}
 	return maxSeq + 1
+}
+
+func (s *MemoryStore) updateNextOutboundSeqAtLeastLocked(
+	queueID string,
+	stream reliablemq.Stream,
+	nextSeq int64,
+	now time.Time,
+) {
+	key := transportQueueStateKey{QueueID: queueID, Stream: string(stream)}
+	state := s.transportQueueState[key]
+	if state.CreatedAt.IsZero() {
+		state.CreatedAt = now
+	}
+	if state.NextOutboundSeq < nextSeq {
+		state.NextOutboundSeq = nextSeq
+	}
+	state.UpdatedAt = now
+	s.transportQueueState[key] = state
 }
 
 func (s *MemoryStore) inboundAppliedThroughLocked(queueID string, stream reliablemq.Stream) int64 {
@@ -710,4 +856,10 @@ func cloneTimePtr(ts *time.Time) *time.Time {
 	}
 	cloned := *ts
 	return &cloned
+}
+
+func isReliableConsumerAckedStatus(status string) bool {
+	return status == string(reliablemq.StatusReceived) ||
+		status == string(reliablemq.StatusApplied) ||
+		status == string(reliablemq.StatusRejected)
 }
