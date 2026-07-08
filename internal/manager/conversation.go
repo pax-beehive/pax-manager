@@ -625,10 +625,67 @@ func (s *Service) createConversationApproval(
 	if err != nil {
 		return AgentApproval{}, nil, err
 	}
+	if err := s.persistConversationApprovalHistory(ctx, runner, session, frame, forwarded); err != nil {
+		logging.Warn(
+			ctx,
+			"conversation approval history update failed",
+			logging.Err(err),
+		)
+	}
 	if err := s.markConversationWaitingApproval(ctx, runner, session.managerID, approval); err != nil {
 		return AgentApproval{}, nil, err
 	}
 	return approval, forwarded, nil
+}
+
+func (s *Service) persistConversationApprovalHistory(
+	ctx context.Context,
+	runner *conversationRunner,
+	session conversationSession,
+	request acpJSONRPCMessage,
+	forwarded json.RawMessage,
+) error {
+	if len(forwarded) == 0 {
+		return nil
+	}
+	requestID := acpRequestID(request.ID)
+	messages, err := s.store.ListMessages(ctx, runner.agentConn.agentID, session.managerID, 1000)
+	if err != nil {
+		return err
+	}
+	for _, msg := range messages {
+		if msg.MessageType != "session/request_permission" {
+			continue
+		}
+		if !conversationHistoryMessageMatchesPermission(msg, requestID) {
+			continue
+		}
+		msg.RawJSON = append(json.RawMessage(nil), forwarded...)
+		if err := s.store.UpsertMessage(ctx, &msg); err != nil {
+			return err
+		}
+		return s.store.UpsertMessagePart(ctx, &domain.MessagePart{
+			MessageID:   msg.MessageID,
+			PartIndex:   0,
+			PartType:    domain.MessagePartRawJSON,
+			PayloadJSON: append(json.RawMessage(nil), forwarded...),
+		})
+	}
+	return nil
+}
+
+func conversationHistoryMessageMatchesPermission(msg domain.Message, requestID string) bool {
+	var frame acpJSONRPCMessage
+	if len(msg.RawJSON) == 0 || json.Unmarshal(msg.RawJSON, &frame) != nil {
+		return false
+	}
+	if frame.Method != "session/request_permission" {
+		return false
+	}
+	if requestID == "" {
+		return true
+	}
+	return acpRequestID(frame.ID) == requestID
 }
 
 func (s *Service) markConversationWaitingApproval(

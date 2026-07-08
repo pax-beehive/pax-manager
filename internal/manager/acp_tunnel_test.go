@@ -158,6 +158,70 @@ func TestACPTunnelAgentSessionContextRestoresPreviousSession(t *testing.T) {
 	}
 }
 
+func TestShouldWarnDroppedACPFrame(t *testing.T) {
+	tests := []struct {
+		name            string
+		frame           acpJSONRPCMessage
+		deliveredWaiter bool
+		deliveredSSE    bool
+		asyncReceivers  acpAsyncReceiverCounts
+		wantShouldWarn  bool
+	}{
+		{
+			name: "ignores notification without receiver",
+			frame: acpJSONRPCMessage{
+				Method: "session/update",
+			},
+		},
+		{
+			name: "warns when request or response frame has no receiver",
+			frame: acpJSONRPCMessage{
+				ID: json.RawMessage(`7`),
+			},
+			wantShouldWarn: true,
+		},
+		{
+			name: "ignores frame delivered to waiter",
+			frame: acpJSONRPCMessage{
+				ID: json.RawMessage(`7`),
+			},
+			deliveredWaiter: true,
+		},
+		{
+			name: "ignores frame delivered to SSE subscriber",
+			frame: acpJSONRPCMessage{
+				Method: "session/update",
+			},
+			deliveredSSE: true,
+		},
+		{
+			name: "ignores frame while async receiver exists",
+			frame: acpJSONRPCMessage{
+				ID: json.RawMessage(`7`),
+			},
+			asyncReceivers: acpAsyncReceiverCounts{responseWaiters: 1},
+		},
+		{
+			name:           "warns on malformed frame without receiver",
+			frame:          acpJSONRPCMessage{},
+			wantShouldWarn: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := shouldWarnDroppedACPFrame(
+				tt.frame,
+				tt.deliveredWaiter,
+				tt.deliveredSSE,
+				tt.asyncReceivers,
+			)
+
+			require.Equal(t, tt.wantShouldWarn, got)
+		})
+	}
+}
+
 func TestACPRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 	params := map[string]any{
 		"options": []any{
