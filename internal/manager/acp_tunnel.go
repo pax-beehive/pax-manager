@@ -509,6 +509,25 @@ func (a *ACPTunnelAgent) hasAsyncReceivers() bool {
 	return state.hasAsyncReceiversLocked()
 }
 
+type acpAsyncReceiverCounts struct {
+	responseWaiters int
+	sseSubscribers  int
+}
+
+func (c acpAsyncReceiverCounts) hasAny() bool {
+	return c.responseWaiters > 0 || c.sseSubscribers > 0
+}
+
+func (a *ACPTunnelAgent) asyncReceiverCounts() acpAsyncReceiverCounts {
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return acpAsyncReceiverCounts{
+		responseWaiters: len(state.responseWaiters),
+		sseSubscribers:  len(state.sseSubscribers),
+	}
+}
+
 func (a *ACPTunnelAgent) withSessionContext(sessionID string) func() {
 	if sessionID == "" {
 		return func() {}
@@ -1483,6 +1502,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 		frameSessionID := frameSessionID(frame.frame)
 		deliveredWaiter := a.notifyResponseWaiter(requestID, frame.payload)
 		deliveredSSE := a.broadcastSSE(frame.payload)
+		asyncReceivers := a.asyncReceiverCounts()
 		userWS := a.currentUser()
 		logging.Info(
 			ctx,
@@ -1496,11 +1516,13 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 				slog.String("frame_session_id", frameSessionID),
 				slog.Bool("delivered_waiter", deliveredWaiter),
 				slog.Bool("delivered_sse", deliveredSSE),
+				slog.Int("response_waiters", asyncReceivers.responseWaiters),
+				slog.Int("sse_subscribers", asyncReceivers.sseSubscribers),
 				slog.Bool("user_connected", userWS != nil),
 			)...,
 		)
 		if userWS == nil {
-			if !deliveredWaiter && !deliveredSSE && !a.hasAsyncReceivers() {
+			if shouldWarnDroppedACPFrame(frame.frame, deliveredWaiter, deliveredSSE, asyncReceivers) {
 				logging.Warn(
 					ctx,
 					"agent acp tunnel dropped frame without user",
@@ -1510,6 +1532,8 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 					slog.String("frame_session_id", frameSessionID),
 					slog.String("frame_request_id", requestID),
 					slog.String("frame_method", frame.frame.Method),
+					slog.Int("response_waiters", asyncReceivers.responseWaiters),
+					slog.Int("sse_subscribers", asyncReceivers.sseSubscribers),
 				)
 			}
 			return nil
@@ -1542,6 +1566,21 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 	}
 	a.observeHistoryBoundary(frame.payload)
 	return nil
+}
+
+func shouldWarnDroppedACPFrame(
+	frame acpJSONRPCMessage,
+	deliveredWaiter bool,
+	deliveredSSE bool,
+	asyncReceivers acpAsyncReceiverCounts,
+) bool {
+	if deliveredWaiter || deliveredSSE || asyncReceivers.hasAny() {
+		return false
+	}
+	if acpJSONRPCID(frame) != "" {
+		return true
+	}
+	return frame.Method == ""
 }
 
 func (a *ACPTunnelAgent) reliableSender(messageType int) reliablemq.Sender {

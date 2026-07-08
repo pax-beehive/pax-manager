@@ -2044,6 +2044,20 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 	require.NoError(t, err)
 	require.NotNil(t, session.RuntimeState)
 	assert.Equal(t, requiredEvent.ApprovalID, session.RuntimeState.PendingApprovalID)
+
+	historyReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agents/"+fixture.agentID+"/sessions/sess-existing/history",
+		nil,
+	)
+	historyReq.Header.Set("X-User-Email", "todd@example.com")
+	historyRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(historyRec, historyReq)
+	require.Equal(t, http.StatusOK, historyRec.Code, historyRec.Body.String())
+	history := decodeData[struct {
+		Messages []MessageWithParts `json:"messages"`
+	}](t, historyRec.Body.Bytes())
+	requireHistoryPermissionRequestWithApprovalID(t, history.Messages, requiredEvent.ApprovalID)
 }
 
 func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionResponse(
@@ -4328,6 +4342,51 @@ func requireConversationEvent(
 	}
 	t.Fatalf("missing conversation event %q in %+v", eventType, events)
 	return conversationEvent{}
+}
+
+func requireHistoryPermissionRequestWithApprovalID(
+	t *testing.T,
+	messages []MessageWithParts,
+	approvalID string,
+) {
+	t.Helper()
+	for _, message := range messages {
+		if message.MessageType != "session/request_permission" {
+			continue
+		}
+		for _, payload := range historyRawPayloads(message) {
+			var frame struct {
+				Method string `json:"method"`
+				Params struct {
+					ApprovalID      string `json:"approval_id"`
+					ApprovalIDCamel string `json:"approvalId"`
+				} `json:"params"`
+			}
+			if err := json.Unmarshal(payload, &frame); err != nil {
+				continue
+			}
+			if frame.Method != "session/request_permission" {
+				continue
+			}
+			require.Equal(t, approvalID, frame.Params.ApprovalID)
+			require.Equal(t, approvalID, frame.Params.ApprovalIDCamel)
+			return
+		}
+	}
+	t.Fatalf("missing permission request history message with approval_id %q: %+v", approvalID, messages)
+}
+
+func historyRawPayloads(message MessageWithParts) []json.RawMessage {
+	payloads := make([]json.RawMessage, 0, 1+len(message.Parts))
+	if len(message.RawJSON) > 0 {
+		payloads = append(payloads, message.RawJSON)
+	}
+	for _, part := range message.Parts {
+		if part.PartType == domain.MessagePartRawJSON && len(part.PayloadJSON) > 0 {
+			payloads = append(payloads, part.PayloadJSON)
+		}
+	}
+	return payloads
 }
 
 func readNextManagerToAgentData(t *testing.T, agentWS *websocket.Conn) acpTunnelEnvelope {
