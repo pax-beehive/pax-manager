@@ -101,6 +101,43 @@ func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 	)
 
 	t.Run(
+		"Given reported sessions are listed then activity time controls ordering",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store, node, agent := sessionReportStoreFixture(t, ctx)
+			newerActivity := time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)
+			olderActivity := time.Date(2026, 6, 27, 12, 0, 0, 0, time.UTC)
+
+			err := store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{
+				{
+					SessionID:     "codex:older",
+					AgentType:     "codex",
+					SessionName:   "Uploaded later",
+					LastMessageAt: &olderActivity,
+				},
+				{
+					SessionID:     "codex:newer",
+					AgentType:     "codex",
+					SessionName:   "Recently active",
+					LastMessageAt: &newerActivity,
+				},
+			})
+			require.NoError(t, err)
+
+			sessions, err := store.ListAgentSessions(
+				ctx,
+				UserPrincipal{User: User{UserID: node.OwnerUserID}},
+				agent.AgentID,
+			)
+
+			require.NoError(t, err)
+			require.Len(t, sessions, 2)
+			assert.Equal(t, "Recently active", sessions[0].SessionName)
+			assert.Equal(t, "Uploaded later", sessions[1].SessionName)
+		},
+	)
+
+	t.Run(
 		"Given empty sessions when upserting then it succeeds without changes",
 		func(t *testing.T) {
 			ctx := context.Background()
