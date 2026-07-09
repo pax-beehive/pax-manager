@@ -20,6 +20,7 @@ type UserPrincipal = domain.UserPrincipal
 type Node = domain.Node
 type Agent = domain.Agent
 type AgentSession = domain.AgentSession
+type SessionPaxConfig = domain.SessionPaxConfig
 type SessionRuntimeState = domain.SessionRuntimeState
 type MailboxMessage = domain.MailboxMessage
 type ApprovalOption = domain.ApprovalOption
@@ -61,6 +62,7 @@ type DeleteNodeRequest = domain.DeleteNodeRequest
 type UpdateAgentProfileRequest = domain.UpdateAgentProfileRequest
 type DeleteAgentRequest = domain.DeleteAgentRequest
 type CreateSessionRequest = domain.CreateSessionRequest
+type UpdateSessionRequest = domain.UpdateSessionRequest
 type MailboxPull = domain.MailboxPull
 type MailboxFilter = domain.MailboxFilter
 type Message = domain.Message
@@ -106,6 +108,10 @@ func mailboxPayload(req CreateMailboxRequest) (json.RawMessage, error) {
 
 func normalizeEmail(email string) string {
 	return domain.NormalizeEmail(email)
+}
+
+func normalizeSessionApprovalMode(mode string) string {
+	return domain.NormalizeSessionApprovalMode(mode)
 }
 
 func canAccessOwner(principal UserPrincipal, ownerUserID string) bool {
@@ -176,6 +182,20 @@ func runtimeMetadata(raw json.RawMessage, state SessionRuntimeState) json.RawMes
 		_ = json.Unmarshal(raw, &object)
 	}
 	object["runtime_state"] = state
+	data, err := json.Marshal(object)
+	if err != nil {
+		return raw
+	}
+	return data
+}
+
+func paxConfigMetadata(raw json.RawMessage, config SessionPaxConfig) json.RawMessage {
+	object := map[string]any{}
+	if len(raw) > 0 && json.Valid(raw) {
+		_ = json.Unmarshal(raw, &object)
+	}
+	config.ApprovalMode = normalizeSessionApprovalMode(config.ApprovalMode)
+	object["pax_config"] = config
 	data, err := json.Marshal(object)
 	if err != nil {
 		return raw

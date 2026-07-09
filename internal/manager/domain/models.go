@@ -99,6 +99,33 @@ type AgentSession struct {
 	UpdatedAt             time.Time            `json:"updated_at"`
 	Metadata              json.RawMessage      `json:"metadata,omitempty"`
 	RuntimeState          *SessionRuntimeState `json:"runtime_state,omitempty"`
+	PaxConfig             SessionPaxConfig     `json:"pax_config,omitempty"`
+}
+
+const (
+	SessionApprovalModeManual         = "manual"
+	SessionApprovalModeAutoApproveAll = "auto_approve_all"
+)
+
+func NormalizeSessionApprovalMode(mode string) string {
+	if mode == "" {
+		return SessionApprovalModeManual
+	}
+	return mode
+}
+
+func IsSessionApprovalMode(mode string) bool {
+	switch mode {
+	case SessionApprovalModeManual, SessionApprovalModeAutoApproveAll:
+		return true
+	default:
+		return false
+	}
+}
+
+type SessionPaxConfig struct {
+	CWD          string `json:"cwd,omitempty"`
+	ApprovalMode string `json:"approval_mode,omitempty"`
 }
 
 const (
@@ -1394,21 +1421,30 @@ type DeleteAgentRequest struct {
 }
 
 type CreateSessionRequest struct {
-	UserID                string          `json:"user_id"`
-	NodeID                string          `json:"node_id"`
-	AgentID               string          `json:"agent_id"`
-	SessionID             string          `json:"session_id"`
-	ConversationID        string          `json:"conversation_id"`
-	ProfileID             string          `json:"profile_id"`
-	RepresentativeAgentID string          `json:"representative_agent_id"`
-	CreatedByUserID       string          `json:"created_by_user_id"`
-	SessionName           string          `json:"name"`
-	AgentType             string          `json:"agent_type"`
-	NativeID              string          `json:"native_id"`
-	ProjectID             string          `json:"project_id"`
-	WorkspaceRoots        []string        `json:"workspace_roots"`
-	Source                string          `json:"source"`
-	Metadata              json.RawMessage `json:"metadata"`
+	UserID                string           `json:"user_id"`
+	NodeID                string           `json:"node_id"`
+	AgentID               string           `json:"agent_id"`
+	SessionID             string           `json:"session_id"`
+	ConversationID        string           `json:"conversation_id"`
+	ProfileID             string           `json:"profile_id"`
+	RepresentativeAgentID string           `json:"representative_agent_id"`
+	CreatedByUserID       string           `json:"created_by_user_id"`
+	SessionName           string           `json:"name"`
+	AgentType             string           `json:"agent_type"`
+	NativeID              string           `json:"native_id"`
+	ProjectID             string           `json:"project_id"`
+	WorkspaceRoots        []string         `json:"workspace_roots"`
+	Source                string           `json:"source"`
+	Metadata              json.RawMessage  `json:"metadata"`
+	PaxConfig             SessionPaxConfig `json:"pax_config"`
+}
+
+type UpdateSessionRequest struct {
+	UserID    string           `json:"user_id"`
+	NodeID    string           `json:"node_id"`
+	AgentID   string           `json:"agent_id"`
+	SessionID string           `json:"session_id"`
+	PaxConfig SessionPaxConfig `json:"pax_config"`
 }
 
 type OffsetRequest struct {

@@ -101,6 +101,61 @@ func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 	)
 
 	t.Run(
+		"Given an existing ACP tunnel session when paxl reports it then it preserves source",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store, node, agent := sessionReportStoreFixture(t, ctx)
+
+			err := store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+				SessionID: "codex:abc",
+				NativeID:  "abc",
+				AgentType: "codex",
+				Source:    "acp_tunnel",
+				Status:    "idle",
+			}})
+			require.NoError(t, err)
+
+			err = store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+				SessionID:   "codex:abc",
+				NativeID:    "abc",
+				AgentType:   "codex",
+				SessionName: "Reported by paxl",
+				Source:      "paxl",
+				Status:      "available",
+			}})
+			require.NoError(t, err)
+
+			sessions, err := store.ListAgentSessions(
+				ctx,
+				UserPrincipal{User: User{UserID: node.OwnerUserID}},
+				agent.AgentID,
+			)
+			require.NoError(t, err)
+			require.Len(t, sessions, 1)
+			assert.Equal(t, "acp_tunnel", sessions[0].Source)
+			assert.Equal(t, "Reported by paxl", sessions[0].SessionName)
+
+			err = store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+				SessionID: "codex:abc",
+				NativeID:  "abc",
+				AgentType: "codex",
+				Source:    "paxl",
+				Status:    "available",
+			}})
+			require.NoError(t, err)
+
+			sessions, err = store.ListAgentSessions(
+				ctx,
+				UserPrincipal{User: User{UserID: node.OwnerUserID}},
+				agent.AgentID,
+			)
+			require.NoError(t, err)
+			require.Len(t, sessions, 1)
+			assert.Equal(t, "Reported by paxl", sessions[0].SessionName)
+		},
+	)
+
+	t.Run(
 		"Given reported sessions are listed then activity time controls ordering",
 		func(t *testing.T) {
 			ctx := context.Background()

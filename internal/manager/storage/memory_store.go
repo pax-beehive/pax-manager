@@ -1278,7 +1278,38 @@ func (s *MemoryStore) CreateNodeAgentSession(
 	if req.CreatedByUserID != "" {
 		session.CreatedByUserID = req.CreatedByUserID
 	}
+	if req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != "" {
+		session.PaxConfig = req.PaxConfig
+		session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(session.PaxConfig.ApprovalMode)
+		session.Metadata = paxConfigMetadata(session.Metadata, session.PaxConfig)
+	}
 	s.sessions[sessionKey(req.AgentID, input.SessionID)] = session
+	return session, nil
+}
+
+func (s *MemoryStore) UpdateNodeAgentSession(
+	ctx context.Context,
+	principal UserPrincipal,
+	req UpdateSessionRequest,
+) (AgentSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := sessionKey(req.AgentID, req.SessionID)
+	session, ok := s.sessions[key]
+	if !ok {
+		return AgentSession{}, ErrNotFound
+	}
+	agent, ok := s.agents[req.AgentID]
+	if !ok || !s.canAccessAgentLocked(principal, agent) {
+		return AgentSession{}, ErrNotFound
+	}
+	if session.AgentID != req.AgentID || (session.NodeID != "" && session.NodeID != req.NodeID) {
+		return AgentSession{}, ErrNotFound
+	}
+	session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
+	session.Metadata = paxConfigMetadata(session.Metadata, session.PaxConfig)
+	session.UpdatedAt = s.now().UTC()
+	s.sessions[key] = session
 	return session, nil
 }
 
@@ -1502,6 +1533,7 @@ func (s *MemoryStore) UpdateSessionRuntimeState(
 	session.RunStatus = runStatus
 	session.UpdatedAt = state.UpdatedAt
 	session.RuntimeState = &state
+	session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(session.PaxConfig.ApprovalMode)
 	session.Metadata = runtimeMetadata(session.Metadata, state)
 	s.sessions[sessionKey(state.AgentID, state.SessionID)] = session
 	return nil
@@ -2299,7 +2331,9 @@ func (s *MemoryStore) upsertSessionLocked(
 		existing.CreatedAt = now
 	}
 	existing.NodeID = nodeID
-	existing.SessionName = input.SessionName
+	if input.SessionName != "" || !exists {
+		existing.SessionName = input.SessionName
+	}
 	existing.AgentType = input.AgentType
 	if input.NativeID != "" {
 		existing.NativeID = input.NativeID
@@ -2307,7 +2341,9 @@ func (s *MemoryStore) upsertSessionLocked(
 	existing.ProjectID = input.ProjectID
 	existing.Preview = input.Preview
 	existing.WorkspaceRoots = append([]string(nil), input.WorkspaceRoots...)
-	existing.Source = input.Source
+	if !exists || existing.Source == "" {
+		existing.Source = input.Source
+	}
 	existing.Status = defaultSessionStatus(input.Status)
 	existing.CurrentTask = input.CurrentTask
 	existing.LastMessageAt = input.LastMessageAt
@@ -2320,6 +2356,7 @@ func (s *MemoryStore) upsertSessionLocked(
 	existing.RunID = input.RunID
 	existing.RunStatus = input.RunStatus
 	existing.UpdatedAt = now
+	existing.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(existing.PaxConfig.ApprovalMode)
 	s.sessions[sessionKey(agentID, input.SessionID)] = existing
 	return existing
 }

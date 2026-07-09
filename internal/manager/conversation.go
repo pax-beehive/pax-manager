@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,9 +24,11 @@ const (
 var conversationRequestIdleTimeout = 30 * time.Second
 
 type conversationRequest struct {
-	SessionID string          `json:"session_id,omitempty"`
-	Input     string          `json:"input"`
-	Resume    json.RawMessage `json:"resume,omitempty"`
+	SessionID    string          `json:"session_id,omitempty"`
+	Input        string          `json:"input"`
+	Resume       json.RawMessage `json:"resume,omitempty"`
+	CWD          string          `json:"cwd,omitempty"`
+	ApprovalMode string          `json:"approval_mode,omitempty"`
 }
 
 type conversationEvent struct {
@@ -116,7 +119,7 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 		agentConn: agentConn,
 	}
 	if session.managerID == "" {
-		session, err = s.createConversationSession(r.Context(), &runner)
+		session, err = s.createConversationSession(r.Context(), principal, &runner, req)
 		if err != nil {
 			writeHTTPEndpointError(w, err)
 			return
@@ -183,6 +186,24 @@ func (s *Service) readConversationRequest(
 		writeHTTPError(w, http.StatusBadRequest, "input and resume are mutually exclusive")
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
+	req.CWD = strings.TrimSpace(req.CWD)
+	req.ApprovalMode = strings.TrimSpace(req.ApprovalMode)
+	if req.CWD != "" && !filepath.IsAbs(req.CWD) {
+		writeHTTPError(w, http.StatusBadRequest, "cwd must be an absolute path")
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
+	if req.SessionID != "" && req.CWD != "" {
+		writeHTTPError(w, http.StatusBadRequest, "cwd can only be set when creating a session")
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
+	if req.SessionID != "" && req.ApprovalMode != "" {
+		writeHTTPError(w, http.StatusBadRequest, "approval_mode can only be set when creating a session; use session PATCH to change it")
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
+	if req.ApprovalMode != "" && !domain.IsSessionApprovalMode(req.ApprovalMode) {
+		writeHTTPError(w, http.StatusBadRequest, "approval_mode must be manual or auto_approve_all")
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
 	if resumeReq.Requested && req.SessionID == "" {
 		writeHTTPError(w, http.StatusBadRequest, "session_id is required for resume")
 		return conversationRequest{}, conversationResumeRequest{}, false
@@ -241,12 +262,16 @@ func (s *Service) resolveConversationSession(
 
 func (s *Service) createConversationSession(
 	ctx context.Context,
+	principal UserPrincipal,
 	runner *conversationRunner,
+	req conversationRequest,
 ) (conversationSession, error) {
 	managerSessionID, err := newManagerSessionID()
 	if err != nil {
 		return conversationSession{}, err
 	}
+	cwd := firstNonEmpty(req.CWD, "/tmp")
+	approvalMode := domain.NormalizeSessionApprovalMode(req.ApprovalMode)
 	restoreSessionContext := runner.agentConn.withSessionContext(managerSessionID)
 	defer restoreSessionContext()
 	if _, err := runner.request(
@@ -268,7 +293,7 @@ func (s *Service) createConversationSession(
 		ctx,
 		"session/new",
 		map[string]any{
-			"cwd": "/tmp",
+			"cwd": cwd,
 			"mcpServers": agentConversationMCPServers(domain.AgentSession{
 				AgentID:   runner.agentConn.agentID,
 				SessionID: managerSessionID,
@@ -285,6 +310,18 @@ func (s *Service) createConversationSession(
 			Status:  http.StatusBadGateway,
 			Message: "ACP session/new did not return a sessionId",
 		}
+	}
+	if _, err := s.store.CreateNodeAgentSession(ctx, principal, domain.CreateSessionRequest{
+		NodeID:    runner.agentConn.nodeID,
+		AgentID:   runner.agentConn.agentID,
+		SessionID: managerSessionID,
+		Source:    domain.MessageSourceACPTunnel,
+		PaxConfig: domain.SessionPaxConfig{
+			CWD:          cwd,
+			ApprovalMode: approvalMode,
+		},
+	}); err != nil {
+		return conversationSession{}, err
 	}
 	return conversationSession{managerID: managerSessionID}, nil
 }
@@ -546,6 +583,9 @@ func (s *Service) writeConversationACPEvent(
 		if err != nil {
 			return false, err
 		}
+		if s.conversationApprovalMode(ctx, runner, session) == domain.SessionApprovalModeAutoApproveAll {
+			return false, s.autoApproveConversationApproval(ctx, runner, approval)
+		}
 		if err := s.writeConversationEvent(w, flusher, conversationEvent{
 			Type:       "approval_required",
 			NodeID:     runner.agentConn.nodeID,
@@ -573,6 +613,49 @@ func (s *Service) writeConversationACPEvent(
 		SessionID: session.managerID,
 		Frame:     append(json.RawMessage(nil), payload...),
 	})
+}
+
+func (s *Service) conversationApprovalMode(
+	ctx context.Context,
+	runner *conversationRunner,
+	session conversationSession,
+) string {
+	principal := UserPrincipal{User: User{UserID: runner.agentConn.ownerUserID}}
+	stored, err := s.store.GetSession(ctx, principal, session.managerID)
+	if err != nil {
+		logging.Warn(
+			ctx,
+			"conversation session config lookup failed",
+			logging.Err(err),
+		)
+		return domain.SessionApprovalModeManual
+	}
+	return domain.NormalizeSessionApprovalMode(stored.PaxConfig.ApprovalMode)
+}
+
+func (s *Service) autoApproveConversationApproval(
+	ctx context.Context,
+	runner *conversationRunner,
+	approval AgentApproval,
+) error {
+	principal := UserPrincipal{User: User{UserID: runner.agentConn.ownerUserID}}
+	grantBody := json.RawMessage(`{"approval_mode":"auto_approve_all"}`)
+	decided, err := s.store.DecideApproval(ctx, principal, approval.ApprovalID, ApprovalDecisionRequest{
+		DecisionOption: "allow_once",
+		GrantBody:      grantBody,
+	})
+	if err != nil {
+		return err
+	}
+	response, err := acpPermissionResponseFromApproval(decided)
+	if err != nil {
+		return err
+	}
+	if err := runner.sendRaw(ctx, response); err != nil {
+		return err
+	}
+	_, err = s.store.RecordApprovalResponse(ctx, principal, decided.ApprovalID, response, "")
+	return err
 }
 
 func (s *Service) createConversationApproval(

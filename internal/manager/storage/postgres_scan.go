@@ -232,6 +232,7 @@ func scanSession(row rowScanner) (AgentSession, error) {
 	_ = json.Unmarshal(roots, &session.WorkspaceRoots)
 	session.Metadata = json.RawMessage(metadata)
 	session.RuntimeState = runtimeStateFromMetadata(metadata)
+	session.PaxConfig = paxConfigFromMetadata(metadata)
 	return session, nil
 }
 
@@ -246,6 +247,23 @@ func runtimeStateFromMetadata(metadata []byte) *SessionRuntimeState {
 		return nil
 	}
 	return object.RuntimeState
+}
+
+func paxConfigFromMetadata(metadata []byte) SessionPaxConfig {
+	config := SessionPaxConfig{
+		ApprovalMode: normalizeSessionApprovalMode(""),
+	}
+	if len(metadata) == 0 || !json.Valid(metadata) {
+		return config
+	}
+	var object struct {
+		PaxConfig SessionPaxConfig `json:"pax_config"`
+	}
+	if err := json.Unmarshal(metadata, &object); err != nil {
+		return config
+	}
+	object.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(object.PaxConfig.ApprovalMode)
+	return object.PaxConfig
 }
 
 func scanSessions(rows *sql.Rows) ([]AgentSession, error) {
