@@ -389,7 +389,28 @@ func (s *Service) resumeConversation(
 	if err := runner.sendRaw(ctx, response); err != nil {
 		return err
 	}
-	if _, err := s.store.RecordApprovalResponse(ctx, principal, approval.ApprovalID, response, ""); err != nil {
+	recorded, err := s.store.RecordApprovalResponse(ctx, principal, approval.ApprovalID, response, "")
+	if err != nil {
+		return err
+	}
+	eventFrame, err := conversationPermissionResponseEventFrame(response, recorded)
+	if err != nil {
+		return err
+	}
+	if err := s.persistConversationApprovalResponseHistory(ctx, runner, session, response, eventFrame); err != nil {
+		logging.Warn(
+			ctx,
+			"conversation approval response history update failed",
+			logging.Err(err),
+		)
+	}
+	if err := s.writeConversationEvent(w, flusher, conversationEvent{
+		Type:      "acp",
+		NodeID:    runner.agentConn.nodeID,
+		AgentID:   runner.agentConn.agentID,
+		SessionID: session.managerID,
+		Frame:     eventFrame,
+	}); err != nil {
 		return err
 	}
 	if err := s.streamConversationUntilPromptDone(ctx, w, flusher, runner, session, sub, promptRequestID); err != nil {
@@ -584,7 +605,26 @@ func (s *Service) writeConversationACPEvent(
 			return false, err
 		}
 		if s.conversationApprovalMode(ctx, runner, session) == domain.SessionApprovalModeAutoApproveAll {
-			return false, s.autoApproveConversationApproval(ctx, runner, approval)
+			if err := s.writeConversationEvent(w, flusher, conversationEvent{
+				Type:      "acp",
+				NodeID:    runner.agentConn.nodeID,
+				AgentID:   runner.agentConn.agentID,
+				SessionID: session.managerID,
+				Frame:     frame,
+			}); err != nil {
+				return false, err
+			}
+			response, err := s.autoApproveConversationApproval(ctx, runner, session, approval)
+			if err != nil {
+				return false, err
+			}
+			return false, s.writeConversationEvent(w, flusher, conversationEvent{
+				Type:      "acp",
+				NodeID:    runner.agentConn.nodeID,
+				AgentID:   runner.agentConn.agentID,
+				SessionID: session.managerID,
+				Frame:     response,
+			})
 		}
 		if err := s.writeConversationEvent(w, flusher, conversationEvent{
 			Type:       "approval_required",
@@ -636,8 +676,9 @@ func (s *Service) conversationApprovalMode(
 func (s *Service) autoApproveConversationApproval(
 	ctx context.Context,
 	runner *conversationRunner,
+	session conversationSession,
 	approval AgentApproval,
-) error {
+) (json.RawMessage, error) {
 	principal := UserPrincipal{User: User{UserID: runner.agentConn.ownerUserID}}
 	grantBody := json.RawMessage(`{"approval_mode":"auto_approve_all"}`)
 	decided, err := s.store.DecideApproval(ctx, principal, approval.ApprovalID, ApprovalDecisionRequest{
@@ -645,17 +686,31 @@ func (s *Service) autoApproveConversationApproval(
 		GrantBody:      grantBody,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	response, err := acpPermissionResponseFromApproval(decided)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := runner.sendRaw(ctx, response); err != nil {
-		return err
+		return nil, err
 	}
-	_, err = s.store.RecordApprovalResponse(ctx, principal, decided.ApprovalID, response, "")
-	return err
+	recorded, err := s.store.RecordApprovalResponse(ctx, principal, decided.ApprovalID, response, "")
+	if err != nil {
+		return nil, err
+	}
+	eventFrame, err := conversationPermissionResponseEventFrame(response, recorded)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.persistConversationApprovalResponseHistory(ctx, runner, session, response, eventFrame); err != nil {
+		logging.Warn(
+			ctx,
+			"conversation approval response history update failed",
+			logging.Err(err),
+		)
+	}
+	return eventFrame, nil
 }
 
 func (s *Service) createConversationApproval(
@@ -757,12 +812,63 @@ func (s *Service) persistConversationApprovalHistory(
 	return nil
 }
 
+func (s *Service) persistConversationApprovalResponseHistory(
+	ctx context.Context,
+	runner *conversationRunner,
+	session conversationSession,
+	response []byte,
+	decorated json.RawMessage,
+) error {
+	if len(decorated) == 0 {
+		return nil
+	}
+	var frame acpJSONRPCMessage
+	if err := json.Unmarshal(response, &frame); err != nil {
+		return err
+	}
+	responseID := acpRequestID(frame.ID)
+	messages, err := s.store.ListMessages(ctx, runner.agentConn.agentID, session.managerID, 1000)
+	if err != nil {
+		return err
+	}
+	for _, msg := range messages {
+		if msg.MessageType != "permission_response" {
+			continue
+		}
+		if !conversationHistoryMessageMatchesPermissionResponse(msg, responseID) {
+			continue
+		}
+		msg.RawJSON = append(json.RawMessage(nil), decorated...)
+		if err := s.store.UpsertMessage(ctx, &msg); err != nil {
+			return err
+		}
+		return s.store.UpsertMessagePart(ctx, &domain.MessagePart{
+			MessageID:   msg.MessageID,
+			PartIndex:   0,
+			PartType:    domain.MessagePartRawJSON,
+			PayloadJSON: append(json.RawMessage(nil), decorated...),
+		})
+	}
+	return nil
+}
+
 func conversationHistoryMessageMatchesPermission(msg domain.Message, requestID string) bool {
 	var frame acpJSONRPCMessage
 	if len(msg.RawJSON) == 0 || json.Unmarshal(msg.RawJSON, &frame) != nil {
 		return false
 	}
 	if frame.Method != "session/request_permission" {
+		return false
+	}
+	if requestID == "" {
+		return true
+	}
+	return acpRequestID(frame.ID) == requestID
+}
+
+func conversationHistoryMessageMatchesPermissionResponse(msg domain.Message, requestID string) bool {
+	var frame acpJSONRPCMessage
+	if len(msg.RawJSON) == 0 || json.Unmarshal(msg.RawJSON, &frame) != nil {
 		return false
 	}
 	if requestID == "" {
@@ -968,6 +1074,34 @@ func acpPermissionResponseFromApproval(approval AgentApproval) ([]byte, error) {
 			},
 		},
 	})
+}
+
+func conversationPermissionResponseEventFrame(
+	response []byte,
+	approval AgentApproval,
+) (json.RawMessage, error) {
+	var value map[string]any
+	if err := json.Unmarshal(response, &value); err != nil {
+		return nil, err
+	}
+	value["approval_id"] = approval.ApprovalID
+	value["approvalId"] = approval.ApprovalID
+	if approval.DecidedByUserID != "" {
+		value["decided_by_user_id"] = approval.DecidedByUserID
+		value["decidedByUserId"] = approval.DecidedByUserID
+	}
+	if len(approval.GrantBody) > 0 {
+		var grantBody any
+		if err := json.Unmarshal(approval.GrantBody, &grantBody); err == nil {
+			value["grant_body"] = grantBody
+			value["grantBody"] = grantBody
+		}
+	}
+	out, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(out), nil
 }
 
 func acpPermissionResponseRequestID(approval AgentApproval) (json.RawMessage, error) {
