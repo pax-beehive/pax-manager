@@ -66,6 +66,10 @@ func Info(ctx context.Context, msg string, attrs ...slog.Attr) {
 	slog.Default().LogAttrs(ctx, slog.LevelInfo, msg, appendContextAttrs(ctx, attrs)...)
 }
 
+func Debug(ctx context.Context, msg string, attrs ...slog.Attr) {
+	slog.Default().LogAttrs(ctx, slog.LevelDebug, msg, appendContextAttrs(ctx, attrs)...)
+}
+
 func Warn(ctx context.Context, msg string, attrs ...slog.Attr) {
 	slog.Default().LogAttrs(ctx, slog.LevelWarn, msg, appendContextAttrs(ctx, attrs)...)
 }
