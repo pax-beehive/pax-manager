@@ -2288,7 +2288,13 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
 	events := decodeConversationEvents(t, body)
-	requireConversationEvent(t, events, "acp")
+	permissionRequestEvent := requireConversationACPFrameContaining(t, events, "approval_id")
+	assert.Contains(t, string(permissionRequestEvent.Frame), `"id":"perm_1"`)
+	permissionResponseEvent := requireConversationACPFrameContaining(t, events, `"result"`)
+	assert.Contains(t, string(permissionResponseEvent.Frame), `"id":"perm_1"`)
+	assert.Contains(t, string(permissionResponseEvent.Frame), `"approval_mode":"auto_approve_all"`)
+	outputEvent := requireConversationACPFrameContaining(t, events, "approved output")
+	assert.Contains(t, string(outputEvent.Frame), "approved output")
 	requireConversationEvent(t, events, "done")
 	requireNoConversationEvent(t, events, "approval_required")
 	requireNoConversationEvent(t, events, "interrupted")
@@ -2304,6 +2310,20 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 	assert.Equal(t, "allow_once", approvals[0].DecisionOption)
 	require.NotNil(t, approvals[0].RespondedAt)
 	assert.Contains(t, string(approvals[0].ResponseBody), `"id":"perm_1"`)
+
+	historyReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agents/"+fixture.agentID+"/sessions/sess-existing/history",
+		nil,
+	)
+	historyReq.Header.Set("X-User-Email", "todd@example.com")
+	historyRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(historyRec, historyReq)
+	require.Equal(t, http.StatusOK, historyRec.Code, historyRec.Body.String())
+	history := decodeData[struct {
+		Messages []MessageWithParts `json:"messages"`
+	}](t, historyRec.Body.Bytes())
+	requireHistoryPermissionResponseWithGrantBody(t, history.Messages, "perm_1", "auto_approve_all")
 }
 
 func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionResponse(
@@ -2376,7 +2396,10 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
 	events := decodeConversationEvents(t, body)
-	acpEvent := requireConversationEvent(t, events, "acp")
+	responseEvent := requireConversationACPFrameContaining(t, events, `"result"`)
+	assert.Contains(t, string(responseEvent.Frame), `"id":"perm_1"`)
+	assert.Contains(t, string(responseEvent.Frame), `"decided_by_user_id":"`+approval.OwnerUserID+`"`)
+	acpEvent := requireConversationACPFrameContaining(t, events, "approved output")
 	assert.Contains(t, string(acpEvent.Frame), "approved output")
 	requireConversationEvent(t, events, "done")
 
@@ -2389,6 +2412,25 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 	require.NotNil(t, updatedApproval.RespondedAt)
 	assert.Contains(t, string(updatedApproval.ResponseBody), `"id":"perm_1"`)
 	assert.Empty(t, updatedApproval.ResponseError)
+
+	historyReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agents/"+fixture.agentID+"/sessions/sess-existing/history",
+		nil,
+	)
+	historyReq.Header.Set("X-User-Email", "todd@example.com")
+	historyRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(historyRec, historyReq)
+	require.Equal(t, http.StatusOK, historyRec.Code, historyRec.Body.String())
+	history := decodeData[struct {
+		Messages []MessageWithParts `json:"messages"`
+	}](t, historyRec.Body.Bytes())
+	requireHistoryPermissionResponseWithDecidedByUserID(
+		t,
+		history.Messages,
+		"perm_1",
+		approval.OwnerUserID,
+	)
 }
 
 func TestConversationGivenNumericPermissionRequestIDWhenResumingThenPreservesIDType(
@@ -4619,6 +4661,21 @@ func requireConversationEvent(
 	return conversationEvent{}
 }
 
+func requireConversationACPFrameContaining(
+	t *testing.T,
+	events []conversationEvent,
+	contains string,
+) conversationEvent {
+	t.Helper()
+	for _, event := range events {
+		if event.Type == "acp" && strings.Contains(string(event.Frame), contains) {
+			return event
+		}
+	}
+	t.Fatalf("missing conversation acp frame containing %q in %+v", contains, events)
+	return conversationEvent{}
+}
+
 func requireNoConversationEvent(
 	t *testing.T,
 	events []conversationEvent,
@@ -4662,6 +4719,72 @@ func requireHistoryPermissionRequestWithApprovalID(
 		}
 	}
 	t.Fatalf("missing permission request history message with approval_id %q: %+v", approvalID, messages)
+}
+
+func requireHistoryPermissionResponseWithGrantBody(
+	t *testing.T,
+	messages []MessageWithParts,
+	requestID string,
+	approvalMode string,
+) {
+	t.Helper()
+	for _, message := range messages {
+		if message.MessageType != "permission_response" {
+			continue
+		}
+		for _, payload := range historyRawPayloads(message) {
+			var frame struct {
+				ID        string `json:"id"`
+				GrantBody struct {
+					ApprovalMode string `json:"approval_mode"`
+				} `json:"grant_body"`
+			}
+			if err := json.Unmarshal(payload, &frame); err != nil {
+				continue
+			}
+			if frame.ID == requestID && frame.GrantBody.ApprovalMode == approvalMode {
+				return
+			}
+		}
+	}
+	t.Fatalf(
+		"missing permission response history message with request %q grant approval_mode %q: %+v",
+		requestID,
+		approvalMode,
+		messages,
+	)
+}
+
+func requireHistoryPermissionResponseWithDecidedByUserID(
+	t *testing.T,
+	messages []MessageWithParts,
+	requestID string,
+	decidedByUserID string,
+) {
+	t.Helper()
+	for _, message := range messages {
+		if message.MessageType != "permission_response" {
+			continue
+		}
+		for _, payload := range historyRawPayloads(message) {
+			var frame struct {
+				ID              string `json:"id"`
+				DecidedByUserID string `json:"decided_by_user_id"`
+			}
+			if err := json.Unmarshal(payload, &frame); err != nil {
+				continue
+			}
+			if frame.ID == requestID && frame.DecidedByUserID == decidedByUserID {
+				return
+			}
+		}
+	}
+	t.Fatalf(
+		"missing permission response history message with request %q decided_by_user_id %q: %+v",
+		requestID,
+		decidedByUserID,
+		messages,
+	)
 }
 
 func historyRawPayloads(message MessageWithParts) []json.RawMessage {
