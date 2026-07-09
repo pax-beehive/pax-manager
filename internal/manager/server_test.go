@@ -943,6 +943,48 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 	}
 }
 
+func TestNodeAgentSessionPatchUpdatesApprovalModeOnly(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSessionWithPaxConfig(
+		t,
+		srv,
+		fixture,
+		"sess-config",
+		"native-config",
+		domain.SessionPaxConfig{
+			CWD:          "/tmp",
+			ApprovalMode: domain.SessionApprovalModeManual,
+		},
+	)
+
+	patchReq := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/user/self/nodes/"+fixture.nodeID+"/agents/"+fixture.agentID+"/sessions/sess-config",
+		bytes.NewReader([]byte(`{"pax_config":{"approval_mode":"auto_approve_all"}}`)),
+	)
+	patchReq.Header.Set("X-User-Email", fixture.userEmail)
+	setJSON(patchReq)
+	patchRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(patchRec, patchReq)
+	require.Equal(t, http.StatusOK, patchRec.Code, patchRec.Body.String())
+	patched := decodeData[AgentSession](t, patchRec.Body.Bytes())
+	assert.Equal(t, "/tmp", patched.PaxConfig.CWD)
+	assert.Equal(t, domain.SessionApprovalModeAutoApproveAll, patched.PaxConfig.ApprovalMode)
+
+	cwdReq := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/user/self/nodes/"+fixture.nodeID+"/agents/"+fixture.agentID+"/sessions/sess-config",
+		bytes.NewReader([]byte(`{"pax_config":{"cwd":"/var/tmp","approval_mode":"manual"}}`)),
+	)
+	cwdReq.Header.Set("X-User-Email", fixture.userEmail)
+	setJSON(cwdReq)
+	cwdRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(cwdRec, cwdReq)
+	require.Equal(t, http.StatusBadRequest, cwdRec.Code, cwdRec.Body.String())
+	assert.Contains(t, cwdRec.Body.String(), "pax_config.cwd is create-only")
+}
+
 func TestMailboxLifecycle(t *testing.T) {
 	srv, apiKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
@@ -1935,6 +1977,14 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	if strings.Contains(string(body), "native-session-1") {
 		t.Fatalf("SSE body leaked native session id:\n%s", body)
 	}
+	storedSession, err := srv.store.GetSession(
+		t.Context(),
+		testUserPrincipal(t, srv, fixture.userEmail),
+		sessionEvent.SessionID,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp", storedSession.PaxConfig.CWD)
+	assert.Equal(t, domain.SessionApprovalModeManual, storedSession.PaxConfig.ApprovalMode)
 	messages, err := srv.store.ListMessages(t.Context(), fixture.agentID, sessionEvent.SessionID, 10)
 	require.NoError(t, err)
 	require.NotEmpty(t, messages)
@@ -1951,6 +2001,82 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 		}
 	}
 	requireConversationEvent(t, events, "done")
+}
+
+func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"hello","cwd":"/Users/todd/work","approval_mode":"auto_approve_all"}`,
+		respCh,
+		errCh,
+	)
+
+	initializeEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, initializeEnv.Payload, "initialize")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		initializeEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
+	)
+
+	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
+	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "/Users/todd/work")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		sessionNewEnv.QueueID,
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"sessionId":"native-session-custom"}}`),
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		promptEnv.QueueID,
+		3,
+		json.RawMessage(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	sessionEvent := requireConversationEvent(t, events, "session")
+	requireConversationEvent(t, events, "done")
+
+	storedSession, err := srv.store.GetSession(
+		t.Context(),
+		testUserPrincipal(t, srv, fixture.userEmail),
+		sessionEvent.SessionID,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "/Users/todd/work", storedSession.PaxConfig.CWD)
+	assert.Equal(t, domain.SessionApprovalModeAutoApproveAll, storedSession.PaxConfig.ApprovalMode)
 }
 
 func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts(t *testing.T) {
@@ -2058,6 +2184,126 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 		Messages []MessageWithParts `json:"messages"`
 	}](t, historyRec.Body.Bytes())
 	requireHistoryPermissionRequestWithApprovalID(t, history.Messages, requiredEvent.ApprovalID)
+}
+
+func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSessionWithPaxConfig(
+		t,
+		srv,
+		fixture,
+		"sess-existing",
+		"native-existing",
+		domain.SessionPaxConfig{
+			CWD:          "/tmp",
+			ApprovalMode: domain.SessionApprovalModeAutoApproveAll,
+		},
+	)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"run approved command","session_id":"sess-existing"}`,
+		respCh,
+		errCh,
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		promptEnv.QueueID,
+		1,
+		json.RawMessage(`{
+			"jsonrpc":"2.0",
+			"id":"perm_1",
+			"method":"session/request_permission",
+			"params":{
+				"sessionId":"native-existing",
+				"toolCall":{
+					"toolCallId":"toolu_approval",
+					"kind":"execute",
+					"title":"go test ./...",
+					"rawInput":{"command":"go test ./..."}
+				},
+				"options":[
+					{"optionId":"allow","kind":"allow_once","name":"Allow"},
+					{"optionId":"reject","kind":"reject_once","name":"Reject"}
+				]
+			}
+		}`),
+	)
+
+	responseEnv := readNextManagerToAgentData(t, agentWS)
+	var response struct {
+		ID     string `json:"id"`
+		Result struct {
+			Outcome struct {
+				Outcome  string `json:"outcome"`
+				OptionID string `json:"optionId"`
+			} `json:"outcome"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(responseEnv.Payload, &response))
+	assert.Equal(t, "perm_1", response.ID)
+	assert.Equal(t, "selected", response.Result.Outcome.Outcome)
+	assert.Equal(t, "allow", response.Result.Outcome.OptionID)
+
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		responseEnv.QueueID,
+		3,
+		json.RawMessage(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-existing","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"approved output"}}}}`,
+		),
+	)
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		responseEnv.QueueID,
+		4,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	requireConversationEvent(t, events, "acp")
+	requireConversationEvent(t, events, "done")
+	requireNoConversationEvent(t, events, "approval_required")
+	requireNoConversationEvent(t, events, "interrupted")
+
+	approvals, err := srv.store.ListApprovals(t.Context(), domain.ApprovalFilter{
+		Principal:        testUserPrincipal(t, srv, fixture.userEmail),
+		RequestSessionID: "sess-existing",
+	})
+	require.NoError(t, err)
+	require.Len(t, approvals, 1)
+	assert.Equal(t, "decided", approvals[0].Status)
+	assert.Equal(t, "allow", approvals[0].Decision)
+	assert.Equal(t, "allow_once", approvals[0].DecisionOption)
+	require.NotNil(t, approvals[0].RespondedAt)
+	assert.Contains(t, string(approvals[0].ResponseBody), `"id":"perm_1"`)
 }
 
 func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionResponse(
@@ -3417,6 +3663,15 @@ type conversationTestFixture struct {
 	userEmail  string
 }
 
+func testUserPrincipal(t *testing.T, srv *Server, userEmail string) domain.UserPrincipal {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-User-Email", userEmail)
+	principal, err := srv.auth.Principal(req.Context(), httpRequestMetadata(req))
+	require.NoError(t, err)
+	return principal
+}
+
 func testNodeAgent(t *testing.T, srv *Server, userEmail string) conversationTestFixture {
 	t.Helper()
 	tokenReq := httptest.NewRequest(
@@ -4141,6 +4396,25 @@ func createConversationTestSession(
 	nativeID string,
 ) {
 	t.Helper()
+	createConversationTestSessionWithPaxConfig(
+		t,
+		srv,
+		fixture,
+		sessionID,
+		nativeID,
+		domain.SessionPaxConfig{},
+	)
+}
+
+func createConversationTestSessionWithPaxConfig(
+	t *testing.T,
+	srv *Server,
+	fixture conversationTestFixture,
+	sessionID string,
+	nativeID string,
+	paxConfig domain.SessionPaxConfig,
+) {
+	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-User-Email", fixture.userEmail)
 	principal, err := srv.auth.Principal(req.Context(), httpRequestMetadata(req))
@@ -4156,6 +4430,7 @@ func createConversationTestSession(
 			SessionID: sessionID,
 			NativeID:  nativeID,
 			Source:    domain.MessageSourceACPTunnel,
+			PaxConfig: paxConfig,
 		},
 	)
 	if err != nil {
@@ -4342,6 +4617,19 @@ func requireConversationEvent(
 	}
 	t.Fatalf("missing conversation event %q in %+v", eventType, events)
 	return conversationEvent{}
+}
+
+func requireNoConversationEvent(
+	t *testing.T,
+	events []conversationEvent,
+	eventType string,
+) {
+	t.Helper()
+	for _, event := range events {
+		if event.Type == eventType {
+			t.Fatalf("unexpected conversation event %q in %+v", eventType, events)
+		}
+	}
 }
 
 func requireHistoryPermissionRequestWithApprovalID(

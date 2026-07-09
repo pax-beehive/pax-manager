@@ -1578,6 +1578,49 @@ func (s *PostgresStore) CreateNodeAgentSession(
 			return AgentSession{}, err
 		}
 	}
+	if req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != "" {
+		config := req.PaxConfig
+		config.ApprovalMode = normalizeSessionApprovalMode(config.ApprovalMode)
+		if err := updateSessionPaxConfig(
+			ctx,
+			dbExecer{s.db},
+			req.AgentID,
+			req.SessionID,
+			config,
+			now,
+		); err != nil {
+			return AgentSession{}, err
+		}
+	}
+	return scanSession(s.db.QueryRowContext(ctx, sessionSelectSQL+`
+		WHERE agent_sessions.agent_id = $1 AND agent_sessions.session_id = $2
+	`, req.AgentID, req.SessionID))
+}
+
+func (s *PostgresStore) UpdateNodeAgentSession(
+	ctx context.Context,
+	principal UserPrincipal,
+	req UpdateSessionRequest,
+) (AgentSession, error) {
+	session, err := s.GetSession(ctx, principal, req.SessionID)
+	if err != nil {
+		return AgentSession{}, err
+	}
+	if session.AgentID != req.AgentID || (session.NodeID != "" && session.NodeID != req.NodeID) {
+		return AgentSession{}, ErrNotFound
+	}
+	config := session.PaxConfig
+	config.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
+	if err := updateSessionPaxConfig(
+		ctx,
+		dbExecer{s.db},
+		req.AgentID,
+		req.SessionID,
+		config,
+		s.now().UTC(),
+	); err != nil {
+		return AgentSession{}, err
+	}
 	return scanSession(s.db.QueryRowContext(ctx, sessionSelectSQL+`
 		WHERE agent_sessions.agent_id = $1 AND agent_sessions.session_id = $2
 	`, req.AgentID, req.SessionID))
@@ -2671,6 +2714,34 @@ func (e dbExecer) QueryRowContext(ctx context.Context, query string, args ...any
 	return e.db.QueryRowContext(ctx, query, args...)
 }
 
+func updateSessionPaxConfig(
+	ctx context.Context,
+	exec sqlExecer,
+	agentID string,
+	sessionID string,
+	config SessionPaxConfig,
+	updatedAt time.Time,
+) error {
+	config.ApprovalMode = normalizeSessionApprovalMode(config.ApprovalMode)
+	configJSON, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+	result, err := exec.ExecContext(ctx, `
+		UPDATE agent_sessions
+		SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{pax_config}', $3::jsonb, true),
+			updated_at = $4
+		WHERE agent_id = $1 AND session_id = $2
+	`, agentID, sessionID, configJSON, updatedAt)
+	if err != nil {
+		return err
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *PostgresStore) normalizeReportedSessionInput(
 	ctx context.Context,
 	queryer sqlQueryer,
@@ -2838,13 +2909,13 @@ func upsertSessionTx(
 		VALUES (NULLIF($1,''),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$28)
 		ON CONFLICT (agent_id, session_id) DO UPDATE SET
 			node_id = COALESCE(EXCLUDED.node_id, agent_sessions.node_id),
-			session_name = EXCLUDED.session_name,
+			session_name = COALESCE(NULLIF(EXCLUDED.session_name, ''), agent_sessions.session_name),
 			agent_type = EXCLUDED.agent_type,
 			native_id = COALESCE(NULLIF(EXCLUDED.native_id, ''), agent_sessions.native_id),
 			project_id = EXCLUDED.project_id,
 			preview = EXCLUDED.preview,
 			workspace_roots = EXCLUDED.workspace_roots,
-			source = EXCLUDED.source,
+			source = COALESCE(NULLIF(agent_sessions.source, ''), EXCLUDED.source),
 			status = EXCLUDED.status,
 			current_task = EXCLUDED.current_task,
 			last_message_at = EXCLUDED.last_message_at,

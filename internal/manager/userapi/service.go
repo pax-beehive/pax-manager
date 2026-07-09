@@ -116,6 +116,11 @@ type FleetStore interface {
 		principal domain.UserPrincipal,
 		req domain.CreateSessionRequest,
 	) (domain.AgentSession, error)
+	UpdateNodeAgentSession(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.UpdateSessionRequest,
+	) (domain.AgentSession, error)
 	GetAgent(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -894,6 +899,51 @@ func (s *Service) GetNodeAgentSession(
 		}
 	}
 	session, err := s.nodeSessionTarget(c, principal, nodeID, agentID, sessionID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, session, nil
+}
+
+func (s *Service) UpdateNodeAgentSession(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.UpdateSessionRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if req.NodeID == "" || req.AgentID == "" || req.SessionID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id, agent_id, and session_id are required",
+		}
+	}
+	if req.PaxConfig.CWD != "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "pax_config.cwd is create-only and cannot be changed",
+		}
+	}
+	mode := strings.TrimSpace(req.PaxConfig.ApprovalMode)
+	if mode == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "pax_config.approval_mode is required",
+		}
+	}
+	if !domain.IsSessionApprovalMode(mode) {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "pax_config.approval_mode must be manual or auto_approve_all",
+		}
+	}
+	if _, err := s.nodeSessionTarget(c, principal, req.NodeID, req.AgentID, req.SessionID); err != nil {
+		return 0, nil, err
+	}
+	req.PaxConfig.ApprovalMode = mode
+	session, err := s.store.UpdateNodeAgentSession(c, principal, req)
 	if err != nil {
 		return 0, nil, err
 	}

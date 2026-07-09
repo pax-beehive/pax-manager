@@ -269,6 +269,12 @@ struct AgentSession {
   22: optional string created_at
   23: optional string updated_at
   24: optional JSON metadata
+  25: optional SessionPaxConfig pax_config
+}
+
+struct SessionPaxConfig {
+  1: optional string cwd
+  2: optional string approval_mode
 }
 
 struct MailboxMessage {
@@ -542,6 +548,14 @@ struct GetNodeAgentSessionRequest {
   2: optional string node_id (api.path = "node_id")
   3: optional string agent_id (api.path = "agent_id")
   4: optional string session_id (api.path = "session_id")
+}
+
+struct UpdateNodeAgentSessionRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string agent_id (api.path = "agent_id")
+  4: optional string session_id (api.path = "session_id")
+  5: optional SessionPaxConfig pax_config
 }
 
 struct ListNodeAgentSessionMessagesRequest {
@@ -1348,6 +1362,21 @@ service PaxManagerAPI {
     openapi.tag = "user",
     openapi.summary = "Get node agent session",
     openapi.description = "Returns a session for an agent under a node visible to the current user.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.agent_id = "Agent identifier.",
+    openapi.path.session_id = "Session identifier."
+  )
+
+  AgentSessionResponse UpdateNodeAgentSession(
+    1: optional UpdateNodeAgentSessionRequest request
+  ) (
+    api.patch = "/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id",
+    openapi.tag = "user",
+    openapi.summary = "Update node agent session",
+    openapi.description = "Updates mutable session configuration such as the PAX approval mode. The session cwd is create-only and cannot be changed.",
+    openapi.status = "200",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier.",

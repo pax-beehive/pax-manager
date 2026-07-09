@@ -339,6 +339,21 @@ func GetNodeAgentSession(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func UpdateNodeAgentSession(c context.Context, ctx *app.RequestContext) {
+	var req UpdateSessionRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	req.AgentID = ctx.Param("agent_id")
+	req.SessionID = ctx.Param("session_id")
+	status, data, err := serviceFromContext(ctx).userapi.UpdateNodeAgentSession(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func ListNodeAgentSessionMessages(c context.Context, ctx *app.RequestContext) {
 	status, data, err := serviceFromContext(ctx).userapi.ListNodeAgentSessionMessages(
 		c,

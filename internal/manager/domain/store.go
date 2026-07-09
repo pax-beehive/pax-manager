@@ -186,6 +186,11 @@ type Store interface {
 		principal UserPrincipal,
 		req CreateSessionRequest,
 	) (AgentSession, error)
+	UpdateNodeAgentSession(
+		ctx context.Context,
+		principal UserPrincipal,
+		req UpdateSessionRequest,
+	) (AgentSession, error)
 	UpsertAgentStatus(ctx context.Context, report AgentStatusReport) error
 	ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error)
 	GetAgent(ctx context.Context, principal UserPrincipal, agentID string) (Agent, error)

@@ -37,6 +37,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions", ListNodeAgentSessions)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions", CreateNodeAgentSession)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id", GetNodeAgentSession)
+	h.PATCH("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id", UpdateNodeAgentSession)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages", ListNodeAgentSessionMessages)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/messages", CreateNodeAgentSessionMessage)
 	h.GET("/api/v1/user/:user_id/api-keys", ListUserAPIKeys)

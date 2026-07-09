@@ -172,6 +172,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"RevokeUserApprovalGrant":       RevokeUserApprovalGrant,
 	"UpdateNode":                    UpdateNode,
 	"UpdateNodeAgent":               UpdateNodeAgent,
+	"UpdateNodeAgentSession":        UpdateNodeAgentSession,
 	"UpdateNodeMailboxOffset":       UpdateNodeMailboxOffset,
 	"WriteNodeSecretVersion":        WriteNodeSecretVersion,
 }
