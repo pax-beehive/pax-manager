@@ -628,7 +628,7 @@ func (a *ACPTunnelAgent) writeToAgent(ctx context.Context, messageType int, payl
 		)
 		return err
 	}
-	logging.Info(
+	logging.Debug(
 		ctx,
 		"agent acp tunnel outbound frame queued",
 		append(
@@ -724,7 +724,7 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 		if env.Metadata["node_id"] == "" {
 			env.Metadata["node_id"] = a.nodeID
 		}
-		logging.Info(
+		logging.Debug(
 			ctx,
 			"agent acp tunnel inbound envelope received",
 			append(
@@ -1504,7 +1504,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 		deliveredSSE := a.broadcastSSE(frame.payload)
 		asyncReceivers := a.asyncReceiverCounts()
 		userWS := a.currentUser()
-		logging.Info(
+		logging.Debug(
 			ctx,
 			"agent acp tunnel inbound frame dispatched",
 			append(
@@ -1606,7 +1606,7 @@ func (a *ACPTunnelAgent) reliableSender(messageType int) reliablemq.Sender {
 			)
 			return err
 		}
-		logging.Info(
+		logging.Debug(
 			ctx,
 			"agent acp tunnel websocket envelope written",
 			append(
