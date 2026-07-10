@@ -582,7 +582,8 @@ func (s *MemoryStore) updateReliableStatus(
 	frame.UpdatedAt = now
 	setTransportStatusTimestamp(&frame, string(status), now)
 	s.transportJournal[mapKey] = frame
-	if status == reliablemq.StatusApplied && key.Direction == reliablemq.DirectionInbound {
+	if (status == reliablemq.StatusApplied || status == reliablemq.StatusRejected) &&
+		key.Direction == reliablemq.DirectionInbound {
 		s.updateInboundAppliedThroughLocked(key.QueueID, key.Stream, key.Seq, now)
 	}
 	return nil

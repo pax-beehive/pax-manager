@@ -13,6 +13,7 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/storage"
+	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
 //nolint:gocyclo // This regression fixture keeps the observed frame boundary cases together.
@@ -330,6 +331,7 @@ func TestACPHistoryGivenRepeatedTextChunksThenEnsuresMessageOnce(t *testing.T) {
 			domain.TransportStreamPaxdToManager,
 			seq,
 			agent.historyGroupID(seq, frame),
+			"",
 			frame,
 		)
 		require.NoError(t, err)
@@ -344,6 +346,150 @@ func TestACPHistoryGivenRepeatedTextChunksThenEnsuresMessageOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	assert.Equal(t, "hi", parts[0].Text)
+}
+
+func TestACPHistoryGivenUserFrameBetweenAgentChunksThenStartsNewAgentMessage(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)
+	})
+	agent := &ACPTunnelAgent{
+		agentID:     "agent_interleave",
+		ownerUserID: "user_interleave",
+		nodeID:      "node_interleave",
+		sessionID:   "sess_interleave",
+		store:       store,
+	}
+	firstAgentChunk := json.RawMessage(
+		`{"method":"session/update","params":{"sessionId":"sess_interleave","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"resp A first"}}},"jsonrpc":"2.0"}`,
+	)
+	secondAgentChunk := json.RawMessage(
+		`{"method":"session/update","params":{"sessionId":"sess_interleave","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"resp B"}}},"jsonrpc":"2.0"}`,
+	)
+	userRequest := []byte(
+		`{"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"sess_interleave","prompt":[{"type":"text","text":"request B"}]}}`,
+	)
+
+	require.NoError(t, projectACPTransportMessageWithTextSink(
+		ctx,
+		store,
+		acpAgentHistoryTextSink{agent: agent},
+		agent.agentID,
+		agent.ownerUserID,
+		agent.nodeID,
+		domain.TransportStreamPaxdToManager,
+		1,
+		agent.historyGroupID(1, firstAgentChunk),
+		agent.sessionID,
+		firstAgentChunk,
+	))
+	require.NoError(t, projectACPUserPrompt(ctx, agent, userRequest))
+	require.NoError(t, projectACPTransportMessageWithTextSink(
+		ctx,
+		store,
+		acpAgentHistoryTextSink{agent: agent},
+		agent.agentID,
+		agent.ownerUserID,
+		agent.nodeID,
+		domain.TransportStreamPaxdToManager,
+		2,
+		agent.historyGroupID(2, secondAgentChunk),
+		agent.sessionID,
+		secondAgentChunk,
+	))
+	require.NoError(t, agent.flushHistoryText(ctx))
+
+	messages, err := store.ListMessages(ctx, agent.agentID, agent.sessionID, 10)
+	require.NoError(t, err)
+	require.Len(t, messages, 3)
+	agentTexts := make([]string, 0, 2)
+	userTexts := make([]string, 0, 1)
+	agentMessageIDs := make([]string, 0, 2)
+	for _, msg := range messages {
+		parts, err := store.ListMessageParts(ctx, msg.MessageID)
+		require.NoError(t, err)
+		require.Len(t, parts, 1)
+		switch msg.Direction {
+		case domain.MessageDirectionAgentToUser:
+			agentTexts = append(agentTexts, parts[0].Text)
+			agentMessageIDs = append(agentMessageIDs, msg.MessageID)
+		case domain.MessageDirectionUserToAgent:
+			userTexts = append(userTexts, parts[0].Text)
+		}
+	}
+	require.Len(t, agentTexts, 2)
+	require.Len(t, agentMessageIDs, 2)
+	assert.Equal(t, []string{"resp A first", "resp B"}, agentTexts)
+	assert.NotEqual(t, agentMessageIDs[0], agentMessageIDs[1])
+	assert.Equal(t, []string{"request B"}, userTexts)
+}
+
+func TestACPHistoryCreatesMessagesInTransportSeqOrderWhenFramesArriveOutOfOrder(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)
+	})
+	agent := &ACPTunnelAgent{
+		agentID:     "agent_order",
+		ownerUserID: "user_order",
+		nodeID:      "node_order",
+		sessionID:   "sess_order",
+	}
+	engine := reliablemq.NewEngine(
+		reliablemq.Config{},
+		store,
+		reliablemq.SenderFunc(func(context.Context, reliablemq.Envelope) error {
+			return nil
+		}),
+		reliablemq.DispatcherFunc(func(dispatchCtx context.Context, frame reliablemq.Frame) error {
+			if err := projectACPTransportMessageForSession(
+				dispatchCtx,
+				store,
+				agent.agentID,
+				agent.ownerUserID,
+				agent.nodeID,
+				domain.TransportStreamPaxdToManager,
+				frame.Key.Seq,
+				agent.historyGroupID(frame.Key.Seq, frame.Payload),
+				agent.sessionID,
+				frame.Payload,
+			); err != nil {
+				return err
+			}
+			agent.observeHistoryBoundary(frame.Payload)
+			return nil
+		}),
+	)
+
+	require.NoError(t, engine.Receive(ctx, reliablemq.Envelope{
+		Type:    reliablemq.EnvelopeTypeData,
+		QueueID: "agent_order",
+		Stream:  reliablemq.StreamACP,
+		Seq:     2,
+		Payload: json.RawMessage(
+			`{"id":4,"result":{"usage":{"inputTokens":1,"outputTokens":1,"totalTokens":2},"stopReason":"end_turn"},"jsonrpc":"2.0"}`,
+		),
+	}))
+	messages, err := store.ListMessages(ctx, agent.agentID, agent.sessionID, 10)
+	require.NoError(t, err)
+	require.Empty(t, messages)
+
+	require.NoError(t, engine.Receive(ctx, reliablemq.Envelope{
+		Type:    reliablemq.EnvelopeTypeData,
+		QueueID: "agent_order",
+		Stream:  reliablemq.StreamACP,
+		Seq:     1,
+		Payload: json.RawMessage(
+			`{"method":"session/update","params":{"sessionId":"sess_order","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"done"}}},"jsonrpc":"2.0"}`,
+		),
+	}))
+
+	messages, err = store.ListMessages(ctx, agent.agentID, agent.sessionID, 10)
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	assert.Equal(t, "agent_message_chunk", messages[0].MessageType)
+	assert.Equal(t, "end_turn", messages[1].MessageType)
+	assert.Less(t, messages[0].ID, messages[1].ID)
 }
 
 func TestACPHistoryTextBatcherGivenBufferedChunksThenFlushesCombinedText(t *testing.T) {
@@ -953,6 +1099,43 @@ func TestACPHistoryProjectsNonTextSessionUpdateAsRawJSON(t *testing.T) {
 		parts[0].Text != "" {
 		t.Fatalf("parts = %+v, want one raw_json part", parts)
 	}
+}
+
+func TestACPHistoryProjectsEndTurnResponseWithFallbackSessionAsRawJSON(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	})
+	raw := json.RawMessage(
+		`{"id":7,"result":{"usage":{"inputTokens":11,"outputTokens":5,"totalTokens":16},"stopReason":"end_turn"},"jsonrpc":"2.0"}`,
+	)
+
+	err := projectACPTransportMessageForSession(
+		ctx,
+		store,
+		"agent_1",
+		"user_1",
+		"node_1",
+		domain.TransportStreamPaxdToManager,
+		8,
+		"",
+		"sess-end-turn-1",
+		raw,
+	)
+	require.NoError(t, err)
+
+	messages, err := store.ListMessages(ctx, "agent_1", "sess-end-turn-1", 100)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	assert.Equal(t, "end_turn", messages[0].MessageType)
+	assert.Equal(t, "sess-end-turn-1", messages[0].SessionID)
+	assert.JSONEq(t, string(raw), string(messages[0].RawJSON))
+
+	parts, err := store.ListMessageParts(ctx, messages[0].MessageID)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, domain.MessagePartRawJSON, parts[0].PartType)
+	assert.JSONEq(t, string(raw), string(parts[0].PayloadJSON))
 }
 
 func TestACPHistoryPreservesToolCallRawPayload(t *testing.T) {

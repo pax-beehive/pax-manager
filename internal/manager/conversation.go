@@ -600,6 +600,15 @@ func (s *Service) writeConversationACPEvent(
 	payload []byte,
 ) (bool, error) {
 	if isConversationPermissionRequest(payload) {
+		if conversationPermissionRequestApprovalID(payload) != "" {
+			return false, s.writeConversationEvent(w, flusher, conversationEvent{
+				Type:      "acp",
+				NodeID:    runner.agentConn.nodeID,
+				AgentID:   runner.agentConn.agentID,
+				SessionID: session.managerID,
+				Frame:     append(json.RawMessage(nil), payload...),
+			})
+		}
 		approval, frame, err := s.createConversationApproval(ctx, runner, session, payload)
 		if err != nil {
 			return false, err
@@ -819,6 +828,24 @@ func (s *Service) persistConversationApprovalResponseHistory(
 	response []byte,
 	decorated json.RawMessage,
 ) error {
+	return persistApprovalResponseHistory(
+		ctx,
+		s.store,
+		runner.agentConn.agentID,
+		session.managerID,
+		response,
+		decorated,
+	)
+}
+
+func persistApprovalResponseHistory(
+	ctx context.Context,
+	store Store,
+	agentID string,
+	sessionID string,
+	response []byte,
+	decorated json.RawMessage,
+) error {
 	if len(decorated) == 0 {
 		return nil
 	}
@@ -827,7 +854,7 @@ func (s *Service) persistConversationApprovalResponseHistory(
 		return err
 	}
 	responseID := acpRequestID(frame.ID)
-	messages, err := s.store.ListMessages(ctx, runner.agentConn.agentID, session.managerID, 1000)
+	messages, err := store.ListMessages(ctx, agentID, sessionID, 1000)
 	if err != nil {
 		return err
 	}
@@ -839,10 +866,10 @@ func (s *Service) persistConversationApprovalResponseHistory(
 			continue
 		}
 		msg.RawJSON = append(json.RawMessage(nil), decorated...)
-		if err := s.store.UpsertMessage(ctx, &msg); err != nil {
+		if err := store.UpsertMessage(ctx, &msg); err != nil {
 			return err
 		}
-		return s.store.UpsertMessagePart(ctx, &domain.MessagePart{
+		return store.UpsertMessagePart(ctx, &domain.MessagePart{
 			MessageID:   msg.MessageID,
 			PartIndex:   0,
 			PartType:    domain.MessagePartRawJSON,
@@ -991,6 +1018,24 @@ func isConversationPermissionRequest(payload []byte) bool {
 		return false
 	}
 	return frame.Method == "session/request_permission"
+}
+
+func conversationPermissionRequestApprovalID(payload []byte) string {
+	var frame acpJSONRPCMessage
+	if err := json.Unmarshal(payload, &frame); err != nil {
+		return ""
+	}
+	if frame.Method != "session/request_permission" {
+		return ""
+	}
+	params, err := decodeACPParams(frame.Params)
+	if err != nil {
+		return ""
+	}
+	return firstNonEmpty(
+		stringField(params, "approval_id", ""),
+		stringField(params, "approvalId", ""),
+	)
 }
 
 func injectConversationApprovalID(payload []byte, approvalID string) (json.RawMessage, error) {

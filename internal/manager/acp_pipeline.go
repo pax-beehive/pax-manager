@@ -369,6 +369,10 @@ func (m acpApprovalMiddleware) HandleACPFrame(
 	if err != nil {
 		return err
 	}
+	handled, err := m.autoApproveSessionPolicy(ctx, frame, params, next)
+	if handled || err != nil {
+		return err
+	}
 	fingerprint, err := acpPermissionFingerprint(params)
 	if err != nil {
 		return err
@@ -385,15 +389,7 @@ func (m acpApprovalMiddleware) HandleACPFrame(
 		ActionFingerprint: fingerprint,
 	})
 	if err == nil {
-		response, buildErr := acpAllowOnceResponse(frame.frame, params)
-		if buildErr != nil {
-			return buildErr
-		}
-		if writeErr := frame.agent.writeToAgent(ctx, websocket.TextMessage, response); writeErr != nil {
-			return writeErr
-		}
-		frame.handled = true
-		return nil
+		return m.autoApproveReusableGrant(ctx, frame, params)
 	}
 	if !errors.Is(err, ErrNotFound) {
 		return err
@@ -405,6 +401,170 @@ func (m acpApprovalMiddleware) HandleACPFrame(
 		}
 	}
 	return next(ctx, frame)
+}
+
+func (m acpApprovalMiddleware) autoApproveSessionPolicy(
+	ctx context.Context,
+	frame *acpFrameContext,
+	params map[string]any,
+	next acpFrameHandler,
+) (bool, error) {
+	sessionID, ok := m.autoApproveSessionID(ctx, frame)
+	if !ok {
+		return false, nil
+	}
+	fingerprint, err := acpPermissionFingerprint(params)
+	if err != nil {
+		return true, err
+	}
+	requestID := acpRequestID(frame.frame.ID)
+	approval, err := m.store.CreateApproval(ctx, Node{
+		NodeID:      frame.agent.nodeID,
+		OwnerUserID: frame.agent.ownerUserID,
+	}, CreateApprovalRequest{
+		AgentID:      frame.agent.agentID,
+		SessionID:    sessionID,
+		NativeID:     requestID,
+		Domain:       stringField(params, "domain", "agent_action"),
+		Operation:    stringField(params, "operation", "session/request_permission"),
+		ResourceType: "acp_permission",
+		ResourceRef:  firstNonEmpty(acpToolCallID(params), requestID),
+		Title:        conversationApprovalTitle(params),
+		Description:  conversationApprovalDescription(params),
+		RiskLevel: firstNonEmpty(
+			stringField(params, "riskLevel", ""),
+			stringField(params, "risk_level", ""),
+			"unknown",
+		),
+		ActionFingerprint: fingerprint,
+		RequestBody:       append(json.RawMessage(nil), frame.frame.Params...),
+		RequestedEffects:  json.RawMessage(`[]`),
+		Options:           conversationApprovalOptions(params),
+		RawPayload:        append(json.RawMessage(nil), frame.payload...),
+	})
+	if err != nil {
+		return true, err
+	}
+	forwarded, err := injectConversationApprovalID(frame.payload, approval.ApprovalID)
+	if err != nil {
+		return true, err
+	}
+	frame.payload = forwarded
+	_ = json.Unmarshal(forwarded, &frame.frame)
+	if err := next(ctx, frame); err != nil {
+		return true, err
+	}
+	principal := domain.UserPrincipal{User: domain.User{UserID: frame.agent.ownerUserID}}
+	decided, err := m.store.DecideApproval(ctx, principal, approval.ApprovalID, ApprovalDecisionRequest{
+		DecisionOption: "allow_once",
+		GrantBody:      json.RawMessage(`{"approval_mode":"auto_approve_all"}`),
+	})
+	if err != nil {
+		return true, err
+	}
+	response, err := acpPermissionResponseFromApproval(decided)
+	if err != nil {
+		return true, err
+	}
+	if err := frame.agent.writeToAgent(ctx, websocket.TextMessage, response); err != nil {
+		return true, err
+	}
+	recorded, err := m.store.RecordApprovalResponse(ctx, principal, decided.ApprovalID, response, "")
+	if err != nil {
+		return true, err
+	}
+	eventFrame, err := conversationPermissionResponseEventFrame(response, recorded)
+	if err != nil {
+		return true, err
+	}
+	if err := projectACPUserPrompt(ctx, frame.agent, response); err != nil {
+		return true, err
+	}
+	if err := persistApprovalResponseHistory(
+		ctx,
+		m.store,
+		frame.agent.agentID,
+		sessionID,
+		response,
+		eventFrame,
+	); err != nil {
+		return true, err
+	}
+	if err := m.notifyAutoApprovedFrame(ctx, frame, eventFrame); err != nil {
+		return true, err
+	}
+	frame.handled = true
+	return true, nil
+}
+
+func (m acpApprovalMiddleware) autoApproveSessionID(
+	ctx context.Context,
+	frame *acpFrameContext,
+) (string, bool) {
+	if m.store == nil || frame == nil || frame.agent == nil {
+		return "", false
+	}
+	sessionID, err := (acpSessionIDMiddleware{store: m.store}).managerSessionID(
+		ctx,
+		frame.agent,
+		frameSessionID(frame.frame),
+	)
+	if err != nil || sessionID == "" {
+		return "", false
+	}
+	session, err := m.store.GetSession(
+		ctx,
+		domain.UserPrincipal{User: domain.User{UserID: frame.agent.ownerUserID}},
+		sessionID,
+	)
+	if err != nil {
+		return "", false
+	}
+	if domain.NormalizeSessionApprovalMode(session.PaxConfig.ApprovalMode) !=
+		domain.SessionApprovalModeAutoApproveAll {
+		return "", false
+	}
+	return sessionID, true
+}
+
+func (m acpApprovalMiddleware) autoApproveReusableGrant(
+	ctx context.Context,
+	frame *acpFrameContext,
+	params map[string]any,
+) error {
+	response, err := acpAllowOnceResponse(frame.frame, params)
+	if err != nil {
+		return err
+	}
+	if err := frame.agent.writeToAgent(ctx, websocket.TextMessage, response); err != nil {
+		return err
+	}
+	if err := m.notifyAutoApprovedFrame(ctx, frame, json.RawMessage(response)); err != nil {
+		return err
+	}
+	if err := projectACPUserPrompt(ctx, frame.agent, response); err != nil {
+		return err
+	}
+	frame.handled = true
+	return nil
+}
+
+func (m acpApprovalMiddleware) notifyAutoApprovedFrame(
+	ctx context.Context,
+	frame *acpFrameContext,
+	payload json.RawMessage,
+) error {
+	if len(payload) == 0 || frame == nil || frame.agent == nil {
+		return nil
+	}
+	frame.agent.broadcastSSE(payload)
+	userWS := frame.agent.currentUser()
+	if userWS == nil {
+		return nil
+	}
+	frame.agent.userWriteMu.Lock()
+	defer frame.agent.userWriteMu.Unlock()
+	return userWS.WriteMessage(websocket.TextMessage, payload)
 }
 
 type acpRuntimeStateMiddleware struct {
@@ -702,7 +862,7 @@ func mergeRuntimeToolCall(
 }
 
 func acpToolCallID(params map[string]any) string {
-	toolCall, _ := params["toolCall"].(map[string]any)
+	toolCall, _ := mapField(params, "toolCall", "tool_call")
 	return firstNonEmpty(
 		stringField(toolCall, "toolCallId", ""),
 		stringField(toolCall, "tool_call_id", ""),

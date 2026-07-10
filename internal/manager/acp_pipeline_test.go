@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/storage"
@@ -174,6 +176,60 @@ func TestACPRuntimeProjectorIsConcurrentSafe(t *testing.T) {
 		state.Lifecycle != domain.RuntimeLifecycleRunning {
 		t.Fatalf("last state = %+v", state)
 	}
+}
+
+func TestACPApprovalMiddlewareGivenSessionAutoApproveAllThenAllowsAutoApprove(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
+	})
+	user, err := store.EnsureUser(ctx, "todd@example.com", "Todd", "user")
+	require.NoError(t, err)
+	agentModel, err := store.RegisterAgent(ctx, user, domain.RegisterAgentRequest{
+		Name: "agent",
+		OS:   "darwin",
+	}, "hash")
+	require.NoError(t, err)
+	session, err := store.CreateNodeAgentSession(
+		ctx,
+		domain.UserPrincipal{User: user},
+		domain.CreateSessionRequest{
+			NodeID:    agentModel.NodeID,
+			AgentID:   agentModel.AgentID,
+			SessionID: "sess_manager_1",
+			NativeID:  "harness-session-1",
+			PaxConfig: domain.SessionPaxConfig{
+				ApprovalMode: domain.SessionApprovalModeAutoApproveAll,
+			},
+		},
+	)
+	require.NoError(t, err)
+	agent := &ACPTunnelAgent{
+		agentID:     agentModel.AgentID,
+		nodeID:      agentModel.NodeID,
+		ownerUserID: user.UserID,
+		sessionID:   session.NativeID,
+	}
+	frame := newACPFrameContext(
+		agent,
+		acpAgentToUser,
+		websocket.TextMessage,
+		[]byte(`{
+			"jsonrpc":"2.0",
+			"id":"perm_1",
+			"method":"session/request_permission",
+			"params":{
+				"sessionId":"harness-session-1",
+				"toolCall":{"toolCallId":"call_1","kind":"execute","title":"go test ./..."},
+				"options":[{"optionId":"allow","kind":"allow_once"}]
+			}
+		}`),
+	)
+
+	middleware := acpApprovalMiddleware{store: store}
+	gotSessionID, ok := middleware.autoApproveSessionID(ctx, frame)
+	assert.True(t, ok)
+	assert.Equal(t, "sess_manager_1", gotSessionID)
 }
 
 func TestACPSessionIDMiddlewareTranslatesFramePayloadAtUserBoundary(t *testing.T) {
