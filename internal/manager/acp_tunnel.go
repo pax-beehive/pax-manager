@@ -1157,6 +1157,10 @@ type acpJSONRPCMessage struct {
 	Error   json.RawMessage `json:"error,omitempty"`
 }
 
+func isACPJSONRPCResponse(frame acpJSONRPCMessage) bool {
+	return frame.Method == "" && (len(frame.Result) > 0 || len(frame.Error) > 0)
+}
+
 func decodeACPParams(raw json.RawMessage) (map[string]any, error) {
 	params := map[string]any{}
 	if len(raw) == 0 {
@@ -1178,13 +1182,7 @@ func acpPermissionFingerprint(params map[string]any) (string, error) {
 	if fingerprint := acpToolCallFingerprint(params); fingerprint != "" {
 		return fingerprint, nil
 	}
-	canonical := map[string]any{}
-	for key, value := range params {
-		if key == "options" {
-			continue
-		}
-		canonical[key] = value
-	}
+	canonical := stableACPPermissionFingerprintValue(params)
 	data, err := json.Marshal(canonical)
 	if err != nil {
 		return "", err
@@ -1194,12 +1192,12 @@ func acpPermissionFingerprint(params map[string]any) (string, error) {
 }
 
 func acpToolCallFingerprint(params map[string]any) string {
-	toolCall, ok := params["toolCall"].(map[string]any)
+	toolCall, ok := mapField(params, "toolCall", "tool_call")
 	if !ok {
 		return ""
 	}
-	kind := stringField(toolCall, "kind", "tool_call")
-	rawInput, _ := toolCall["rawInput"].(map[string]any)
+	kind := firstNonEmpty(stringField(toolCall, "kind", ""), "tool_call")
+	rawInput, _ := mapField(toolCall, "rawInput", "raw_input")
 	subject := stringField(rawInput, "command", "")
 	if subject == "" {
 		subject = stringField(rawInput, "path", "")
@@ -1208,12 +1206,81 @@ func acpToolCallFingerprint(params map[string]any) string {
 		subject = stringField(rawInput, "url", "")
 	}
 	if subject == "" {
+		subject = stringField(rawInput, "input", "")
+	}
+	if subject == "" {
+		subject = stringField(rawInput, "query", "")
+	}
+	if subject == "" && len(rawInput) > 0 {
+		subject = "raw_input:" + acpStableValueHash(rawInput)
+	}
+	if subject == "" {
 		subject = stringField(toolCall, "title", "")
+	}
+	if subject == "" {
+		subject = stringField(toolCall, "name", "")
 	}
 	if subject == "" {
 		return ""
 	}
 	return "acp:tool_call:" + kind + ":" + subject
+}
+
+func mapField(values map[string]any, keys ...string) (map[string]any, bool) {
+	if values == nil {
+		return nil, false
+	}
+	for _, key := range keys {
+		nested, ok := values[key].(map[string]any)
+		if ok {
+			return nested, true
+		}
+	}
+	return nil, false
+}
+
+func stableACPPermissionFingerprintValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			if volatileACPPermissionFingerprintKey(key) {
+				continue
+			}
+			out[key] = stableACPPermissionFingerprintValue(nested)
+		}
+		return out
+	case []any:
+		out := make([]any, 0, len(typed))
+		for _, nested := range typed {
+			out = append(out, stableACPPermissionFingerprintValue(nested))
+		}
+		return out
+	default:
+		return value
+	}
+}
+
+func volatileACPPermissionFingerprintKey(key string) bool {
+	switch key {
+	case "options",
+		"sessionId", "session_id",
+		"approvalId", "approval_id",
+		"toolCallId", "tool_call_id",
+		"requestId", "request_id":
+		return true
+	default:
+		return false
+	}
+}
+
+func acpStableValueHash(value any) string {
+	data, err := json.Marshal(stableACPPermissionFingerprintValue(value))
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:8])
 }
 
 func appendACPAllowAlwaysOption(params map[string]any) bool {
@@ -1260,10 +1327,19 @@ func acpAllowOnceResponse(msg acpJSONRPCMessage, params map[string]any) ([]byte,
 	if !ok {
 		return nil, errors.New("permission request missing allow_once option")
 	}
+	optionID := acpOptionID(option)
+	if optionID == "" {
+		optionID = "allow"
+	}
 	return json.Marshal(map[string]any{
 		"jsonrpc": firstString(msg.JSONRPC, "2.0"),
 		"id":      json.RawMessage(msg.ID),
-		"result":  option,
+		"result": map[string]any{
+			"outcome": map[string]any{
+				"outcome":  "selected",
+				"optionId": optionID,
+			},
+		},
 	})
 }
 
@@ -1494,13 +1570,17 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 			domain.TransportStreamPaxdToManager,
 			reliableFrame.Key.Seq,
 			a.historyGroupID(reliableFrame.Key.Seq, frame.payload),
+			a.sessionID,
 			frame.payload,
 		); err != nil {
 			return err
 		}
 		requestID := acpJSONRPCID(frame.frame)
 		frameSessionID := frameSessionID(frame.frame)
-		deliveredWaiter := a.notifyResponseWaiter(requestID, frame.payload)
+		deliveredWaiter := false
+		if isACPJSONRPCResponse(frame.frame) {
+			deliveredWaiter = a.notifyResponseWaiter(requestID, frame.payload)
+		}
 		deliveredSSE := a.broadcastSSE(frame.payload)
 		asyncReceivers := a.asyncReceiverCounts()
 		userWS := a.currentUser()

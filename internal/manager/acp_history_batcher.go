@@ -275,6 +275,20 @@ func (a *ACPTunnelAgent) flushHistoryText(ctx context.Context) error {
 	return batcher.Flush(ctx)
 }
 
+func (a *ACPTunnelAgent) flushHistoryTextBoundary(ctx context.Context) error {
+	if a == nil {
+		return nil
+	}
+	if err := a.flushHistoryText(ctx); err != nil {
+		return err
+	}
+	state := a.liveState()
+	state.mu.Lock()
+	state.historyGroups.groups = nil
+	state.mu.Unlock()
+	return nil
+}
+
 func (a *ACPTunnelAgent) historyTextBatcher() *acpHistoryTextBatcher {
 	state := a.liveState()
 	state.mu.Lock()

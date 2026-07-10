@@ -222,6 +222,49 @@ func TestShouldWarnDroppedACPFrame(t *testing.T) {
 	}
 }
 
+func TestJSONRPCRequestDoesNotWakeResponseWaiter(t *testing.T) {
+	agent := &ACPTunnelAgent{}
+	waiter, cancel := agent.addResponseWaiter("1")
+	defer cancel()
+
+	request := acpJSONRPCMessage{
+		ID:     json.RawMessage(`1`),
+		Method: "session/request_permission",
+	}
+	delivered := false
+	if isACPJSONRPCResponse(request) {
+		delivered = agent.notifyResponseWaiter(
+			acpJSONRPCID(request),
+			[]byte(`{"id":1,"method":"session/request_permission"}`),
+		)
+	}
+	require.False(t, delivered)
+	select {
+	case payload := <-waiter:
+		t.Fatalf("request woke response waiter with payload %s", payload)
+	default:
+	}
+
+	response := acpJSONRPCMessage{
+		ID:     json.RawMessage(`1`),
+		Result: json.RawMessage(`{"stopReason":"end_turn"}`),
+	}
+	require.True(t, isACPJSONRPCResponse(response))
+	require.True(
+		t,
+		agent.notifyResponseWaiter(
+			acpJSONRPCID(response),
+			[]byte(`{"id":1,"result":{"stopReason":"end_turn"}}`),
+		),
+	)
+	select {
+	case payload := <-waiter:
+		require.JSONEq(t, `{"id":1,"result":{"stopReason":"end_turn"}}`, string(payload))
+	case <-time.After(time.Second):
+		t.Fatal("response did not wake response waiter")
+	}
+}
+
 func TestACPRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 	params := map[string]any{
 		"options": []any{
@@ -263,9 +306,14 @@ func TestACPAllowOnceResponseUsesExistingAllowOnceOption(t *testing.T) {
 		t.Fatal(err)
 	}
 	var response struct {
-		JSONRPC string         `json:"jsonrpc"`
-		ID      int            `json:"id"`
-		Result  map[string]any `json:"result"`
+		JSONRPC string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+		Result  struct {
+			Outcome struct {
+				Outcome  string `json:"outcome"`
+				OptionID string `json:"optionId"`
+			} `json:"outcome"`
+		} `json:"result"`
 	}
 	if err := json.Unmarshal(raw, &response); err != nil {
 		t.Fatal(err)
@@ -273,8 +321,9 @@ func TestACPAllowOnceResponseUsesExistingAllowOnceOption(t *testing.T) {
 	if response.JSONRPC != "2.0" || response.ID != 7 {
 		t.Fatalf("unexpected response frame: %s", raw)
 	}
-	if got := acpOptionKind(response.Result); got != "allow_once" {
-		t.Fatalf("selected option kind = %q", got)
+	if response.Result.Outcome.Outcome != "selected" ||
+		response.Result.Outcome.OptionID != "allow" {
+		t.Fatalf("unexpected permission response outcome: %s", raw)
 	}
 }
 
@@ -320,6 +369,68 @@ func TestACPPermissionFingerprintUsesStableToolCallFields(t *testing.T) {
 	if firstFingerprint != secondFingerprint {
 		t.Fatalf("fingerprints differ: %q != %q", firstFingerprint, secondFingerprint)
 	}
+}
+
+func TestACPPermissionFingerprintSupportsSnakeCaseToolCall(t *testing.T) {
+	first := map[string]any{
+		"session_id": "session-a",
+		"options":    []any{map[string]any{"kind": "allow_once", "option_id": "allow"}},
+		"tool_call": map[string]any{
+			"tool_call_id": "toolu_01first",
+			"kind":         "execute",
+			"raw_input": map[string]any{
+				"command": "go test ./...",
+			},
+		},
+	}
+	second := map[string]any{
+		"session_id": "session-b",
+		"options":    []any{map[string]any{"kind": "allow_once", "option_id": "allow"}},
+		"tool_call": map[string]any{
+			"tool_call_id": "toolu_01second",
+			"kind":         "execute",
+			"raw_input": map[string]any{
+				"command": "go test ./...",
+			},
+		},
+	}
+
+	firstFingerprint, err := acpPermissionFingerprint(first)
+	require.NoError(t, err)
+	secondFingerprint, err := acpPermissionFingerprint(second)
+	require.NoError(t, err)
+	require.Equal(t, "acp:tool_call:execute:go test ./...", firstFingerprint)
+	require.Equal(t, firstFingerprint, secondFingerprint)
+}
+
+func TestACPPermissionFingerprintFallsBackToStableRawInput(t *testing.T) {
+	first := map[string]any{
+		"sessionId": "session-a",
+		"toolCall": map[string]any{
+			"toolCallId": "toolu_01first",
+			"kind":       "other",
+			"rawInput": map[string]any{
+				"linkedin_username": "test_user_debug",
+			},
+		},
+	}
+	second := map[string]any{
+		"sessionId": "session-b",
+		"toolCall": map[string]any{
+			"toolCallId": "toolu_01second",
+			"kind":       "other",
+			"rawInput": map[string]any{
+				"linkedin_username": "test_user_debug",
+			},
+		},
+	}
+
+	firstFingerprint, err := acpPermissionFingerprint(first)
+	require.NoError(t, err)
+	secondFingerprint, err := acpPermissionFingerprint(second)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(firstFingerprint, "acp:tool_call:other:raw_input:"))
+	require.Equal(t, firstFingerprint, secondFingerprint)
 }
 
 func TestRunACPActorsRecoversPanic(t *testing.T) {

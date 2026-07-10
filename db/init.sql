@@ -549,6 +549,72 @@ CREATE INDEX IF NOT EXISTS idx_paxd_artifacts_tags
     ON paxd_artifacts USING GIN(tags)
     WHERE deleted_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS artifact_uploads (
+    upload_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    filename TEXT NOT NULL DEFAULT '',
+    content_type TEXT NOT NULL DEFAULT '',
+    size_bytes BIGINT NOT NULL DEFAULT 0,
+    sha256 TEXT NOT NULL DEFAULT '',
+    bucket TEXT NOT NULL,
+    object TEXT NOT NULL,
+    generation BIGINT NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    expires_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_artifact_uploads_owner_created
+    ON artifact_uploads(owner_user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS session_artifacts (
+    artifact_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    schema_version INTEGER NOT NULL DEFAULT 1,
+    title TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'available',
+    session_id TEXT NOT NULL DEFAULT '',
+    message_id TEXT NOT NULL DEFAULT '',
+    node_id TEXT NOT NULL DEFAULT '',
+    agent_id TEXT NOT NULL DEFAULT '',
+    source_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_artifacts_owner_session_created
+    ON session_artifacts(owner_user_id, session_id, created_at DESC)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_session_artifacts_owner_kind_created
+    ON session_artifacts(owner_user_id, kind, created_at DESC)
+    WHERE deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS session_artifact_contents (
+    artifact_id TEXT NOT NULL REFERENCES session_artifacts(artifact_id) ON DELETE CASCADE,
+    ref TEXT NOT NULL DEFAULT 'main',
+    filename TEXT NOT NULL DEFAULT '',
+    content_type TEXT NOT NULL DEFAULT '',
+    size_bytes BIGINT NOT NULL DEFAULT 0,
+    sha256 TEXT NOT NULL DEFAULT '',
+    bucket TEXT NOT NULL DEFAULT '',
+    object TEXT NOT NULL DEFAULT '',
+    generation BIGINT NOT NULL DEFAULT 0,
+    storage_uri TEXT NOT NULL DEFAULT '',
+    text_content TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (artifact_id, ref)
+);
+
 CREATE TABLE IF NOT EXISTS knowledge_capsules (
     capsule_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

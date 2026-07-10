@@ -33,6 +33,8 @@ type Config struct {
 	PaxdArtifactUploadPrincipals      map[string]bool
 	PaxdArtifactSigningServiceAccount string
 	PaxdArtifactGCSMock               bool
+	SessionArtifactGCSBucket          string
+	SessionArtifactUploadTTL          time.Duration
 	PaxdVerificationBaseURL           string
 	TeamMemexExecutor                 string
 	DeepSeekAPIKey                    string
@@ -71,6 +73,14 @@ func Load() Config {
 		),
 		PaxdArtifactSigningServiceAccount: os.Getenv("PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT"),
 		PaxdArtifactGCSMock:               parseBool(os.Getenv("PAXD_ARTIFACT_GCS_MOCK")),
+		SessionArtifactGCSBucket: envDefault(
+			"SESSION_ARTIFACT_GCS_BUCKET",
+			os.Getenv("PAX_ARTIFACT_GCS_BUCKET"),
+		),
+		SessionArtifactUploadTTL: time.Duration(parseIntEnv(
+			"SESSION_ARTIFACT_UPLOAD_URL_TTL_SECONDS",
+			15*60,
+		)) * time.Second,
 		PaxdVerificationBaseURL: envDefault(
 			"PAXD_VERIFICATION_BASE_URL",
 			DefaultPaxdVerificationBaseURL,

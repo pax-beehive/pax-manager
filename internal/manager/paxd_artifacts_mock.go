@@ -18,12 +18,48 @@ func (b mockPaxdArtifactBackend) SignDownloadURL(
 	artifact PaxdArtifact,
 	expiresAt time.Time,
 ) (string, error) {
+	return b.SignObjectDownloadURL(
+		ctx,
+		artifact.Bucket,
+		artifact.Object,
+		artifact.Generation,
+		expiresAt,
+		nil,
+	)
+}
+
+func (b mockPaxdArtifactBackend) SignObjectDownloadURL(
+	ctx context.Context,
+	bucket string,
+	object string,
+	generation int64,
+	expiresAt time.Time,
+	extraQuery map[string]string,
+) (string, error) {
 	values := url.Values{}
-	values.Set("bucket", artifact.Bucket)
-	values.Set("object", artifact.Object)
-	values.Set("generation", strconv.FormatInt(artifact.Generation, 10))
+	values.Set("bucket", bucket)
+	values.Set("object", object)
+	values.Set("generation", strconv.FormatInt(generation, 10))
 	values.Set("expires", expiresAt.UTC().Format(time.RFC3339))
+	for key, value := range extraQuery {
+		values.Set(key, value)
+	}
 	return "https://mock-gcs.local/paxd/download?" + values.Encode(), nil
+}
+
+func (b mockPaxdArtifactBackend) SignUploadURL(
+	ctx context.Context,
+	bucket string,
+	object string,
+	contentType string,
+	expiresAt time.Time,
+) (string, error) {
+	values := url.Values{}
+	values.Set("bucket", bucket)
+	values.Set("object", object)
+	values.Set("content_type", contentType)
+	values.Set("expires", expiresAt.UTC().Format(time.RFC3339))
+	return "https://mock-gcs.local/paxd/upload?" + values.Encode(), nil
 }
 
 func (b mockPaxdArtifactBackend) VerifyUploader(
@@ -45,13 +81,11 @@ func (b mockPaxdArtifactBackend) ObjectAttrs(
 	generation int64,
 ) (paxdArtifactObjectAttrs, error) {
 	if generation <= 0 {
-		return paxdArtifactObjectAttrs{}, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "mock gcs requires generation",
-		}
+		generation = time.Now().UTC().UnixNano()
 	}
 	return paxdArtifactObjectAttrs{
 		Generation:  generation,
+		SizeBytes:   0,
 		ContentType: "application/octet-stream",
 	}, nil
 }

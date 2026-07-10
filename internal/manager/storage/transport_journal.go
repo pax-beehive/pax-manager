@@ -320,7 +320,20 @@ func (s *PostgresStore) MarkRejected(
 	key reliablemq.FrameKey,
 	errorMessage string,
 ) error {
-	return s.updateReliableFrameStatus(ctx, key, reliablemq.StatusRejected, errorMessage)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := s.updateReliableFrameStatusTx(ctx, tx, key, reliablemq.StatusRejected, errorMessage); err != nil {
+		return err
+	}
+	if key.Direction == reliablemq.DirectionInbound {
+		if err := s.updateInboundAppliedThroughTx(ctx, tx, key.QueueID, key.Stream, key.Seq); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *PostgresStore) RecordSendFailure(
@@ -907,6 +920,11 @@ func (s *PostgresStore) applyReliablePatchTx(
 		if err := s.updateReliableFrameStatusTx(ctx, tx, patch.Key, reliablemq.StatusRejected, patch.ErrorMessage); err != nil {
 			return err
 		}
+		if patch.Key.Direction == reliablemq.DirectionInbound {
+			if err := s.updateInboundAppliedThroughTx(ctx, tx, patch.Key.QueueID, patch.Key.Stream, patch.Key.Seq); err != nil {
+				return err
+			}
+		}
 	default:
 		return fmt.Errorf("%w: invalid status %q", reliablemq.ErrInvalidFrame, patch.Status)
 	}
@@ -943,6 +961,11 @@ func (s *PostgresStore) applyReliableFrameStateTx(
 	case reliablemq.StatusRejected:
 		if err := s.updateReliableFrameStatusTx(ctx, tx, frame.Key, reliablemq.StatusRejected, frame.ErrorMessage); err != nil {
 			return err
+		}
+		if frame.Key.Direction == reliablemq.DirectionInbound {
+			if err := s.updateInboundAppliedThroughTx(ctx, tx, frame.Key.QueueID, frame.Key.Stream, frame.Key.Seq); err != nil {
+				return err
+			}
 		}
 	default:
 		return fmt.Errorf("%w: invalid status %q", reliablemq.ErrInvalidFrame, frame.Status)

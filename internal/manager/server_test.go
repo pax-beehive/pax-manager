@@ -595,6 +595,85 @@ func TestPaxdArtifactPublishAndDownload(t *testing.T) {
 	}
 }
 
+func TestSessionArtifactUploadCompleteAndContentURL(t *testing.T) {
+	srv, _ := testServer(t, "artifact@example.com")
+	srv.cfg.SessionArtifactGCSBucket = "session-artifacts-test"
+	srv.cfg.SessionArtifactUploadTTL = time.Minute
+	srv.cfg.PaxdArtifactDownloadTTL = time.Minute
+	srv.paxdArtifacts = &fakePaxdArtifactBackend{
+		attrs: paxdArtifactObjectAttrs{
+			Generation:  99,
+			SizeBytes:   12,
+			ContentType: "text/plain",
+		},
+	}
+
+	createReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/artifact-uploads",
+		strings.NewReader(`{
+			"filename":"notes.txt",
+			"content_type":"text/plain",
+			"kind":"file",
+			"title":"Notes"
+		}`),
+	)
+	createReq.Header.Set("X-User-Email", "artifact@example.com")
+	createRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createRec, createReq)
+	require.Equal(t, http.StatusOK, createRec.Code, createRec.Body.String())
+	ticket := decodeData[ArtifactUploadTicket](t, createRec.Body.Bytes())
+	require.NotEmpty(t, ticket.UploadID)
+	assert.Equal(t, http.MethodPut, ticket.Method)
+	assert.Contains(t, ticket.URL, "https://upload.example/session-artifacts/")
+	assert.Equal(t, "text/plain", ticket.Headers["Content-Type"])
+
+	completeReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/artifact-uploads/"+ticket.UploadID+"/complete",
+		strings.NewReader(`{"payload_json":{"preview":"ready"}}`),
+	)
+	completeReq.Header.Set("X-User-Email", "artifact@example.com")
+	completeRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(completeRec, completeReq)
+	require.Equal(t, http.StatusOK, completeRec.Code, completeRec.Body.String())
+	completed := decodeData[CompleteArtifactUploadData](t, completeRec.Body.Bytes())
+	require.Equal(t, domain.ArtifactUploadStatusCompleted, completed.Upload.Status)
+	require.Equal(t, domain.SessionArtifactStatusAvailable, completed.Artifact.Status)
+	require.Len(t, completed.Artifact.Contents, 1)
+	assert.Equal(t, "main", completed.Artifact.Contents[0].Ref)
+	assert.Equal(t, int64(99), completed.Artifact.Contents[0].Generation)
+	assert.Equal(t, "gs://session-artifacts-test/"+ticket.Object, completed.Artifact.Contents[0].StorageURI)
+
+	getReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/artifacts/"+completed.Artifact.ArtifactID,
+		nil,
+	)
+	getReq.Header.Set("X-User-Email", "artifact@example.com")
+	getRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(getRec, getReq)
+	require.Equal(t, http.StatusOK, getRec.Code, getRec.Body.String())
+	got := decodeData[struct {
+		Artifact SessionArtifact `json:"artifact"`
+	}](t, getRec.Body.Bytes())
+	assert.Equal(t, completed.Artifact.ArtifactID, got.Artifact.ArtifactID)
+
+	contentReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/artifacts/"+completed.Artifact.ArtifactID+
+			"/content/main?disposition=attachment",
+		nil,
+	)
+	contentReq.Header.Set("X-User-Email", "artifact@example.com")
+	contentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(contentRec, contentReq)
+	require.Equal(t, http.StatusOK, contentRec.Code, contentRec.Body.String())
+	content := decodeData[ArtifactContentURLResponse](t, contentRec.Body.Bytes())
+	assert.Contains(t, content.URL, "https://signed.example/session-artifacts/")
+	assert.Equal(t, "notes.txt", content.Content.Filename)
+}
+
 func TestGenericArtifactResolverSeparatesProducts(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	srv.cfg.PaxdArtifactUploadAudience = "https://manager.example.com"
@@ -2118,10 +2197,10 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 		promptEnv.QueueID,
 		1,
 		json.RawMessage(`{
-			"jsonrpc":"2.0",
-			"id":"perm_1",
-			"method":"session/request_permission",
-			"params":{
+				"jsonrpc":"2.0",
+				"id":"perm_1",
+				"method":"session/request_permission",
+				"params":{
 				"sessionId":"native-existing",
 				"toolCall":{
 					"toolCallId":"toolu_approval",
@@ -2236,7 +2315,7 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 		1,
 		json.RawMessage(`{
 			"jsonrpc":"2.0",
-			"id":"perm_1",
+			"id":1,
 			"method":"session/request_permission",
 			"params":{
 				"sessionId":"native-existing",
@@ -2256,7 +2335,7 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 
 	responseEnv := readNextManagerToAgentData(t, agentWS)
 	var response struct {
-		ID     string `json:"id"`
+		ID     json.RawMessage `json:"id"`
 		Result struct {
 			Outcome struct {
 				Outcome  string `json:"outcome"`
@@ -2265,7 +2344,7 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 		} `json:"result"`
 	}
 	require.NoError(t, json.Unmarshal(responseEnv.Payload, &response))
-	assert.Equal(t, "perm_1", response.ID)
+	assert.Equal(t, json.RawMessage(`1`), response.ID)
 	assert.Equal(t, "selected", response.Result.Outcome.Outcome)
 	assert.Equal(t, "allow", response.Result.Outcome.OptionID)
 
@@ -2273,7 +2352,7 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 		t,
 		agentWS,
 		responseEnv.QueueID,
-		3,
+		2,
 		json.RawMessage(
 			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-existing","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"approved output"}}}}`,
 		),
@@ -2282,16 +2361,17 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 		t,
 		agentWS,
 		responseEnv.QueueID,
-		4,
+		3,
 		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
 	events := decodeConversationEvents(t, body)
-	permissionRequestEvent := requireConversationACPFrameContaining(t, events, "approval_id")
-	assert.Contains(t, string(permissionRequestEvent.Frame), `"id":"perm_1"`)
+	permissionRequestEvent := requireConversationACPFrameContaining(t, events, `"method":"session/request_permission"`)
+	assert.Contains(t, string(permissionRequestEvent.Frame), `"id":1`)
+	assert.Contains(t, string(permissionRequestEvent.Frame), `"approval_id"`)
 	permissionResponseEvent := requireConversationACPFrameContaining(t, events, `"result"`)
-	assert.Contains(t, string(permissionResponseEvent.Frame), `"id":"perm_1"`)
+	assert.Contains(t, string(permissionResponseEvent.Frame), `"id":1`)
 	assert.Contains(t, string(permissionResponseEvent.Frame), `"approval_mode":"auto_approve_all"`)
 	outputEvent := requireConversationACPFrameContaining(t, events, "approved output")
 	assert.Contains(t, string(outputEvent.Frame), "approved output")
@@ -2309,7 +2389,7 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 	assert.Equal(t, "allow", approvals[0].Decision)
 	assert.Equal(t, "allow_once", approvals[0].DecisionOption)
 	require.NotNil(t, approvals[0].RespondedAt)
-	assert.Contains(t, string(approvals[0].ResponseBody), `"id":"perm_1"`)
+	assert.Contains(t, string(approvals[0].ResponseBody), `"id":1`)
 
 	historyReq := httptest.NewRequest(
 		http.MethodGet,
@@ -2323,7 +2403,9 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 	history := decodeData[struct {
 		Messages []MessageWithParts `json:"messages"`
 	}](t, historyRec.Body.Bytes())
-	requireHistoryPermissionResponseWithGrantBody(t, history.Messages, "perm_1", "auto_approve_all")
+	requireHistoryUserPrompt(t, history.Messages, "run approved command")
+	requireHistoryPermissionRequestWithApprovalID(t, history.Messages, approvals[0].ApprovalID)
+	requireHistoryPermissionResponseWithGrantBody(t, history.Messages, "1", "auto_approve_all")
 }
 
 func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionResponse(
@@ -2381,7 +2463,7 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 		t,
 		agentWS,
 		responseEnv.QueueID,
-		3,
+		2,
 		json.RawMessage(
 			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-existing","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"approved output"}}}}`,
 		),
@@ -2390,7 +2472,7 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 		t,
 		agentWS,
 		responseEnv.QueueID,
-		4,
+		3,
 		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
 	)
 
@@ -2512,7 +2594,7 @@ func TestConversationGivenNumericPermissionRequestIDWhenResumingThenPreservesIDT
 		t,
 		agentWS,
 		responseEnv.QueueID,
-		3,
+		2,
 		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
 	)
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -2574,7 +2656,7 @@ func TestConversationGivenDecidedApprovalWhenResumeTrueThenInfersPendingApproval
 		t,
 		agentWS,
 		responseEnv.QueueID,
-		3,
+		2,
 		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"stopReason":"end_turn"}}`),
 	)
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -3559,8 +3641,13 @@ func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
 	}
 
 	var frame struct {
-		ID     int            `json:"id"`
-		Result map[string]any `json:"result"`
+		ID     int `json:"id"`
+		Result struct {
+			Outcome struct {
+				Outcome  string `json:"outcome"`
+				OptionID string `json:"optionId"`
+			} `json:"outcome"`
+		} `json:"result"`
 	}
 	if err := json.Unmarshal(gotResponse.Payload, &frame); err != nil {
 		t.Fatal(err)
@@ -3568,8 +3655,9 @@ func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
 	if frame.ID != 12 {
 		t.Fatalf("response id = %d", frame.ID)
 	}
-	if got := acpOptionKind(frame.Result); got != "allow_once" {
-		t.Fatalf("selected option kind = %q, frame = %s", got, gotResponse.Payload)
+	if frame.Result.Outcome.Outcome != "selected" ||
+		frame.Result.Outcome.OptionID != "allow" {
+		t.Fatalf("unexpected permission response outcome, frame = %s", gotResponse.Payload)
 	}
 }
 
@@ -4721,6 +4809,25 @@ func requireHistoryPermissionRequestWithApprovalID(
 	t.Fatalf("missing permission request history message with approval_id %q: %+v", approvalID, messages)
 }
 
+func requireHistoryUserPrompt(t *testing.T, messages []MessageWithParts, text string) {
+	t.Helper()
+	for _, message := range messages {
+		if message.MessageType != domain.MessageTypeUser ||
+			message.Direction != domain.MessageDirectionUserToAgent {
+			continue
+		}
+		for _, part := range message.Parts {
+			if strings.Contains(part.Text, text) {
+				return
+			}
+			if strings.Contains(string(part.PayloadJSON), text) {
+				return
+			}
+		}
+	}
+	t.Fatalf("missing user prompt %q in history messages: %+v", text, messages)
+}
+
 func requireHistoryPermissionResponseWithGrantBody(
 	t *testing.T,
 	messages []MessageWithParts,
@@ -4734,7 +4841,7 @@ func requireHistoryPermissionResponseWithGrantBody(
 		}
 		for _, payload := range historyRawPayloads(message) {
 			var frame struct {
-				ID        string `json:"id"`
+				ID        json.RawMessage `json:"id"`
 				GrantBody struct {
 					ApprovalMode string `json:"approval_mode"`
 				} `json:"grant_body"`
@@ -4742,7 +4849,7 @@ func requireHistoryPermissionResponseWithGrantBody(
 			if err := json.Unmarshal(payload, &frame); err != nil {
 				continue
 			}
-			if frame.ID == requestID && frame.GrantBody.ApprovalMode == approvalMode {
+			if acpRequestID(frame.ID) == requestID && frame.GrantBody.ApprovalMode == approvalMode {
 				return
 			}
 		}
@@ -4768,13 +4875,13 @@ func requireHistoryPermissionResponseWithDecidedByUserID(
 		}
 		for _, payload := range historyRawPayloads(message) {
 			var frame struct {
-				ID              string `json:"id"`
-				DecidedByUserID string `json:"decided_by_user_id"`
+				ID              json.RawMessage `json:"id"`
+				DecidedByUserID string          `json:"decided_by_user_id"`
 			}
 			if err := json.Unmarshal(payload, &frame); err != nil {
 				continue
 			}
-			if frame.ID == requestID && frame.DecidedByUserID == decidedByUserID {
+			if acpRequestID(frame.ID) == requestID && frame.DecidedByUserID == decidedByUserID {
 				return
 			}
 		}
@@ -6492,6 +6599,34 @@ func (b *fakePaxdArtifactBackend) SignDownloadURL(
 	b.signedArtifact = artifact
 	b.expiresAt = expiresAt
 	return "https://signed.example/" + artifact.Object, nil
+}
+
+func (b *fakePaxdArtifactBackend) SignObjectDownloadURL(
+	ctx context.Context,
+	bucket string,
+	object string,
+	generation int64,
+	expiresAt time.Time,
+	query map[string]string,
+) (string, error) {
+	b.signedArtifact = PaxdArtifact{
+		Bucket:     bucket,
+		Object:     object,
+		Generation: generation,
+	}
+	b.expiresAt = expiresAt
+	return "https://signed.example/" + object, nil
+}
+
+func (b *fakePaxdArtifactBackend) SignUploadURL(
+	ctx context.Context,
+	bucket string,
+	object string,
+	contentType string,
+	expiresAt time.Time,
+) (string, error) {
+	b.expiresAt = expiresAt
+	return "https://upload.example/" + object, nil
 }
 
 func (b *fakePaxdArtifactBackend) VerifyUploader(

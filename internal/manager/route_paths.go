@@ -69,6 +69,14 @@ const (
 	routeTeamMemexRuns       = "/api/v1/user/:user_id/teams/:team_id/memex/runs"
 	routeTeamMemexRun        = "/api/v1/user/:user_id/teams/:team_id/memex/runs/:run_id"
 
+	routeCreateArtifactUpload   = "/api/v1/user/:user_id/artifact-uploads"
+	routeCompleteArtifactUpload = "/api/v1/user/:user_id/artifact-uploads/:upload_id/complete"
+	routeCreateSessionArtifact  = "/api/v1/user/:user_id/artifacts"
+	routeGetSessionArtifact     = "/api/v1/user/:user_id/artifacts/:artifact_id"
+	routeArtifactContent        = "/api/v1/user/:user_id/artifacts/:artifact_id/content/:content_ref"
+	routeAttachSessionArtifact  = "/api/v1/user/:user_id/artifacts/:artifact_id/attachments"
+	routeListSessionArtifacts   = "/api/v1/user/:user_id/sessions/:session_id/artifacts"
+
 	routeOpenAPI     = "/openapi"
 	routeOpenAPIJSON = "/openapi.json"
 	routeEcho        = "/api/echo"

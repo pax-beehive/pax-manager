@@ -25,6 +25,7 @@ type acpHistoryFields struct {
 	EntityType    string
 	EventType     string
 	SessionUpdate string
+	StopReason    string
 	Role          string
 	Content       string
 }
@@ -48,6 +49,32 @@ func projectACPTransportMessage(
 	historyGroupID string,
 	payload json.RawMessage,
 ) error {
+	return projectACPTransportMessageForSession(
+		ctx,
+		store,
+		agentID,
+		ownerUserID,
+		nodeID,
+		stream,
+		seq,
+		historyGroupID,
+		"",
+		payload,
+	)
+}
+
+func projectACPTransportMessageForSession(
+	ctx context.Context,
+	store domain.Store,
+	agentID string,
+	ownerUserID string,
+	nodeID string,
+	stream string,
+	seq int64,
+	historyGroupID string,
+	fallbackSessionID string,
+	payload json.RawMessage,
+) error {
 	return projectACPTransportMessageWithTextSink(
 		ctx,
 		store,
@@ -58,6 +85,7 @@ func projectACPTransportMessage(
 		stream,
 		seq,
 		historyGroupID,
+		fallbackSessionID,
 		payload,
 	)
 }
@@ -72,6 +100,7 @@ func projectACPTransportMessageWithTextSink(
 	stream string,
 	seq int64,
 	historyGroupID string,
+	fallbackSessionID string,
 	payload json.RawMessage,
 ) error {
 	if stream != domain.TransportStreamPaxdToManager {
@@ -99,6 +128,12 @@ func projectACPTransportMessageWithTextSink(
 		}
 		historyGroupID = ""
 	}
+	if fields.SessionID == "" {
+		fields.SessionID = fallbackSessionID
+	}
+	if fields.SessionID == "" && strings.EqualFold(fields.StopReason, "end_turn") {
+		return nil
+	}
 	fields.SessionID = canonicalACPHistorySessionID(
 		ctx,
 		store,
@@ -111,6 +146,7 @@ func projectACPTransportMessageWithTextSink(
 	}
 	messageType := firstNonEmpty(
 		fields.SessionUpdate,
+		fields.StopReason,
 		strings.Trim(fields.EntityType+":"+fields.EventType, ":"),
 		rpc.Method,
 		"acp",
@@ -169,6 +205,12 @@ func projectACPUserPrompt(
 	var rpc acpHistoryRPC
 	if err := json.Unmarshal(payload, &rpc); err != nil {
 		return nil
+	}
+	if rpc.Method == "" && len(rpc.Result) == 0 && len(rpc.Error) == 0 {
+		return nil
+	}
+	if err := agent.flushHistoryTextBoundary(ctx); err != nil {
+		return err
 	}
 	if rpc.Method != "session/prompt" {
 		return projectACPUserRawFrame(ctx, agent, payload, rpc)
@@ -631,6 +673,7 @@ func extractACPHistoryFields(payload json.RawMessage, rpc acpHistoryRPC) acpHist
 		fields.EntityType = firstNonEmpty(fields.EntityType, nested.EntityType)
 		fields.EventType = firstNonEmpty(fields.EventType, nested.EventType)
 		fields.SessionUpdate = firstNonEmpty(fields.SessionUpdate, nested.SessionUpdate)
+		fields.StopReason = firstNonEmpty(fields.StopReason, nested.StopReason)
 		fields.Role = firstNonEmpty(fields.Role, nested.Role)
 		fields.Content = firstNonEmpty(fields.Content, nested.Content)
 	}
@@ -653,6 +696,7 @@ func fieldsFromRaw(raw json.RawMessage) acpHistoryFields {
 		EntityType:    findString(obj, "entityType", "entity_type"),
 		EventType:     findString(obj, "eventType", "event_type"),
 		SessionUpdate: findString(obj, "sessionUpdate", "session_update"),
+		StopReason:    findString(obj, "stopReason", "stop_reason"),
 		Role:          findString(obj, "role"),
 		Content:       findString(obj, "content", "text", "delta"),
 	}
@@ -720,6 +764,10 @@ func classifyACPHistoryProjection(
 		return fields, acpHistoryProjectionRaw
 	}
 	if rpc.Method == "session/request_permission" {
+		return fields, acpHistoryProjectionRaw
+	}
+	if strings.EqualFold(fields.StopReason, "end_turn") {
+		fields.SessionUpdate = firstNonEmpty(fields.SessionUpdate, fields.StopReason)
 		return fields, acpHistoryProjectionRaw
 	}
 	if fields.EntityType != "" || fields.EventType != "" {

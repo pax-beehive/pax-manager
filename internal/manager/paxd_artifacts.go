@@ -29,6 +29,21 @@ var (
 
 type paxdArtifactBackend interface {
 	SignDownloadURL(ctx context.Context, artifact PaxdArtifact, expiresAt time.Time) (string, error)
+	SignObjectDownloadURL(
+		ctx context.Context,
+		bucket string,
+		object string,
+		generation int64,
+		expiresAt time.Time,
+		query map[string]string,
+	) (string, error)
+	SignUploadURL(
+		ctx context.Context,
+		bucket string,
+		object string,
+		contentType string,
+		expiresAt time.Time,
+	) (string, error)
 	VerifyUploader(ctx context.Context, token string, audience string) (string, error)
 	ObjectAttrs(
 		ctx context.Context,

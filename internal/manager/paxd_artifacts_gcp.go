@@ -33,6 +33,24 @@ func (b *gcpPaxdArtifactBackend) SignDownloadURL(
 	artifact PaxdArtifact,
 	expiresAt time.Time,
 ) (string, error) {
+	return b.SignObjectDownloadURL(
+		ctx,
+		artifact.Bucket,
+		artifact.Object,
+		artifact.Generation,
+		expiresAt,
+		nil,
+	)
+}
+
+func (b *gcpPaxdArtifactBackend) SignObjectDownloadURL(
+	ctx context.Context,
+	bucket string,
+	object string,
+	generation int64,
+	expiresAt time.Time,
+	extraQuery map[string]string,
+) (string, error) {
 	if b.signingServiceAccount == "" {
 		return "", apperr.Error{
 			Status:  http.StatusInternalServerError,
@@ -40,15 +58,58 @@ func (b *gcpPaxdArtifactBackend) SignDownloadURL(
 		}
 	}
 	query := url.Values{}
-	if artifact.Generation > 0 {
-		query.Set("generation", strconv.FormatInt(artifact.Generation, 10))
+	if generation > 0 {
+		query.Set("generation", strconv.FormatInt(generation, 10))
 	}
-	return storage.SignedURL(artifact.Bucket, artifact.Object, &storage.SignedURLOptions{
+	for key, value := range extraQuery {
+		if key != "" && value != "" {
+			query.Set(key, value)
+		}
+	}
+	return storage.SignedURL(bucket, object, &storage.SignedURLOptions{
 		Scheme:          storage.SigningSchemeV4,
 		Method:          http.MethodGet,
 		Expires:         expiresAt,
 		GoogleAccessID:  b.signingServiceAccount,
 		QueryParameters: query,
+		SignBytes: func(payload []byte) ([]byte, error) {
+			svc, err := iamcredentials.NewService(ctx)
+			if err != nil {
+				return nil, err
+			}
+			resp, err := svc.Projects.ServiceAccounts.SignBlob(
+				"projects/-/serviceAccounts/"+b.signingServiceAccount,
+				&iamcredentials.SignBlobRequest{
+					Payload: base64.StdEncoding.EncodeToString(payload),
+				},
+			).Context(ctx).Do()
+			if err != nil {
+				return nil, err
+			}
+			return base64.StdEncoding.DecodeString(resp.SignedBlob)
+		},
+	})
+}
+
+func (b *gcpPaxdArtifactBackend) SignUploadURL(
+	ctx context.Context,
+	bucket string,
+	object string,
+	contentType string,
+	expiresAt time.Time,
+) (string, error) {
+	if b.signingServiceAccount == "" {
+		return "", apperr.Error{
+			Status:  http.StatusInternalServerError,
+			Message: "paxd artifact signing service account is not configured",
+		}
+	}
+	return storage.SignedURL(bucket, object, &storage.SignedURLOptions{
+		Scheme:         storage.SigningSchemeV4,
+		Method:         http.MethodPut,
+		Expires:        expiresAt,
+		GoogleAccessID: b.signingServiceAccount,
+		ContentType:    contentType,
 		SignBytes: func(payload []byte) ([]byte, error) {
 			svc, err := iamcredentials.NewService(ctx)
 			if err != nil {

@@ -102,6 +102,51 @@ type Store interface {
 		createdBy string,
 	) (PaxdArtifact, error)
 	FindPaxdArtifact(ctx context.Context, req FindPaxdArtifactRequest) (PaxdArtifact, error)
+	CreateArtifactUpload(
+		ctx context.Context,
+		principal UserPrincipal,
+		req CreateArtifactUploadRequest,
+		bucket string,
+		object string,
+		expiresAt time.Time,
+	) (ArtifactUpload, error)
+	GetArtifactUpload(
+		ctx context.Context,
+		principal UserPrincipal,
+		uploadID string,
+	) (ArtifactUpload, error)
+	CompleteArtifactUpload(
+		ctx context.Context,
+		principal UserPrincipal,
+		uploadID string,
+		attrs ArtifactContent,
+		req CompleteArtifactUploadRequest,
+	) (ArtifactUpload, SessionArtifact, error)
+	CreateSessionArtifact(
+		ctx context.Context,
+		principal UserPrincipal,
+		req CreateSessionArtifactRequest,
+	) (SessionArtifact, error)
+	GetSessionArtifact(
+		ctx context.Context,
+		principal UserPrincipal,
+		artifactID string,
+	) (SessionArtifact, error)
+	ListSessionArtifacts(
+		ctx context.Context,
+		filter ListSessionArtifactsFilter,
+	) ([]SessionArtifact, error)
+	GetArtifactContent(
+		ctx context.Context,
+		principal UserPrincipal,
+		artifactID string,
+		ref string,
+	) (SessionArtifact, ArtifactContent, error)
+	AttachSessionArtifact(
+		ctx context.Context,
+		principal UserPrincipal,
+		req AttachArtifactRequest,
+	) (SessionArtifact, error)
 	RegisterAgent(
 		ctx context.Context,
 		owner User,
