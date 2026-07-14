@@ -160,6 +160,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"ListUserApprovalGrants":        ListUserApprovalGrants,
 	"ListUserApprovals":             ListUserApprovals,
 	"ListUserSecrets":               ListUserSecrets,
+	"ListUserSessions":              ListSessions,
 	"MarkNodeMessageDelivered":      MarkNodeMessageDelivered,
 	"PullNodeAgentMailbox":          PullNodeAgentMailbox,
 	"PullNodeAgentSessionMailbox":   PullNodeAgentSessionMailbox,

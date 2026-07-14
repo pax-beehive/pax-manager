@@ -3181,6 +3181,64 @@ func (_c *MockStore_ListSessionMessages_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
+// ListSessions provides a mock function with given fields: ctx, principal, filter
+func (_m *MockStore) ListSessions(ctx context.Context, principal domain.UserPrincipal, filter domain.ListSessionsFilter) (domain.ListSessionsResult, error) {
+	ret := _m.Called(ctx, principal, filter)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListSessions")
+	}
+
+	var r0 domain.ListSessionsResult
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.ListSessionsFilter) (domain.ListSessionsResult, error)); ok {
+		return rf(ctx, principal, filter)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.ListSessionsFilter) domain.ListSessionsResult); ok {
+		r0 = rf(ctx, principal, filter)
+	} else {
+		r0 = ret.Get(0).(domain.ListSessionsResult)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.ListSessionsFilter) error); ok {
+		r1 = rf(ctx, principal, filter)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListSessions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListSessions'
+type MockStore_ListSessions_Call struct {
+	*mock.Call
+}
+
+// ListSessions is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - filter domain.ListSessionsFilter
+func (_e *MockStore_Expecter) ListSessions(ctx interface{}, principal interface{}, filter interface{}) *MockStore_ListSessions_Call {
+	return &MockStore_ListSessions_Call{Call: _e.mock.On("ListSessions", ctx, principal, filter)}
+}
+
+func (_c *MockStore_ListSessions_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, filter domain.ListSessionsFilter)) *MockStore_ListSessions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.ListSessionsFilter))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListSessions_Call) Return(_a0 domain.ListSessionsResult, _a1 error) *MockStore_ListSessions_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListSessions_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.ListSessionsFilter) (domain.ListSessionsResult, error)) *MockStore_ListSessions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListTeamAgents provides a mock function with given fields: ctx, principal, teamID
 func (_m *MockStore) ListTeamAgents(ctx context.Context, principal domain.UserPrincipal, teamID string) ([]domain.TeamAgent, error) {
 	ret := _m.Called(ctx, principal, teamID)

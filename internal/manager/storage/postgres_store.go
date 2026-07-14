@@ -1729,6 +1729,79 @@ func (s *PostgresStore) ListAgentSessions(
 	return scanSessions(rows)
 }
 
+func (s *PostgresStore) ListSessions(
+	ctx context.Context,
+	principal UserPrincipal,
+	filter domain.ListSessionsFilter,
+) (domain.ListSessionsResult, error) {
+	if filter.OwnerUserID != "" && !canAccessOwner(principal, filter.OwnerUserID) {
+		return domain.ListSessionsResult{}, ErrNotFound
+	}
+	pageSize, pageNum := normalizeSessionPage(filter.PageSize, filter.PageNum)
+	args := []any{principal.User.UserID}
+	clauses := []string{
+		"a.deleted_at IS NULL",
+		`(
+			a.owner_user_id = $1
+			OR ` + teamAgentAccessSQL("a.agent_id", "$1") + `
+		)`,
+	}
+	addFilter := func(clause string, value any) {
+		args = append(args, value)
+		clauses = append(clauses, clause+" $"+strconv.Itoa(len(args)))
+	}
+	addInFilter := func(column string, values []string) {
+		if len(values) == 0 {
+			return
+		}
+		placeholders := make([]string, 0, len(values))
+		for _, value := range values {
+			args = append(args, value)
+			placeholders = append(placeholders, "$"+strconv.Itoa(len(args)))
+		}
+		clauses = append(clauses, column+" IN ("+strings.Join(placeholders, ",")+")")
+	}
+	if filter.OwnerUserID != "" {
+		addFilter("a.owner_user_id =", filter.OwnerUserID)
+	}
+	addInFilter("agent_sessions.node_id", filter.NodeIDs)
+	addInFilter("agent_sessions.agent_id", filter.AgentIDs)
+	where := " WHERE " + strings.Join(clauses, " AND ")
+	var total int64
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM agent_sessions
+		JOIN agents a ON a.agent_id = agent_sessions.agent_id
+	`+where, args...).Scan(&total); err != nil {
+		return domain.ListSessionsResult{}, err
+	}
+	args = append(args, pageSize, (pageNum-1)*pageSize)
+	query := sessionSelectSQL + `
+		JOIN agents a ON a.agent_id = agent_sessions.agent_id
+	` + where + `
+		ORDER BY COALESCE(agent_sessions.last_message_at, agent_sessions.updated_at) DESC,
+			agent_sessions.updated_at DESC
+		LIMIT $` + strconv.Itoa(len(args)-1) + ` OFFSET $` + strconv.Itoa(len(args))
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return domain.ListSessionsResult{}, err
+	}
+	defer func() { _ = rows.Close() }()
+	sessions, err := scanSessions(rows)
+	if err != nil {
+		return domain.ListSessionsResult{}, err
+	}
+	return domain.ListSessionsResult{
+		Sessions: sessions,
+		Pagination: domain.Pagination{
+			PageNum:    pageNum,
+			PageSize:   pageSize,
+			Total:      total,
+			TotalPages: totalPages(total, pageSize),
+		},
+	}, nil
+}
+
 func (s *PostgresStore) GetSession(
 	ctx context.Context,
 	principal UserPrincipal,

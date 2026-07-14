@@ -314,6 +314,23 @@ func ListNodeAgentSessions(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func ListSessions(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.ListSessions(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("user_id"),
+		string(ctx.QueryArgs().Peek("node_id")),
+		string(ctx.QueryArgs().Peek("agent_id")),
+		queryInt(ctx, "page_size"),
+		queryInt(ctx, "page_num"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func ListUserSessions(c context.Context, ctx *app.RequestContext) {
+	ListSessions(c, ctx)
+}
+
 func CreateNodeAgentSession(c context.Context, ctx *app.RequestContext) {
 	var req CreateSessionRequest
 	decodeBody(ctx, &req)

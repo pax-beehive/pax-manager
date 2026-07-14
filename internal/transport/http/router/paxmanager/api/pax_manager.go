@@ -81,6 +81,7 @@ func Register(r *server.Hertz) {
 					_user_id.GET("/nodes", append(_listnodesMw(), handler.ListNodes)...)
 					_user_id.GET("/secrets", append(_listusersecretsMw(), handler.ListUserSecrets)...)
 					_user_id.POST("/secrets", append(_createusersecretMw(), handler.CreateUserSecret)...)
+					_user_id.GET("/sessions", append(_listusersessionsMw(), handler.ListUserSessions)...)
 					{
 						_api_keys := _user_id.Group("/api-keys", _api_keysMw()...)
 						_api_keys.DELETE("/:key_id", append(_revokeuserapikeyMw(), handler.RevokeUserAPIKey)...)
@@ -102,6 +103,7 @@ func Register(r *server.Hertz) {
 					}
 					{
 						_nodes := _user_id.Group("/nodes", _nodesMw()...)
+						_nodes.DELETE("/:node_id", append(_deletenodeMw(), handler.DeleteNode)...)
 						_nodes.GET("/:node_id", append(_getnodeMw(), handler.GetNode)...)
 						_nodes.PATCH("/:node_id", append(_updatenodeMw(), handler.UpdateNode)...)
 						{
@@ -110,6 +112,7 @@ func Register(r *server.Hertz) {
 							_node_id.POST("/agents", append(_createnodeagentMw(), handler.CreateNodeAgent)...)
 							{
 								_agents0 := _node_id.Group("/agents", _agents0Mw()...)
+								_agents0.DELETE("/:agent_id", append(_deletenodeagentMw(), handler.DeleteNodeAgent)...)
 								_agents0.GET("/:agent_id", append(_getnodeagentMw(), handler.GetNodeAgent)...)
 								_agents0.PATCH("/:agent_id", append(_updatenodeagentMw(), handler.UpdateNodeAgent)...)
 								{
@@ -121,6 +124,7 @@ func Register(r *server.Hertz) {
 									{
 										_sessions0 := _agent_id0.Group("/sessions", _sessions0Mw()...)
 										_sessions0.GET("/:session_id", append(_getnodeagentsessionMw(), handler.GetNodeAgentSession)...)
+										_sessions0.PATCH("/:session_id", append(_updatenodeagentsessionMw(), handler.UpdateNodeAgentSession)...)
 										{
 											_session_id0 := _sessions0.Group("/:session_id", _session_id0Mw()...)
 											_session_id0.GET("/messages", append(_listnodeagentsessionmessagesMw(), handler.ListNodeAgentSessionMessages)...)

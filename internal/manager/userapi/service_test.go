@@ -951,6 +951,136 @@ func TestAgents(t *testing.T) {
 	)
 }
 
+func TestListSessions(t *testing.T) {
+	t.Run(
+		"Given owner sessions request when listing then it passes normalized pagination to store",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			expected := domain.ListSessionsResult{
+				Sessions: []domain.AgentSession{{AgentID: "agent_1", SessionID: "sess_1"}},
+				Pagination: domain.Pagination{
+					PageNum:    2,
+					PageSize:   25,
+					Total:      51,
+					TotalPages: 3,
+				},
+			}
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				ListSessions(
+					ctx,
+					principal,
+					domain.ListSessionsFilter{
+						OwnerUserID: "usr_self",
+						NodeIDs:     []string{"node_1", "node_2"},
+						AgentIDs:    []string{"agent_1", "agent_2"},
+						PageSize:    25,
+						PageNum:     2,
+					},
+				).
+				Return(expected, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, data, err := svc.ListSessions(
+				ctx,
+				auth.RequestMetadata{},
+				"self",
+				"node_1,node_2,node_1",
+				"agent_1, agent_2",
+				25,
+				2,
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, expected, data)
+		},
+	)
+
+	t.Run(
+		"Given large page size when listing then it clamps the page size",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().
+				ListSessions(
+					ctx,
+					principal,
+					domain.ListSessionsFilter{
+						OwnerUserID: "usr_self",
+						PageSize:    200,
+						PageNum:     1,
+					},
+				).
+				Return(domain.ListSessionsResult{}, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			status, _, err := svc.ListSessions(
+				ctx,
+				auth.RequestMetadata{},
+				"usr_self",
+				"",
+				"",
+				900,
+				0,
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+		},
+	)
+
+	t.Run(
+		"Given a different owner when listing then it returns not found before querying store",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.ListSessions(
+				ctx,
+				auth.RequestMetadata{},
+				"usr_other",
+				"",
+				"",
+				50,
+				1,
+			)
+
+			require.ErrorIs(t, err, domain.ErrNotFound)
+		},
+	)
+}
+
 func TestCurrentUserAndAPIKeyListing(t *testing.T) {
 	t.Run(
 		"Given a valid principal when getting current user then it returns identity fields",

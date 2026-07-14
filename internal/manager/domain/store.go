@@ -245,6 +245,11 @@ type Store interface {
 		principal UserPrincipal,
 		agentID string,
 	) ([]AgentSession, error)
+	ListSessions(
+		ctx context.Context,
+		principal UserPrincipal,
+		filter ListSessionsFilter,
+	) (ListSessionsResult, error)
 	GetSession(ctx context.Context, principal UserPrincipal, sessionID string) (AgentSession, error)
 	UpdateSessionRuntimeState(ctx context.Context, state SessionRuntimeState) error
 	ListRepresentativeAgents(

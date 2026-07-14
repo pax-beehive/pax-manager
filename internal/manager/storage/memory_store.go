@@ -1476,6 +1476,69 @@ func (s *MemoryStore) ListAgentSessions(
 	return out, nil
 }
 
+func (s *MemoryStore) ListSessions(
+	ctx context.Context,
+	principal UserPrincipal,
+	filter domain.ListSessionsFilter,
+) (domain.ListSessionsResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if filter.OwnerUserID != "" && !canAccessOwner(principal, filter.OwnerUserID) {
+		return domain.ListSessionsResult{}, ErrNotFound
+	}
+	pageSize, pageNum := normalizeSessionPage(filter.PageSize, filter.PageNum)
+	out := make([]AgentSession, 0)
+	for _, session := range s.sessions {
+		agent, ok := s.agents[session.AgentID]
+		if !ok || !s.canAccessAgentLocked(principal, agent) {
+			continue
+		}
+		if filter.OwnerUserID != "" && agent.OwnerUserID != filter.OwnerUserID {
+			continue
+		}
+		if len(filter.NodeIDs) > 0 && !containsString(filter.NodeIDs, session.NodeID) {
+			continue
+		}
+		if len(filter.AgentIDs) > 0 && !containsString(filter.AgentIDs, session.AgentID) {
+			continue
+		}
+		out = append(out, session)
+	}
+	sortSessionsByActivity(out)
+	total := int64(len(out))
+	start := (pageNum - 1) * pageSize
+	if start >= len(out) {
+		out = []AgentSession{}
+	} else {
+		end := start + pageSize
+		if end > len(out) {
+			end = len(out)
+		}
+		out = out[start:end]
+	}
+	return domain.ListSessionsResult{
+		Sessions: out,
+		Pagination: domain.Pagination{
+			PageNum:    pageNum,
+			PageSize:   pageSize,
+			Total:      total,
+			TotalPages: totalPages(total, pageSize),
+		},
+	}, nil
+}
+
+func sortSessionsByActivity(sessions []AgentSession) {
+	sort.Slice(sessions, func(i, j int) bool {
+		left := sessionActivityTime(sessions[i])
+		right := sessionActivityTime(sessions[j])
+		if !left.Equal(right) {
+			return left.After(right)
+		}
+		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
+	})
+}
+
 func sessionActivityTime(session AgentSession) time.Time {
 	if session.LastMessageAt != nil {
 		return *session.LastMessageAt

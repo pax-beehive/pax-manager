@@ -28,6 +28,11 @@ type Store interface {
 	MailboxStore
 }
 
+const (
+	defaultSessionPageSize = 50
+	maxSessionPageSize     = 200
+)
+
 type UserStore interface {
 	GetUser(ctx context.Context, userID string) (domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
@@ -131,6 +136,11 @@ type FleetStore interface {
 		principal domain.UserPrincipal,
 		agentID string,
 	) ([]domain.AgentSession, error)
+	ListSessions(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		filter domain.ListSessionsFilter,
+	) (domain.ListSessionsResult, error)
 	GetSession(
 		ctx context.Context,
 		principal domain.UserPrincipal,
@@ -831,6 +841,60 @@ func (s *Service) ListAgentSessions(
 	return http.StatusOK, map[string]any{"sessions": sessions}, nil
 }
 
+func (s *Service) ListSessions(
+	c context.Context,
+	meta auth.RequestMetadata,
+	ownerUserID string,
+	nodeID string,
+	agentID string,
+	pageSize int,
+	pageNum int,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" || ownerUserID == "self" {
+		ownerUserID = principal.User.UserID
+	}
+	if ownerUserID != principal.User.UserID {
+		return 0, nil, domain.ErrNotFound
+	}
+	pageSize, pageNum = normalizeSessionPagination(pageSize, pageNum)
+	result, err := s.store.ListSessions(c, principal, domain.ListSessionsFilter{
+		OwnerUserID: ownerUserID,
+		NodeIDs:     splitCommaSeparatedIDs(nodeID),
+		AgentIDs:    splitCommaSeparatedIDs(agentID),
+		PageSize:    pageSize,
+		PageNum:     pageNum,
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, result, nil
+}
+
+func splitCommaSeparatedIDs(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	out := make([]string, 0)
+	for _, part := range strings.Split(raw, ",") {
+		id := strings.TrimSpace(part)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
 func (s *Service) ListNodeAgentSessions(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -856,6 +920,19 @@ func (s *Service) ListNodeAgentSessions(
 	}
 	sessions = filterNodeSessions(sessions, nodeID)
 	return http.StatusOK, map[string]any{"sessions": sessions}, nil
+}
+
+func normalizeSessionPagination(pageSize int, pageNum int) (int, int) {
+	if pageSize <= 0 {
+		pageSize = defaultSessionPageSize
+	}
+	if pageSize > maxSessionPageSize {
+		pageSize = maxSessionPageSize
+	}
+	if pageNum <= 0 {
+		pageNum = 1
+	}
+	return pageSize, pageNum
 }
 
 func (s *Service) GetAgentSession(

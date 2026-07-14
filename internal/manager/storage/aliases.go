@@ -126,6 +126,32 @@ func canAccessOwner(principal UserPrincipal, ownerUserID string) bool {
 	return domain.CanAccessOwner(principal, ownerUserID)
 }
 
+func totalPages(total int64, pageSize int) int {
+	if total <= 0 || pageSize <= 0 {
+		return 0
+	}
+	return int((total + int64(pageSize) - 1) / int64(pageSize))
+}
+
+func normalizeSessionPage(pageSize int, pageNum int) (int, int) {
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	if pageNum <= 0 {
+		pageNum = 1
+	}
+	return pageSize, pageNum
+}
+
+func containsString(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
+}
+
 func teamAgentAccessSQL(agentIDExpr string, userIDParam string) string {
 	return `EXISTS (
 		SELECT 1
