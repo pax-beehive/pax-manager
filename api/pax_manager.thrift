@@ -312,8 +312,16 @@ struct AgentListData {
   1: optional list<Agent> agents
 }
 
+struct Pagination {
+  1: optional i32 page_num
+  2: optional i32 page_size
+  3: optional i64 total
+  4: optional i32 total_pages
+}
+
 struct SessionListData {
   1: optional list<AgentSession> sessions
+  2: optional Pagination pagination
 }
 
 struct CurrentUserData {
@@ -527,6 +535,14 @@ struct ListNodeAgentSessionsRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
   3: optional string agent_id (api.path = "agent_id")
+}
+
+struct ListUserSessionsRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.query = "node_id")
+  3: optional string agent_id (api.query = "agent_id")
+  4: optional i32 page_size (api.query = "page_size")
+  5: optional i32 page_num (api.query = "page_num")
 }
 
 struct CreateNodeAgentSessionRequest {
@@ -1339,6 +1355,21 @@ service PaxManagerAPI {
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier.",
     openapi.path.agent_id = "Agent identifier."
+  )
+
+  SessionListResponse ListUserSessions(
+    1: optional ListUserSessionsRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/sessions",
+    openapi.tag = "user",
+    openapi.summary = "List user sessions",
+    openapi.description = "Lists sessions across agents owned by the current user with pagination.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier or self.",
+    openapi.query.node_id = "Optional node identifier filter. Use comma-separated IDs for multiple nodes.",
+    openapi.query.agent_id = "Optional agent identifier filter. Use comma-separated IDs for multiple agents.",
+    openapi.query.page_size = "Maximum number of sessions per page.",
+    openapi.query.page_num = "One-based page number."
   )
 
   AgentSessionResponse CreateNodeAgentSession(

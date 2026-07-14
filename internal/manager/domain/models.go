@@ -102,6 +102,26 @@ type AgentSession struct {
 	PaxConfig             SessionPaxConfig     `json:"pax_config,omitempty"`
 }
 
+type ListSessionsFilter struct {
+	OwnerUserID string
+	NodeIDs     []string
+	AgentIDs    []string
+	PageSize    int
+	PageNum     int
+}
+
+type ListSessionsResult struct {
+	Sessions   []AgentSession `json:"sessions"`
+	Pagination Pagination     `json:"pagination"`
+}
+
+type Pagination struct {
+	PageNum    int   `json:"page_num"`
+	PageSize   int   `json:"page_size"`
+	Total      int64 `json:"total"`
+	TotalPages int   `json:"total_pages"`
+}
+
 const (
 	SessionApprovalModeManual         = "manual"
 	SessionApprovalModeAutoApproveAll = "auto_approve_all"

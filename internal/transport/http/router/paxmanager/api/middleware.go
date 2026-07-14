@@ -486,3 +486,23 @@ func _listuserauditeventsMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _listusersessionsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _deletenodeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _deletenodeagentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updatenodeagentsessionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

@@ -11655,27 +11655,28 @@ func (p *Agent) String() string {
 }
 
 type AgentSession struct {
-	ID             *int64      `thrift:"id,1,optional" form:"id" json:"id,omitempty" query:"id"`
-	NodeID         *string     `thrift:"node_id,2,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
-	AgentID        *string     `thrift:"agent_id,3,optional" form:"agent_id" json:"agent_id,omitempty" query:"agent_id"`
-	SessionID      *string     `thrift:"session_id,4,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
-	Name           *string     `thrift:"name,5,optional" form:"name" json:"name,omitempty" query:"name"`
-	AgentType      *string     `thrift:"agent_type,6,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
-	ProjectID      *string     `thrift:"project_id,8,optional" form:"project_id" json:"project_id,omitempty" query:"project_id"`
-	Preview        *string     `thrift:"preview,9,optional" form:"preview" json:"preview,omitempty" query:"preview"`
-	WorkspaceRoots []string    `thrift:"workspace_roots,10,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`
-	Source         *string     `thrift:"source,11,optional" form:"source" json:"source,omitempty" query:"source"`
-	Status         *string     `thrift:"status,12,optional" form:"status" json:"status,omitempty" query:"status"`
-	CurrentTask    *string     `thrift:"current_task,13,optional" form:"current_task" json:"current_task,omitempty" query:"current_task"`
-	LastMessageAt  *string     `thrift:"last_message_at,14,optional" form:"last_message_at" json:"last_message_at,omitempty" query:"last_message_at"`
-	MessageCount   *int32      `thrift:"message_count,15,optional" form:"message_count" json:"message_count,omitempty" query:"message_count"`
-	TokenUsage     *TokenUsage `thrift:"token_usage,16,optional" form:"token_usage" json:"token_usage,omitempty" query:"token_usage"`
-	Model          *string     `thrift:"model,19,optional" form:"model" json:"model,omitempty" query:"model"`
-	RunID          *string     `thrift:"run_id,20,optional" form:"run_id" json:"run_id,omitempty" query:"run_id"`
-	RunStatus      *string     `thrift:"run_status,21,optional" form:"run_status" json:"run_status,omitempty" query:"run_status"`
-	CreatedAt      *string     `thrift:"created_at,22,optional" form:"created_at" json:"created_at,omitempty" query:"created_at"`
-	UpdatedAt      *string     `thrift:"updated_at,23,optional" form:"updated_at" json:"updated_at,omitempty" query:"updated_at"`
-	Metadata       JSON        `thrift:"metadata,24,optional" form:"metadata" json:"metadata,omitempty" query:"metadata"`
+	ID             *int64            `thrift:"id,1,optional" form:"id" json:"id,omitempty" query:"id"`
+	NodeID         *string           `thrift:"node_id,2,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
+	AgentID        *string           `thrift:"agent_id,3,optional" form:"agent_id" json:"agent_id,omitempty" query:"agent_id"`
+	SessionID      *string           `thrift:"session_id,4,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
+	Name           *string           `thrift:"name,5,optional" form:"name" json:"name,omitempty" query:"name"`
+	AgentType      *string           `thrift:"agent_type,6,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
+	ProjectID      *string           `thrift:"project_id,8,optional" form:"project_id" json:"project_id,omitempty" query:"project_id"`
+	Preview        *string           `thrift:"preview,9,optional" form:"preview" json:"preview,omitempty" query:"preview"`
+	WorkspaceRoots []string          `thrift:"workspace_roots,10,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`
+	Source         *string           `thrift:"source,11,optional" form:"source" json:"source,omitempty" query:"source"`
+	Status         *string           `thrift:"status,12,optional" form:"status" json:"status,omitempty" query:"status"`
+	CurrentTask    *string           `thrift:"current_task,13,optional" form:"current_task" json:"current_task,omitempty" query:"current_task"`
+	LastMessageAt  *string           `thrift:"last_message_at,14,optional" form:"last_message_at" json:"last_message_at,omitempty" query:"last_message_at"`
+	MessageCount   *int32            `thrift:"message_count,15,optional" form:"message_count" json:"message_count,omitempty" query:"message_count"`
+	TokenUsage     *TokenUsage       `thrift:"token_usage,16,optional" form:"token_usage" json:"token_usage,omitempty" query:"token_usage"`
+	Model          *string           `thrift:"model,19,optional" form:"model" json:"model,omitempty" query:"model"`
+	RunID          *string           `thrift:"run_id,20,optional" form:"run_id" json:"run_id,omitempty" query:"run_id"`
+	RunStatus      *string           `thrift:"run_status,21,optional" form:"run_status" json:"run_status,omitempty" query:"run_status"`
+	CreatedAt      *string           `thrift:"created_at,22,optional" form:"created_at" json:"created_at,omitempty" query:"created_at"`
+	UpdatedAt      *string           `thrift:"updated_at,23,optional" form:"updated_at" json:"updated_at,omitempty" query:"updated_at"`
+	Metadata       JSON              `thrift:"metadata,24,optional" form:"metadata" json:"metadata,omitempty" query:"metadata"`
+	PaxConfig      *SessionPaxConfig `thrift:"pax_config,25,optional" form:"pax_config" json:"pax_config,omitempty" query:"pax_config"`
 }
 
 func NewAgentSession() *AgentSession {
@@ -11874,6 +11875,15 @@ func (p *AgentSession) GetMetadata() (v JSON) {
 	return p.Metadata
 }
 
+var AgentSession_PaxConfig_DEFAULT *SessionPaxConfig
+
+func (p *AgentSession) GetPaxConfig() (v *SessionPaxConfig) {
+	if !p.IsSetPaxConfig() {
+		return AgentSession_PaxConfig_DEFAULT
+	}
+	return p.PaxConfig
+}
+
 var fieldIDToName_AgentSession = map[int16]string{
 	1:  "id",
 	2:  "node_id",
@@ -11896,6 +11906,7 @@ var fieldIDToName_AgentSession = map[int16]string{
 	22: "created_at",
 	23: "updated_at",
 	24: "metadata",
+	25: "pax_config",
 }
 
 func (p *AgentSession) IsSetID() bool {
@@ -11980,6 +11991,10 @@ func (p *AgentSession) IsSetUpdatedAt() bool {
 
 func (p *AgentSession) IsSetMetadata() bool {
 	return p.Metadata != nil
+}
+
+func (p *AgentSession) IsSetPaxConfig() bool {
+	return p.PaxConfig != nil
 }
 
 func (p *AgentSession) Read(iprot thrift.TProtocol) (err error) {
@@ -12164,6 +12179,14 @@ func (p *AgentSession) Read(iprot thrift.TProtocol) (err error) {
 		case 24:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField24(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 25:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField25(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -12438,6 +12461,14 @@ func (p *AgentSession) ReadField24(iprot thrift.TProtocol) error {
 	p.Metadata = _field
 	return nil
 }
+func (p *AgentSession) ReadField25(iprot thrift.TProtocol) error {
+	_field := NewSessionPaxConfig()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.PaxConfig = _field
+	return nil
+}
 
 func (p *AgentSession) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -12527,6 +12558,10 @@ func (p *AgentSession) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField24(oprot); err != nil {
 			fieldId = 24
+			goto WriteFieldError
+		}
+		if err = p.writeField25(oprot); err != nil {
+			fieldId = 25
 			goto WriteFieldError
 		}
 	}
@@ -12954,11 +12989,238 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 24 end error: ", p), err)
 }
 
+func (p *AgentSession) writeField25(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPaxConfig() {
+		if err = oprot.WriteFieldBegin("pax_config", thrift.STRUCT, 25); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.PaxConfig.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 25 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 25 end error: ", p), err)
+}
+
 func (p *AgentSession) String() string {
 	if p == nil {
 		return "<nil>"
 	}
 	return fmt.Sprintf("AgentSession(%+v)", *p)
+
+}
+
+type SessionPaxConfig struct {
+	Cwd          *string `thrift:"cwd,1,optional" form:"cwd" json:"cwd,omitempty" query:"cwd"`
+	ApprovalMode *string `thrift:"approval_mode,2,optional" form:"approval_mode" json:"approval_mode,omitempty" query:"approval_mode"`
+}
+
+func NewSessionPaxConfig() *SessionPaxConfig {
+	return &SessionPaxConfig{}
+}
+
+func (p *SessionPaxConfig) InitDefault() {
+}
+
+var SessionPaxConfig_Cwd_DEFAULT string
+
+func (p *SessionPaxConfig) GetCwd() (v string) {
+	if !p.IsSetCwd() {
+		return SessionPaxConfig_Cwd_DEFAULT
+	}
+	return *p.Cwd
+}
+
+var SessionPaxConfig_ApprovalMode_DEFAULT string
+
+func (p *SessionPaxConfig) GetApprovalMode() (v string) {
+	if !p.IsSetApprovalMode() {
+		return SessionPaxConfig_ApprovalMode_DEFAULT
+	}
+	return *p.ApprovalMode
+}
+
+var fieldIDToName_SessionPaxConfig = map[int16]string{
+	1: "cwd",
+	2: "approval_mode",
+}
+
+func (p *SessionPaxConfig) IsSetCwd() bool {
+	return p.Cwd != nil
+}
+
+func (p *SessionPaxConfig) IsSetApprovalMode() bool {
+	return p.ApprovalMode != nil
+}
+
+func (p *SessionPaxConfig) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_SessionPaxConfig[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *SessionPaxConfig) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Cwd = _field
+	return nil
+}
+func (p *SessionPaxConfig) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ApprovalMode = _field
+	return nil
+}
+
+func (p *SessionPaxConfig) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SessionPaxConfig"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *SessionPaxConfig) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCwd() {
+		if err = oprot.WriteFieldBegin("cwd", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Cwd); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *SessionPaxConfig) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetApprovalMode() {
+		if err = oprot.WriteFieldBegin("approval_mode", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ApprovalMode); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SessionPaxConfig) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("SessionPaxConfig(%+v)", *p)
 
 }
 
@@ -14783,8 +15045,331 @@ func (p *AgentListData) String() string {
 
 }
 
+type Pagination struct {
+	PageNum    *int32 `thrift:"page_num,1,optional" form:"page_num" json:"page_num,omitempty" query:"page_num"`
+	PageSize   *int32 `thrift:"page_size,2,optional" form:"page_size" json:"page_size,omitempty" query:"page_size"`
+	Total      *int64 `thrift:"total,3,optional" form:"total" json:"total,omitempty" query:"total"`
+	TotalPages *int32 `thrift:"total_pages,4,optional" form:"total_pages" json:"total_pages,omitempty" query:"total_pages"`
+}
+
+func NewPagination() *Pagination {
+	return &Pagination{}
+}
+
+func (p *Pagination) InitDefault() {
+}
+
+var Pagination_PageNum_DEFAULT int32
+
+func (p *Pagination) GetPageNum() (v int32) {
+	if !p.IsSetPageNum() {
+		return Pagination_PageNum_DEFAULT
+	}
+	return *p.PageNum
+}
+
+var Pagination_PageSize_DEFAULT int32
+
+func (p *Pagination) GetPageSize() (v int32) {
+	if !p.IsSetPageSize() {
+		return Pagination_PageSize_DEFAULT
+	}
+	return *p.PageSize
+}
+
+var Pagination_Total_DEFAULT int64
+
+func (p *Pagination) GetTotal() (v int64) {
+	if !p.IsSetTotal() {
+		return Pagination_Total_DEFAULT
+	}
+	return *p.Total
+}
+
+var Pagination_TotalPages_DEFAULT int32
+
+func (p *Pagination) GetTotalPages() (v int32) {
+	if !p.IsSetTotalPages() {
+		return Pagination_TotalPages_DEFAULT
+	}
+	return *p.TotalPages
+}
+
+var fieldIDToName_Pagination = map[int16]string{
+	1: "page_num",
+	2: "page_size",
+	3: "total",
+	4: "total_pages",
+}
+
+func (p *Pagination) IsSetPageNum() bool {
+	return p.PageNum != nil
+}
+
+func (p *Pagination) IsSetPageSize() bool {
+	return p.PageSize != nil
+}
+
+func (p *Pagination) IsSetTotal() bool {
+	return p.Total != nil
+}
+
+func (p *Pagination) IsSetTotalPages() bool {
+	return p.TotalPages != nil
+}
+
+func (p *Pagination) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.I64 {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_Pagination[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *Pagination) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.PageNum = _field
+	return nil
+}
+func (p *Pagination) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.PageSize = _field
+	return nil
+}
+func (p *Pagination) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *int64
+	if v, err := iprot.ReadI64(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Total = _field
+	return nil
+}
+func (p *Pagination) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.TotalPages = _field
+	return nil
+}
+
+func (p *Pagination) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("Pagination"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *Pagination) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPageNum() {
+		if err = oprot.WriteFieldBegin("page_num", thrift.I32, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.PageNum); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *Pagination) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPageSize() {
+		if err = oprot.WriteFieldBegin("page_size", thrift.I32, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.PageSize); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *Pagination) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTotal() {
+		if err = oprot.WriteFieldBegin("total", thrift.I64, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI64(*p.Total); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *Pagination) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTotalPages() {
+		if err = oprot.WriteFieldBegin("total_pages", thrift.I32, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.TotalPages); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *Pagination) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("Pagination(%+v)", *p)
+
+}
+
 type SessionListData struct {
-	Sessions []*AgentSession `thrift:"sessions,1,optional,list<AgentSession>" form:"sessions" json:"sessions,omitempty" query:"sessions"`
+	Sessions   []*AgentSession `thrift:"sessions,1,optional,list<AgentSession>" form:"sessions" json:"sessions,omitempty" query:"sessions"`
+	Pagination *Pagination     `thrift:"pagination,2,optional" form:"pagination" json:"pagination,omitempty" query:"pagination"`
 }
 
 func NewSessionListData() *SessionListData {
@@ -14803,12 +15388,26 @@ func (p *SessionListData) GetSessions() (v []*AgentSession) {
 	return p.Sessions
 }
 
+var SessionListData_Pagination_DEFAULT *Pagination
+
+func (p *SessionListData) GetPagination() (v *Pagination) {
+	if !p.IsSetPagination() {
+		return SessionListData_Pagination_DEFAULT
+	}
+	return p.Pagination
+}
+
 var fieldIDToName_SessionListData = map[int16]string{
 	1: "sessions",
+	2: "pagination",
 }
 
 func (p *SessionListData) IsSetSessions() bool {
 	return p.Sessions != nil
+}
+
+func (p *SessionListData) IsSetPagination() bool {
+	return p.Pagination != nil
 }
 
 func (p *SessionListData) Read(iprot thrift.TProtocol) (err error) {
@@ -14833,6 +15432,14 @@ func (p *SessionListData) Read(iprot thrift.TProtocol) (err error) {
 		case 1:
 			if fieldTypeId == thrift.LIST {
 				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField2(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -14890,6 +15497,14 @@ func (p *SessionListData) ReadField1(iprot thrift.TProtocol) error {
 	p.Sessions = _field
 	return nil
 }
+func (p *SessionListData) ReadField2(iprot thrift.TProtocol) error {
+	_field := NewPagination()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Pagination = _field
+	return nil
+}
 
 func (p *SessionListData) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -14899,6 +15514,10 @@ func (p *SessionListData) Write(oprot thrift.TProtocol) (err error) {
 	if p != nil {
 		if err = p.writeField1(oprot); err != nil {
 			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
 			goto WriteFieldError
 		}
 	}
@@ -14944,6 +15563,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *SessionListData) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPagination() {
+		if err = oprot.WriteFieldBegin("pagination", thrift.STRUCT, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Pagination.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
 }
 
 func (p *SessionListData) String() string {
@@ -22436,6 +23074,214 @@ func (p *UpdateNodeRequest) String() string {
 
 }
 
+type DeleteNodeRequest struct {
+	UserID *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+}
+
+func NewDeleteNodeRequest() *DeleteNodeRequest {
+	return &DeleteNodeRequest{}
+}
+
+func (p *DeleteNodeRequest) InitDefault() {
+}
+
+var DeleteNodeRequest_UserID_DEFAULT string
+
+func (p *DeleteNodeRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return DeleteNodeRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var DeleteNodeRequest_NodeID_DEFAULT string
+
+func (p *DeleteNodeRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return DeleteNodeRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var fieldIDToName_DeleteNodeRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+}
+
+func (p *DeleteNodeRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *DeleteNodeRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *DeleteNodeRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_DeleteNodeRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *DeleteNodeRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *DeleteNodeRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+
+func (p *DeleteNodeRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("DeleteNodeRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *DeleteNodeRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *DeleteNodeRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *DeleteNodeRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("DeleteNodeRequest(%+v)", *p)
+
+}
+
 type GetNodeAgentRequest struct {
 	UserID  *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
 	NodeID  *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
@@ -23191,6 +24037,271 @@ func (p *UpdateNodeAgentRequest) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("UpdateNodeAgentRequest(%+v)", *p)
+
+}
+
+type DeleteNodeAgentRequest struct {
+	UserID  *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID  *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	AgentID *string `thrift:"agent_id,3,optional" json:"agent_id,omitempty" path:"agent_id"`
+}
+
+func NewDeleteNodeAgentRequest() *DeleteNodeAgentRequest {
+	return &DeleteNodeAgentRequest{}
+}
+
+func (p *DeleteNodeAgentRequest) InitDefault() {
+}
+
+var DeleteNodeAgentRequest_UserID_DEFAULT string
+
+func (p *DeleteNodeAgentRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return DeleteNodeAgentRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var DeleteNodeAgentRequest_NodeID_DEFAULT string
+
+func (p *DeleteNodeAgentRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return DeleteNodeAgentRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var DeleteNodeAgentRequest_AgentID_DEFAULT string
+
+func (p *DeleteNodeAgentRequest) GetAgentID() (v string) {
+	if !p.IsSetAgentID() {
+		return DeleteNodeAgentRequest_AgentID_DEFAULT
+	}
+	return *p.AgentID
+}
+
+var fieldIDToName_DeleteNodeAgentRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+	3: "agent_id",
+}
+
+func (p *DeleteNodeAgentRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *DeleteNodeAgentRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *DeleteNodeAgentRequest) IsSetAgentID() bool {
+	return p.AgentID != nil
+}
+
+func (p *DeleteNodeAgentRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_DeleteNodeAgentRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *DeleteNodeAgentRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *DeleteNodeAgentRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *DeleteNodeAgentRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AgentID = _field
+	return nil
+}
+
+func (p *DeleteNodeAgentRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("DeleteNodeAgentRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *DeleteNodeAgentRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *DeleteNodeAgentRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *DeleteNodeAgentRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAgentID() {
+		if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.AgentID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *DeleteNodeAgentRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("DeleteNodeAgentRequest(%+v)", *p)
 
 }
 
@@ -24388,6 +25499,385 @@ func (p *ListNodeAgentSessionsRequest) String() string {
 
 }
 
+type ListUserSessionsRequest struct {
+	UserID   *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID   *string `thrift:"node_id,2,optional" json:"node_id,omitempty" query:"node_id"`
+	AgentID  *string `thrift:"agent_id,3,optional" json:"agent_id,omitempty" query:"agent_id"`
+	PageSize *int32  `thrift:"page_size,4,optional" json:"page_size,omitempty" query:"page_size"`
+	PageNum  *int32  `thrift:"page_num,5,optional" json:"page_num,omitempty" query:"page_num"`
+}
+
+func NewListUserSessionsRequest() *ListUserSessionsRequest {
+	return &ListUserSessionsRequest{}
+}
+
+func (p *ListUserSessionsRequest) InitDefault() {
+}
+
+var ListUserSessionsRequest_UserID_DEFAULT string
+
+func (p *ListUserSessionsRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return ListUserSessionsRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var ListUserSessionsRequest_NodeID_DEFAULT string
+
+func (p *ListUserSessionsRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return ListUserSessionsRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var ListUserSessionsRequest_AgentID_DEFAULT string
+
+func (p *ListUserSessionsRequest) GetAgentID() (v string) {
+	if !p.IsSetAgentID() {
+		return ListUserSessionsRequest_AgentID_DEFAULT
+	}
+	return *p.AgentID
+}
+
+var ListUserSessionsRequest_PageSize_DEFAULT int32
+
+func (p *ListUserSessionsRequest) GetPageSize() (v int32) {
+	if !p.IsSetPageSize() {
+		return ListUserSessionsRequest_PageSize_DEFAULT
+	}
+	return *p.PageSize
+}
+
+var ListUserSessionsRequest_PageNum_DEFAULT int32
+
+func (p *ListUserSessionsRequest) GetPageNum() (v int32) {
+	if !p.IsSetPageNum() {
+		return ListUserSessionsRequest_PageNum_DEFAULT
+	}
+	return *p.PageNum
+}
+
+var fieldIDToName_ListUserSessionsRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+	3: "agent_id",
+	4: "page_size",
+	5: "page_num",
+}
+
+func (p *ListUserSessionsRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *ListUserSessionsRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *ListUserSessionsRequest) IsSetAgentID() bool {
+	return p.AgentID != nil
+}
+
+func (p *ListUserSessionsRequest) IsSetPageSize() bool {
+	return p.PageSize != nil
+}
+
+func (p *ListUserSessionsRequest) IsSetPageNum() bool {
+	return p.PageNum != nil
+}
+
+func (p *ListUserSessionsRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ListUserSessionsRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ListUserSessionsRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *ListUserSessionsRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *ListUserSessionsRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AgentID = _field
+	return nil
+}
+func (p *ListUserSessionsRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.PageSize = _field
+	return nil
+}
+func (p *ListUserSessionsRequest) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.PageNum = _field
+	return nil
+}
+
+func (p *ListUserSessionsRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListUserSessionsRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ListUserSessionsRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ListUserSessionsRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *ListUserSessionsRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAgentID() {
+		if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.AgentID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *ListUserSessionsRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPageSize() {
+		if err = oprot.WriteFieldBegin("page_size", thrift.I32, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.PageSize); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *ListUserSessionsRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPageNum() {
+		if err = oprot.WriteFieldBegin("page_num", thrift.I32, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.PageNum); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *ListUserSessionsRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ListUserSessionsRequest(%+v)", *p)
+
+}
+
 type CreateNodeAgentSessionRequest struct {
 	UserID         *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
 	NodeID         *string  `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
@@ -25448,6 +26938,382 @@ func (p *GetNodeAgentSessionRequest) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("GetNodeAgentSessionRequest(%+v)", *p)
+
+}
+
+type UpdateNodeAgentSessionRequest struct {
+	UserID    *string           `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID    *string           `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	AgentID   *string           `thrift:"agent_id,3,optional" json:"agent_id,omitempty" path:"agent_id"`
+	SessionID *string           `thrift:"session_id,4,optional" json:"session_id,omitempty" path:"session_id"`
+	PaxConfig *SessionPaxConfig `thrift:"pax_config,5,optional" form:"pax_config" json:"pax_config,omitempty" query:"pax_config"`
+}
+
+func NewUpdateNodeAgentSessionRequest() *UpdateNodeAgentSessionRequest {
+	return &UpdateNodeAgentSessionRequest{}
+}
+
+func (p *UpdateNodeAgentSessionRequest) InitDefault() {
+}
+
+var UpdateNodeAgentSessionRequest_UserID_DEFAULT string
+
+func (p *UpdateNodeAgentSessionRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return UpdateNodeAgentSessionRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var UpdateNodeAgentSessionRequest_NodeID_DEFAULT string
+
+func (p *UpdateNodeAgentSessionRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return UpdateNodeAgentSessionRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var UpdateNodeAgentSessionRequest_AgentID_DEFAULT string
+
+func (p *UpdateNodeAgentSessionRequest) GetAgentID() (v string) {
+	if !p.IsSetAgentID() {
+		return UpdateNodeAgentSessionRequest_AgentID_DEFAULT
+	}
+	return *p.AgentID
+}
+
+var UpdateNodeAgentSessionRequest_SessionID_DEFAULT string
+
+func (p *UpdateNodeAgentSessionRequest) GetSessionID() (v string) {
+	if !p.IsSetSessionID() {
+		return UpdateNodeAgentSessionRequest_SessionID_DEFAULT
+	}
+	return *p.SessionID
+}
+
+var UpdateNodeAgentSessionRequest_PaxConfig_DEFAULT *SessionPaxConfig
+
+func (p *UpdateNodeAgentSessionRequest) GetPaxConfig() (v *SessionPaxConfig) {
+	if !p.IsSetPaxConfig() {
+		return UpdateNodeAgentSessionRequest_PaxConfig_DEFAULT
+	}
+	return p.PaxConfig
+}
+
+var fieldIDToName_UpdateNodeAgentSessionRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+	3: "agent_id",
+	4: "session_id",
+	5: "pax_config",
+}
+
+func (p *UpdateNodeAgentSessionRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *UpdateNodeAgentSessionRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *UpdateNodeAgentSessionRequest) IsSetAgentID() bool {
+	return p.AgentID != nil
+}
+
+func (p *UpdateNodeAgentSessionRequest) IsSetSessionID() bool {
+	return p.SessionID != nil
+}
+
+func (p *UpdateNodeAgentSessionRequest) IsSetPaxConfig() bool {
+	return p.PaxConfig != nil
+}
+
+func (p *UpdateNodeAgentSessionRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_UpdateNodeAgentSessionRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *UpdateNodeAgentSessionRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *UpdateNodeAgentSessionRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *UpdateNodeAgentSessionRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AgentID = _field
+	return nil
+}
+func (p *UpdateNodeAgentSessionRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SessionID = _field
+	return nil
+}
+func (p *UpdateNodeAgentSessionRequest) ReadField5(iprot thrift.TProtocol) error {
+	_field := NewSessionPaxConfig()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.PaxConfig = _field
+	return nil
+}
+
+func (p *UpdateNodeAgentSessionRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("UpdateNodeAgentSessionRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *UpdateNodeAgentSessionRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *UpdateNodeAgentSessionRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *UpdateNodeAgentSessionRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAgentID() {
+		if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.AgentID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *UpdateNodeAgentSessionRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSessionID() {
+		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SessionID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *UpdateNodeAgentSessionRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPaxConfig() {
+		if err = oprot.WriteFieldBegin("pax_config", thrift.STRUCT, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.PaxConfig.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *UpdateNodeAgentSessionRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("UpdateNodeAgentSessionRequest(%+v)", *p)
 
 }
 
@@ -46817,6 +48683,8 @@ type PaxManagerAPI interface {
 
 	UpdateNode(ctx context.Context, request *UpdateNodeRequest) (r *NodeResponse, err error)
 
+	DeleteNode(ctx context.Context, request *DeleteNodeRequest) (r *NodeResponse, err error)
+
 	ListNodeAgents(ctx context.Context, request *ListNodeAgentsRequest) (r *AgentListResponse, err error)
 
 	CreateNodeAgent(ctx context.Context, request *CreateNodeAgentRequest) (r *CreateNodeAgentResponse, err error)
@@ -46825,15 +48693,21 @@ type PaxManagerAPI interface {
 
 	UpdateNodeAgent(ctx context.Context, request *UpdateNodeAgentRequest) (r *AgentResponse, err error)
 
+	DeleteNodeAgent(ctx context.Context, request *DeleteNodeAgentRequest) (r *AgentResponse, err error)
+
 	ListNodeAgentMessages(ctx context.Context, request *ListNodeAgentMessagesRequest) (r *MailboxListResponse, err error)
 
 	CreateNodeAgentMessage(ctx context.Context, request *CreateNodeAgentMessageRequest) (r *MailboxMessageResponse, err error)
 
 	ListNodeAgentSessions(ctx context.Context, request *ListNodeAgentSessionsRequest) (r *SessionListResponse, err error)
 
+	ListUserSessions(ctx context.Context, request *ListUserSessionsRequest) (r *SessionListResponse, err error)
+
 	CreateNodeAgentSession(ctx context.Context, request *CreateNodeAgentSessionRequest) (r *AgentSessionResponse, err error)
 
 	GetNodeAgentSession(ctx context.Context, request *GetNodeAgentSessionRequest) (r *AgentSessionResponse, err error)
+
+	UpdateNodeAgentSession(ctx context.Context, request *UpdateNodeAgentSessionRequest) (r *AgentSessionResponse, err error)
 
 	ListNodeAgentSessionMessages(ctx context.Context, request *ListNodeAgentSessionMessagesRequest) (r *MailboxListResponse, err error)
 
@@ -47072,6 +48946,15 @@ func (p *PaxManagerAPIClient) UpdateNode(ctx context.Context, request *UpdateNod
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) DeleteNode(ctx context.Context, request *DeleteNodeRequest) (r *NodeResponse, err error) {
+	var _args PaxManagerAPIDeleteNodeArgs
+	_args.Request = request
+	var _result PaxManagerAPIDeleteNodeResult
+	if err = p.Client_().Call(ctx, "DeleteNode", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) ListNodeAgents(ctx context.Context, request *ListNodeAgentsRequest) (r *AgentListResponse, err error) {
 	var _args PaxManagerAPIListNodeAgentsArgs
 	_args.Request = request
@@ -47108,6 +48991,15 @@ func (p *PaxManagerAPIClient) UpdateNodeAgent(ctx context.Context, request *Upda
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) DeleteNodeAgent(ctx context.Context, request *DeleteNodeAgentRequest) (r *AgentResponse, err error) {
+	var _args PaxManagerAPIDeleteNodeAgentArgs
+	_args.Request = request
+	var _result PaxManagerAPIDeleteNodeAgentResult
+	if err = p.Client_().Call(ctx, "DeleteNodeAgent", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) ListNodeAgentMessages(ctx context.Context, request *ListNodeAgentMessagesRequest) (r *MailboxListResponse, err error) {
 	var _args PaxManagerAPIListNodeAgentMessagesArgs
 	_args.Request = request
@@ -47135,6 +49027,15 @@ func (p *PaxManagerAPIClient) ListNodeAgentSessions(ctx context.Context, request
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) ListUserSessions(ctx context.Context, request *ListUserSessionsRequest) (r *SessionListResponse, err error) {
+	var _args PaxManagerAPIListUserSessionsArgs
+	_args.Request = request
+	var _result PaxManagerAPIListUserSessionsResult
+	if err = p.Client_().Call(ctx, "ListUserSessions", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) CreateNodeAgentSession(ctx context.Context, request *CreateNodeAgentSessionRequest) (r *AgentSessionResponse, err error) {
 	var _args PaxManagerAPICreateNodeAgentSessionArgs
 	_args.Request = request
@@ -47149,6 +49050,15 @@ func (p *PaxManagerAPIClient) GetNodeAgentSession(ctx context.Context, request *
 	_args.Request = request
 	var _result PaxManagerAPIGetNodeAgentSessionResult
 	if err = p.Client_().Call(ctx, "GetNodeAgentSession", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) UpdateNodeAgentSession(ctx context.Context, request *UpdateNodeAgentSessionRequest) (r *AgentSessionResponse, err error) {
+	var _args PaxManagerAPIUpdateNodeAgentSessionArgs
+	_args.Request = request
+	var _result PaxManagerAPIUpdateNodeAgentSessionResult
+	if err = p.Client_().Call(ctx, "UpdateNodeAgentSession", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
@@ -47329,15 +49239,19 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("ListNodes", &paxManagerAPIProcessorListNodes{handler: handler})
 	self.AddToProcessorMap("GetNode", &paxManagerAPIProcessorGetNode{handler: handler})
 	self.AddToProcessorMap("UpdateNode", &paxManagerAPIProcessorUpdateNode{handler: handler})
+	self.AddToProcessorMap("DeleteNode", &paxManagerAPIProcessorDeleteNode{handler: handler})
 	self.AddToProcessorMap("ListNodeAgents", &paxManagerAPIProcessorListNodeAgents{handler: handler})
 	self.AddToProcessorMap("CreateNodeAgent", &paxManagerAPIProcessorCreateNodeAgent{handler: handler})
 	self.AddToProcessorMap("GetNodeAgent", &paxManagerAPIProcessorGetNodeAgent{handler: handler})
 	self.AddToProcessorMap("UpdateNodeAgent", &paxManagerAPIProcessorUpdateNodeAgent{handler: handler})
+	self.AddToProcessorMap("DeleteNodeAgent", &paxManagerAPIProcessorDeleteNodeAgent{handler: handler})
 	self.AddToProcessorMap("ListNodeAgentMessages", &paxManagerAPIProcessorListNodeAgentMessages{handler: handler})
 	self.AddToProcessorMap("CreateNodeAgentMessage", &paxManagerAPIProcessorCreateNodeAgentMessage{handler: handler})
 	self.AddToProcessorMap("ListNodeAgentSessions", &paxManagerAPIProcessorListNodeAgentSessions{handler: handler})
+	self.AddToProcessorMap("ListUserSessions", &paxManagerAPIProcessorListUserSessions{handler: handler})
 	self.AddToProcessorMap("CreateNodeAgentSession", &paxManagerAPIProcessorCreateNodeAgentSession{handler: handler})
 	self.AddToProcessorMap("GetNodeAgentSession", &paxManagerAPIProcessorGetNodeAgentSession{handler: handler})
+	self.AddToProcessorMap("UpdateNodeAgentSession", &paxManagerAPIProcessorUpdateNodeAgentSession{handler: handler})
 	self.AddToProcessorMap("ListNodeAgentSessionMessages", &paxManagerAPIProcessorListNodeAgentSessionMessages{handler: handler})
 	self.AddToProcessorMap("CreateNodeAgentSessionMessage", &paxManagerAPIProcessorCreateNodeAgentSessionMessage{handler: handler})
 	self.AddToProcessorMap("ListUserAPIKeys", &paxManagerAPIProcessorListUserAPIKeys{handler: handler})
@@ -48333,6 +50247,54 @@ func (p *paxManagerAPIProcessorUpdateNode) Process(ctx context.Context, seqId in
 	return true, err
 }
 
+type paxManagerAPIProcessorDeleteNode struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorDeleteNode) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIDeleteNodeArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("DeleteNode", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIDeleteNodeResult{}
+	var retval *NodeResponse
+	if retval, err2 = p.handler.DeleteNode(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing DeleteNode: "+err2.Error())
+		oprot.WriteMessageBegin("DeleteNode", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("DeleteNode", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
 type paxManagerAPIProcessorListNodeAgents struct {
 	handler PaxManagerAPI
 }
@@ -48525,6 +50487,54 @@ func (p *paxManagerAPIProcessorUpdateNodeAgent) Process(ctx context.Context, seq
 	return true, err
 }
 
+type paxManagerAPIProcessorDeleteNodeAgent struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorDeleteNodeAgent) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIDeleteNodeAgentArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("DeleteNodeAgent", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIDeleteNodeAgentResult{}
+	var retval *AgentResponse
+	if retval, err2 = p.handler.DeleteNodeAgent(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing DeleteNodeAgent: "+err2.Error())
+		oprot.WriteMessageBegin("DeleteNodeAgent", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("DeleteNodeAgent", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
 type paxManagerAPIProcessorListNodeAgentMessages struct {
 	handler PaxManagerAPI
 }
@@ -48669,6 +50679,54 @@ func (p *paxManagerAPIProcessorListNodeAgentSessions) Process(ctx context.Contex
 	return true, err
 }
 
+type paxManagerAPIProcessorListUserSessions struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorListUserSessions) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIListUserSessionsArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("ListUserSessions", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIListUserSessionsResult{}
+	var retval *SessionListResponse
+	if retval, err2 = p.handler.ListUserSessions(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListUserSessions: "+err2.Error())
+		oprot.WriteMessageBegin("ListUserSessions", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("ListUserSessions", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
 type paxManagerAPIProcessorCreateNodeAgentSession struct {
 	handler PaxManagerAPI
 }
@@ -48748,6 +50806,54 @@ func (p *paxManagerAPIProcessorGetNodeAgentSession) Process(ctx context.Context,
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("GetNodeAgentSession", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorUpdateNodeAgentSession struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorUpdateNodeAgentSession) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIUpdateNodeAgentSessionArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("UpdateNodeAgentSession", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIUpdateNodeAgentSessionResult{}
+	var retval *AgentSessionResponse
+	if retval, err2 = p.handler.UpdateNodeAgentSession(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing UpdateNodeAgentSession: "+err2.Error())
+		oprot.WriteMessageBegin("UpdateNodeAgentSession", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("UpdateNodeAgentSession", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -55365,6 +57471,300 @@ func (p *PaxManagerAPIUpdateNodeResult) String() string {
 
 }
 
+type PaxManagerAPIDeleteNodeArgs struct {
+	Request *DeleteNodeRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIDeleteNodeArgs() *PaxManagerAPIDeleteNodeArgs {
+	return &PaxManagerAPIDeleteNodeArgs{}
+}
+
+func (p *PaxManagerAPIDeleteNodeArgs) InitDefault() {
+}
+
+var PaxManagerAPIDeleteNodeArgs_Request_DEFAULT *DeleteNodeRequest
+
+func (p *PaxManagerAPIDeleteNodeArgs) GetRequest() (v *DeleteNodeRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIDeleteNodeArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIDeleteNodeArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIDeleteNodeArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIDeleteNodeArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIDeleteNodeArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewDeleteNodeRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIDeleteNodeArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("DeleteNode_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIDeleteNodeArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIDeleteNodeResult struct {
+	Success *NodeResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIDeleteNodeResult() *PaxManagerAPIDeleteNodeResult {
+	return &PaxManagerAPIDeleteNodeResult{}
+}
+
+func (p *PaxManagerAPIDeleteNodeResult) InitDefault() {
+}
+
+var PaxManagerAPIDeleteNodeResult_Success_DEFAULT *NodeResponse
+
+func (p *PaxManagerAPIDeleteNodeResult) GetSuccess() (v *NodeResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIDeleteNodeResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIDeleteNodeResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIDeleteNodeResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIDeleteNodeResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIDeleteNodeResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNodeResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIDeleteNodeResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("DeleteNode_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIDeleteNodeResult(%+v)", *p)
+
+}
+
 type PaxManagerAPIListNodeAgentsArgs struct {
 	Request *ListNodeAgentsRequest `thrift:"request,1"`
 }
@@ -56541,6 +58941,300 @@ func (p *PaxManagerAPIUpdateNodeAgentResult) String() string {
 
 }
 
+type PaxManagerAPIDeleteNodeAgentArgs struct {
+	Request *DeleteNodeAgentRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIDeleteNodeAgentArgs() *PaxManagerAPIDeleteNodeAgentArgs {
+	return &PaxManagerAPIDeleteNodeAgentArgs{}
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentArgs) InitDefault() {
+}
+
+var PaxManagerAPIDeleteNodeAgentArgs_Request_DEFAULT *DeleteNodeAgentRequest
+
+func (p *PaxManagerAPIDeleteNodeAgentArgs) GetRequest() (v *DeleteNodeAgentRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIDeleteNodeAgentArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIDeleteNodeAgentArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIDeleteNodeAgentArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewDeleteNodeAgentRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("DeleteNodeAgent_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIDeleteNodeAgentArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIDeleteNodeAgentResult struct {
+	Success *AgentResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIDeleteNodeAgentResult() *PaxManagerAPIDeleteNodeAgentResult {
+	return &PaxManagerAPIDeleteNodeAgentResult{}
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentResult) InitDefault() {
+}
+
+var PaxManagerAPIDeleteNodeAgentResult_Success_DEFAULT *AgentResponse
+
+func (p *PaxManagerAPIDeleteNodeAgentResult) GetSuccess() (v *AgentResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIDeleteNodeAgentResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIDeleteNodeAgentResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIDeleteNodeAgentResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewAgentResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("DeleteNodeAgent_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDeleteNodeAgentResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIDeleteNodeAgentResult(%+v)", *p)
+
+}
+
 type PaxManagerAPIListNodeAgentMessagesArgs struct {
 	Request *ListNodeAgentMessagesRequest `thrift:"request,1"`
 }
@@ -57423,6 +60117,300 @@ func (p *PaxManagerAPIListNodeAgentSessionsResult) String() string {
 
 }
 
+type PaxManagerAPIListUserSessionsArgs struct {
+	Request *ListUserSessionsRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIListUserSessionsArgs() *PaxManagerAPIListUserSessionsArgs {
+	return &PaxManagerAPIListUserSessionsArgs{}
+}
+
+func (p *PaxManagerAPIListUserSessionsArgs) InitDefault() {
+}
+
+var PaxManagerAPIListUserSessionsArgs_Request_DEFAULT *ListUserSessionsRequest
+
+func (p *PaxManagerAPIListUserSessionsArgs) GetRequest() (v *ListUserSessionsRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIListUserSessionsArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIListUserSessionsArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIListUserSessionsArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIListUserSessionsArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListUserSessionsArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListUserSessionsArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewListUserSessionsRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListUserSessionsArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListUserSessions_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListUserSessionsArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListUserSessionsArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListUserSessionsArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIListUserSessionsResult struct {
+	Success *SessionListResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIListUserSessionsResult() *PaxManagerAPIListUserSessionsResult {
+	return &PaxManagerAPIListUserSessionsResult{}
+}
+
+func (p *PaxManagerAPIListUserSessionsResult) InitDefault() {
+}
+
+var PaxManagerAPIListUserSessionsResult_Success_DEFAULT *SessionListResponse
+
+func (p *PaxManagerAPIListUserSessionsResult) GetSuccess() (v *SessionListResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIListUserSessionsResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIListUserSessionsResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIListUserSessionsResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIListUserSessionsResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListUserSessionsResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListUserSessionsResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewSessionListResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListUserSessionsResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListUserSessions_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListUserSessionsResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListUserSessionsResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListUserSessionsResult(%+v)", *p)
+
+}
+
 type PaxManagerAPICreateNodeAgentSessionArgs struct {
 	Request *CreateNodeAgentSessionRequest `thrift:"request,1"`
 }
@@ -58008,6 +60996,300 @@ func (p *PaxManagerAPIGetNodeAgentSessionResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIGetNodeAgentSessionResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIUpdateNodeAgentSessionArgs struct {
+	Request *UpdateNodeAgentSessionRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIUpdateNodeAgentSessionArgs() *PaxManagerAPIUpdateNodeAgentSessionArgs {
+	return &PaxManagerAPIUpdateNodeAgentSessionArgs{}
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionArgs) InitDefault() {
+}
+
+var PaxManagerAPIUpdateNodeAgentSessionArgs_Request_DEFAULT *UpdateNodeAgentSessionRequest
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionArgs) GetRequest() (v *UpdateNodeAgentSessionRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIUpdateNodeAgentSessionArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIUpdateNodeAgentSessionArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIUpdateNodeAgentSessionArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewUpdateNodeAgentSessionRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("UpdateNodeAgentSession_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIUpdateNodeAgentSessionArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIUpdateNodeAgentSessionResult struct {
+	Success *AgentSessionResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIUpdateNodeAgentSessionResult() *PaxManagerAPIUpdateNodeAgentSessionResult {
+	return &PaxManagerAPIUpdateNodeAgentSessionResult{}
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionResult) InitDefault() {
+}
+
+var PaxManagerAPIUpdateNodeAgentSessionResult_Success_DEFAULT *AgentSessionResponse
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionResult) GetSuccess() (v *AgentSessionResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIUpdateNodeAgentSessionResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIUpdateNodeAgentSessionResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIUpdateNodeAgentSessionResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewAgentSessionResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("UpdateNodeAgentSession_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateNodeAgentSessionResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIUpdateNodeAgentSessionResult(%+v)", *p)
 
 }
 

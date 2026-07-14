@@ -16,6 +16,7 @@ type UserPrincipal = domain.UserPrincipal
 type Node = domain.Node
 type Agent = domain.Agent
 type AgentSession = domain.AgentSession
+type Pagination = domain.Pagination
 type SessionPaxConfig = domain.SessionPaxConfig
 type MailboxMessage = domain.MailboxMessage
 type MessageWithParts = domain.MessageWithParts

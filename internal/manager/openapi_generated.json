@@ -1480,6 +1480,28 @@
         },
         "type": "object"
       },
+      "ListUserSessionsRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "page_num": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "page_size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "MailboxListData": {
         "properties": {
           "messages": {
@@ -1786,6 +1808,27 @@
         "type": "object"
       },
       "OpenAPI": {
+        "type": "object"
+      },
+      "Pagination": {
+        "properties": {
+          "page_num": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "page_size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total_pages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "PullMailboxRequest": {
@@ -2276,6 +2319,9 @@
       },
       "SessionListData": {
         "properties": {
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          },
           "sessions": {
             "items": {
               "$ref": "#/components/schemas/AgentSession"
@@ -7624,6 +7670,139 @@
           }
         ],
         "summary": "Get secret",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/sessions": {
+      "get": {
+        "description": "Lists sessions across agents owned by the current user with pagination.",
+        "parameters": [
+          {
+            "description": "User identifier or self.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional agent identifier filter. Use comma-separated IDs for multiple agents.",
+            "in": "query",
+            "name": "agent_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional node identifier filter. Use comma-separated IDs for multiple nodes.",
+            "in": "query",
+            "name": "node_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "One-based page number.",
+            "in": "query",
+            "name": "page_num",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of sessions per page.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListUserSessionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List user sessions",
         "tags": [
           "user"
         ]
