@@ -654,21 +654,6 @@ func (s *Service) initializeAgentConversationSession(
 	defer restoreSessionContext()
 	if _, err := runner.request(
 		ctx,
-		"initialize",
-		map[string]any{
-			"protocolVersion":    1,
-			"clientCapabilities": map[string]any{},
-			"clientInfo": map[string]any{
-				"name":    "pax-manager-agent-conversation",
-				"version": "0.1.0",
-			},
-		},
-		nil,
-	); err != nil {
-		return err
-	}
-	if _, err := runner.request(
-		ctx,
 		"session/new",
 		map[string]any{
 			"cwd":        "/tmp",

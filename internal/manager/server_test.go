@@ -1996,16 +1996,6 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 		errCh,
 	)
 
-	initializeEnv := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, initializeEnv.Payload, "initialize")
-	writeAgentDataFrame(
-		t,
-		agentWS,
-		initializeEnv.QueueID,
-		1,
-		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
-	)
-
 	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
 	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "/tmp")
@@ -2015,9 +2005,9 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	writeAgentDataFrame(
 		t,
 		agentWS,
-		initializeEnv.QueueID,
-		2,
-		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"sessionId":"native-session-1"}}`),
+		sessionNewEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"sessionId":"native-session-1"}}`),
 	)
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
@@ -2026,8 +2016,8 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	writeAgentDataFrame(
 		t,
 		agentWS,
-		initializeEnv.QueueID,
-		3,
+		promptEnv.QueueID,
+		2,
 		json.RawMessage(
 			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello back"}}}}`,
 		),
@@ -2035,9 +2025,9 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	writeAgentDataFrame(
 		t,
 		agentWS,
-		initializeEnv.QueueID,
-		4,
-		json.RawMessage(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`),
+		promptEnv.QueueID,
+		3,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}}`),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -2112,16 +2102,6 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 		errCh,
 	)
 
-	initializeEnv := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, initializeEnv.Payload, "initialize")
-	writeAgentDataFrame(
-		t,
-		agentWS,
-		initializeEnv.QueueID,
-		1,
-		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
-	)
-
 	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
 	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "/Users/todd/work")
@@ -2129,8 +2109,8 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 		t,
 		agentWS,
 		sessionNewEnv.QueueID,
-		2,
-		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"sessionId":"native-session-custom"}}`),
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"sessionId":"native-session-custom"}}`),
 	)
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
@@ -2139,8 +2119,8 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 		t,
 		agentWS,
 		promptEnv.QueueID,
-		3,
-		json.RawMessage(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`),
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}}`),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -2761,24 +2741,14 @@ func TestConversationWaitsForAgentTunnelReconnect(t *testing.T) {
 	defer func() { _ = agentWS.Close() }()
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
-	initializeEnv := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, initializeEnv.Payload, "initialize")
-	writeAgentDataFrame(
-		t,
-		agentWS,
-		initializeEnv.QueueID,
-		1,
-		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
-	)
-
 	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
 	writeAgentDataFrame(
 		t,
 		agentWS,
 		sessionNewEnv.QueueID,
-		2,
-		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"sessionId":"native-session-1"}}`),
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"sessionId":"native-session-1"}}`),
 	)
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
@@ -2788,8 +2758,8 @@ func TestConversationWaitsForAgentTunnelReconnect(t *testing.T) {
 		t,
 		agentWS,
 		promptEnv.QueueID,
-		3,
-		json.RawMessage(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`),
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}}`),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -3262,24 +3232,14 @@ func TestConversationReturnsHTTPErrorWhenSessionNewFailsBeforeStream(t *testing.
 	errCh := make(chan error, 1)
 	go postConversation(t, httpServer.URL, fixture, `{"input":"hello"}`, respCh, errCh)
 
-	initializeEnv := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, initializeEnv.Payload, "initialize")
-	writeAgentDataFrame(
-		t,
-		agentWS,
-		initializeEnv.QueueID,
-		1,
-		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
-	)
-
 	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
 	writeAgentDataFrame(
 		t,
 		agentWS,
-		initializeEnv.QueueID,
-		2,
-		json.RawMessage(`{"jsonrpc":"2.0","id":2,"error":{"message":"session create failed"}}`),
+		sessionNewEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"error":{"message":"session create failed"}}`),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusBadGateway)
@@ -4226,7 +4186,6 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 		recCh <- rec
 	}()
 
-	respondMockACPRequest(t, targetWS, 1, "initialize", json.RawMessage(`{"protocolVersion":1}`))
 	sessionNewEnv, sessionNew := readMockACPRequest(t, targetWS, "session/new")
 	assertACPMCPEnv(t, sessionNew.Params, "PAX_AGENT_ID", targetAgent.AgentID)
 	assertACPMCPEnv(t, sessionNew.Params, "PAX_REPRESENTATIVE_AGENT_ID", targetRep.RepresentativeAgentID)
@@ -4235,7 +4194,7 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 		t,
 		targetWS,
 		sessionNewEnv.QueueID,
-		2,
+		1,
 		sessionNew.ID,
 		json.RawMessage(`{"sessionId":"native-target"}`),
 	)
@@ -4246,7 +4205,7 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 		t,
 		targetWS,
 		setModeEnv.QueueID,
-		3,
+		2,
 		setMode.ID,
 		json.RawMessage(`{}`),
 	)
@@ -4257,12 +4216,12 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 	require.Contains(t, targetPromptText, "Please answer this.")
 	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-target", targetNativeSessionID)
-	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 4, targetNativeSessionID, "working")
+	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 3, targetNativeSessionID, "working")
 	writeMockACPResponse(
 		t,
 		targetWS,
 		targetPromptEnv.QueueID,
-		5,
+		4,
 		targetPrompt.ID,
 		json.RawMessage(`{"stopReason":"end_turn"}`),
 	)
@@ -6016,23 +5975,21 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 		recCh <- rec
 	}()
 
-	respondMockACPRequest(t, sourceWS, 1, "initialize", json.RawMessage(`{"protocolVersion":1}`))
-	respondMockACPRequest(t, sourceWS, 2, "session/new", json.RawMessage(`{"sessionId":"native-source"}`))
-	respondMockACPRequest(t, sourceWS, 3, "session/set_mode", json.RawMessage(`{}`))
-	respondMockACPRequest(t, targetWS, 1, "initialize", json.RawMessage(`{"protocolVersion":1}`))
-	respondMockACPRequest(t, targetWS, 2, "session/new", json.RawMessage(`{"sessionId":"native-target"}`))
-	respondMockACPRequest(t, targetWS, 3, "session/set_mode", json.RawMessage(`{}`))
+	respondMockACPRequest(t, sourceWS, 1, "session/new", json.RawMessage(`{"sessionId":"native-source"}`))
+	respondMockACPRequest(t, sourceWS, 2, "session/set_mode", json.RawMessage(`{}`))
+	respondMockACPRequest(t, targetWS, 1, "session/new", json.RawMessage(`{"sessionId":"native-target"}`))
+	respondMockACPRequest(t, targetWS, 2, "session/set_mode", json.RawMessage(`{}`))
 
 	targetPromptEnv, targetPrompt := readMockACPRequest(t, targetWS, "session/prompt")
 	require.Equal(t, "count from 1 to 2", acpPromptText(targetPrompt.Params))
 	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-target", targetNativeSessionID)
-	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 4, targetNativeSessionID, "1")
+	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 3, targetNativeSessionID, "1")
 	writeMockACPResponse(
 		t,
 		targetWS,
 		targetPromptEnv.QueueID,
-		5,
+		4,
 		targetPrompt.ID,
 		json.RawMessage(`{"stopReason":"end_turn"}`),
 	)
@@ -6041,12 +5998,12 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 	require.Equal(t, "1", acpPromptText(sourcePrompt.Params))
 	sourceNativeSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-source", sourceNativeSessionID)
-	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 4, sourceNativeSessionID, "2")
+	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 3, sourceNativeSessionID, "2")
 	writeMockACPResponse(
 		t,
 		sourceWS,
 		sourcePromptEnv.QueueID,
-		5,
+		4,
 		sourcePrompt.ID,
 		json.RawMessage(`{"stopReason":"end_turn"}`),
 	)

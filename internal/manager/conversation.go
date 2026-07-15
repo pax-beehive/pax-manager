@@ -274,21 +274,6 @@ func (s *Service) createConversationSession(
 	approvalMode := domain.NormalizeSessionApprovalMode(req.ApprovalMode)
 	restoreSessionContext := runner.agentConn.withSessionContext(managerSessionID)
 	defer restoreSessionContext()
-	if _, err := runner.request(
-		ctx,
-		"initialize",
-		map[string]any{
-			"protocolVersion":    1,
-			"clientCapabilities": map[string]any{},
-			"clientInfo": map[string]any{
-				"name":    "pax-manager-conversation",
-				"version": "0.1.0",
-			},
-		},
-		nil,
-	); err != nil {
-		return conversationSession{}, err
-	}
 	resp, err := runner.request(
 		ctx,
 		"session/new",
