@@ -105,17 +105,18 @@ type nodeControlRuntimeSnapshot struct {
 }
 
 type nodeControlAgentRuntime struct {
-	ConnectionID string `json:"connection_id"`
-	CloudAgentID string `json:"cloud_agent_id"`
-	RemoteID     string `json:"remote_id"`
-	NodeID       string `json:"node_id"`
-	Name         string `json:"name"`
-	AgentType    string `json:"agent_type"`
-	DesiredState string `json:"desired_state"`
-	RuntimePhase string `json:"runtime_phase"`
-	StatusReason string `json:"status_reason"`
-	LastError    string `json:"last_error"`
-	UpdatedAt    string `json:"updated_at"`
+	ConnectionID            string          `json:"connection_id"`
+	CloudAgentID            string          `json:"cloud_agent_id"`
+	RemoteID                string          `json:"remote_id"`
+	NodeID                  string          `json:"node_id"`
+	Name                    string          `json:"name"`
+	AgentType               string          `json:"agent_type"`
+	DesiredState            string          `json:"desired_state"`
+	RuntimePhase            string          `json:"runtime_phase"`
+	StatusReason            string          `json:"status_reason"`
+	LastError               string          `json:"last_error"`
+	UpdatedAt               string          `json:"updated_at"`
+	ACPPoolCapabilityReport json.RawMessage `json:"acp_pool_capability_report,omitempty"`
 }
 
 func (s *Server) handleNodeControlTunnelFrame(
@@ -228,6 +229,9 @@ func runtimeSnapshotAgentMetadata(agent nodeControlAgentRuntime) json.RawMessage
 			"last_error":    agent.LastError,
 			"updated_at":    agent.UpdatedAt,
 		},
+	}
+	if len(agent.ACPPoolCapabilityReport) > 0 && string(agent.ACPPoolCapabilityReport) != "null" {
+		metadata["acp_pool_capability_report"] = json.RawMessage(cloneRawJSON(agent.ACPPoolCapabilityReport))
 	}
 	return mustMarshalRawJSON(metadata)
 }
