@@ -53,6 +53,7 @@ func TestACPRuntimeProjectorTracksPromptPermissionAndCompletion(t *testing.T) {
 	observe := func(direction acpFrameDirection, raw string) {
 		t.Helper()
 		frame := newACPFrameContext(agent, direction, websocket.TextMessage, []byte(raw))
+		frame.managerSessionID = "sess_1"
 		if err := projector.Observe(context.Background(), frame); err != nil {
 			t.Fatal(err)
 		}
@@ -164,6 +165,7 @@ func TestACPRuntimeProjectorIsConcurrentSafe(t *testing.T) {
 				},
 			})
 			frame := newACPFrameContext(agent, acpUserToAgent, websocket.TextMessage, raw)
+			frame.managerSessionID = "sess_1"
 			if err := projector.Observe(context.Background(), frame); err != nil {
 				t.Errorf("observe: %v", err)
 			}
@@ -225,6 +227,7 @@ func TestACPApprovalMiddlewareGivenSessionAutoApproveAllThenAllowsAutoApprove(t 
 			}
 		}`),
 	)
+	frame.managerSessionID = session.SessionID
 
 	middleware := acpApprovalMiddleware{store: store}
 	gotSessionID, ok := middleware.autoApproveSessionID(ctx, frame)

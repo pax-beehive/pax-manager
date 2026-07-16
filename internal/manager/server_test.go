@@ -1251,14 +1251,14 @@ func TestNewServerDefaultsACPTransportToDurableStore(t *testing.T) {
 		defer cancel()
 		require.NoError(t, srv.CloseTransportStore(ctx))
 	})
-	writeBehind, ok := srv.transportStore.(*reliablemq.ConsumerWriteBehindStore)
+	writeBehind, ok := srv.transportStore.(*reliablemq.ProducerWriteBehindStore)
 	require.True(t, ok)
-	flusher, ok := srv.transportFlusher.(*reliablemq.ConsumerWriteBehindStore)
+	flusher, ok := srv.transportFlusher.(*reliablemq.ProducerWriteBehindStore)
 	require.True(t, ok)
 	require.Same(t, writeBehind, flusher)
 }
 
-func TestNewServerConsumerWriteBehindTransportKeepsOutboundDurable(t *testing.T) {
+func TestNewServerProducerWriteBehindTransportKeepsOutboundSequence(t *testing.T) {
 	ctx := context.Background()
 	store := NewMemoryStore(time.Now)
 	first, err := store.AppendOutboundData(
@@ -1286,6 +1286,30 @@ func TestNewServerConsumerWriteBehindTransportKeepsOutboundDurable(t *testing.T)
 	)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), frame.Key.Seq)
+}
+
+func TestNewServerOwnsOneProducerPerTransportQueue(t *testing.T) {
+	srv := newServer(Config{}, NewMemoryStore(time.Now))
+
+	first, err := srv.transportProducers.Get(
+		t.Context(),
+		"queue_1",
+		reliablemq.StreamACP,
+	)
+	require.NoError(t, err)
+	second, err := srv.transportProducers.Get(
+		t.Context(),
+		"queue_1",
+		reliablemq.StreamACP,
+	)
+	require.NoError(t, err)
+	require.Same(t, first, second)
+
+	closeCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	require.NoError(t, srv.CloseTransportStore(closeCtx))
+	_, err = srv.transportProducers.Get(t.Context(), "queue_2", reliablemq.StreamACP)
+	require.ErrorIs(t, err, reliablemq.ErrProducerRegistryClosed)
 }
 
 func TestAdminStatusFollowsCurrentConfig(t *testing.T) {
@@ -1647,6 +1671,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -1682,7 +1707,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 		domain.TransportStreamManagerToPaxd,
 		1,
 		domain.TransportDirectionOutbound,
-		domain.TransportStatusSent,
+		domain.TransportStatusPending,
 	)
 	requestAck := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
 		Type:    acpTunnelTypeAck,
@@ -1745,7 +1770,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 
 func TestACPTunnelWriteBehindStoreRelaysInitialize(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
-	writeBehind, ok := srv.transportStore.(*reliablemq.ConsumerWriteBehindStore)
+	writeBehind, ok := srv.transportStore.(*reliablemq.ProducerWriteBehindStore)
 	require.True(t, ok)
 	agentID := testAgentID(t, srv, "todd@example.com")
 
@@ -1763,6 +1788,7 @@ func TestACPTunnelWriteBehindStoreRelaysInitialize(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -1824,6 +1850,7 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -1983,6 +2010,7 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -1996,16 +2024,6 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 		errCh,
 	)
 
-	initializeEnv := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, initializeEnv.Payload, "initialize")
-	writeAgentDataFrame(
-		t,
-		agentWS,
-		initializeEnv.QueueID,
-		1,
-		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
-	)
-
 	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
 	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "/tmp")
@@ -2015,9 +2033,9 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	writeAgentDataFrame(
 		t,
 		agentWS,
-		initializeEnv.QueueID,
-		2,
-		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"sessionId":"native-session-1"}}`),
+		sessionNewEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"sessionId":"native-session-1"}}`),
 	)
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
@@ -2026,8 +2044,8 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	writeAgentDataFrame(
 		t,
 		agentWS,
-		initializeEnv.QueueID,
-		3,
+		promptEnv.QueueID,
+		2,
 		json.RawMessage(
 			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello back"}}}}`,
 		),
@@ -2035,9 +2053,9 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	writeAgentDataFrame(
 		t,
 		agentWS,
-		initializeEnv.QueueID,
-		4,
-		json.RawMessage(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`),
+		promptEnv.QueueID,
+		3,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}}`),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -2099,6 +2117,7 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2112,16 +2131,6 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 		errCh,
 	)
 
-	initializeEnv := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, initializeEnv.Payload, "initialize")
-	writeAgentDataFrame(
-		t,
-		agentWS,
-		initializeEnv.QueueID,
-		1,
-		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
-	)
-
 	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
 	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "/Users/todd/work")
@@ -2129,8 +2138,8 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 		t,
 		agentWS,
 		sessionNewEnv.QueueID,
-		2,
-		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"sessionId":"native-session-custom"}}`),
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"sessionId":"native-session-custom"}}`),
 	)
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
@@ -2139,8 +2148,8 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 		t,
 		agentWS,
 		promptEnv.QueueID,
-		3,
-		json.RawMessage(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`),
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}}`),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -2156,6 +2165,151 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "/Users/todd/work", storedSession.PaxConfig.CWD)
 	assert.Equal(t, domain.SessionApprovalModeAutoApproveAll, storedSession.PaxConfig.ApprovalMode)
+}
+
+func TestConversationMissingPaxdRouteResumesOnceThenRetriesPrompt(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-legacy", "native-legacy")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"continue old session","session_id":"sess-legacy"}`,
+		respCh,
+		errCh,
+	)
+
+	firstPromptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, firstPromptEnv.Payload, "session/prompt")
+	var firstPrompt acpJSONRPCMessage
+	require.NoError(t, json.Unmarshal(firstPromptEnv.Payload, &firstPrompt))
+	writeAgentDataFrame(t, agentWS, firstPromptEnv.QueueID, 1, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+string(firstPrompt.ID)+`,"error":{"code":-32002,"message":"ACP session route requires resume","data":{"kind":"session_route_missing","requiresResume":true}}}`,
+	))
+
+	resumeEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, resumeEnv.Payload, "session/resume")
+	assertFrameSessionID(t, resumeEnv.Payload, "native-legacy")
+	assertACPParamString(t, resumeEnv.Payload, "cwd", "/tmp")
+	assertACPParamArray(t, resumeEnv.Payload, "mcpServers")
+	var resume acpJSONRPCMessage
+	require.NoError(t, json.Unmarshal(resumeEnv.Payload, &resume))
+	writeAgentDataFrame(t, agentWS, resumeEnv.QueueID, 2, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+string(resume.ID)+`,"result":{}}`,
+	))
+
+	retryPromptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, retryPromptEnv.Payload, "session/prompt")
+	assertFrameSessionID(t, retryPromptEnv.Payload, "native-legacy")
+	var retryPrompt acpJSONRPCMessage
+	require.NoError(t, json.Unmarshal(retryPromptEnv.Payload, &retryPrompt))
+	require.NotEqual(t, string(firstPrompt.ID), string(retryPrompt.ID))
+	writeAgentDataFrame(t, agentWS, retryPromptEnv.QueueID, 3, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+string(retryPrompt.ID)+`,"result":{"stopReason":"end_turn"}}`,
+	))
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	requireConversationEvent(t, events, "done")
+	for _, event := range events {
+		require.NotEqual(t, "error", event.Type, string(body))
+	}
+}
+
+func TestConversationDifferentSessionsPromptConcurrentlyOnDevPool(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-a", "native-a")
+	createConversationTestSession(t, srv, fixture, "sess-b", "native-b")
+	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	node, err := srv.store.GetNode(t.Context(), principal, fixture.nodeID)
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+	agentConn, err := srv.acpTunnels.findAny(fixture.agentID, "")
+	require.NoError(t, err)
+	require.False(t, agentConn.concurrentTurnsReady(t.Context()))
+	poolConnectionID := "conn_codex"
+	require.NotEqual(t, poolConnectionID, agentConn.queueID())
+	metadata := mustMarshalRawJSON(map[string]any{
+		"runtime": map[string]string{"connection_id": poolConnectionID},
+		"acp_pool_capability_report": map[string]any{
+			"connection_id":     poolConnectionID,
+			"report_generation": 1,
+			"paxd_version":      "dev",
+			"init_phase":        "ready",
+		},
+	})
+	require.NoError(t, srv.store.UpsertNodeStatus(t.Context(), node, domain.NodeStatusReport{
+		NodeID: fixture.nodeID,
+		Agents: []domain.AgentStatusInput{{
+			AgentID:  fixture.agentID,
+			Status:   "online",
+			Online:   true,
+			Metadata: metadata,
+		}},
+	}))
+	require.True(t, agentConn.concurrentTurnsReady(t.Context()))
+
+	respA, respB := make(chan *http.Response, 1), make(chan *http.Response, 1)
+	errA, errB := make(chan error, 1), make(chan error, 1)
+	go postConversation(t, httpServer.URL, fixture, `{"input":"prompt a","session_id":"sess-a"}`, respA, errA)
+	go postConversation(t, httpServer.URL, fixture, `{"input":"prompt b","session_id":"sess-b"}`, respB, errB)
+
+	firstEnv := readNextManagerToAgentData(t, agentWS)
+	secondEnv := readNextManagerToAgentData(t, agentWS)
+	var first, second acpJSONRPCMessage
+	require.NoError(t, json.Unmarshal(firstEnv.Payload, &first))
+	require.NoError(t, json.Unmarshal(secondEnv.Payload, &second))
+	require.Equal(t, "session/prompt", first.Method)
+	require.Equal(t, "session/prompt", second.Method)
+	firstSession := findStringFromRaw(first.Params, "sessionId", "session_id")
+	secondSession := findStringFromRaw(second.Params, "sessionId", "session_id")
+	require.ElementsMatch(t, []string{"native-a", "native-b"}, []string{firstSession, secondSession})
+
+	writeAgentDataFrame(t, agentWS, firstEnv.QueueID, 1, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+string(second.ID)+`,"result":{"stopReason":"end_turn"}}`,
+	))
+	writeAgentDataFrame(t, agentWS, firstEnv.QueueID, 2, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+string(first.ID)+`,"result":{"stopReason":"end_turn"}}`,
+	))
+
+	bodyA := readConversationResponse(t, respA, errA, http.StatusOK)
+	bodyB := readConversationResponse(t, respB, errB, http.StatusOK)
+	requireConversationEvent(t, decodeConversationEvents(t, bodyA), "done")
+	requireConversationEvent(t, decodeConversationEvents(t, bodyB), "done")
 }
 
 func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts(t *testing.T) {
@@ -2176,6 +2330,7 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2293,6 +2448,7 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2428,6 +2584,7 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
@@ -2535,6 +2692,7 @@ func TestConversationGivenNumericPermissionRequestIDWhenResumingThenPreservesIDT
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	approval := createConversationApprovalInterruptWithFrame(
@@ -2629,6 +2787,7 @@ func TestConversationGivenDecidedApprovalWhenResumeTrueThenInfersPendingApproval
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
@@ -2684,6 +2843,7 @@ func TestConversationGivenAlreadyRespondedApprovalWhenResumingThenDoesNotSendDup
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
@@ -2759,17 +2919,8 @@ func TestConversationWaitsForAgentTunnelReconnect(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
-
-	initializeEnv := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, initializeEnv.Payload, "initialize")
-	writeAgentDataFrame(
-		t,
-		agentWS,
-		initializeEnv.QueueID,
-		1,
-		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
-	)
 
 	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
@@ -2777,8 +2928,8 @@ func TestConversationWaitsForAgentTunnelReconnect(t *testing.T) {
 		t,
 		agentWS,
 		sessionNewEnv.QueueID,
-		2,
-		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"sessionId":"native-session-1"}}`),
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"sessionId":"native-session-1"}}`),
 	)
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
@@ -2788,8 +2939,8 @@ func TestConversationWaitsForAgentTunnelReconnect(t *testing.T) {
 		t,
 		agentWS,
 		promptEnv.QueueID,
-		3,
-		json.RawMessage(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`),
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}}`),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -2816,6 +2967,7 @@ func TestConversationContinuesWhenAgentTunnelReconnectsDuringPrompt(t *testing.T
 		agentHeader,
 	)
 	require.NoError(t, err)
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2893,6 +3045,7 @@ func TestConversationPromptIdleTimeoutResetsOnACPUpdate(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2956,6 +3109,7 @@ func TestConversationPromptReturnsErrorAfterIdleTimeout(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2998,6 +3152,7 @@ func TestConversationContinuesExistingSessionWithoutInitialize(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -3063,6 +3218,7 @@ func TestConversationUsesAgentScopedRequestIDsAcrossHTTPRuns(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	for i, input := range []string{"first", "second"} {
@@ -3154,6 +3310,7 @@ func TestConversationRejectsBusyAgent(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	conn := acpTunnelConn(t, srv, fixture.agentID, "")
@@ -3256,30 +3413,21 @@ func TestConversationReturnsHTTPErrorWhenSessionNewFailsBeforeStream(t *testing.
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
 	errCh := make(chan error, 1)
 	go postConversation(t, httpServer.URL, fixture, `{"input":"hello"}`, respCh, errCh)
 
-	initializeEnv := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, initializeEnv.Payload, "initialize")
-	writeAgentDataFrame(
-		t,
-		agentWS,
-		initializeEnv.QueueID,
-		1,
-		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}`),
-	)
-
 	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
 	writeAgentDataFrame(
 		t,
 		agentWS,
-		initializeEnv.QueueID,
-		2,
-		json.RawMessage(`{"jsonrpc":"2.0","id":2,"error":{"message":"session create failed"}}`),
+		sessionNewEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"error":{"message":"session create failed"}}`),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusBadGateway)
@@ -3300,7 +3448,7 @@ func TestConversationHelpersCoverErrorBranches(t *testing.T) {
 	if conn.hasAsyncReceivers() {
 		t.Fatal("hasAsyncReceivers = true before registering receivers")
 	}
-	_, cancel := conn.addResponseWaiter("1")
+	_, cancel := conn.addResponseWaiter("1", "sess-1", "session/prompt")
 	if !conn.hasAsyncReceivers() {
 		t.Fatal("hasAsyncReceivers = false after response waiter")
 	}
@@ -3323,7 +3471,7 @@ func TestConversationHelpersCoverErrorBranches(t *testing.T) {
 	}
 }
 
-func TestACPTunnelDoesNotReplayUnackedUserFrameWithoutReceiverAfterAgentReconnect(t *testing.T) {
+func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
 
@@ -3342,6 +3490,7 @@ func TestACPTunnelDoesNotReplayUnackedUserFrameWithoutReceiverAfterAgentReconnec
 	if err != nil {
 		t.Fatalf("dial first agent tunnel: %v", err)
 	}
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -3390,11 +3539,12 @@ func TestACPTunnelDoesNotReplayUnackedUserFrameWithoutReceiverAfterAgentReconnec
 		t.Fatalf("dial second agent tunnel: %v", err)
 	}
 	defer func() { _ = secondAgentWS.Close() }()
-
-	require.NoError(t, secondAgentWS.SetReadDeadline(time.Now().Add(100*time.Millisecond)))
+	completeMockAgentReconcile(t, secondAgentWS, agentID, 1)
 	_, replayed, err := secondAgentWS.ReadMessage()
-	require.Error(t, err, "unexpected replayed frame: %s", string(replayed))
-	require.NoError(t, secondAgentWS.SetReadDeadline(time.Time{}))
+	require.NoError(t, err)
+	replayedEnv := decodeACPTunnelEnvelope(t, replayed)
+	require.Equal(t, int64(1), replayedEnv.Seq)
+	require.JSONEq(t, string(requestPayload), string(replayedEnv.Payload))
 }
 
 func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
@@ -3407,25 +3557,29 @@ func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
 	httpServer := httptest.NewServer(mux)
 	defer httpServer.Close()
 	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	queueA := "queue_session_a"
+	queueB := "queue_session_b"
 
 	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
 	agentWSA, _, err := websocket.DefaultDialer.Dial(
-		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-a",
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-a&connection_id="+queueA,
 		agentHeader,
 	)
 	if err != nil {
 		t.Fatalf("dial agent tunnel a: %v", err)
 	}
 	defer func() { _ = agentWSA.Close() }()
+	completeMockAgentReconcile(t, agentWSA, queueA, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-a")
 	agentWSB, _, err := websocket.DefaultDialer.Dial(
-		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-b",
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-b&connection_id="+queueB,
 		agentHeader,
 	)
 	if err != nil {
 		t.Fatalf("dial agent tunnel b: %v", err)
 	}
 	defer func() { _ = agentWSB.Close() }()
+	completeMockAgentReconcile(t, agentWSB, queueB, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-b")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -3504,6 +3658,7 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-approval")
 
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -3597,6 +3752,7 @@ func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 
 	requestPayload := []byte(`{
 		"jsonrpc":"2.0",
@@ -3681,6 +3837,7 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -4226,7 +4383,6 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 		recCh <- rec
 	}()
 
-	respondMockACPRequest(t, targetWS, 1, "initialize", json.RawMessage(`{"protocolVersion":1}`))
 	sessionNewEnv, sessionNew := readMockACPRequest(t, targetWS, "session/new")
 	assertACPMCPEnv(t, sessionNew.Params, "PAX_AGENT_ID", targetAgent.AgentID)
 	assertACPMCPEnv(t, sessionNew.Params, "PAX_REPRESENTATIVE_AGENT_ID", targetRep.RepresentativeAgentID)
@@ -4235,7 +4391,7 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 		t,
 		targetWS,
 		sessionNewEnv.QueueID,
-		2,
+		1,
 		sessionNew.ID,
 		json.RawMessage(`{"sessionId":"native-target"}`),
 	)
@@ -4246,7 +4402,7 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 		t,
 		targetWS,
 		setModeEnv.QueueID,
-		3,
+		2,
 		setMode.ID,
 		json.RawMessage(`{}`),
 	)
@@ -4257,12 +4413,12 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 	require.Contains(t, targetPromptText, "Please answer this.")
 	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-target", targetNativeSessionID)
-	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 4, targetNativeSessionID, "working")
+	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 3, targetNativeSessionID, "working")
 	writeMockACPResponse(
 		t,
 		targetWS,
 		targetPromptEnv.QueueID,
-		5,
+		4,
 		targetPrompt.ID,
 		json.RawMessage(`{"stopReason":"end_turn"}`),
 	)
@@ -4987,6 +5143,7 @@ func dialMockAgentTunnel(
 		http.Header{"X-Pax-Key": []string{paxKey}},
 	)
 	require.NoError(t, err)
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	return agentWS
 }
 
@@ -6016,23 +6173,21 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 		recCh <- rec
 	}()
 
-	respondMockACPRequest(t, sourceWS, 1, "initialize", json.RawMessage(`{"protocolVersion":1}`))
-	respondMockACPRequest(t, sourceWS, 2, "session/new", json.RawMessage(`{"sessionId":"native-source"}`))
-	respondMockACPRequest(t, sourceWS, 3, "session/set_mode", json.RawMessage(`{}`))
-	respondMockACPRequest(t, targetWS, 1, "initialize", json.RawMessage(`{"protocolVersion":1}`))
-	respondMockACPRequest(t, targetWS, 2, "session/new", json.RawMessage(`{"sessionId":"native-target"}`))
-	respondMockACPRequest(t, targetWS, 3, "session/set_mode", json.RawMessage(`{}`))
+	respondMockACPRequest(t, sourceWS, 1, "session/new", json.RawMessage(`{"sessionId":"native-source"}`))
+	respondMockACPRequest(t, sourceWS, 2, "session/set_mode", json.RawMessage(`{}`))
+	respondMockACPRequest(t, targetWS, 1, "session/new", json.RawMessage(`{"sessionId":"native-target"}`))
+	respondMockACPRequest(t, targetWS, 2, "session/set_mode", json.RawMessage(`{}`))
 
 	targetPromptEnv, targetPrompt := readMockACPRequest(t, targetWS, "session/prompt")
 	require.Equal(t, "count from 1 to 2", acpPromptText(targetPrompt.Params))
 	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-target", targetNativeSessionID)
-	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 4, targetNativeSessionID, "1")
+	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 3, targetNativeSessionID, "1")
 	writeMockACPResponse(
 		t,
 		targetWS,
 		targetPromptEnv.QueueID,
-		5,
+		4,
 		targetPrompt.ID,
 		json.RawMessage(`{"stopReason":"end_turn"}`),
 	)
@@ -6041,12 +6196,12 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 	require.Equal(t, "1", acpPromptText(sourcePrompt.Params))
 	sourceNativeSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-source", sourceNativeSessionID)
-	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 4, sourceNativeSessionID, "2")
+	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 3, sourceNativeSessionID, "2")
 	writeMockACPResponse(
 		t,
 		sourceWS,
 		sourcePromptEnv.QueueID,
-		5,
+		4,
 		sourcePrompt.ID,
 		json.RawMessage(`{"stopReason":"end_turn"}`),
 	)

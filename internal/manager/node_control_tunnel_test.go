@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNodeControlHeartbeatReportRefreshesNodeLease(t *testing.T) {
@@ -127,6 +128,77 @@ func TestNodeControlRuntimeSnapshotUpdatesBoundAgentAndSkipsUnbound(t *testing.T
 		nodeMetadata.RuntimeSnapshot.HostMetrics.MemoryPercent != 34.5 {
 		t.Fatalf("node metadata = %s", node.Metadata)
 	}
+}
+
+func TestNodeControlRuntimeSnapshotPersistsACPPoolCapabilityReport(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+
+	if err := ws.WriteMessage(websocket.TextMessage, []byte(`{
+		"kind":"report",
+		"version":1,
+		"report_id":"rpt_snapshot_acp_capability",
+		"report":{
+			"type":"runtime.snapshot",
+			"remote_id":"remote_prod",
+			"node_id":"`+registered.NodeID+`",
+			"sent_at":"2026-06-24T12:00:00Z",
+			"runtime_snapshot":{
+				"snapshot_id":"snap_acp_capability",
+				"agents":[{
+					"connection_id":"conn_bound",
+					"cloud_agent_id":"`+registered.AgentID+`",
+					"remote_id":"remote_prod",
+					"node_id":"node_local",
+					"name":"codex-main",
+					"agent_type":"codex",
+					"desired_state":"enabled",
+					"runtime_phase":"running",
+					"acp_pool_capability_report":{
+						"schema_version":1,
+						"connection_id":"conn_bound",
+						"report_generation":7,
+						"paxd_version":"dev",
+						"command_fingerprint":"fingerprint_1",
+						"client_profile_hash":"profile_hash_1",
+						"worker_result_hash":"worker_hash_1",
+						"protocol_version":1,
+						"worker_capability_keys":["prompt"],
+						"init_phase":"ready"
+					}
+				}]
+			}
+		}
+	}`)); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
+
+	agents := waitNodeAgents(t, srv, registered.APIKey, func(agents []Agent) bool {
+		return len(agents) == 1 && agents[0].Online
+	})
+	require.Equal(t, registered.AgentID, agents[0].AgentID)
+	var metadata struct {
+		ACPPoolCapabilityReport struct {
+			ConnectionID       string `json:"connection_id"`
+			PaxdVersion        string `json:"paxd_version"`
+			WorkerResultHash   string `json:"worker_result_hash"`
+			InitPhase          string `json:"init_phase"`
+			ReportGeneration   int64  `json:"report_generation"`
+			ProtocolVersion    int    `json:"protocol_version"`
+			CommandFingerprint string `json:"command_fingerprint"`
+		} `json:"acp_pool_capability_report"`
+	}
+	require.NoError(t, json.Unmarshal(agents[0].Metadata, &metadata))
+	report := metadata.ACPPoolCapabilityReport
+	require.Equal(t, "conn_bound", report.ConnectionID)
+	require.Equal(t, "dev", report.PaxdVersion)
+	require.Equal(t, "worker_hash_1", report.WorkerResultHash)
+	require.Equal(t, "ready", report.InitPhase)
+	require.Equal(t, int64(7), report.ReportGeneration)
+	require.Equal(t, 1, report.ProtocolVersion)
+	require.Equal(t, "fingerprint_1", report.CommandFingerprint)
 }
 
 func TestNodeControlRejectsMismatchedReportNodeIDWithoutRefreshingLease(t *testing.T) {

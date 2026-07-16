@@ -3,9 +3,12 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +16,226 @@ import (
 	"github.com/pax-beehive/paxkit/reliablemq"
 	"github.com/stretchr/testify/require"
 )
+
+type acpRecoveryBarrierConn struct {
+	request     []byte
+	readRelease chan struct{}
+	dataStarted chan struct{}
+	dataRelease chan struct{}
+	readOnce    sync.Once
+	dataOnce    sync.Once
+}
+
+func (c *acpRecoveryBarrierConn) ReadMessage() (int, []byte, error) {
+	first := false
+	c.readOnce.Do(func() { first = true })
+	if first {
+		return websocket.TextMessage, append([]byte(nil), c.request...), nil
+	}
+	<-c.readRelease
+	return 0, nil, io.EOF
+}
+
+func (c *acpRecoveryBarrierConn) WriteMessage(_ int, payload []byte) error {
+	env, err := reliablemq.UnmarshalEnvelope(payload)
+	if err != nil {
+		return err
+	}
+	if env.Type == reliablemq.EnvelopeTypeData {
+		c.dataOnce.Do(func() { close(c.dataStarted) })
+		<-c.dataRelease
+	}
+	return nil
+}
+
+func TestACPTunnelWriteToAgentAcceptsWithoutNetworkBinding(t *testing.T) {
+	store := NewMemoryStore(time.Now)
+	producer, err := reliablemq.NewProducer(t.Context(), reliablemq.ProducerConfig{
+		QueueID: "queue_1",
+		Stream:  reliablemq.StreamACP,
+	}, store)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, producer.Close(closeCtx))
+	})
+	agent := &ACPTunnelAgent{
+		agentID:        "agent_1",
+		connectionID:   "queue_1",
+		store:          store,
+		transportStore: store,
+	}
+	agent.reliableEngine = reliablemq.NewEngine(
+		reliablemq.Config{},
+		store,
+		producer,
+		nil,
+	)
+
+	require.NoError(t, agent.writeToAgent(
+		t.Context(),
+		websocket.TextMessage,
+		[]byte(`{"jsonrpc":"2.0","id":1,"method":"session/prompt"}`),
+	))
+	checkpoint, err := producer.Checkpoint(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, int64(2), checkpoint.ProducerNextSeq)
+	require.Equal(t, int64(1), checkpoint.ReplayFrom)
+	require.Equal(t, int64(1), checkpoint.ReplayThrough)
+}
+
+func TestACPTunnelWorkerResponsePersistsNativeSessionMetadata(t *testing.T) {
+	store := NewMemoryStore(time.Now)
+	producer, err := reliablemq.NewProducer(t.Context(), reliablemq.ProducerConfig{
+		QueueID: "queue_1",
+		Stream:  reliablemq.StreamACP,
+	}, store)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, producer.Close(closeCtx))
+	})
+	agent := &ACPTunnelAgent{
+		agentID:      "agent_1",
+		connectionID: "queue_1",
+	}
+	agent.reliableEngine = reliablemq.NewEngine(
+		reliablemq.Config{},
+		store,
+		producer,
+		nil,
+	)
+
+	require.NoError(t, agent.writeWorkerResponse(
+		t.Context(),
+		"sess-manager",
+		"sess-native",
+		websocket.TextMessage,
+		[]byte(`{"jsonrpc":"2.0","id":"permission-1","result":{}}`),
+	))
+	_, err = producer.Checkpoint(t.Context())
+	require.NoError(t, err)
+	frames, err := store.ListOutboundReplay(
+		t.Context(),
+		"queue_1",
+		reliablemq.StreamACP,
+		10,
+	)
+	require.NoError(t, err)
+	require.Len(t, frames, 1)
+	require.Equal(t, "sess-native", frames[0].Metadata["native_session_id"])
+	require.Equal(t, "agent_1", frames[0].Metadata["agent_id"])
+}
+
+func TestACPTunnelTransportLogAttrsIncludeProducerWriteBehindStats(t *testing.T) {
+	store := reliablemq.NewProducerWriteBehindStore(
+		NewMemoryStore(time.Now),
+		reliablemq.WithProducerWriteBehindManualFlush(),
+	)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, store.Close(closeCtx))
+	})
+	_, err := store.AppendOutboundData(
+		t.Context(),
+		"queue_1",
+		reliablemq.StreamACP,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1}`),
+		reliablemq.Metadata{},
+	)
+	require.NoError(t, err)
+
+	agent := &ACPTunnelAgent{
+		agentID:        "agent_1",
+		connectionID:   "queue_1",
+		transportStore: store,
+	}
+	attrsByKey := make(map[string]slog.Value)
+	for _, attr := range agent.transportLogAttrs() {
+		attrsByKey[attr.Key] = attr.Value
+	}
+
+	dirtyFrames, ok := attrsByKey["write_behind_dirty_frames"]
+	require.True(t, ok)
+	require.Equal(t, int64(1), dirtyFrames.Int64())
+}
+
+func TestACPTunnelIsNotClaimableUntilProducerBacklogCatchesUp(t *testing.T) {
+	store := NewMemoryStore(time.Now)
+	producer, err := reliablemq.NewProducer(t.Context(), reliablemq.ProducerConfig{
+		QueueID: "queue_1",
+		Stream:  reliablemq.StreamACP,
+	}, store)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, producer.Close(closeCtx))
+	})
+	engine := reliablemq.NewEngine(
+		reliablemq.Config{},
+		store,
+		producer,
+		reliablemq.DispatcherFunc(func(context.Context, reliablemq.Frame) error { return nil }),
+	)
+	require.NoError(t, engine.Send(t.Context(), reliablemq.OutboundMessage{
+		QueueID: "queue_1",
+		Stream:  reliablemq.StreamACP,
+		Payload: json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"session/prompt"}`),
+	}))
+	_, err = producer.Checkpoint(t.Context())
+	require.NoError(t, err)
+
+	reconcileRequest, err := reliablemq.MarshalEnvelope(reliablemq.ReconcileRequestEnvelope(
+		reliablemq.ProducerReconcileCheckpoint{
+			QueueID:         "queue_1",
+			Stream:          reliablemq.StreamACP,
+			ProducerNextSeq: 1,
+		},
+	))
+	require.NoError(t, err)
+	conn := &acpRecoveryBarrierConn{
+		request:     reconcileRequest,
+		readRelease: make(chan struct{}),
+		dataStarted: make(chan struct{}),
+		dataRelease: make(chan struct{}),
+	}
+	agent := &ACPTunnelAgent{
+		agentID:        "agent_1",
+		connectionID:   "queue_1",
+		ws:             conn,
+		store:          store,
+		transportStore: store,
+		reliableEngine: engine,
+	}
+	hub := NewACPTunnelHub()
+	hub.prepare(agent.agentID, "", agent)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- agent.forwardAgentFrames(t.Context(), engine, producer, func() {
+			hub.add(agent.agentID, "", agent)
+		})
+	}()
+
+	select {
+	case <-conn.dataStarted:
+	case <-time.After(time.Second):
+		t.Fatal("producer backlog write did not start")
+	}
+	_, err = hub.findAny(agent.agentID, "")
+	require.Error(t, err)
+
+	close(conn.dataRelease)
+	require.Eventually(t, func() bool {
+		got, findErr := hub.findAny(agent.agentID, "")
+		return findErr == nil && got == agent
+	}, time.Second, time.Millisecond)
+	close(conn.readRelease)
+	require.ErrorIs(t, <-errCh, io.EOF)
+}
 
 func TestACPTunnelHubClaimFallsBackToAgentTunnel(t *testing.T) {
 	hub := NewACPTunnelHub()
@@ -78,6 +301,109 @@ func TestACPTunnelHubClaimAnyWaitRetriesUntilAgentTunnelReconnects(t *testing.T)
 
 	require.NoError(t, err)
 	require.Same(t, agentConn, got)
+}
+
+func TestACPTunnelHubStructuredTurnsAllowDifferentSessions(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	hub.add("agent-1", "", agentConn)
+
+	first, releaseFirst, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	require.Same(t, agentConn, first)
+	second, releaseSecond, err := hub.claimStructuredAny("agent-1", "sess-2", "")
+	require.NoError(t, err)
+	require.Same(t, agentConn, second)
+	require.Equal(t, 2, agentConn.liveState().sessionMux.activeTurnCount())
+
+	releaseFirst()
+	require.Equal(t, 1, agentConn.liveState().sessionMux.activeTurnCount())
+	releaseSecond()
+	require.Zero(t, agentConn.liveState().sessionMux.activeTurnCount())
+}
+
+func TestACPTunnelHubStructuredTurnsSerializeSameSession(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	hub.add("agent-1", "", agentConn)
+
+	_, releaseFirst, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	acquired := make(chan func(), 1)
+	errCh := make(chan error, 1)
+	go func() {
+		_, release, claimErr := hub.claimStructuredAnyWait(
+			t.Context(),
+			20*time.Millisecond,
+			time.Millisecond,
+			"agent-1",
+			"sess-1",
+			"",
+		)
+		if claimErr != nil {
+			errCh <- claimErr
+			return
+		}
+		acquired <- release
+	}()
+
+	select {
+	case release := <-acquired:
+		release()
+		t.Fatal("same session acquired before its active turn was released")
+	case err := <-errCh:
+		t.Fatalf("same-session waiter failed: %v", err)
+	case <-time.After(40 * time.Millisecond):
+	}
+	releaseFirst()
+	select {
+	case release := <-acquired:
+		release()
+	case err := <-errCh:
+		t.Fatalf("same-session waiter failed: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("same-session waiter did not acquire after release")
+	}
+}
+
+func TestACPTunnelHubStructuredTurnReleaseIsSessionIsolatedAndIdempotent(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	hub.add("agent-1", "", agentConn)
+
+	_, releaseFirst, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	_, releaseSecond, err := hub.claimStructuredAny("agent-1", "sess-2", "")
+	require.NoError(t, err)
+
+	releaseFirst()
+	releaseFirst()
+	_, releaseThird, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	_, _, err = hub.claimStructuredAny("agent-1", "sess-2", "")
+	require.Error(t, err)
+	require.True(t, isSessionTurnAlreadyActive(err))
+
+	releaseThird()
+	releaseSecond()
+}
+
+func TestACPTunnelHubLegacyClaimIsExclusiveWithStructuredTurns(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	hub.add("agent-1", "", agentConn)
+
+	_, release, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	_, err = hub.claimAny("agent-1", "")
+	require.Error(t, err)
+	release()
+
+	legacy, err := hub.claimAny("agent-1", "")
+	require.NoError(t, err)
+	_, _, err = hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.Error(t, err)
+	hub.release(legacy)
 }
 
 func TestACPTunnelHubBorrowAnyGivenPairedSessionTunnelThenReturnsWithoutReleasingUserPair(t *testing.T) {
@@ -224,7 +550,7 @@ func TestShouldWarnDroppedACPFrame(t *testing.T) {
 
 func TestJSONRPCRequestDoesNotWakeResponseWaiter(t *testing.T) {
 	agent := &ACPTunnelAgent{}
-	waiter, cancel := agent.addResponseWaiter("1")
+	waiter, cancel := agent.addResponseWaiter("1", "sess-1", "session/prompt")
 	defer cancel()
 
 	request := acpJSONRPCMessage{

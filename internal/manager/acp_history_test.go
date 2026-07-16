@@ -435,12 +435,20 @@ func TestACPHistoryCreatesMessagesInTransportSeqOrderWhenFramesArriveOutOfOrder(
 		nodeID:      "node_order",
 		sessionID:   "sess_order",
 	}
+	producer, err := reliablemq.NewProducer(ctx, reliablemq.ProducerConfig{
+		QueueID: "agent_order",
+		Stream:  reliablemq.StreamACP,
+	}, store)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, producer.Close(closeCtx))
+	})
 	engine := reliablemq.NewEngine(
 		reliablemq.Config{},
 		store,
-		reliablemq.SenderFunc(func(context.Context, reliablemq.Envelope) error {
-			return nil
-		}),
+		producer,
 		reliablemq.DispatcherFunc(func(dispatchCtx context.Context, frame reliablemq.Frame) error {
 			if err := projectACPTransportMessageForSession(
 				dispatchCtx,

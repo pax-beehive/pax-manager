@@ -199,6 +199,19 @@ func projectACPUserPrompt(
 	agent *ACPTunnelAgent,
 	payload []byte,
 ) error {
+	managerSessionID := ""
+	if agent != nil {
+		managerSessionID = agent.currentSessionID()
+	}
+	return projectACPUserPromptForSession(ctx, agent, managerSessionID, payload)
+}
+
+func projectACPUserPromptForSession(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+	managerSessionID string,
+	payload []byte,
+) error {
 	if agent == nil || agent.store == nil {
 		return nil
 	}
@@ -213,11 +226,11 @@ func projectACPUserPrompt(
 		return err
 	}
 	if rpc.Method != "session/prompt" {
-		return projectACPUserRawFrame(ctx, agent, payload, rpc)
+		return projectACPUserRawFrameForSession(ctx, agent, managerSessionID, payload, rpc)
 	}
 	sessionID := firstNonEmpty(
+		managerSessionID,
 		findStringFromRaw(rpc.Params, "sessionId", "session_id"),
-		agent.sessionID,
 	)
 	sessionID = canonicalACPHistorySessionID(
 		ctx,
@@ -468,6 +481,20 @@ func projectACPUserRawFrame(
 	payload []byte,
 	rpc acpHistoryRPC,
 ) error {
+	managerSessionID := ""
+	if agent != nil {
+		managerSessionID = agent.currentSessionID()
+	}
+	return projectACPUserRawFrameForSession(ctx, agent, managerSessionID, payload, rpc)
+}
+
+func projectACPUserRawFrameForSession(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+	managerSessionID string,
+	payload []byte,
+	rpc acpHistoryRPC,
+) error {
 	if rpc.Method == "" && len(rpc.Result) == 0 && len(rpc.Error) == 0 {
 		return nil
 	}
@@ -476,7 +503,7 @@ func projectACPUserRawFrame(
 		agent.store,
 		agent.ownerUserID,
 		agent.agentID,
-		agent.sessionID,
+		managerSessionID,
 	)
 	if sessionID == "" {
 		return nil
