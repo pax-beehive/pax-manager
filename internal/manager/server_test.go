@@ -2261,13 +2261,24 @@ func TestConversationDifferentSessionsPromptConcurrentlyOnDevPool(t *testing.T) 
 	agentConn, err := srv.acpTunnels.findAny(fixture.agentID, "")
 	require.NoError(t, err)
 	require.False(t, agentConn.concurrentTurnsReady(t.Context()))
+	poolConnectionID := "conn_codex"
+	require.NotEqual(t, poolConnectionID, agentConn.queueID())
+	metadata := mustMarshalRawJSON(map[string]any{
+		"runtime": map[string]string{"connection_id": poolConnectionID},
+		"acp_pool_capability_report": map[string]any{
+			"connection_id":     poolConnectionID,
+			"report_generation": 1,
+			"paxd_version":      "dev",
+			"init_phase":        "ready",
+		},
+	})
 	require.NoError(t, srv.store.UpsertNodeStatus(t.Context(), node, domain.NodeStatusReport{
 		NodeID: fixture.nodeID,
 		Agents: []domain.AgentStatusInput{{
 			AgentID:  fixture.agentID,
 			Status:   "online",
 			Online:   true,
-			Metadata: json.RawMessage(`{"acp_pool_capability_report":{"connection_id":"` + fixture.agentID + `","report_generation":1,"paxd_version":"dev","init_phase":"ready"}}`),
+			Metadata: metadata,
 		}},
 	}))
 	require.True(t, agentConn.concurrentTurnsReady(t.Context()))

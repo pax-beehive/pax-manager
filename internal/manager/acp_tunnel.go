@@ -16,11 +16,12 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/pax-beehive/paxkit/reliablemq"
+
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
-	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
 type ACPTunnelHub struct {
@@ -429,6 +430,9 @@ func (a *ACPTunnelAgent) concurrentTurnsReady(ctx context.Context) bool {
 		return false
 	}
 	var metadata struct {
+		Runtime struct {
+			ConnectionID string `json:"connection_id"`
+		} `json:"runtime"`
 		Report struct {
 			ConnectionID     string `json:"connection_id"`
 			ReportGeneration int64  `json:"report_generation"`
@@ -442,7 +446,8 @@ func (a *ACPTunnelAgent) concurrentTurnsReady(ctx context.Context) bool {
 	report := metadata.Report
 	rolloutEligible := a.internalRollout || strings.EqualFold(report.PaxdVersion, "dev")
 	return rolloutEligible &&
-		report.ConnectionID == a.queueID() &&
+		metadata.Runtime.ConnectionID != "" &&
+		report.ConnectionID == metadata.Runtime.ConnectionID &&
 		report.ReportGeneration > 0 &&
 		strings.EqualFold(report.InitPhase, "ready")
 }
