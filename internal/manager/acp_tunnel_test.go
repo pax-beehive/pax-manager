@@ -85,6 +85,50 @@ func TestACPTunnelWriteToAgentAcceptsWithoutNetworkBinding(t *testing.T) {
 	require.Equal(t, int64(1), checkpoint.ReplayThrough)
 }
 
+func TestACPTunnelWorkerResponsePersistsNativeSessionMetadata(t *testing.T) {
+	store := NewMemoryStore(time.Now)
+	producer, err := reliablemq.NewProducer(t.Context(), reliablemq.ProducerConfig{
+		QueueID: "queue_1",
+		Stream:  reliablemq.StreamACP,
+	}, store)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, producer.Close(closeCtx))
+	})
+	agent := &ACPTunnelAgent{
+		agentID:      "agent_1",
+		connectionID: "queue_1",
+	}
+	agent.reliableEngine = reliablemq.NewEngine(
+		reliablemq.Config{},
+		store,
+		producer,
+		nil,
+	)
+
+	require.NoError(t, agent.writeWorkerResponse(
+		t.Context(),
+		"sess-manager",
+		"sess-native",
+		websocket.TextMessage,
+		[]byte(`{"jsonrpc":"2.0","id":"permission-1","result":{}}`),
+	))
+	_, err = producer.Checkpoint(t.Context())
+	require.NoError(t, err)
+	frames, err := store.ListOutboundReplay(
+		t.Context(),
+		"queue_1",
+		reliablemq.StreamACP,
+		10,
+	)
+	require.NoError(t, err)
+	require.Len(t, frames, 1)
+	require.Equal(t, "sess-native", frames[0].Metadata["native_session_id"])
+	require.Equal(t, "agent_1", frames[0].Metadata["agent_id"])
+}
+
 func TestACPTunnelTransportLogAttrsIncludeProducerWriteBehindStats(t *testing.T) {
 	store := reliablemq.NewProducerWriteBehindStore(
 		NewMemoryStore(time.Now),
@@ -403,7 +447,7 @@ func TestShouldWarnDroppedACPFrame(t *testing.T) {
 
 func TestJSONRPCRequestDoesNotWakeResponseWaiter(t *testing.T) {
 	agent := &ACPTunnelAgent{}
-	waiter, cancel := agent.addResponseWaiter("1")
+	waiter, cancel := agent.addResponseWaiter("1", "sess-1", "session/prompt")
 	defer cancel()
 
 	request := acpJSONRPCMessage{

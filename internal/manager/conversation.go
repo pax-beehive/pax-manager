@@ -49,8 +49,9 @@ type conversationSession struct {
 }
 
 type conversationRunner struct {
-	service   *Service
-	agentConn *ACPTunnelAgent
+	service          *Service
+	agentConn        *ACPTunnelAgent
+	managerSessionID string
 }
 
 type conversationResponse struct {
@@ -115,8 +116,9 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 	defer s.acpTunnels.release(agentConn)
 
 	runner := conversationRunner{
-		service:   s,
-		agentConn: agentConn,
+		service:          s,
+		agentConn:        agentConn,
+		managerSessionID: session.managerID,
 	}
 	if session.managerID == "" {
 		session, err = s.createConversationSession(r.Context(), principal, &runner, req)
@@ -125,9 +127,7 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	restoreSessionContext := agentConn.withSessionContext(session.managerID)
-	defer restoreSessionContext()
+	runner.managerSessionID = session.managerID
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -272,8 +272,7 @@ func (s *Service) createConversationSession(
 	}
 	cwd := firstNonEmpty(req.CWD, "/tmp")
 	approvalMode := domain.NormalizeSessionApprovalMode(req.ApprovalMode)
-	restoreSessionContext := runner.agentConn.withSessionContext(managerSessionID)
-	defer restoreSessionContext()
+	runner.managerSessionID = managerSessionID
 	resp, err := runner.request(
 		ctx,
 		"session/new",
@@ -322,7 +321,7 @@ func (s *Service) promptConversation(
 	sub := runner.agentConn.subscribeSSE(session.managerID)
 	defer runner.agentConn.unsubscribeSSE(sub)
 
-	requestID, err := runner.send(
+	requestID, waiter, cancel, err := runner.send(
 		ctx,
 		"session/prompt",
 		map[string]any{
@@ -336,7 +335,8 @@ func (s *Service) promptConversation(
 	if err != nil {
 		return err
 	}
-	if err := s.streamConversationUntilPromptDone(ctx, w, flusher, runner, session, sub, fmt.Sprint(requestID)); err != nil {
+	defer cancel()
+	if err := s.streamConversationUntilPromptDone(ctx, w, flusher, runner, session, sub, fmt.Sprint(requestID), waiter); err != nil {
 		return err
 	}
 	return s.writeConversationEvent(w, flusher, conversationEvent{
@@ -371,7 +371,13 @@ func (s *Service) resumeConversation(
 	}
 	sub := runner.agentConn.subscribeSSE(session.managerID)
 	defer runner.agentConn.unsubscribeSSE(sub)
-	if err := runner.sendRaw(ctx, response); err != nil {
+	waiter, cancel := runner.agentConn.addResponseWaiter(
+		promptRequestID,
+		session.managerID,
+		"session/prompt",
+	)
+	defer cancel()
+	if err := runner.sendWorkerResponseRaw(ctx, response); err != nil {
 		return err
 	}
 	recorded, err := s.store.RecordApprovalResponse(ctx, principal, approval.ApprovalID, response, "")
@@ -398,7 +404,7 @@ func (s *Service) resumeConversation(
 	}); err != nil {
 		return err
 	}
-	if err := s.streamConversationUntilPromptDone(ctx, w, flusher, runner, session, sub, promptRequestID); err != nil {
+	if err := s.streamConversationUntilPromptDone(ctx, w, flusher, runner, session, sub, promptRequestID, waiter); err != nil {
 		return err
 	}
 	return s.writeConversationEvent(w, flusher, conversationEvent{
@@ -420,7 +426,11 @@ func (r *conversationRunner) request(
 	if err != nil {
 		return conversationResponse{}, err
 	}
-	waiter, cancel := r.agentConn.addResponseWaiter(fmt.Sprint(requestID))
+	waiter, cancel := r.agentConn.addResponseWaiter(
+		fmt.Sprint(requestID),
+		r.managerSessionID,
+		method,
+	)
 	defer cancel()
 	if err := r.sendRaw(ctx, payload); err != nil {
 		return conversationResponse{}, err
@@ -456,13 +466,22 @@ func (r *conversationRunner) send(
 	ctx context.Context,
 	method string,
 	params map[string]any,
-) (int64, error) {
+) (int64, <-chan []byte, func(), error) {
 	requestID := r.agentConn.nextManagerRequestID()
 	payload, err := conversationRequestPayload(requestID, method, params)
 	if err != nil {
-		return 0, err
+		return 0, nil, func() {}, err
 	}
-	return requestID, r.sendRaw(ctx, payload)
+	waiter, cancel := r.agentConn.addResponseWaiter(
+		fmt.Sprint(requestID),
+		r.managerSessionID,
+		method,
+	)
+	if err := r.sendRaw(ctx, payload); err != nil {
+		cancel()
+		return 0, nil, func() {}, err
+	}
+	return requestID, waiter, cancel, nil
 }
 
 func conversationRequestPayload(
@@ -480,6 +499,7 @@ func conversationRequestPayload(
 
 func (r *conversationRunner) sendRaw(ctx context.Context, payload []byte) error {
 	frame := newACPFrameContext(r.agentConn, acpUserToAgent, websocket.TextMessage, payload)
+	frame.managerSessionID = r.managerSessionID
 	return r.service.userACPFramePipeline().Handle(
 		ctx,
 		frame,
@@ -487,7 +507,38 @@ func (r *conversationRunner) sendRaw(ctx context.Context, payload []byte) error 
 			if err := r.agentConn.writeToAgent(ctx, frame.messageType, frame.payload); err != nil {
 				return err
 			}
-			return projectACPUserPrompt(ctx, r.agentConn, frame.payload)
+			return projectACPUserPromptForSession(
+				ctx,
+				r.agentConn,
+				frame.managerSessionID,
+				frame.payload,
+			)
+		},
+	)
+}
+
+func (r *conversationRunner) sendWorkerResponseRaw(ctx context.Context, payload []byte) error {
+	frame := newACPFrameContext(r.agentConn, acpUserToAgent, websocket.TextMessage, payload)
+	frame.managerSessionID = r.managerSessionID
+	return r.service.userACPFramePipeline().Handle(
+		ctx,
+		frame,
+		func(_ context.Context, frame *acpFrameContext) error {
+			if err := r.agentConn.writeWorkerResponse(
+				ctx,
+				frame.managerSessionID,
+				frame.nativeSessionID,
+				frame.messageType,
+				frame.payload,
+			); err != nil {
+				return err
+			}
+			return projectACPUserPromptForSession(
+				ctx,
+				r.agentConn,
+				frame.managerSessionID,
+				frame.payload,
+			)
 		},
 	)
 }
@@ -500,16 +551,20 @@ func (s *Service) streamConversationUntilPromptDone(
 	session conversationSession,
 	sub *acpSSESubscriber,
 	promptRequestID string,
+	waiter <-chan []byte,
 ) error {
-	waiter, cancel := runner.agentConn.addResponseWaiter(promptRequestID)
-	defer cancel()
 	timer := time.NewTimer(conversationRequestIdleTimeout)
 	defer timer.Stop()
 	for {
 		select {
 		case payload, ok := <-sub.ch:
 			if !ok {
-				return nil
+				select {
+				case err := <-sub.terminal:
+					return err
+				default:
+					return nil
+				}
 			}
 			resetConversationIdleTimer(timer)
 			interrupted, err := s.writeConversationACPEvent(
@@ -532,6 +587,11 @@ func (s *Service) streamConversationUntilPromptDone(
 					Status:  http.StatusBadGateway,
 					Message: firstNonEmpty(acpErrorMessage(msg.Error), "ACP request failed"),
 				}
+			}
+			return nil
+		case err, ok := <-sub.terminal:
+			if ok && err != nil {
+				return err
 			}
 			return nil
 		case <-timer.C:
@@ -686,7 +746,7 @@ func (s *Service) autoApproveConversationApproval(
 	if err != nil {
 		return nil, err
 	}
-	if err := runner.sendRaw(ctx, response); err != nil {
+	if err := runner.sendWorkerResponseRaw(ctx, response); err != nil {
 		return nil, err
 	}
 	recorded, err := s.store.RecordApprovalResponse(ctx, principal, decided.ApprovalID, response, "")

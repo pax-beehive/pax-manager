@@ -3303,7 +3303,7 @@ func TestConversationHelpersCoverErrorBranches(t *testing.T) {
 	if conn.hasAsyncReceivers() {
 		t.Fatal("hasAsyncReceivers = true before registering receivers")
 	}
-	_, cancel := conn.addResponseWaiter("1")
+	_, cancel := conn.addResponseWaiter("1", "sess-1", "session/prompt")
 	if !conn.hasAsyncReceivers() {
 		t.Fatal("hasAsyncReceivers = false after response waiter")
 	}

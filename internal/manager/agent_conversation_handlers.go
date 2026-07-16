@@ -636,9 +636,13 @@ func (s *Service) claimAgentConversationRunner(
 		slog.String("claimed_connection_id", agentConn.queueID()),
 		slog.String("claimed_session_id", agentConn.currentSessionID()),
 	)
-	return conversationRunner{service: s, agentConn: agentConn}, func() {
-		release()
-	}, nil
+	return conversationRunner{
+			service:          s,
+			agentConn:        agentConn,
+			managerSessionID: sessionID,
+		}, func() {
+			release()
+		}, nil
 }
 
 func (s *Service) initializeAgentConversationSession(
@@ -647,11 +651,10 @@ func (s *Service) initializeAgentConversationSession(
 	session domain.AgentSession,
 ) error {
 	sessionID := session.SessionID
+	runner.managerSessionID = sessionID
 	if strings.TrimSpace(session.NativeID) != "" {
 		return nil
 	}
-	restoreSessionContext := runner.agentConn.withSessionContext(sessionID)
-	defer restoreSessionContext()
 	if _, err := runner.request(
 		ctx,
 		"session/new",
@@ -791,8 +794,7 @@ func (s *Service) promptAgentConversationTurn(
 		slog.String("session_id", turn.sessionID),
 		slog.Int("prompt_chars", len(strings.TrimSpace(prompt))),
 	)
-	restoreSessionContext := turn.runner.agentConn.withSessionContext(turn.sessionID)
-	defer restoreSessionContext()
+	turn.runner.managerSessionID = turn.sessionID
 	sub := turn.runner.agentConn.subscribeSSE(turn.sessionID)
 	defer turn.runner.agentConn.unsubscribeSSE(sub)
 	activity := drainAgentConversationSSE(ctx, sub)
