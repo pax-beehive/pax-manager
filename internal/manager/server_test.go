@@ -1251,14 +1251,14 @@ func TestNewServerDefaultsACPTransportToDurableStore(t *testing.T) {
 		defer cancel()
 		require.NoError(t, srv.CloseTransportStore(ctx))
 	})
-	writeBehind, ok := srv.transportStore.(*reliablemq.ConsumerWriteBehindStore)
+	writeBehind, ok := srv.transportStore.(*reliablemq.ProducerWriteBehindStore)
 	require.True(t, ok)
-	flusher, ok := srv.transportFlusher.(*reliablemq.ConsumerWriteBehindStore)
+	flusher, ok := srv.transportFlusher.(*reliablemq.ProducerWriteBehindStore)
 	require.True(t, ok)
 	require.Same(t, writeBehind, flusher)
 }
 
-func TestNewServerConsumerWriteBehindTransportKeepsOutboundDurable(t *testing.T) {
+func TestNewServerProducerWriteBehindTransportKeepsOutboundSequence(t *testing.T) {
 	ctx := context.Background()
 	store := NewMemoryStore(time.Now)
 	first, err := store.AppendOutboundData(
@@ -1286,6 +1286,30 @@ func TestNewServerConsumerWriteBehindTransportKeepsOutboundDurable(t *testing.T)
 	)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), frame.Key.Seq)
+}
+
+func TestNewServerOwnsOneProducerPerTransportQueue(t *testing.T) {
+	srv := newServer(Config{}, NewMemoryStore(time.Now))
+
+	first, err := srv.transportProducers.Get(
+		t.Context(),
+		"queue_1",
+		reliablemq.StreamACP,
+	)
+	require.NoError(t, err)
+	second, err := srv.transportProducers.Get(
+		t.Context(),
+		"queue_1",
+		reliablemq.StreamACP,
+	)
+	require.NoError(t, err)
+	require.Same(t, first, second)
+
+	closeCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	require.NoError(t, srv.CloseTransportStore(closeCtx))
+	_, err = srv.transportProducers.Get(t.Context(), "queue_2", reliablemq.StreamACP)
+	require.ErrorIs(t, err, reliablemq.ErrProducerRegistryClosed)
 }
 
 func TestAdminStatusFollowsCurrentConfig(t *testing.T) {
@@ -1647,6 +1671,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -1682,7 +1707,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 		domain.TransportStreamManagerToPaxd,
 		1,
 		domain.TransportDirectionOutbound,
-		domain.TransportStatusSent,
+		domain.TransportStatusPending,
 	)
 	requestAck := mustMarshalACPTunnelEnvelope(t, acpTunnelEnvelope{
 		Type:    acpTunnelTypeAck,
@@ -1745,7 +1770,7 @@ func TestACPTunnelRelaysFramesBetweenUserAndAgent(t *testing.T) {
 
 func TestACPTunnelWriteBehindStoreRelaysInitialize(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
-	writeBehind, ok := srv.transportStore.(*reliablemq.ConsumerWriteBehindStore)
+	writeBehind, ok := srv.transportStore.(*reliablemq.ProducerWriteBehindStore)
 	require.True(t, ok)
 	agentID := testAgentID(t, srv, "todd@example.com")
 
@@ -1763,6 +1788,7 @@ func TestACPTunnelWriteBehindStoreRelaysInitialize(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -1824,6 +1850,7 @@ func TestACPTunnelRecordedTrafficProjectsAggregatedHistory(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -1983,6 +2010,7 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2089,6 +2117,7 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2156,6 +2185,7 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2273,6 +2303,7 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2408,6 +2439,7 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
@@ -2515,6 +2547,7 @@ func TestConversationGivenNumericPermissionRequestIDWhenResumingThenPreservesIDT
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	approval := createConversationApprovalInterruptWithFrame(
@@ -2609,6 +2642,7 @@ func TestConversationGivenDecidedApprovalWhenResumeTrueThenInfersPendingApproval
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
@@ -2664,6 +2698,7 @@ func TestConversationGivenAlreadyRespondedApprovalWhenResumingThenDoesNotSendDup
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
@@ -2739,6 +2774,7 @@ func TestConversationWaitsForAgentTunnelReconnect(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
@@ -2786,6 +2822,7 @@ func TestConversationContinuesWhenAgentTunnelReconnectsDuringPrompt(t *testing.T
 		agentHeader,
 	)
 	require.NoError(t, err)
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2863,6 +2900,7 @@ func TestConversationPromptIdleTimeoutResetsOnACPUpdate(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2926,6 +2964,7 @@ func TestConversationPromptReturnsErrorAfterIdleTimeout(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -2968,6 +3007,7 @@ func TestConversationContinuesExistingSessionWithoutInitialize(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -3033,6 +3073,7 @@ func TestConversationUsesAgentScopedRequestIDsAcrossHTTPRuns(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	for i, input := range []string{"first", "second"} {
@@ -3124,6 +3165,7 @@ func TestConversationRejectsBusyAgent(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	conn := acpTunnelConn(t, srv, fixture.agentID, "")
@@ -3226,6 +3268,7 @@ func TestConversationReturnsHTTPErrorWhenSessionNewFailsBeforeStream(t *testing.
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	respCh := make(chan *http.Response, 1)
@@ -3283,7 +3326,7 @@ func TestConversationHelpersCoverErrorBranches(t *testing.T) {
 	}
 }
 
-func TestACPTunnelDoesNotReplayUnackedUserFrameWithoutReceiverAfterAgentReconnect(t *testing.T) {
+func TestACPTunnelReplaysUnackedUserFrameAfterAgentReconnect(t *testing.T) {
 	srv, paxKey := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
 
@@ -3302,6 +3345,7 @@ func TestACPTunnelDoesNotReplayUnackedUserFrameWithoutReceiverAfterAgentReconnec
 	if err != nil {
 		t.Fatalf("dial first agent tunnel: %v", err)
 	}
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -3350,11 +3394,12 @@ func TestACPTunnelDoesNotReplayUnackedUserFrameWithoutReceiverAfterAgentReconnec
 		t.Fatalf("dial second agent tunnel: %v", err)
 	}
 	defer func() { _ = secondAgentWS.Close() }()
-
-	require.NoError(t, secondAgentWS.SetReadDeadline(time.Now().Add(100*time.Millisecond)))
+	completeMockAgentReconcile(t, secondAgentWS, agentID, 1)
 	_, replayed, err := secondAgentWS.ReadMessage()
-	require.Error(t, err, "unexpected replayed frame: %s", string(replayed))
-	require.NoError(t, secondAgentWS.SetReadDeadline(time.Time{}))
+	require.NoError(t, err)
+	replayedEnv := decodeACPTunnelEnvelope(t, replayed)
+	require.Equal(t, int64(1), replayedEnv.Seq)
+	require.JSONEq(t, string(requestPayload), string(replayedEnv.Payload))
 }
 
 func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
@@ -3367,25 +3412,29 @@ func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
 	httpServer := httptest.NewServer(mux)
 	defer httpServer.Close()
 	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	queueA := "queue_session_a"
+	queueB := "queue_session_b"
 
 	agentHeader := http.Header{"X-Pax-Key": []string{paxKey}}
 	agentWSA, _, err := websocket.DefaultDialer.Dial(
-		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-a",
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-a&connection_id="+queueA,
 		agentHeader,
 	)
 	if err != nil {
 		t.Fatalf("dial agent tunnel a: %v", err)
 	}
 	defer func() { _ = agentWSA.Close() }()
+	completeMockAgentReconcile(t, agentWSA, queueA, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-a")
 	agentWSB, _, err := websocket.DefaultDialer.Dial(
-		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-b",
+		baseWS+"/api/v1/agent/tunnel?agent_id="+agentID+"&session_id=sess-b&connection_id="+queueB,
 		agentHeader,
 	)
 	if err != nil {
 		t.Fatalf("dial agent tunnel b: %v", err)
 	}
 	defer func() { _ = agentWSB.Close() }()
+	completeMockAgentReconcile(t, agentWSB, queueB, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-b")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -3464,6 +3513,7 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "sess-approval")
 
 	userWS, _, err := websocket.DefaultDialer.Dial(
@@ -3557,6 +3607,7 @@ func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 
 	requestPayload := []byte(`{
 		"jsonrpc":"2.0",
@@ -3641,6 +3692,7 @@ func TestACPTunnelKeepsAgentConnectedAfterUserDisconnect(t *testing.T) {
 		t.Fatalf("dial agent tunnel: %v", err)
 	}
 	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, agentID, "")
 
 	userHeader := http.Header{"X-User-Email": []string{"todd@example.com"}}
@@ -4946,6 +4998,7 @@ func dialMockAgentTunnel(
 		http.Header{"X-Pax-Key": []string{paxKey}},
 	)
 	require.NoError(t, err)
+	completeMockAgentReconcile(t, agentWS, agentID, 1)
 	return agentWS
 }
 

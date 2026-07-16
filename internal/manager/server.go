@@ -24,10 +24,11 @@ import (
 )
 
 type Service struct {
-	cfg              Config
-	store            Store
-	transportStore   reliablemq.DurableStore
-	transportFlusher interface {
+	cfg                Config
+	store              Store
+	transportStore     reliablemq.DurableStore
+	transportProducers *reliablemq.ProducerRegistry
+	transportFlusher   interface {
 		Flush(context.Context) error
 		Close(context.Context) error
 	}
@@ -56,13 +57,13 @@ func newServer(cfg Config, store Store) *Service {
 	secrets := auth.Secrets{}
 	transportBaseStore := store
 	store = newCanonicalSessionStore(store)
-	transportStore := reliablemq.NewConsumerWriteBehindStore(
+	transportStore := reliablemq.NewProducerWriteBehindStore(
 		transportBaseStore,
-		reliablemq.WithConsumerWriteBehindRequireBatchStore(),
-		reliablemq.WithConsumerWriteBehindFlushFailureHandler(func(err error, stats reliablemq.ConsumerWriteBehindStats) {
+		reliablemq.WithProducerWriteBehindRequireBatchStore(),
+		reliablemq.WithProducerWriteBehindFlushFailureHandler(func(err error, stats reliablemq.ProducerWriteBehindStats) {
 			logging.Error(
 				context.Background(),
-				"acp transport consumer write-behind flush failed",
+				"acp transport producer write-behind flush failed",
 				logging.Err(err),
 				slog.Int("dirty_frames", stats.DirtyFrames),
 				slog.Int("dirty_patches", stats.DirtyPatches),
@@ -72,16 +73,32 @@ func newServer(cfg Config, store Store) *Service {
 			)
 		}),
 	)
+	transportProducers, err := reliablemq.NewProducerRegistry(
+		transportStore,
+		reliablemq.ProducerConfig{
+			OnError: func(err error) {
+				logging.Error(
+					context.Background(),
+					"acp transport producer failed",
+					logging.Err(err),
+				)
+			},
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
 	s := &Service{
-		cfg:              cfg,
-		store:            store,
-		transportStore:   transportStore,
-		transportFlusher: transportStore,
-		clock:            time.Now,
-		agentWS:          NewAgentWSHub(),
-		acpTunnels:       NewACPTunnelHub(),
-		maxBodyBytes:     cfg.MaxBodyBytes,
-		apiLimiter:       newRateLimiter(cfg.APIRateLimitPerMinute, cfg.APIRateLimitBurst, time.Now),
+		cfg:                cfg,
+		store:              store,
+		transportStore:     transportStore,
+		transportProducers: transportProducers,
+		transportFlusher:   transportStore,
+		clock:              time.Now,
+		agentWS:            NewAgentWSHub(),
+		acpTunnels:         NewACPTunnelHub(),
+		maxBodyBytes:       cfg.MaxBodyBytes,
+		apiLimiter:         newRateLimiter(cfg.APIRateLimitPerMinute, cfg.APIRateLimitBurst, time.Now),
 		registerLimiter: newRateLimiter(
 			cfg.RegisterLimitPerMinute,
 			cfg.RegisterLimitBurst,
@@ -114,10 +131,17 @@ func newServer(cfg Config, store Store) *Service {
 }
 
 func (s *Service) CloseTransportStore(ctx context.Context) error {
-	if s == nil || s.transportFlusher == nil {
+	if s == nil {
 		return nil
 	}
-	return s.transportFlusher.Close(ctx)
+	var err error
+	if s.transportProducers != nil {
+		err = errors.Join(err, s.transportProducers.Close(ctx))
+	}
+	if s.transportFlusher != nil {
+		err = errors.Join(err, s.transportFlusher.Close(ctx))
+	}
+	return err
 }
 
 func (s *Service) configureTeamMemexExecutor() {

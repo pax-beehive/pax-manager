@@ -3,9 +3,12 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +16,182 @@ import (
 	"github.com/pax-beehive/paxkit/reliablemq"
 	"github.com/stretchr/testify/require"
 )
+
+type acpRecoveryBarrierConn struct {
+	request     []byte
+	readRelease chan struct{}
+	dataStarted chan struct{}
+	dataRelease chan struct{}
+	readOnce    sync.Once
+	dataOnce    sync.Once
+}
+
+func (c *acpRecoveryBarrierConn) ReadMessage() (int, []byte, error) {
+	first := false
+	c.readOnce.Do(func() { first = true })
+	if first {
+		return websocket.TextMessage, append([]byte(nil), c.request...), nil
+	}
+	<-c.readRelease
+	return 0, nil, io.EOF
+}
+
+func (c *acpRecoveryBarrierConn) WriteMessage(_ int, payload []byte) error {
+	env, err := reliablemq.UnmarshalEnvelope(payload)
+	if err != nil {
+		return err
+	}
+	if env.Type == reliablemq.EnvelopeTypeData {
+		c.dataOnce.Do(func() { close(c.dataStarted) })
+		<-c.dataRelease
+	}
+	return nil
+}
+
+func TestACPTunnelWriteToAgentAcceptsWithoutNetworkBinding(t *testing.T) {
+	store := NewMemoryStore(time.Now)
+	producer, err := reliablemq.NewProducer(t.Context(), reliablemq.ProducerConfig{
+		QueueID: "queue_1",
+		Stream:  reliablemq.StreamACP,
+	}, store)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, producer.Close(closeCtx))
+	})
+	agent := &ACPTunnelAgent{
+		agentID:        "agent_1",
+		connectionID:   "queue_1",
+		store:          store,
+		transportStore: store,
+	}
+	agent.reliableEngine = reliablemq.NewEngine(
+		reliablemq.Config{},
+		store,
+		producer,
+		nil,
+	)
+
+	require.NoError(t, agent.writeToAgent(
+		t.Context(),
+		websocket.TextMessage,
+		[]byte(`{"jsonrpc":"2.0","id":1,"method":"session/prompt"}`),
+	))
+	checkpoint, err := producer.Checkpoint(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, int64(2), checkpoint.ProducerNextSeq)
+	require.Equal(t, int64(1), checkpoint.ReplayFrom)
+	require.Equal(t, int64(1), checkpoint.ReplayThrough)
+}
+
+func TestACPTunnelTransportLogAttrsIncludeProducerWriteBehindStats(t *testing.T) {
+	store := reliablemq.NewProducerWriteBehindStore(
+		NewMemoryStore(time.Now),
+		reliablemq.WithProducerWriteBehindManualFlush(),
+	)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, store.Close(closeCtx))
+	})
+	_, err := store.AppendOutboundData(
+		t.Context(),
+		"queue_1",
+		reliablemq.StreamACP,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1}`),
+		reliablemq.Metadata{},
+	)
+	require.NoError(t, err)
+
+	agent := &ACPTunnelAgent{
+		agentID:        "agent_1",
+		connectionID:   "queue_1",
+		transportStore: store,
+	}
+	attrsByKey := make(map[string]slog.Value)
+	for _, attr := range agent.transportLogAttrs() {
+		attrsByKey[attr.Key] = attr.Value
+	}
+
+	dirtyFrames, ok := attrsByKey["write_behind_dirty_frames"]
+	require.True(t, ok)
+	require.Equal(t, int64(1), dirtyFrames.Int64())
+}
+
+func TestACPTunnelIsNotClaimableUntilProducerBacklogCatchesUp(t *testing.T) {
+	store := NewMemoryStore(time.Now)
+	producer, err := reliablemq.NewProducer(t.Context(), reliablemq.ProducerConfig{
+		QueueID: "queue_1",
+		Stream:  reliablemq.StreamACP,
+	}, store)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, producer.Close(closeCtx))
+	})
+	engine := reliablemq.NewEngine(
+		reliablemq.Config{},
+		store,
+		producer,
+		reliablemq.DispatcherFunc(func(context.Context, reliablemq.Frame) error { return nil }),
+	)
+	require.NoError(t, engine.Send(t.Context(), reliablemq.OutboundMessage{
+		QueueID: "queue_1",
+		Stream:  reliablemq.StreamACP,
+		Payload: json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"session/prompt"}`),
+	}))
+	_, err = producer.Checkpoint(t.Context())
+	require.NoError(t, err)
+
+	reconcileRequest, err := reliablemq.MarshalEnvelope(reliablemq.ReconcileRequestEnvelope(
+		reliablemq.ProducerReconcileCheckpoint{
+			QueueID:         "queue_1",
+			Stream:          reliablemq.StreamACP,
+			ProducerNextSeq: 1,
+		},
+	))
+	require.NoError(t, err)
+	conn := &acpRecoveryBarrierConn{
+		request:     reconcileRequest,
+		readRelease: make(chan struct{}),
+		dataStarted: make(chan struct{}),
+		dataRelease: make(chan struct{}),
+	}
+	agent := &ACPTunnelAgent{
+		agentID:        "agent_1",
+		connectionID:   "queue_1",
+		ws:             conn,
+		store:          store,
+		transportStore: store,
+		reliableEngine: engine,
+	}
+	hub := NewACPTunnelHub()
+	hub.prepare(agent.agentID, "", agent)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- agent.forwardAgentFrames(t.Context(), engine, producer, func() {
+			hub.add(agent.agentID, "", agent)
+		})
+	}()
+
+	select {
+	case <-conn.dataStarted:
+	case <-time.After(time.Second):
+		t.Fatal("producer backlog write did not start")
+	}
+	_, err = hub.findAny(agent.agentID, "")
+	require.Error(t, err)
+
+	close(conn.dataRelease)
+	require.Eventually(t, func() bool {
+		got, findErr := hub.findAny(agent.agentID, "")
+		return findErr == nil && got == agent
+	}, time.Second, time.Millisecond)
+	close(conn.readRelease)
+	require.ErrorIs(t, <-errCh, io.EOF)
+}
 
 func TestACPTunnelHubClaimFallsBackToAgentTunnel(t *testing.T) {
 	hub := NewACPTunnelHub()

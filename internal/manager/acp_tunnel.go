@@ -34,13 +34,18 @@ type acpTunnelKey struct {
 	sessionID string
 }
 
+type acpTunnelWebSocket interface {
+	ReadMessage() (messageType int, payload []byte, err error)
+	WriteMessage(messageType int, payload []byte) error
+}
+
 type ACPTunnelAgent struct {
 	agentID           string
 	connectionID      string
 	nodeID            string
 	ownerUserID       string
 	sessionID         string
-	ws                *websocket.Conn
+	ws                acpTunnelWebSocket
 	mu                sync.Mutex
 	agentWriteMu      sync.Mutex
 	userWriteMu       sync.Mutex
@@ -50,6 +55,7 @@ type ACPTunnelAgent struct {
 	sseSubscribers    map[*acpSSESubscriber]struct{}
 	store             domain.Store
 	transportStore    reliablemq.DurableStore
+	reliableEngine    *reliablemq.Engine
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
 	managerRequestSeq int64
@@ -149,6 +155,17 @@ func NewACPTunnelHub() *ACPTunnelHub {
 func (h *ACPTunnelHub) add(agentID string, sessionID string, conn *ACPTunnelAgent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.prepareLocked(agentID, sessionID, conn)
+	h.agents[acpTunnelKey{agentID: agentID, sessionID: sessionID}] = conn
+}
+
+func (h *ACPTunnelHub) prepare(agentID string, sessionID string, conn *ACPTunnelAgent) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.prepareLocked(agentID, sessionID, conn)
+}
+
+func (h *ACPTunnelHub) prepareLocked(agentID string, sessionID string, conn *ACPTunnelAgent) {
 	if h.states == nil {
 		h.states = make(map[acpTunnelKey]*acpTunnelLiveState)
 	}
@@ -161,7 +178,6 @@ func (h *ACPTunnelHub) add(agentID string, sessionID string, conn *ACPTunnelAgen
 		state.sessionID = conn.sessionID
 	}
 	conn.setLiveState(state)
-	h.agents[key] = conn
 }
 
 func (h *ACPTunnelHub) remove(agentID string, sessionID string, conn *ACPTunnelAgent) {
@@ -597,17 +613,15 @@ func (a *ACPTunnelAgent) nextManagerRequestID() int64 {
 // business history; future message/message_part projectors can consume received
 // frames and mark them applied when the business write is complete.
 func (a *ACPTunnelAgent) writeToAgent(ctx context.Context, messageType int, payload []byte) error {
+	_ = messageType
 	var raw json.RawMessage
 	if err := json.Unmarshal(payload, &raw); err != nil {
 		return fmt.Errorf("wrap acp frame: payload must be JSON: %w", err)
 	}
-	engine := reliablemq.NewEngine(
-		reliablemq.Config{},
-		a.durableTransportStore(),
-		a.reliableSender(messageType),
-		nil,
-	)
-	frame, err := engine.Send(ctx, reliablemq.OutboundMessage{
+	if a.reliableEngine == nil {
+		return reliablemq.ErrProducerNotReady
+	}
+	err := a.reliableEngine.Send(ctx, reliablemq.OutboundMessage{
 		QueueID: a.queueID(),
 		Stream:  reliablemq.StreamACP,
 		Payload: append(json.RawMessage(nil), raw...),
@@ -633,9 +647,7 @@ func (a *ACPTunnelAgent) writeToAgent(ctx context.Context, messageType int, payl
 		"agent acp tunnel outbound frame queued",
 		append(
 			a.transportLogAttrs(),
-			slog.String("stream", string(frame.Key.Stream)),
-			slog.Int64("seq", frame.Key.Seq),
-			slog.String("status", string(frame.Status)),
+			slog.String("stream", string(reliablemq.StreamACP)),
 			slog.Int("payload_bytes", len(payload)),
 		)...,
 	)
@@ -671,17 +683,17 @@ func (s *Service) userACPFramePipeline() acpFramePipeline {
 
 func (a *ACPTunnelAgent) forwardAgentFrames(
 	ctx context.Context,
-	pipeline acpFramePipeline,
+	engine *reliablemq.Engine,
+	producer *reliablemq.Producer,
+	onRecovered func(),
 ) error {
-	engine := reliablemq.NewEngine(
-		reliablemq.Config{},
-		a.durableTransportStore(),
-		a.reliableSender(websocket.TextMessage),
-		reliablemq.DispatcherFunc(func(dispatchCtx context.Context, frame reliablemq.Frame) error {
-			return a.dispatchReliableACPFrame(dispatchCtx, pipeline, frame)
-		}),
-	)
 	reconciled := false
+	var binding *reliablemq.ProducerBinding
+	defer func() {
+		if binding != nil {
+			binding.Close()
+		}
+	}()
 	for {
 		messageType, payload, err := a.ws.ReadMessage()
 		if err != nil {
@@ -698,6 +710,9 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 			return fmt.Errorf("unexpected reliablemq queue_id %q", env.QueueID)
 		}
 		if env.Type == reliablemq.EnvelopeTypeReconcileRequest {
+			if reconciled {
+				return errors.New("duplicate reliablemq reconcile request")
+			}
 			action, err := a.respondPaxdProducerReconcile(ctx, env)
 			if err != nil {
 				return err
@@ -705,15 +720,28 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 			if action == reliablemq.ReconcileActionRotate {
 				continue
 			}
-			if !reconciled {
-				reconciled = true
-				if a.hasAsyncReceivers() {
-					if err := a.replayUnackedToAgent(ctx); err != nil {
-						return fmt.Errorf("replay unacked manager frames after reconcile: %w", err)
-					}
-				}
+			if err := engine.ReplayInbound(ctx, a.queueID(), reliablemq.StreamACP, 1000); err != nil {
+				return fmt.Errorf("replay inbound manager frames after reconcile: %w", err)
+			}
+			binding, err = producer.Bind(
+				ctx,
+				a.reliableSender(websocket.TextMessage),
+				producer.Stats().AckedThrough,
+			)
+			if err != nil {
+				return fmt.Errorf("bind manager producer: %w", err)
+			}
+			if err := binding.WaitCaughtUp(ctx); err != nil {
+				return fmt.Errorf("manager producer recovery barrier: %w", err)
+			}
+			reconciled = true
+			if onRecovered != nil {
+				onRecovered()
 			}
 			continue
+		}
+		if !reconciled {
+			return fmt.Errorf("expected reconcile_request before %q", env.Type)
 		}
 		if env.Metadata == nil {
 			env.Metadata = reliablemq.Metadata{}
@@ -805,14 +833,38 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		store:          s.store,
 		transportStore: s.transportStore,
 	}
-	s.acpTunnels.add(initial.AgentID, initial.SessionID, conn)
-	logging.Info(ctx, "agent acp tunnel connected")
+	if s.transportProducers == nil {
+		_ = ws.Close()
+		logging.Error(ctx, "agent acp tunnel producer registry unavailable")
+		return
+	}
+	producer, err := s.transportProducers.Get(ctx, conn.queueID(), reliablemq.StreamACP)
+	if err != nil {
+		_ = ws.Close()
+		logging.Error(ctx, "agent acp tunnel producer unavailable", logging.Err(err))
+		return
+	}
+	pipeline := s.agentACPFramePipeline()
+	engine := reliablemq.NewEngine(
+		reliablemq.Config{},
+		conn.durableTransportStore(),
+		producer,
+		reliablemq.DispatcherFunc(func(dispatchCtx context.Context, frame reliablemq.Frame) error {
+			return conn.dispatchReliableACPFrame(dispatchCtx, pipeline, frame)
+		}),
+	)
+	conn.reliableEngine = engine
+	s.acpTunnels.prepare(initial.AgentID, initial.SessionID, conn)
+	registered := false
+	logging.Info(ctx, "agent acp tunnel connected; transport recovering")
 	defer func() {
-		if err := conn.flushHistoryText(context.Background()); err != nil {
-			logging.Error(ctx, "agent acp tunnel history text flush failed", logging.Err(err))
+		if registered {
+			if err := conn.flushHistoryText(context.Background()); err != nil {
+				logging.Error(ctx, "agent acp tunnel history text flush failed", logging.Err(err))
+			}
+			s.acpTunnels.remove(initial.AgentID, initial.SessionID, conn)
+			conn.closeUser()
 		}
-		s.acpTunnels.remove(initial.AgentID, initial.SessionID, conn)
-		conn.closeUser()
 		_ = ws.Close()
 		logging.Info(ctx, "agent acp tunnel disconnected")
 	}()
@@ -821,7 +873,11 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		name:  "agent_tunnel",
 		attrs: conn.actorAttrs(),
 		run: func(actorCtx context.Context) error {
-			return conn.forwardAgentFrames(actorCtx, s.agentACPFramePipeline())
+			return conn.forwardAgentFrames(actorCtx, engine, producer, func() {
+				s.acpTunnels.add(initial.AgentID, initial.SessionID, conn)
+				registered = true
+				logging.Info(actorCtx, "agent acp tunnel transport ready")
+			})
 		},
 	})
 	if err != nil && !isWebSocketCloseError(err) {
@@ -1450,16 +1506,6 @@ func (a *ACPTunnelAgent) observeHistoryBoundary(payload json.RawMessage) {
 	state.historyGroups.observeBoundary(payload)
 }
 
-func (a *ACPTunnelAgent) replayUnackedToAgent(ctx context.Context) error {
-	engine := reliablemq.NewEngine(
-		reliablemq.Config{},
-		a.durableTransportStore(),
-		a.reliableSender(websocket.TextMessage),
-		nil,
-	)
-	return engine.ReplayOutbound(ctx, a.queueID(), reliablemq.StreamACP, 1000)
-}
-
 const maxACPReconcileAdvanceGap = 100000
 
 func (a *ACPTunnelAgent) respondPaxdProducerReconcile(ctx context.Context, request reliablemq.Envelope) (reliablemq.ReconcileAction, error) {
@@ -1707,7 +1753,7 @@ func (a *ACPTunnelAgent) transportLogAttrs() []slog.Attr {
 		slog.String("connection_id", a.queueID()),
 		slog.String("session_id", a.currentSessionID()),
 	}
-	if store, ok := a.durableTransportStore().(*reliablemq.ConsumerWriteBehindStore); ok {
+	if store, ok := a.durableTransportStore().(*reliablemq.ProducerWriteBehindStore); ok {
 		stats := store.Stats()
 		attrs = append(
 			attrs,
