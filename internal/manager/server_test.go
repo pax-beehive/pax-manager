@@ -2167,6 +2167,140 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 	assert.Equal(t, domain.SessionApprovalModeAutoApproveAll, storedSession.PaxConfig.ApprovalMode)
 }
 
+func TestConversationMissingPaxdRouteResumesOnceThenRetriesPrompt(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-legacy", "native-legacy")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"continue old session","session_id":"sess-legacy"}`,
+		respCh,
+		errCh,
+	)
+
+	firstPromptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, firstPromptEnv.Payload, "session/prompt")
+	var firstPrompt acpJSONRPCMessage
+	require.NoError(t, json.Unmarshal(firstPromptEnv.Payload, &firstPrompt))
+	writeAgentDataFrame(t, agentWS, firstPromptEnv.QueueID, 1, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+string(firstPrompt.ID)+`,"error":{"code":-32002,"message":"ACP session route requires resume","data":{"kind":"session_route_missing","requiresResume":true}}}`,
+	))
+
+	resumeEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, resumeEnv.Payload, "session/resume")
+	assertFrameSessionID(t, resumeEnv.Payload, "native-legacy")
+	assertACPParamString(t, resumeEnv.Payload, "cwd", "/tmp")
+	assertACPParamArray(t, resumeEnv.Payload, "mcpServers")
+	var resume acpJSONRPCMessage
+	require.NoError(t, json.Unmarshal(resumeEnv.Payload, &resume))
+	writeAgentDataFrame(t, agentWS, resumeEnv.QueueID, 2, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+string(resume.ID)+`,"result":{}}`,
+	))
+
+	retryPromptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, retryPromptEnv.Payload, "session/prompt")
+	assertFrameSessionID(t, retryPromptEnv.Payload, "native-legacy")
+	var retryPrompt acpJSONRPCMessage
+	require.NoError(t, json.Unmarshal(retryPromptEnv.Payload, &retryPrompt))
+	require.NotEqual(t, string(firstPrompt.ID), string(retryPrompt.ID))
+	writeAgentDataFrame(t, agentWS, retryPromptEnv.QueueID, 3, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+string(retryPrompt.ID)+`,"result":{"stopReason":"end_turn"}}`,
+	))
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	requireConversationEvent(t, events, "done")
+	for _, event := range events {
+		require.NotEqual(t, "error", event.Type, string(body))
+	}
+}
+
+func TestConversationDifferentSessionsPromptConcurrentlyOnDevPool(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-a", "native-a")
+	createConversationTestSession(t, srv, fixture, "sess-b", "native-b")
+	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	node, err := srv.store.GetNode(t.Context(), principal, fixture.nodeID)
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+	agentConn, err := srv.acpTunnels.findAny(fixture.agentID, "")
+	require.NoError(t, err)
+	require.False(t, agentConn.concurrentTurnsReady(t.Context()))
+	require.NoError(t, srv.store.UpsertNodeStatus(t.Context(), node, domain.NodeStatusReport{
+		NodeID: fixture.nodeID,
+		Agents: []domain.AgentStatusInput{{
+			AgentID:  fixture.agentID,
+			Status:   "online",
+			Online:   true,
+			Metadata: json.RawMessage(`{"acp_pool_capability_report":{"connection_id":"` + fixture.agentID + `","report_generation":1,"paxd_version":"dev","init_phase":"ready"}}`),
+		}},
+	}))
+	require.True(t, agentConn.concurrentTurnsReady(t.Context()))
+
+	respA, respB := make(chan *http.Response, 1), make(chan *http.Response, 1)
+	errA, errB := make(chan error, 1), make(chan error, 1)
+	go postConversation(t, httpServer.URL, fixture, `{"input":"prompt a","session_id":"sess-a"}`, respA, errA)
+	go postConversation(t, httpServer.URL, fixture, `{"input":"prompt b","session_id":"sess-b"}`, respB, errB)
+
+	firstEnv := readNextManagerToAgentData(t, agentWS)
+	secondEnv := readNextManagerToAgentData(t, agentWS)
+	var first, second acpJSONRPCMessage
+	require.NoError(t, json.Unmarshal(firstEnv.Payload, &first))
+	require.NoError(t, json.Unmarshal(secondEnv.Payload, &second))
+	require.Equal(t, "session/prompt", first.Method)
+	require.Equal(t, "session/prompt", second.Method)
+	firstSession := findStringFromRaw(first.Params, "sessionId", "session_id")
+	secondSession := findStringFromRaw(second.Params, "sessionId", "session_id")
+	require.ElementsMatch(t, []string{"native-a", "native-b"}, []string{firstSession, secondSession})
+
+	writeAgentDataFrame(t, agentWS, firstEnv.QueueID, 1, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+string(second.ID)+`,"result":{"stopReason":"end_turn"}}`,
+	))
+	writeAgentDataFrame(t, agentWS, firstEnv.QueueID, 2, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+string(first.ID)+`,"result":{"stopReason":"end_turn"}}`,
+	))
+
+	bodyA := readConversationResponse(t, respA, errA, http.StatusOK)
+	bodyB := readConversationResponse(t, respB, errB, http.StatusOK)
+	requireConversationEvent(t, decodeConversationEvents(t, bodyA), "done")
+	requireConversationEvent(t, decodeConversationEvents(t, bodyB), "done")
+}
+
 func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")

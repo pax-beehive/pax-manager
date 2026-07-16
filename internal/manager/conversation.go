@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -59,6 +60,19 @@ type conversationResponse struct {
 	raw []byte
 }
 
+type conversationACPError struct {
+	message string
+	kind    string
+}
+
+func (e conversationACPError) Error() string {
+	return firstNonEmpty(e.message, "ACP request failed")
+}
+
+func (e conversationACPError) Unwrap() error {
+	return apperr.Error{Status: http.StatusBadGateway, Message: e.Error()}
+}
+
 type conversationResumeRequest struct {
 	Requested  bool
 	ApprovalID string
@@ -98,29 +112,37 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 		writeHTTPEndpointError(w, err)
 		return
 	}
+	if session.managerID == "" {
+		session.managerID, err = newManagerSessionID()
+		if err != nil {
+			writeHTTPEndpointError(w, err)
+			return
+		}
+	}
 	claimSessionIDs := []string{""}
-	if session.managerID != "" {
+	if session.nativeID != "" {
 		claimSessionIDs = []string{session.managerID, session.nativeID, ""}
 	}
-	agentConn, err := s.acpTunnels.claimAnyWait(
+	agentConn, release, err := s.acpTunnels.claimStructuredAnyWait(
 		r.Context(),
 		conversationTunnelClaimTimeout,
 		conversationTunnelClaimTick,
 		agentID,
+		session.managerID,
 		claimSessionIDs...,
 	)
 	if err != nil {
 		writeHTTPEndpointError(w, err)
 		return
 	}
-	defer s.acpTunnels.release(agentConn)
+	defer release()
 
 	runner := conversationRunner{
 		service:          s,
 		agentConn:        agentConn,
 		managerSessionID: session.managerID,
 	}
-	if session.managerID == "" {
+	if session.nativeID == "" {
 		session, err = s.createConversationSession(r.Context(), principal, &runner, req)
 		if err != nil {
 			writeHTTPEndpointError(w, err)
@@ -266,9 +288,9 @@ func (s *Service) createConversationSession(
 	runner *conversationRunner,
 	req conversationRequest,
 ) (conversationSession, error) {
-	managerSessionID, err := newManagerSessionID()
-	if err != nil {
-		return conversationSession{}, err
+	managerSessionID := runner.managerSessionID
+	if managerSessionID == "" {
+		return conversationSession{}, errors.New("manager session id is required")
 	}
 	cwd := firstNonEmpty(req.CWD, "/tmp")
 	approvalMode := domain.NormalizeSessionApprovalMode(req.ApprovalMode)
@@ -321,23 +343,38 @@ func (s *Service) promptConversation(
 	sub := runner.agentConn.subscribeSSE(session.managerID)
 	defer runner.agentConn.unsubscribeSSE(sub)
 
-	requestID, waiter, cancel, err := runner.send(
-		ctx,
-		"session/prompt",
-		map[string]any{
-			"sessionId": session.managerID,
-			"prompt": []map[string]string{{
-				"type": "text",
-				"text": input,
-			}},
-		},
-	)
-	if err != nil {
-		return err
+	params := map[string]any{
+		"sessionId": session.managerID,
+		"prompt": []map[string]string{{
+			"type": "text",
+			"text": input,
+		}},
 	}
-	defer cancel()
-	if err := s.streamConversationUntilPromptDone(ctx, w, flusher, runner, session, sub, fmt.Sprint(requestID), waiter); err != nil {
-		return err
+	for attempt := 0; attempt < 2; attempt++ {
+		requestID, waiter, cancel, err := runner.send(ctx, "session/prompt", params)
+		if err != nil {
+			return err
+		}
+		err = s.streamConversationUntilPromptDone(
+			ctx,
+			w,
+			flusher,
+			runner,
+			session,
+			sub,
+			fmt.Sprint(requestID),
+			waiter,
+		)
+		cancel()
+		if !isConversationACPErrorKind(err, "session_route_missing") || attempt > 0 {
+			if err != nil {
+				return err
+			}
+			break
+		}
+		if err := runner.resumeMissingRoute(ctx); err != nil {
+			return err
+		}
 	}
 	return s.writeConversationEvent(w, flusher, conversationEvent{
 		Type:      "done",
@@ -421,6 +458,24 @@ func (r *conversationRunner) request(
 	params map[string]any,
 	activity <-chan struct{},
 ) (conversationResponse, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		response, err := r.requestOnce(ctx, method, params, activity)
+		if !isConversationACPErrorKind(err, "session_route_missing") || attempt > 0 || method == "session/resume" {
+			return response, err
+		}
+		if err := r.resumeMissingRoute(ctx); err != nil {
+			return conversationResponse{}, err
+		}
+	}
+	return conversationResponse{}, errors.New("ACP request retry exhausted")
+}
+
+func (r *conversationRunner) requestOnce(
+	ctx context.Context,
+	method string,
+	params map[string]any,
+	activity <-chan struct{},
+) (conversationResponse, error) {
 	requestID := r.agentConn.nextManagerRequestID()
 	payload, err := conversationRequestPayload(requestID, method, params)
 	if err != nil {
@@ -443,10 +498,7 @@ func (r *conversationRunner) request(
 			var msg acpJSONRPCMessage
 			_ = json.Unmarshal(payload, &msg)
 			if len(msg.Error) > 0 {
-				return conversationResponse{}, apperr.Error{
-					Status:  http.StatusBadGateway,
-					Message: firstNonEmpty(acpErrorMessage(msg.Error), "ACP request failed"),
-				}
+				return conversationResponse{}, decodeConversationACPError(msg.Error)
 			}
 			return conversationResponse{acpJSONRPCMessage: msg, raw: payload}, nil
 		case <-activity:
@@ -460,6 +512,24 @@ func (r *conversationRunner) request(
 			return conversationResponse{}, ctx.Err()
 		}
 	}
+}
+
+func (r *conversationRunner) resumeMissingRoute(ctx context.Context) error {
+	principal := UserPrincipal{User: User{UserID: r.agentConn.ownerUserID}}
+	session, err := r.service.store.GetSession(ctx, principal, r.managerSessionID)
+	if err != nil {
+		return err
+	}
+	params := map[string]any{
+		"sessionId":  r.managerSessionID,
+		"cwd":        firstNonEmpty(session.PaxConfig.CWD, "/tmp"),
+		"mcpServers": agentConversationMCPServers(session),
+	}
+	if len(session.WorkspaceRoots) > 0 {
+		params["additionalDirectories"] = append([]string(nil), session.WorkspaceRoots...)
+	}
+	_, err = r.requestOnce(ctx, "session/resume", params, nil)
+	return err
 }
 
 func (r *conversationRunner) send(
@@ -583,10 +653,7 @@ func (s *Service) streamConversationUntilPromptDone(
 			var msg acpJSONRPCMessage
 			_ = json.Unmarshal(payload, &msg)
 			if len(msg.Error) > 0 {
-				return apperr.Error{
-					Status:  http.StatusBadGateway,
-					Message: firstNonEmpty(acpErrorMessage(msg.Error), "ACP request failed"),
-				}
+				return decodeConversationACPError(msg.Error)
 			}
 			return nil
 		case err, ok := <-sub.terminal:
@@ -1321,4 +1388,22 @@ func acpErrorMessage(raw json.RawMessage) string {
 		return ""
 	}
 	return stringField(value, "message", "")
+}
+
+func decodeConversationACPError(raw json.RawMessage) error {
+	var value struct {
+		Message string `json:"message"`
+		Data    struct {
+			Kind string `json:"kind"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return apperr.Error{Status: http.StatusBadGateway, Message: "ACP request failed"}
+	}
+	return conversationACPError{message: value.Message, kind: value.Data.Kind}
+}
+
+func isConversationACPErrorKind(err error, kind string) bool {
+	var acpErr conversationACPError
+	return errors.As(err, &acpErr) && acpErr.kind == kind
 }

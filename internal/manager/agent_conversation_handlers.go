@@ -606,11 +606,12 @@ func (s *Service) claimAgentConversationRunner(
 		slog.String("native_session_id", nativeSessionID),
 		slog.String("available_tunnels", s.acpTunnels.debugSnapshot(agentID)),
 	)
-	agentConn, release, err := s.acpTunnels.borrowAnyWait(
+	agentConn, release, err := s.acpTunnels.claimStructuredAnyWait(
 		ctx,
 		conversationTunnelClaimTimeout,
 		conversationTunnelClaimTick,
 		agentID,
+		sessionID,
 		sessionID,
 		nativeSessionID,
 		"",

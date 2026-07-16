@@ -24,14 +24,55 @@ type acpSessionMux struct {
 	waiters     map[string]*acpResponseWaiter
 	workerCalls map[string]acpWorkerRequest
 	subscribers map[string]map[*acpSSESubscriber]struct{}
+	activeTurns map[string]*acpTurnAdmission
 }
+
+type acpTurnAdmission struct{ _ byte }
 
 func newACPSessionMux() *acpSessionMux {
 	return &acpSessionMux{
 		waiters:     make(map[string]*acpResponseWaiter),
 		workerCalls: make(map[string]acpWorkerRequest),
 		subscribers: make(map[string]map[*acpSSESubscriber]struct{}),
+		activeTurns: make(map[string]*acpTurnAdmission),
 	}
+}
+
+func (m *acpSessionMux) admitTurn(sessionID string) (*acpTurnAdmission, bool) {
+	if sessionID == "" {
+		return nil, false
+	}
+	token := &acpTurnAdmission{}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.activeTurns[sessionID] != nil {
+		return nil, false
+	}
+	m.activeTurns[sessionID] = token
+	return token, true
+}
+
+func (m *acpSessionMux) releaseTurn(sessionID string, token *acpTurnAdmission) {
+	if sessionID == "" || token == nil {
+		return
+	}
+	m.mu.Lock()
+	if m.activeTurns[sessionID] == token {
+		delete(m.activeTurns, sessionID)
+	}
+	m.mu.Unlock()
+}
+
+func (m *acpSessionMux) hasActiveTurns() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.activeTurns) > 0
+}
+
+func (m *acpSessionMux) activeTurnCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.activeTurns)
 }
 
 func (m *acpSessionMux) trackWorkerRequest(

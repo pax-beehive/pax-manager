@@ -58,6 +58,7 @@ type ACPTunnelAgent struct {
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
 	managerRequestSeq int64
+	internalRollout   bool
 	live              *acpTunnelLiveState
 }
 
@@ -223,7 +224,7 @@ func (h *ACPTunnelHub) claimAny(agentID string, sessionIDs ...string) (*ACPTunne
 	state := conn.liveState()
 	state.mu.Lock()
 	defer state.mu.Unlock()
-	if state.paired {
+	if state.paired || state.sessionMux.hasActiveTurns() {
 		return nil, apperr.Error{
 			Status:  http.StatusConflict,
 			Message: "agent tunnel already in use",
@@ -270,16 +271,18 @@ func (h *ACPTunnelHub) debugSnapshot(agentID string) string {
 		paired := state.paired
 		hasUser := state.userWS != nil
 		counts := state.sessionMux.counts()
+		activeTurns := state.sessionMux.activeTurnCount()
 		state.mu.Unlock()
 
 		entries = append(entries, fmt.Sprintf(
-			"agent=%s registered_session=%s live_session=%s connection=%s paired=%t user=%t waiters=%d sse=%d",
+			"agent=%s registered_session=%s live_session=%s connection=%s paired=%t user=%t turns=%d waiters=%d sse=%d",
 			key.agentID,
 			key.sessionID,
 			liveSessionID,
 			conn.queueID(),
 			paired,
 			hasUser,
+			activeTurns,
 			counts.responseWaiters,
 			counts.sseSubscribers,
 		))
@@ -289,6 +292,166 @@ func (h *ACPTunnelHub) debugSnapshot(agentID string) string {
 		return "(none)"
 	}
 	return strings.Join(entries, "; ")
+}
+
+func (h *ACPTunnelHub) claimStructuredAny(
+	agentID string,
+	managerSessionID string,
+	sessionIDs ...string,
+) (*ACPTunnelAgent, func(), error) {
+	return h.claimStructuredAnyMode(agentID, managerSessionID, true, sessionIDs...)
+}
+
+func (h *ACPTunnelHub) claimStructuredAnyMode(
+	agentID string,
+	managerSessionID string,
+	concurrent bool,
+	sessionIDs ...string,
+) (*ACPTunnelAgent, func(), error) {
+	if managerSessionID == "" {
+		return nil, func() {}, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "manager session id is required",
+		}
+	}
+	conn, err := h.findAny(agentID, sessionIDs...)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	state := conn.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.paired {
+		return nil, func() {}, apperr.Error{
+			Status:  http.StatusConflict,
+			Message: "agent tunnel already in use",
+		}
+	}
+	if state.sessionMux == nil {
+		state.sessionMux = newACPSessionMux()
+		conn.sessionMux = state.sessionMux
+	}
+	admissionID := managerSessionID
+	if !concurrent {
+		admissionID = "\x00structured-agent-wide"
+	}
+	token, ok := state.sessionMux.admitTurn(admissionID)
+	if !ok {
+		message := "session already has an active turn"
+		if !concurrent {
+			message = "agent tunnel already in use"
+		}
+		return nil, func() {}, apperr.Error{
+			Status:  http.StatusConflict,
+			Message: message,
+		}
+	}
+	return conn, func() {
+		state.sessionMux.releaseTurn(admissionID, token)
+	}, nil
+}
+
+func (h *ACPTunnelHub) claimStructuredAnyWait(
+	ctx context.Context,
+	waitFor time.Duration,
+	interval time.Duration,
+	agentID string,
+	managerSessionID string,
+	sessionIDs ...string,
+) (*ACPTunnelAgent, func(), error) {
+	if waitFor <= 0 {
+		concurrent := true
+		if candidate, findErr := h.findAny(agentID, sessionIDs...); findErr == nil {
+			concurrent = candidate.concurrentTurnsReady(ctx)
+		}
+		return h.claimStructuredAnyMode(
+			agentID,
+			managerSessionID,
+			concurrent,
+			sessionIDs...,
+		)
+	}
+	if interval <= 0 {
+		interval = 50 * time.Millisecond
+	}
+	var unavailableDeadline <-chan time.Time
+	var unavailableTimer *time.Timer
+	if waitFor > 0 {
+		unavailableTimer = time.NewTimer(waitFor)
+		defer unavailableTimer.Stop()
+		unavailableDeadline = unavailableTimer.C
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	unavailableExpired := false
+	for {
+		concurrent := true
+		if candidate, findErr := h.findAny(agentID, sessionIDs...); findErr == nil {
+			concurrent = candidate.concurrentTurnsReady(ctx)
+		}
+		conn, release, err := h.claimStructuredAnyMode(
+			agentID,
+			managerSessionID,
+			concurrent,
+			sessionIDs...,
+		)
+		if err == nil {
+			return conn, release, nil
+		}
+		if !isAgentTunnelNotConnected(err) && !isSessionTurnAlreadyActive(err) {
+			return nil, func() {}, err
+		}
+		if unavailableExpired && isAgentTunnelNotConnected(err) {
+			return nil, func() {}, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, func() {}, ctx.Err()
+		case <-unavailableDeadline:
+			if isAgentTunnelNotConnected(err) {
+				return nil, func() {}, err
+			}
+			// A connected session's active turn is serialized by the request
+			// context, not by the short reconnect grace period.
+			unavailableExpired = true
+			unavailableDeadline = nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func (a *ACPTunnelAgent) concurrentTurnsReady(ctx context.Context) bool {
+	if a == nil || a.store == nil {
+		return true
+	}
+	agent, err := a.store.GetNodeAgent(ctx, a.nodeID, a.agentID)
+	if err != nil {
+		return false
+	}
+	var metadata struct {
+		Report struct {
+			ConnectionID     string `json:"connection_id"`
+			ReportGeneration int64  `json:"report_generation"`
+			PaxdVersion      string `json:"paxd_version"`
+			InitPhase        string `json:"init_phase"`
+		} `json:"acp_pool_capability_report"`
+	}
+	if err := json.Unmarshal(agent.Metadata, &metadata); err != nil {
+		return false
+	}
+	report := metadata.Report
+	rolloutEligible := a.internalRollout || strings.EqualFold(report.PaxdVersion, "dev")
+	return rolloutEligible &&
+		report.ConnectionID == a.queueID() &&
+		report.ReportGeneration > 0 &&
+		strings.EqualFold(report.InitPhase, "ready")
+}
+
+func isSessionTurnAlreadyActive(err error) bool {
+	var httpErr apperr.Error
+	return errors.As(err, &httpErr) &&
+		httpErr.Status == http.StatusConflict &&
+		httpErr.Message == "session already has an active turn"
 }
 
 func (h *ACPTunnelHub) borrowAny(agentID string, sessionIDs ...string) (*ACPTunnelAgent, func(), error) {
@@ -876,15 +1039,20 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	internalRollout := false
+	if owner, ownerErr := s.store.GetUser(r.Context(), initial.OwnerUserID); ownerErr == nil {
+		internalRollout = s.cfg.AdminEmails[normalizeEmail(owner.Email)]
+	}
 	conn := &ACPTunnelAgent{
-		agentID:        initial.AgentID,
-		connectionID:   firstNonEmpty(initial.ConnectionID, initial.AgentID),
-		nodeID:         initial.NodeID,
-		ownerUserID:    initial.OwnerUserID,
-		sessionID:      initial.SessionID,
-		ws:             ws,
-		store:          s.store,
-		transportStore: s.transportStore,
+		agentID:         initial.AgentID,
+		connectionID:    firstNonEmpty(initial.ConnectionID, initial.AgentID),
+		nodeID:          initial.NodeID,
+		ownerUserID:     initial.OwnerUserID,
+		sessionID:       initial.SessionID,
+		ws:              ws,
+		store:           s.store,
+		transportStore:  s.transportStore,
+		internalRollout: internalRollout,
 	}
 	if s.transportProducers == nil {
 		_ = ws.Close()

@@ -303,6 +303,109 @@ func TestACPTunnelHubClaimAnyWaitRetriesUntilAgentTunnelReconnects(t *testing.T)
 	require.Same(t, agentConn, got)
 }
 
+func TestACPTunnelHubStructuredTurnsAllowDifferentSessions(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	hub.add("agent-1", "", agentConn)
+
+	first, releaseFirst, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	require.Same(t, agentConn, first)
+	second, releaseSecond, err := hub.claimStructuredAny("agent-1", "sess-2", "")
+	require.NoError(t, err)
+	require.Same(t, agentConn, second)
+	require.Equal(t, 2, agentConn.liveState().sessionMux.activeTurnCount())
+
+	releaseFirst()
+	require.Equal(t, 1, agentConn.liveState().sessionMux.activeTurnCount())
+	releaseSecond()
+	require.Zero(t, agentConn.liveState().sessionMux.activeTurnCount())
+}
+
+func TestACPTunnelHubStructuredTurnsSerializeSameSession(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	hub.add("agent-1", "", agentConn)
+
+	_, releaseFirst, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	acquired := make(chan func(), 1)
+	errCh := make(chan error, 1)
+	go func() {
+		_, release, claimErr := hub.claimStructuredAnyWait(
+			t.Context(),
+			20*time.Millisecond,
+			time.Millisecond,
+			"agent-1",
+			"sess-1",
+			"",
+		)
+		if claimErr != nil {
+			errCh <- claimErr
+			return
+		}
+		acquired <- release
+	}()
+
+	select {
+	case release := <-acquired:
+		release()
+		t.Fatal("same session acquired before its active turn was released")
+	case err := <-errCh:
+		t.Fatalf("same-session waiter failed: %v", err)
+	case <-time.After(40 * time.Millisecond):
+	}
+	releaseFirst()
+	select {
+	case release := <-acquired:
+		release()
+	case err := <-errCh:
+		t.Fatalf("same-session waiter failed: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("same-session waiter did not acquire after release")
+	}
+}
+
+func TestACPTunnelHubStructuredTurnReleaseIsSessionIsolatedAndIdempotent(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	hub.add("agent-1", "", agentConn)
+
+	_, releaseFirst, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	_, releaseSecond, err := hub.claimStructuredAny("agent-1", "sess-2", "")
+	require.NoError(t, err)
+
+	releaseFirst()
+	releaseFirst()
+	_, releaseThird, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	_, _, err = hub.claimStructuredAny("agent-1", "sess-2", "")
+	require.Error(t, err)
+	require.True(t, isSessionTurnAlreadyActive(err))
+
+	releaseThird()
+	releaseSecond()
+}
+
+func TestACPTunnelHubLegacyClaimIsExclusiveWithStructuredTurns(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	hub.add("agent-1", "", agentConn)
+
+	_, release, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	_, err = hub.claimAny("agent-1", "")
+	require.Error(t, err)
+	release()
+
+	legacy, err := hub.claimAny("agent-1", "")
+	require.NoError(t, err)
+	_, _, err = hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.Error(t, err)
+	hub.release(legacy)
+}
+
 func TestACPTunnelHubBorrowAnyGivenPairedSessionTunnelThenReturnsWithoutReleasingUserPair(t *testing.T) {
 	hub := NewACPTunnelHub()
 	agentConn := &ACPTunnelAgent{agentID: "agent-1", sessionID: "sess-1"}
