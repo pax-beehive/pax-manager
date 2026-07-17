@@ -556,3 +556,8 @@ func _restartnodedaemonagentconnectionMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _removenodedaemonagentconnectionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

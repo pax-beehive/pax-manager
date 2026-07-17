@@ -1052,6 +1052,30 @@ func (s *Service) RestartNodeDaemonAgentConnection(
 	}, data)
 }
 
+func (s *Service) RemoveNodeDaemonAgentConnection(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.NodeDaemonAgentConnectionActionRequest,
+) (int, any, error) {
+	node, remoteID, err := s.authorizeNodeDaemonAgentConnectionCommand(c, meta, &req)
+	if err != nil {
+		return 0, nil, err
+	}
+	data := map[string]any{
+		"connection_id":   req.ConnectionID,
+		"command_id":      req.CommandID,
+		"remote_id":       remoteID,
+		"dispatch_status": "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id": req.CommandID,
+		"type":       "agent_connection.delete",
+		"delete_agent_connection": map[string]any{
+			"connection_id": req.ConnectionID,
+		},
+	}, data)
+}
+
 func (s *Service) authorizeNodeDaemonAgentConnectionCommand(
 	c context.Context,
 	meta auth.RequestMetadata,
