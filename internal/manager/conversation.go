@@ -37,6 +37,9 @@ type conversationEvent struct {
 	NodeID     string          `json:"node_id,omitempty"`
 	AgentID    string          `json:"agent_id,omitempty"`
 	SessionID  string          `json:"session_id,omitempty"`
+	TurnID     string          `json:"turn_id,omitempty"`
+	MessageID  string          `json:"message_id,omitempty"`
+	Status     string          `json:"status,omitempty"`
 	Frame      json.RawMessage `json:"frame,omitempty"`
 	ApprovalID string          `json:"approval_id,omitempty"`
 	Approval   *AgentApproval  `json:"approval,omitempty"`
@@ -343,6 +346,34 @@ func (s *Service) promptConversation(
 	sub := runner.agentConn.subscribeSSE(session.managerID)
 	defer runner.agentConn.unsubscribeSSE(sub)
 
+	nextInput := input
+	for {
+		if err := s.promptConversationOnce(ctx, w, flusher, runner, session, sub, nextInput); err != nil {
+			return err
+		}
+		queued, ok := s.conversationTurns.take(runner.agentConn.agentID, session.managerID)
+		if !ok {
+			break
+		}
+		nextInput = queued.Input
+	}
+	return s.writeConversationEvent(w, flusher, conversationEvent{
+		Type:      "done",
+		NodeID:    runner.agentConn.nodeID,
+		AgentID:   runner.agentConn.agentID,
+		SessionID: session.managerID,
+	})
+}
+
+func (s *Service) promptConversationOnce(
+	ctx context.Context,
+	w http.ResponseWriter,
+	flusher http.Flusher,
+	runner *conversationRunner,
+	session conversationSession,
+	sub *acpSSESubscriber,
+	input string,
+) error {
 	params := map[string]any{
 		"sessionId": session.managerID,
 		"prompt": []map[string]string{{
@@ -376,12 +407,7 @@ func (s *Service) promptConversation(
 			return err
 		}
 	}
-	return s.writeConversationEvent(w, flusher, conversationEvent{
-		Type:      "done",
-		NodeID:    runner.agentConn.nodeID,
-		AgentID:   runner.agentConn.agentID,
-		SessionID: session.managerID,
-	})
+	return nil
 }
 
 func (s *Service) resumeConversation(
