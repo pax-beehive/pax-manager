@@ -693,7 +693,7 @@ func agentConversationMCPServers(session domain.AgentSession) []any {
 	return []any{
 		map[string]any{
 			"name":    "pax-conversation",
-			"command": "/Users/gengcongkai/.local/bin/paxd",
+			"command": "paxd",
 			"args":    []string{"mcp", "conversation", "serve"},
 			"env":     env,
 		},
