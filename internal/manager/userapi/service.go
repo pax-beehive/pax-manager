@@ -903,6 +903,10 @@ func (s *Service) CreateNodeDaemonAgentConnection(
 			Message: "node_id, command_id, and harness are required",
 		}
 	}
+	desiredSlots, err := nodeDaemonDesiredSlots(req.DesiredSlots)
+	if err != nil {
+		return 0, nil, err
+	}
 	node, err := s.store.GetNode(c, principal, req.NodeID)
 	if err != nil {
 		return 0, nil, err
@@ -952,6 +956,7 @@ func (s *Service) CreateNodeDaemonAgentConnection(
 			"command":        command,
 			"working_dir":    strings.TrimSpace(req.WorkingDir),
 			"desired_state":  "running",
+			"desired_slots":  desiredSlots,
 		},
 	}, data)
 }
@@ -974,11 +979,14 @@ func (s *Service) UpdateNodeDaemonAgentConnection(
 			Message: "node_id, connection_id, and command_id are required",
 		}
 	}
-	if req.Name == nil && req.Harness == nil && req.Command == nil && req.WorkingDir == nil {
+	if !hasNodeDaemonAgentConnectionUpdate(req) {
 		return 0, nil, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "at least one update field is required",
 		}
+	}
+	if err := validateOptionalNodeDaemonDesiredSlots(req.DesiredSlots); err != nil {
+		return 0, nil, err
 	}
 	node, err := s.store.GetNode(c, principal, req.NodeID)
 	if err != nil {
@@ -1034,6 +1042,7 @@ func (s *Service) UpdateNodeDaemonAgentConnection(
 	if req.WorkingDir != nil {
 		update["working_dir"] = strings.TrimSpace(*req.WorkingDir)
 	}
+	setNodeDaemonDesiredSlots(update, req.DesiredSlots)
 	data := map[string]any{
 		"connection_id":   req.ConnectionID,
 		"command_id":      req.CommandID,
@@ -1045,6 +1054,41 @@ func (s *Service) UpdateNodeDaemonAgentConnection(
 		"type":                    "agent_connection.update",
 		"update_agent_connection": update,
 	}, data)
+}
+
+func validateNodeDaemonDesiredSlots(desiredSlots int) error {
+	if desiredSlots < 1 || desiredSlots > 16 {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "desired_slots must be between 1 and 16",
+		}
+	}
+	return nil
+}
+
+func nodeDaemonDesiredSlots(desiredSlots *int) (int, error) {
+	if desiredSlots == nil {
+		return 2, nil
+	}
+	return *desiredSlots, validateNodeDaemonDesiredSlots(*desiredSlots)
+}
+
+func validateOptionalNodeDaemonDesiredSlots(desiredSlots *int) error {
+	if desiredSlots == nil {
+		return nil
+	}
+	return validateNodeDaemonDesiredSlots(*desiredSlots)
+}
+
+func setNodeDaemonDesiredSlots(update map[string]any, desiredSlots *int) {
+	if desiredSlots != nil {
+		update["desired_slots"] = *desiredSlots
+	}
+}
+
+func hasNodeDaemonAgentConnectionUpdate(req domain.UpdateNodeDaemonAgentConnectionRequest) bool {
+	return req.Name != nil || req.Harness != nil || req.Command != nil ||
+		req.WorkingDir != nil || req.DesiredSlots != nil
 }
 
 func (s *Service) StopNodeDaemonAgentConnection(

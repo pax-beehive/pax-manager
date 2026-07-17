@@ -1066,6 +1066,7 @@ struct CreateNodeDaemonAgentConnectionRequest {
   7: optional string instance_id
   8: optional list<string> command
   9: optional string working_dir
+  10: optional i32 desired_slots
 }
 
 struct CreateNodeDaemonAgentConnectionData {
@@ -1097,6 +1098,7 @@ struct UpdateNodeDaemonAgentConnectionRequest {
   6: optional string harness
   7: optional list<string> command
   8: optional string working_dir
+  9: optional i32 desired_slots
 }
 
 struct NodeDaemonCommandData {
