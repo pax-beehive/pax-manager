@@ -51658,6 +51658,7 @@ type UpdateNodeDaemonAgentConnectionRequest struct {
 	Command      []string `thrift:"command,7,optional,list<string>" form:"command" json:"command,omitempty" query:"command"`
 	WorkingDir   *string  `thrift:"working_dir,8,optional" form:"working_dir" json:"working_dir,omitempty" query:"working_dir"`
 	DesiredSlots *int32   `thrift:"desired_slots,9,optional" form:"desired_slots" json:"desired_slots,omitempty" query:"desired_slots"`
+	DesiredState *string  `thrift:"desired_state,10,optional" form:"desired_state" json:"desired_state,omitempty" query:"desired_state"`
 }
 
 func NewUpdateNodeDaemonAgentConnectionRequest() *UpdateNodeDaemonAgentConnectionRequest {
@@ -51748,16 +51749,26 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) GetDesiredSlots() (v int32) {
 	return *p.DesiredSlots
 }
 
+var UpdateNodeDaemonAgentConnectionRequest_DesiredState_DEFAULT string
+
+func (p *UpdateNodeDaemonAgentConnectionRequest) GetDesiredState() (v string) {
+	if !p.IsSetDesiredState() {
+		return UpdateNodeDaemonAgentConnectionRequest_DesiredState_DEFAULT
+	}
+	return *p.DesiredState
+}
+
 var fieldIDToName_UpdateNodeDaemonAgentConnectionRequest = map[int16]string{
-	1: "user_id",
-	2: "node_id",
-	3: "connection_id",
-	4: "command_id",
-	5: "name",
-	6: "harness",
-	7: "command",
-	8: "working_dir",
-	9: "desired_slots",
+	1:  "user_id",
+	2:  "node_id",
+	3:  "connection_id",
+	4:  "command_id",
+	5:  "name",
+	6:  "harness",
+	7:  "command",
+	8:  "working_dir",
+	9:  "desired_slots",
+	10: "desired_state",
 }
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetUserID() bool {
@@ -51794,6 +51805,10 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetWorkingDir() bool {
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetDesiredSlots() bool {
 	return p.DesiredSlots != nil
+}
+
+func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetDesiredState() bool {
+	return p.DesiredState != nil
 }
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -51882,6 +51897,14 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) Read(iprot thrift.TProtocol) (e
 		case 9:
 			if fieldTypeId == thrift.I32 {
 				if err = p.ReadField9(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 10:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField10(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -52027,6 +52050,17 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) ReadField9(iprot thrift.TProtoc
 	p.DesiredSlots = _field
 	return nil
 }
+func (p *UpdateNodeDaemonAgentConnectionRequest) ReadField10(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.DesiredState = _field
+	return nil
+}
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -52068,6 +52102,10 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) Write(oprot thrift.TProtocol) (
 		}
 		if err = p.writeField9(oprot); err != nil {
 			fieldId = 9
+			goto WriteFieldError
+		}
+		if err = p.writeField10(oprot); err != nil {
+			fieldId = 10
 			goto WriteFieldError
 		}
 	}
@@ -52265,6 +52303,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 9 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 9 end error: ", p), err)
+}
+
+func (p *UpdateNodeDaemonAgentConnectionRequest) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDesiredState() {
+		if err = oprot.WriteFieldBegin("desired_state", thrift.STRING, 10); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.DesiredState); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 end error: ", p), err)
 }
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) String() string {

@@ -442,6 +442,7 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 		harness := " claude "
 		workingDir := " /project "
 		desiredSlots := 4
+		desiredState := " running "
 
 		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 		store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
@@ -459,6 +460,7 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 				Harness:      &harness,
 				WorkingDir:   &workingDir,
 				DesiredSlots: &desiredSlots,
+				DesiredState: &desiredState,
 			},
 		)
 
@@ -476,6 +478,7 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 				"command":       []string{"claude", "--acp"},
 				"working_dir":   "/project",
 				"desired_slots": 4,
+				"desired_state": "running",
 			},
 		}, client.command)
 	})
@@ -533,6 +536,38 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 				ConnectionID: "conn_1",
 				CommandID:    "cmd_update_1",
 				DesiredSlots: &desiredSlots,
+			},
+		)
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+		require.Zero(t, client.commandCalls)
+	})
+
+	t.Run("rejects an invalid desired state before dispatch", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		client := &fakeNodeControlClient{remoteID: "remote_prod"}
+		desiredState := "deleted"
+
+		svc := userapi.NewService(
+			userapimocks.NewMockStore(t),
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		svc.SetNodeControlClient(client)
+		_, _, err := svc.UpdateNodeDaemonAgentConnection(
+			ctx,
+			auth.RequestMetadata{},
+			domain.UpdateNodeDaemonAgentConnectionRequest{
+				NodeID:       "node_1",
+				ConnectionID: "conn_1",
+				CommandID:    "cmd_update_1",
+				DesiredState: &desiredState,
 			},
 		)
 

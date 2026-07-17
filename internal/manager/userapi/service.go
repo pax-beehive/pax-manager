@@ -988,6 +988,9 @@ func (s *Service) UpdateNodeDaemonAgentConnection(
 	if err := validateOptionalNodeDaemonDesiredSlots(req.DesiredSlots); err != nil {
 		return 0, nil, err
 	}
+	if err := validateOptionalNodeDaemonDesiredState(req.DesiredState); err != nil {
+		return 0, nil, err
+	}
 	node, err := s.store.GetNode(c, principal, req.NodeID)
 	if err != nil {
 		return 0, nil, err
@@ -1043,6 +1046,7 @@ func (s *Service) UpdateNodeDaemonAgentConnection(
 		update["working_dir"] = strings.TrimSpace(*req.WorkingDir)
 	}
 	setNodeDaemonDesiredSlots(update, req.DesiredSlots)
+	setNodeDaemonDesiredState(update, req.DesiredState)
 	data := map[string]any{
 		"connection_id":   req.ConnectionID,
 		"command_id":      req.CommandID,
@@ -1088,7 +1092,27 @@ func setNodeDaemonDesiredSlots(update map[string]any, desiredSlots *int) {
 
 func hasNodeDaemonAgentConnectionUpdate(req domain.UpdateNodeDaemonAgentConnectionRequest) bool {
 	return req.Name != nil || req.Harness != nil || req.Command != nil ||
-		req.WorkingDir != nil || req.DesiredSlots != nil
+		req.WorkingDir != nil || req.DesiredSlots != nil || req.DesiredState != nil
+}
+
+func validateOptionalNodeDaemonDesiredState(desiredState *string) error {
+	if desiredState == nil {
+		return nil
+	}
+	state := strings.TrimSpace(*desiredState)
+	if state != "running" && state != "stopped" {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "desired_state must be running or stopped",
+		}
+	}
+	return nil
+}
+
+func setNodeDaemonDesiredState(update map[string]any, desiredState *string) {
+	if desiredState != nil {
+		update["desired_state"] = strings.TrimSpace(*desiredState)
+	}
 }
 
 func (s *Service) StopNodeDaemonAgentConnection(

@@ -1099,6 +1099,7 @@ struct UpdateNodeDaemonAgentConnectionRequest {
   7: optional list<string> command
   8: optional string working_dir
   9: optional i32 desired_slots
+  10: optional string desired_state
 }
 
 struct NodeDaemonCommandData {
