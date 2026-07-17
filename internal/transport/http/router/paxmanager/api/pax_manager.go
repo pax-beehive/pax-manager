@@ -153,6 +153,10 @@ func Register(r *server.Hertz) {
 									_commands := _daemon.Group("/commands", _commandsMw()...)
 									_commands.GET("/:command_id", append(_getnodedaemoncommandMw(), handler.GetNodeDaemonCommand)...)
 								}
+								{
+									_harnesses := _daemon.Group("/harnesses", _harnessesMw()...)
+									_harnesses.POST("/discover", append(_discovernodedaemonharnessesMw(), handler.DiscoverNodeDaemonHarnesses)...)
+								}
 							}
 						}
 					}
