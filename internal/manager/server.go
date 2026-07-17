@@ -32,20 +32,21 @@ type Service struct {
 		Flush(context.Context) error
 		Close(context.Context) error
 	}
-	clock            func() time.Time
-	agentWS          *AgentWSHub
-	acpTunnels       *ACPTunnelHub
-	nodeControls     *NodeControlHub
-	acpRuntime       *acpRuntimeProjector
-	maxBodyBytes     int64
-	apiLimiter       *rateLimiter
-	registerLimiter  *rateLimiter
-	auth             *auth.Service
-	secrets          auth.Secrets
-	paxd             *paxd.Service
-	userapi          *userapi.Service
-	paxdArtifacts    paxdArtifactBackend
-	backgroundRunner func(context.Context, func(context.Context))
+	clock             func() time.Time
+	agentWS           *AgentWSHub
+	acpTunnels        *ACPTunnelHub
+	nodeControls      *NodeControlHub
+	conversationTurns *conversationTurnQueue
+	acpRuntime        *acpRuntimeProjector
+	maxBodyBytes      int64
+	apiLimiter        *rateLimiter
+	registerLimiter   *rateLimiter
+	auth              *auth.Service
+	secrets           auth.Secrets
+	paxd              *paxd.Service
+	userapi           *userapi.Service
+	paxdArtifacts     paxdArtifactBackend
+	backgroundRunner  func(context.Context, func(context.Context))
 }
 
 type Server = Service
@@ -111,6 +112,7 @@ func newServer(cfg Config, store Store) *Service {
 			go task(context.WithoutCancel(ctx))
 		},
 	}
+	s.conversationTurns = newConversationTurnQueue(func() time.Time { return s.clock().UTC() })
 	s.acpRuntime = newACPRuntimeProjector(store, func() time.Time { return s.clock() })
 	authService := auth.NewService(store, store, serviceAdminPolicy{s: s}, secrets, auth.Config{
 		RegistrationToken:      cfg.RegistrationToken,
@@ -320,6 +322,34 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.GET(
 		routeUserSessionACPTunnel,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleUserACPTunnel)),
+	)
+	h.POST(
+		routeUserSessionTurnStop,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleConversationTurnStop)),
+	)
+	h.GET(
+		routeUserSessionTurnQueue,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleConversationTurnQueue)),
+	)
+	h.POST(
+		routeUserSessionTurnQueue,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleConversationTurnQueue)),
+	)
+	h.PATCH(
+		routeUserSessionTurnQueue,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleConversationTurnQueue)),
+	)
+	h.DELETE(
+		routeUserSessionTurnQueue,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleConversationTurnQueue)),
+	)
+	h.POST(
+		routeUserSessionTurnSteer,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleConversationTurnSteer)),
+	)
+	h.GET(
+		routeUserSessionEvents,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleSessionObserverEvents)),
 	)
 	h.POST(
 		routeUserConversation,

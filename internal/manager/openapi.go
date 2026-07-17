@@ -367,6 +367,158 @@ func addACPWebSocketPaths(doc map[string]any) {
 		},
 	}
 	paths[openAPIUserSessionACPTunnelPath] = v1UserSessionTunnelGET
+
+	turnControlParameters := []map[string]any{
+		{
+			"name":        "user_id",
+			"in":          "path",
+			"required":    true,
+			"schema":      map[string]string{"type": "string"},
+			"description": "User ID or self.",
+		},
+		{
+			"name":        "agent_id",
+			"in":          "path",
+			"required":    true,
+			"schema":      map[string]string{"type": "string"},
+			"description": "Agent ID to control.",
+		},
+		{
+			"name":        "session_id",
+			"in":          "path",
+			"required":    true,
+			"schema":      map[string]string{"type": "string"},
+			"description": "Manager session ID to control.",
+		},
+	}
+	turnCommandParameters := append([]map[string]any{}, turnControlParameters...)
+	turnCommandParameters = append(turnCommandParameters, map[string]any{
+		"name":        "Idempotency-Key",
+		"in":          "header",
+		"required":    false,
+		"schema":      map[string]string{"type": "string"},
+		"description": "Client supplied command id for request tracing.",
+	})
+	turnPromptBody := map[string]any{
+		"required": true,
+		"content": map[string]any{
+			"application/json": map[string]any{
+				"schema": map[string]any{
+					"type":     "object",
+					"required": []string{"input"},
+					"properties": map[string]any{
+						"input": map[string]string{"type": "string"},
+					},
+				},
+			},
+		},
+	}
+	paths[openAPIUserSessionTurnStopPath] = map[string]any{
+		"post": map[string]any{
+			"tags":        []string{"ACP"},
+			"summary":     "Stop the active ACP turn for a session",
+			"description": "Sends ACP session/cancel for the current active prompt turn.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  turnCommandParameters,
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Stop request accepted or no active turn was present."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent, session, or tunnel was not found."},
+				"409": map[string]string{"description": "Session belongs to a different agent."},
+			},
+		},
+	}
+	paths[openAPIUserSessionTurnQueuePath] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"ACP"},
+			"summary":     "Get the queued ACP prompt turn",
+			"description": "Returns the replaceable pending prompt for the session, or null data when no prompt is queued.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  turnControlParameters,
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Current pending prompt or null data."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent or session was not found."},
+			},
+		},
+		"post": map[string]any{
+			"tags":        []string{"ACP"},
+			"summary":     "Queue the next ACP prompt turn",
+			"description": "Stores one replaceable pending prompt for the active session.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  turnCommandParameters,
+			"requestBody": turnPromptBody,
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Pending prompt queued or replaced."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent or session was not found."},
+				"409": map[string]string{"description": "Session has no active turn."},
+			},
+		},
+		"patch": map[string]any{
+			"tags":        []string{"ACP"},
+			"summary":     "Update the queued ACP prompt turn",
+			"description": "Updates the existing process-local pending prompt.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  turnCommandParameters,
+			"requestBody": turnPromptBody,
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Pending prompt updated."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent, session, or queued turn was not found."},
+			},
+		},
+		"delete": map[string]any{
+			"tags":        []string{"ACP"},
+			"summary":     "Delete the queued ACP prompt turn",
+			"description": "Idempotently removes the process-local pending prompt for the session.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  turnCommandParameters,
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Pending prompt deleted or already absent."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent or session was not found."},
+			},
+		},
+	}
+	paths[openAPIUserSessionTurnSteerPath] = map[string]any{
+		"post": map[string]any{
+			"tags":        []string{"ACP"},
+			"summary":     "Steer the active ACP turn",
+			"description": "Sends ACP session/cancel for the active prompt and stores one pending prompt to send after cancellation completes.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  turnCommandParameters,
+			"requestBody": turnPromptBody,
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Steer request accepted."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent, session, or tunnel was not found."},
+				"409": map[string]string{"description": "Session has no active turn."},
+			},
+		},
+	}
+	sessionObserverParameters := append([]map[string]any{}, turnControlParameters...)
+	sessionObserverParameters = append(sessionObserverParameters, map[string]any{
+		"name":        "after_message_id",
+		"in":          "query",
+		"required":    false,
+		"schema":      map[string]string{"type": "string"},
+		"description": "Global message_id used as a trim hint for replay buffers.",
+	})
+	paths[openAPIUserSessionEventsPath] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"ACP"},
+			"summary":     "Observe the active ACP turn for a session",
+			"description": "Streams live active-turn ACP events as SSE, or no_running_turn when the session is idle.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  sessionObserverParameters,
+			"responses": map[string]any{
+				"200": map[string]string{"description": "SSE stream of active turn observer events."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent or session was not found."},
+			},
+		},
+	}
 }
 
 func addPaxdArtifactPaths(doc map[string]any) {

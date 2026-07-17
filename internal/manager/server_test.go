@@ -107,6 +107,10 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/v1/node/agents/register",
 		"/api/v1/user/{user_id}/agents/{agent_id}/tunnel",
 		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel",
+		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/stop",
+		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/queue",
+		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/steer",
+		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events",
 		"/api/v1/node/conversation/deliver",
 		"/api/v1/public/artifacts/download",
 		"/api/v1/public/paxd/download",
@@ -2098,6 +2102,241 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 		}
 	}
 	requireConversationEvent(t, events, "done")
+}
+
+func TestConversationTurnStopSendsSessionCancelForActivePrompt(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-stop", "native-stop")
+	require.NoError(t, srv.store.UpdateSessionRuntimeState(t.Context(), domain.SessionRuntimeState{
+		NodeID:                fixture.nodeID,
+		AgentID:               fixture.agentID,
+		SessionID:             "sess-stop",
+		Lifecycle:             domain.RuntimeLifecycleRunning,
+		ActivePromptRequestID: "42",
+		ActiveTurnID:          "42",
+		UpdatedAt:             time.Now().UTC(),
+	}))
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/agents/"+fixture.agentID+"/sessions/sess-stop/turn/stop",
+		bytes.NewReader([]byte(`{"reason":"user_requested"}`)),
+	)
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	req.Header.Set("Idempotency-Key", "cmd_stop_1")
+	setJSON(req)
+	rec := httptest.NewRecorder()
+	srv.handleConversationTurnStop(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	body := decodeData[conversationTurnStopResponse](t, rec.Body.Bytes())
+	assert.Equal(t, turnStopEffectCancelling, body.Effect)
+	assert.Equal(t, "cmd_stop_1", body.CommandID)
+	assert.Equal(t, "42", body.ActivePromptRequestID)
+
+	cancelEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, cancelEnv.Payload, "session/cancel")
+	assertFrameSessionID(t, cancelEnv.Payload, "native-stop")
+
+	updated, err := srv.store.GetSession(
+		t.Context(),
+		testUserPrincipal(t, srv, fixture.userEmail),
+		"sess-stop",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, updated.RuntimeState)
+	assert.Equal(t, domain.RuntimeLifecycleCancelling, updated.RuntimeState.Lifecycle)
+	assert.Equal(t, "42", updated.RuntimeState.ActivePromptRequestID)
+}
+
+func TestConversationTurnQueueCRUDGivenQueuedTurnWhenReadUpdatedAndDeletedThenReflectsCurrentState(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-queue-crud", "native-queue-crud")
+	require.NoError(t, srv.store.UpdateSessionRuntimeState(t.Context(), domain.SessionRuntimeState{
+		NodeID:                fixture.nodeID,
+		AgentID:               fixture.agentID,
+		SessionID:             "sess-queue-crud",
+		Lifecycle:             domain.RuntimeLifecycleRunning,
+		ActivePromptRequestID: "7",
+		ActiveTurnID:          "7",
+		UpdatedAt:             time.Now().UTC(),
+	}))
+	queueURL := "/api/v1/user/self/agents/" + fixture.agentID +
+		"/sessions/sess-queue-crud/turn/queue"
+
+	postResp := doConversationTurnQueueRequest(
+		t,
+		srv,
+		fixture,
+		http.MethodPost,
+		queueURL,
+		"cmd_create",
+		`{"input":"queued draft"}`,
+	)
+	require.Equal(t, http.StatusOK, postResp.Code, postResp.Body.String())
+	created := decodeData[conversationTurnQueueResponse](t, postResp.Body.Bytes())
+	assert.Equal(t, turnQueueEffectQueued, created.Effect)
+	require.NotEmpty(t, created.QueuedTurnID)
+
+	getResp := doConversationTurnQueueRequest(t, srv, fixture, http.MethodGet, queueURL, "", "")
+	require.Equal(t, http.StatusOK, getResp.Code, getResp.Body.String())
+	got := decodeData[conversationQueuedTurn](t, getResp.Body.Bytes())
+	assert.Equal(t, created.QueuedTurnID, got.TurnID)
+	assert.Equal(t, "queued draft", got.Input)
+
+	patchResp := doConversationTurnQueueRequest(
+		t,
+		srv,
+		fixture,
+		http.MethodPatch,
+		queueURL,
+		"cmd_update",
+		`{"input":"queued updated"}`,
+	)
+	require.Equal(t, http.StatusOK, patchResp.Code, patchResp.Body.String())
+	updated := decodeData[conversationQueuedTurn](t, patchResp.Body.Bytes())
+	assert.Equal(t, created.QueuedTurnID, updated.TurnID)
+	assert.Equal(t, "cmd_update", updated.CommandID)
+	assert.Equal(t, "queued updated", updated.Input)
+
+	deleteResp := doConversationTurnQueueRequest(t, srv, fixture, http.MethodDelete, queueURL, "cmd_delete", "")
+	require.Equal(t, http.StatusOK, deleteResp.Code, deleteResp.Body.String())
+	deleted := decodeData[conversationTurnQueueDeleteResponse](t, deleteResp.Body.Bytes())
+	assert.Equal(t, turnQueueDeleteEffectDeleted, deleted.Effect)
+	assert.Equal(t, created.QueuedTurnID, deleted.QueuedTurnID)
+
+	emptyResp := doConversationTurnQueueRequest(t, srv, fixture, http.MethodGet, queueURL, "", "")
+	require.Equal(t, http.StatusOK, emptyResp.Code, emptyResp.Body.String())
+	var emptyEnvelope struct {
+		Data *conversationQueuedTurn `json:"data"`
+	}
+	require.NoError(t, json.NewDecoder(emptyResp.Body).Decode(&emptyEnvelope))
+	assert.Nil(t, emptyEnvelope.Data)
+}
+
+func TestConversationTurnQueueReplacesDraftAndDrainsAfterActivePrompt(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-queue", "native-queue")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/turn/queue") {
+			srv.handleConversationTurnQueue(w, r)
+			return
+		}
+		srv.handleConversation(w, r)
+	})
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"session_id":"sess-queue","input":"first prompt"}`,
+		respCh,
+		errCh,
+	)
+
+	firstPromptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, firstPromptEnv.Payload, "session/prompt")
+	assertFrameSessionID(t, firstPromptEnv.Payload, "native-queue")
+	require.Contains(t, string(firstPromptEnv.Payload), "first prompt")
+	firstPromptID := acpPayloadRequestID(t, firstPromptEnv.Payload)
+
+	queueURL := httpServer.URL + "/api/v1/user/self/agents/" + fixture.agentID +
+		"/sessions/sess-queue/turn/queue"
+	firstQueue := postConversationTurnControlHTTP[conversationTurnQueueResponse](
+		t,
+		fixture,
+		queueURL,
+		"cmd_queue_1",
+		`{"input":"queued draft"}`,
+	)
+	assert.Equal(t, turnQueueEffectQueued, firstQueue.Effect)
+	replacedQueue := postConversationTurnControlHTTP[conversationTurnQueueResponse](
+		t,
+		fixture,
+		queueURL,
+		"cmd_queue_2",
+		`{"input":"queued updated"}`,
+	)
+	assert.Equal(t, turnQueueEffectReplaced, replacedQueue.Effect)
+	assert.Equal(t, firstQueue.QueuedTurnID, replacedQueue.QueuedTurnID)
+
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		firstPromptEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":`+firstPromptID+`,"result":{"stopReason":"end_turn"}}`),
+	)
+	queuedPromptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, queuedPromptEnv.Payload, "session/prompt")
+	assertFrameSessionID(t, queuedPromptEnv.Payload, "native-queue")
+	require.Contains(t, string(queuedPromptEnv.Payload), "queued updated")
+	require.NotContains(t, string(queuedPromptEnv.Payload), "queued draft")
+	queuedPromptID := acpPayloadRequestID(t, queuedPromptEnv.Payload)
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		queuedPromptEnv.QueueID,
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":`+queuedPromptID+`,"result":{"stopReason":"end_turn"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	requireConversationEvent(t, events, "done")
+}
+
+func TestSessionObserverGivenIdleSessionWhenOpenedThenReturnsNoRunningTurn(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-observer-idle", "native-observer-idle")
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agents/"+fixture.agentID+"/sessions/sess-observer-idle/events",
+		nil,
+	)
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	rec := httptest.NewRecorder()
+	srv.handleSessionObserverEvents(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
+	assert.Contains(t, rec.Body.String(), `"type":"no_running_turn"`)
+	assert.Contains(t, rec.Body.String(), `"session_id":"sess-observer-idle"`)
 }
 
 func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
@@ -4843,6 +5082,67 @@ func postConversationRecorder(
 	rec := httptest.NewRecorder()
 	srv.handleConversation(rec, req)
 	return rec
+}
+
+func doConversationTurnQueueRequest(
+	t *testing.T,
+	srv *Server,
+	fixture conversationTestFixture,
+	method string,
+	url string,
+	idempotencyKey string,
+	body string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	var requestBody io.Reader
+	if body != "" {
+		requestBody = strings.NewReader(body)
+	}
+	req := httptest.NewRequest(method, url, requestBody)
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	if idempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", idempotencyKey)
+	}
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	rec := httptest.NewRecorder()
+	srv.handleConversationTurnQueue(rec, req)
+	return rec
+}
+
+func postConversationTurnControlHTTP[T any](
+	t *testing.T,
+	fixture conversationTestFixture,
+	url string,
+	idempotencyKey string,
+	body string,
+) T {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	req.Header.Set("Idempotency-Key", idempotencyKey)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(raw))
+	var envelope struct {
+		Data T `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &envelope))
+	return envelope.Data
+}
+
+func acpPayloadRequestID(t *testing.T, payload json.RawMessage) string {
+	t.Helper()
+	var frame acpJSONRPCMessage
+	require.NoError(t, json.Unmarshal(payload, &frame))
+	require.NotEmpty(t, frame.ID)
+	return string(frame.ID)
 }
 
 func readConversationResponse(
