@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -32,4 +33,18 @@ func TestDeliveryConversationTurnMetadataGivenWrappedReplyThenDisplayTextUsesRep
 	assert.Equal(t, wrapped, meta.Content.OriginalText)
 	assert.NotContains(t, meta.Content.DisplayText, "Your Pax conversation inquiry has received a reply")
 	assert.Contains(t, meta.Content.OriginalText, "Reply:\n"+reply)
+}
+
+func TestAgentConversationMCPServersUsePortablePaxdCommand(t *testing.T) {
+	servers := agentConversationMCPServers(domain.AgentSession{
+		AgentID:   "agent_1",
+		SessionID: "sess_1",
+	})
+
+	require.Len(t, servers, 1)
+	server, ok := servers[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "pax-conversation", server["name"])
+	assert.Equal(t, "paxd", server["command"])
+	assert.Equal(t, []string{"mcp", "conversation", "serve"}, server["args"])
 }
