@@ -1845,6 +1845,51 @@
         },
         "type": "object"
       },
+      "NodeDaemonCommandData": {
+        "properties": {
+          "command_ack": {
+            "type": "object"
+          },
+          "command_id": {
+            "type": "string"
+          },
+          "command_status": {
+            "type": "string"
+          },
+          "connection_id": {
+            "type": "string"
+          },
+          "desired_generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "dispatch_error": {
+            "type": "string"
+          },
+          "dispatch_status": {
+            "type": "string"
+          },
+          "remote_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NodeDaemonCommandResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NodeDaemonCommandData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "NodeDaemonQueryResponse": {
         "properties": {
           "code": {
@@ -2652,6 +2697,38 @@
             "type": "string"
           },
           "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateNodeDaemonAgentConnectionRequest": {
+        "properties": {
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "command_id": {
+            "type": "string"
+          },
+          "connection_id": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "working_dir": {
             "type": "string"
           }
         },
@@ -7725,6 +7802,121 @@
           }
         ],
         "summary": "Create node daemon agent connection",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}": {
+      "patch": {
+        "description": "Forwards agent_connection.update to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Agent connection identifier.",
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeDaemonAgentConnectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonCommandResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update node daemon agent connection",
         "tags": [
           "user"
         ]

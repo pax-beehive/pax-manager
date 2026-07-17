@@ -375,6 +375,101 @@ func TestCreateNodeDaemonAgentConnection(t *testing.T) {
 	})
 }
 
+func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
+	t.Run("resolves changed harness and dispatches update", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		secrets := userapimocks.NewMockSecretIssuer(t)
+		client := &fakeNodeControlClient{
+			remoteID: "remote_prod",
+			result: json.RawMessage(`{
+				"type":"harnesses.list",
+				"harnesses":{"items":[{
+					"harness":"claude",
+					"state":"available",
+					"command":["claude","--acp"]
+				}]}
+			}`),
+			commandAck: json.RawMessage(`{
+				"command_id":"cmd_update_1",
+				"ok":true,
+				"status":"received",
+				"target_id":"conn_1",
+				"desired_generation":2
+			}`),
+		}
+		harness := " claude "
+		workingDir := " /project "
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+		secrets.EXPECT().New("ctlq").Return("ctlq_harnesses_1", nil).Once()
+
+		svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+		svc.SetNodeControlClient(client)
+		status, rawData, err := svc.UpdateNodeDaemonAgentConnection(
+			ctx,
+			auth.RequestMetadata{},
+			domain.UpdateNodeDaemonAgentConnectionRequest{
+				NodeID:       "node_1",
+				ConnectionID: "conn_1",
+				CommandID:    "cmd_update_1",
+				Harness:      &harness,
+				WorkingDir:   &workingDir,
+			},
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusAccepted, status)
+		data := rawData.(map[string]any)
+		require.Equal(t, "received", data["command_status"])
+		require.Equal(t, int64(2), data["desired_generation"])
+		require.Equal(t, map[string]any{
+			"command_id": "cmd_update_1",
+			"type":       "agent_connection.update",
+			"update_agent_connection": map[string]any{
+				"connection_id": "conn_1",
+				"harness":       "claude",
+				"command":       []string{"claude", "--acp"},
+				"working_dir":   "/project",
+			},
+		}, client.command)
+	})
+
+	t.Run("rejects an update without fields before dispatch", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		client := &fakeNodeControlClient{remoteID: "remote_prod"}
+
+		svc := userapi.NewService(
+			userapimocks.NewMockStore(t),
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		svc.SetNodeControlClient(client)
+		_, _, err := svc.UpdateNodeDaemonAgentConnection(
+			ctx,
+			auth.RequestMetadata{},
+			domain.UpdateNodeDaemonAgentConnectionRequest{
+				NodeID:       "node_1",
+				ConnectionID: "conn_1",
+				CommandID:    "cmd_update_1",
+			},
+		)
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+		require.Zero(t, client.commandCalls)
+	})
+}
+
 func TestCreateRegistrationToken(t *testing.T) {
 	t.Run(
 		"Given a non-admin principal when minting for another user then it returns forbidden before loading that user",

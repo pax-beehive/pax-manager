@@ -895,7 +895,7 @@ func (s *Service) CreateNodeDaemonAgentConnection(
 		"remote_id":         remoteID,
 		"dispatch_status":   "unknown",
 	}
-	ackRaw, dispatchErr := s.nodeControl.Command(c, node.NodeID, req.CommandID, map[string]any{
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
 		"command_id": req.CommandID,
 		"type":       "agent_connection.create",
 		"create_agent_connection": map[string]any{
@@ -909,7 +909,108 @@ func (s *Service) CreateNodeDaemonAgentConnection(
 			"working_dir":    strings.TrimSpace(req.WorkingDir),
 			"desired_state":  "running",
 		},
-	})
+	}, data)
+}
+
+func (s *Service) UpdateNodeDaemonAgentConnection(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.UpdateNodeDaemonAgentConnectionRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.ConnectionID = strings.TrimSpace(req.ConnectionID)
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	if req.NodeID == "" || req.ConnectionID == "" || req.CommandID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id, connection_id, and command_id are required",
+		}
+	}
+	if req.Name == nil && req.Harness == nil && req.Command == nil && req.WorkingDir == nil {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "at least one update field is required",
+		}
+	}
+	node, err := s.store.GetNode(c, principal, req.NodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if s.nodeControl == nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+
+	update := map[string]any{"connection_id": req.ConnectionID}
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "name cannot be empty",
+			}
+		}
+		update["name"] = name
+	}
+	if req.Harness != nil {
+		harness := strings.TrimSpace(*req.Harness)
+		if harness == "" {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "harness cannot be empty",
+			}
+		}
+		var explicit []string
+		if req.Command != nil {
+			explicit = *req.Command
+		}
+		command, err := s.resolveNodeDaemonHarnessCommand(c, node.NodeID, harness, explicit)
+		if err != nil {
+			return 0, nil, err
+		}
+		update["harness"] = harness
+		update["command"] = command
+	} else if req.Command != nil {
+		command := normalizedNodeDaemonCommand(*req.Command)
+		if len(command) == 0 {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "command cannot be empty",
+			}
+		}
+		update["command"] = command
+	}
+	if req.WorkingDir != nil {
+		update["working_dir"] = strings.TrimSpace(*req.WorkingDir)
+	}
+	data := map[string]any{
+		"connection_id":   req.ConnectionID,
+		"command_id":      req.CommandID,
+		"remote_id":       remoteID,
+		"dispatch_status": "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id":              req.CommandID,
+		"type":                    "agent_connection.update",
+		"update_agent_connection": update,
+	}, data)
+}
+
+func (s *Service) dispatchNodeDaemonCommand(
+	c context.Context,
+	nodeID string,
+	commandID string,
+	command any,
+	data map[string]any,
+) (int, any, error) {
+	ackRaw, dispatchErr := s.nodeControl.Command(c, nodeID, commandID, command)
 	if dispatchErr != nil {
 		data["dispatch_error"] = dispatchErr.Error()
 		return http.StatusAccepted, data, nil
