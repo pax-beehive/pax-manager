@@ -149,6 +149,10 @@ func Register(r *server.Hertz) {
 										_connection_id.POST("/stop", append(_stopnodedaemonagentconnectionMw(), handler.StopNodeDaemonAgentConnection)...)
 									}
 								}
+								{
+									_commands := _daemon.Group("/commands", _commandsMw()...)
+									_commands.GET("/:command_id", append(_getnodedaemoncommandMw(), handler.GetNodeDaemonCommand)...)
+								}
 							}
 						}
 					}

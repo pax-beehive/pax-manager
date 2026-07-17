@@ -678,6 +678,27 @@ func (s *Service) ListNodeDaemonAgentConnections(
 	})
 }
 
+func (s *Service) GetNodeDaemonCommand(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+	commandID string,
+) (int, any, error) {
+	commandID = strings.TrimSpace(commandID)
+	if commandID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "command_id is required",
+		}
+	}
+	return s.queryNodeDaemon(c, meta, nodeID, map[string]any{
+		"type": "command.get",
+		"get_command": map[string]any{
+			"command_id": commandID,
+		},
+	})
+}
+
 func (s *Service) queryNodeDaemon(
 	c context.Context,
 	meta auth.RequestMetadata,

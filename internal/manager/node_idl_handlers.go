@@ -286,6 +286,16 @@ func RemoveNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext)
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func GetNodeDaemonCommand(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.GetNodeDaemonCommand(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("node_id"),
+		ctx.Param("command_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func UpdateNode(c context.Context, ctx *app.RequestContext) {
 	var req UpdateNodeRequest
 	decodeBody(ctx, &req)
