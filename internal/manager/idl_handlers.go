@@ -179,12 +179,13 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 }
 
 var generatedNodeDaemonHandlerBridge = map[string]generatedHandlerFunc{
-	"CreateNodeDaemonAgentConnection": CreateNodeDaemonAgentConnection,
-	"GetNodeDaemonStatus":             GetNodeDaemonStatus,
-	"ListNodeDaemonAgentConnections":  ListNodeDaemonAgentConnections,
-	"ListNodeDaemonHarnesses":         ListNodeDaemonHarnesses,
-	"StopNodeDaemonAgentConnection":   StopNodeDaemonAgentConnection,
-	"UpdateNodeDaemonAgentConnection": UpdateNodeDaemonAgentConnection,
+	"CreateNodeDaemonAgentConnection":  CreateNodeDaemonAgentConnection,
+	"GetNodeDaemonStatus":              GetNodeDaemonStatus,
+	"ListNodeDaemonAgentConnections":   ListNodeDaemonAgentConnections,
+	"ListNodeDaemonHarnesses":          ListNodeDaemonHarnesses,
+	"RestartNodeDaemonAgentConnection": RestartNodeDaemonAgentConnection,
+	"StopNodeDaemonAgentConnection":    StopNodeDaemonAgentConnection,
+	"UpdateNodeDaemonAgentConnection":  UpdateNodeDaemonAgentConnection,
 }
 
 func (s *Service) HandleGenerated(c context.Context, ctx *app.RequestContext, name string) {
