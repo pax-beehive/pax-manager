@@ -49988,15 +49988,16 @@ func (p *NodeDaemonQueryResponse) String() string {
 }
 
 type CreateNodeDaemonAgentConnectionRequest struct {
-	UserID     *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
-	NodeID     *string  `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
-	CommandID  *string  `thrift:"command_id,3,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
-	Name       *string  `thrift:"name,4,optional" form:"name" json:"name,omitempty" query:"name"`
-	AgentType  *string  `thrift:"agent_type,5,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
-	Harness    *string  `thrift:"harness,6,optional" form:"harness" json:"harness,omitempty" query:"harness"`
-	InstanceID *string  `thrift:"instance_id,7,optional" form:"instance_id" json:"instance_id,omitempty" query:"instance_id"`
-	Command    []string `thrift:"command,8,optional,list<string>" form:"command" json:"command,omitempty" query:"command"`
-	WorkingDir *string  `thrift:"working_dir,9,optional" form:"working_dir" json:"working_dir,omitempty" query:"working_dir"`
+	UserID       *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID       *string  `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	CommandID    *string  `thrift:"command_id,3,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
+	Name         *string  `thrift:"name,4,optional" form:"name" json:"name,omitempty" query:"name"`
+	AgentType    *string  `thrift:"agent_type,5,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
+	Harness      *string  `thrift:"harness,6,optional" form:"harness" json:"harness,omitempty" query:"harness"`
+	InstanceID   *string  `thrift:"instance_id,7,optional" form:"instance_id" json:"instance_id,omitempty" query:"instance_id"`
+	Command      []string `thrift:"command,8,optional,list<string>" form:"command" json:"command,omitempty" query:"command"`
+	WorkingDir   *string  `thrift:"working_dir,9,optional" form:"working_dir" json:"working_dir,omitempty" query:"working_dir"`
+	DesiredSlots *int32   `thrift:"desired_slots,10,optional" form:"desired_slots" json:"desired_slots,omitempty" query:"desired_slots"`
 }
 
 func NewCreateNodeDaemonAgentConnectionRequest() *CreateNodeDaemonAgentConnectionRequest {
@@ -50087,16 +50088,26 @@ func (p *CreateNodeDaemonAgentConnectionRequest) GetWorkingDir() (v string) {
 	return *p.WorkingDir
 }
 
+var CreateNodeDaemonAgentConnectionRequest_DesiredSlots_DEFAULT int32
+
+func (p *CreateNodeDaemonAgentConnectionRequest) GetDesiredSlots() (v int32) {
+	if !p.IsSetDesiredSlots() {
+		return CreateNodeDaemonAgentConnectionRequest_DesiredSlots_DEFAULT
+	}
+	return *p.DesiredSlots
+}
+
 var fieldIDToName_CreateNodeDaemonAgentConnectionRequest = map[int16]string{
-	1: "user_id",
-	2: "node_id",
-	3: "command_id",
-	4: "name",
-	5: "agent_type",
-	6: "harness",
-	7: "instance_id",
-	8: "command",
-	9: "working_dir",
+	1:  "user_id",
+	2:  "node_id",
+	3:  "command_id",
+	4:  "name",
+	5:  "agent_type",
+	6:  "harness",
+	7:  "instance_id",
+	8:  "command",
+	9:  "working_dir",
+	10: "desired_slots",
 }
 
 func (p *CreateNodeDaemonAgentConnectionRequest) IsSetUserID() bool {
@@ -50133,6 +50144,10 @@ func (p *CreateNodeDaemonAgentConnectionRequest) IsSetCommand() bool {
 
 func (p *CreateNodeDaemonAgentConnectionRequest) IsSetWorkingDir() bool {
 	return p.WorkingDir != nil
+}
+
+func (p *CreateNodeDaemonAgentConnectionRequest) IsSetDesiredSlots() bool {
+	return p.DesiredSlots != nil
 }
 
 func (p *CreateNodeDaemonAgentConnectionRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -50221,6 +50236,14 @@ func (p *CreateNodeDaemonAgentConnectionRequest) Read(iprot thrift.TProtocol) (e
 		case 9:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField9(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 10:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField10(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -50366,6 +50389,17 @@ func (p *CreateNodeDaemonAgentConnectionRequest) ReadField9(iprot thrift.TProtoc
 	p.WorkingDir = _field
 	return nil
 }
+func (p *CreateNodeDaemonAgentConnectionRequest) ReadField10(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.DesiredSlots = _field
+	return nil
+}
 
 func (p *CreateNodeDaemonAgentConnectionRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -50407,6 +50441,10 @@ func (p *CreateNodeDaemonAgentConnectionRequest) Write(oprot thrift.TProtocol) (
 		}
 		if err = p.writeField9(oprot); err != nil {
 			fieldId = 9
+			goto WriteFieldError
+		}
+		if err = p.writeField10(oprot); err != nil {
+			fieldId = 10
 			goto WriteFieldError
 		}
 	}
@@ -50604,6 +50642,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 9 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 9 end error: ", p), err)
+}
+
+func (p *CreateNodeDaemonAgentConnectionRequest) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDesiredSlots() {
+		if err = oprot.WriteFieldBegin("desired_slots", thrift.I32, 10); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.DesiredSlots); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 end error: ", p), err)
 }
 
 func (p *CreateNodeDaemonAgentConnectionRequest) String() string {
@@ -51600,6 +51657,7 @@ type UpdateNodeDaemonAgentConnectionRequest struct {
 	Harness      *string  `thrift:"harness,6,optional" form:"harness" json:"harness,omitempty" query:"harness"`
 	Command      []string `thrift:"command,7,optional,list<string>" form:"command" json:"command,omitempty" query:"command"`
 	WorkingDir   *string  `thrift:"working_dir,8,optional" form:"working_dir" json:"working_dir,omitempty" query:"working_dir"`
+	DesiredSlots *int32   `thrift:"desired_slots,9,optional" form:"desired_slots" json:"desired_slots,omitempty" query:"desired_slots"`
 }
 
 func NewUpdateNodeDaemonAgentConnectionRequest() *UpdateNodeDaemonAgentConnectionRequest {
@@ -51681,6 +51739,15 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) GetWorkingDir() (v string) {
 	return *p.WorkingDir
 }
 
+var UpdateNodeDaemonAgentConnectionRequest_DesiredSlots_DEFAULT int32
+
+func (p *UpdateNodeDaemonAgentConnectionRequest) GetDesiredSlots() (v int32) {
+	if !p.IsSetDesiredSlots() {
+		return UpdateNodeDaemonAgentConnectionRequest_DesiredSlots_DEFAULT
+	}
+	return *p.DesiredSlots
+}
+
 var fieldIDToName_UpdateNodeDaemonAgentConnectionRequest = map[int16]string{
 	1: "user_id",
 	2: "node_id",
@@ -51690,6 +51757,7 @@ var fieldIDToName_UpdateNodeDaemonAgentConnectionRequest = map[int16]string{
 	6: "harness",
 	7: "command",
 	8: "working_dir",
+	9: "desired_slots",
 }
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetUserID() bool {
@@ -51722,6 +51790,10 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetCommand() bool {
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetWorkingDir() bool {
 	return p.WorkingDir != nil
+}
+
+func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetDesiredSlots() bool {
+	return p.DesiredSlots != nil
 }
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -51802,6 +51874,14 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) Read(iprot thrift.TProtocol) (e
 		case 8:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField8(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 9:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField9(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -51936,6 +52016,17 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) ReadField8(iprot thrift.TProtoc
 	p.WorkingDir = _field
 	return nil
 }
+func (p *UpdateNodeDaemonAgentConnectionRequest) ReadField9(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.DesiredSlots = _field
+	return nil
+}
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -51973,6 +52064,10 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) Write(oprot thrift.TProtocol) (
 		}
 		if err = p.writeField8(oprot); err != nil {
 			fieldId = 8
+			goto WriteFieldError
+		}
+		if err = p.writeField9(oprot); err != nil {
+			fieldId = 9
 			goto WriteFieldError
 		}
 	}
@@ -52151,6 +52246,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 8 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 8 end error: ", p), err)
+}
+
+func (p *UpdateNodeDaemonAgentConnectionRequest) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDesiredSlots() {
+		if err = oprot.WriteFieldBegin("desired_slots", thrift.I32, 9); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.DesiredSlots); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 end error: ", p), err)
 }
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) String() string {

@@ -1559,15 +1559,16 @@ type CreateAgentRequest struct {
 }
 
 type CreateNodeDaemonAgentConnectionRequest struct {
-	UserID     string   `json:"user_id"`
-	NodeID     string   `json:"node_id"`
-	CommandID  string   `json:"command_id"`
-	Name       string   `json:"name"`
-	AgentType  string   `json:"agent_type"`
-	Harness    string   `json:"harness"`
-	InstanceID string   `json:"instance_id"`
-	Command    []string `json:"command"`
-	WorkingDir string   `json:"working_dir"`
+	UserID       string   `json:"user_id"`
+	NodeID       string   `json:"node_id"`
+	CommandID    string   `json:"command_id"`
+	Name         string   `json:"name"`
+	AgentType    string   `json:"agent_type"`
+	Harness      string   `json:"harness"`
+	InstanceID   string   `json:"instance_id"`
+	Command      []string `json:"command"`
+	WorkingDir   string   `json:"working_dir"`
+	DesiredSlots *int     `json:"desired_slots"`
 }
 
 type DiscoverNodeDaemonHarnessesRequest struct {
@@ -1586,6 +1587,7 @@ type UpdateNodeDaemonAgentConnectionRequest struct {
 	Harness      *string   `json:"harness"`
 	Command      *[]string `json:"command"`
 	WorkingDir   *string   `json:"working_dir"`
+	DesiredSlots *int      `json:"desired_slots"`
 }
 
 type NodeDaemonAgentConnectionActionRequest struct {

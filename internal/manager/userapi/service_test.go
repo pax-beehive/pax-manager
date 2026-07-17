@@ -324,6 +324,7 @@ func TestCreateNodeDaemonAgentConnection(t *testing.T) {
 				"command":        []string{"codex", "--acp"},
 				"working_dir":    "/workspace",
 				"desired_state":  "running",
+				"desired_slots":  2,
 			},
 		}, client.command)
 	})
@@ -440,6 +441,7 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 		}
 		harness := " claude "
 		workingDir := " /project "
+		desiredSlots := 4
 
 		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 		store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
@@ -456,6 +458,7 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 				CommandID:    "cmd_update_1",
 				Harness:      &harness,
 				WorkingDir:   &workingDir,
+				DesiredSlots: &desiredSlots,
 			},
 		)
 
@@ -472,6 +475,7 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 				"harness":       "claude",
 				"command":       []string{"claude", "--acp"},
 				"working_dir":   "/project",
+				"desired_slots": 4,
 			},
 		}, client.command)
 	})
@@ -497,6 +501,38 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 				NodeID:       "node_1",
 				ConnectionID: "conn_1",
 				CommandID:    "cmd_update_1",
+			},
+		)
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+		require.Zero(t, client.commandCalls)
+	})
+
+	t.Run("rejects an invalid desired slot count before dispatch", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		client := &fakeNodeControlClient{remoteID: "remote_prod"}
+		desiredSlots := 17
+
+		svc := userapi.NewService(
+			userapimocks.NewMockStore(t),
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		svc.SetNodeControlClient(client)
+		_, _, err := svc.UpdateNodeDaemonAgentConnection(
+			ctx,
+			auth.RequestMetadata{},
+			domain.UpdateNodeDaemonAgentConnectionRequest{
+				NodeID:       "node_1",
+				ConnectionID: "conn_1",
+				CommandID:    "cmd_update_1",
+				DesiredSlots: &desiredSlots,
 			},
 		)
 
