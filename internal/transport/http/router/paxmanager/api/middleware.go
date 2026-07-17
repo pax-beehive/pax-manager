@@ -506,3 +506,28 @@ func _updatenodeagentsessionMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _daemonMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnodedaemonagentconnectionsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnodedaemonharnessesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getnodedaemonstatusMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createnodedaemonagentconnectionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
