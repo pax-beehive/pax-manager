@@ -203,6 +203,43 @@ func TestNodeDaemonQueries(t *testing.T) {
 	})
 }
 
+func TestGetNodeDaemonCommand(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+	store := userapimocks.NewMockStore(t)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	secrets := userapimocks.NewMockSecretIssuer(t)
+	client := &fakeNodeControlClient{
+		result: json.RawMessage(`{
+			"type":"command.get",
+			"command":{"command_id":"cmd_1","status":"received"}
+		}`),
+	}
+
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+	secrets.EXPECT().New("ctlq").Return("ctlq_command_1", nil).Once()
+
+	svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+	svc.SetNodeControlClient(client)
+	status, _, err := svc.GetNodeDaemonCommand(
+		ctx,
+		auth.RequestMetadata{},
+		"node_1",
+		" cmd_1 ",
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, map[string]any{
+		"type": "command.get",
+		"get_command": map[string]any{
+			"command_id": "cmd_1",
+		},
+	}, client.query)
+}
+
 func TestCreateNodeDaemonAgentConnection(t *testing.T) {
 	t.Run("creates cloud agent and dispatches resolved harness command", func(t *testing.T) {
 		ctx := context.Background()

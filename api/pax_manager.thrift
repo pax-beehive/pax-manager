@@ -1116,6 +1116,12 @@ struct NodeDaemonAgentConnectionActionRequest {
   4: optional string command_id
 }
 
+struct GetNodeDaemonCommandRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string command_id (api.path = "command_id")
+}
+
 service PaxManagerAPI {
   HealthResponse Health(1: optional EmptyRequest request) (
     api.get = "/api/v1/health",
@@ -1425,6 +1431,19 @@ service PaxManagerAPI {
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier.",
     openapi.path.connection_id = "Agent connection identifier."
+  )
+
+  NodeDaemonQueryResponse GetNodeDaemonCommand(
+    1: optional GetNodeDaemonCommandRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/nodes/:node_id/daemon/commands/:command_id",
+    openapi.tag = "user",
+    openapi.summary = "Get node daemon command",
+    openapi.description = "Forwards command.get to the connected paxd control tunnel.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.command_id = "Command identifier."
   )
 
   NodeResponse UpdateNode(1: optional UpdateNodeRequest request) (

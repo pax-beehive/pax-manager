@@ -319,6 +319,182 @@ func TestCreateNodeDaemonAgentConnectionAPI(t *testing.T) {
 	require.Equal(t, "codex", createdAgent.AgentType)
 }
 
+func TestNodeDaemonAgentConnectionCommandAPIs(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+	waitNodeControlConnection(t, srv.nodeControls, registered.NodeID)
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{
+		"kind":"report",
+		"version":1,
+		"report_id":"rpt_command_api_identity",
+		"report":{
+			"type":"heartbeat",
+			"remote_id":"remote_prod",
+			"node_id":"`+registered.NodeID+`",
+			"heartbeat":{}
+		}
+	}`)))
+	waitNodeControlRemoteID(t, srv.nodeControls, registered.NodeID, "remote_prod")
+
+	connectionPath := "/api/v1/user/self/nodes/" + registered.NodeID +
+		"/daemon/agent-connections/conn_1"
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		body        string
+		commandID   string
+		wantCommand string
+	}{
+		{
+			name:      "update",
+			method:    http.MethodPatch,
+			path:      connectionPath,
+			body:      `{"command_id":"cmd_update_e2e","name":"renamed"}`,
+			commandID: "cmd_update_e2e",
+			wantCommand: `{
+				"command_id":"cmd_update_e2e",
+				"type":"agent_connection.update",
+				"update_agent_connection":{
+					"connection_id":"conn_1",
+					"name":"renamed"
+				}
+			}`,
+		},
+		{
+			name:      "stop",
+			method:    http.MethodPost,
+			path:      connectionPath + "/stop",
+			body:      `{"command_id":"cmd_stop_e2e"}`,
+			commandID: "cmd_stop_e2e",
+			wantCommand: `{
+				"command_id":"cmd_stop_e2e",
+				"type":"agent_connection.update",
+				"update_agent_connection":{
+					"connection_id":"conn_1",
+					"desired_state":"stopped"
+				}
+			}`,
+		},
+		{
+			name:      "restart",
+			method:    http.MethodPost,
+			path:      connectionPath + "/restart",
+			body:      `{"command_id":"cmd_restart_e2e"}`,
+			commandID: "cmd_restart_e2e",
+			wantCommand: `{
+				"command_id":"cmd_restart_e2e",
+				"type":"agent_connection.restart",
+				"restart_agent_connection":{"connection_id":"conn_1"}
+			}`,
+		},
+		{
+			name:      "remove",
+			method:    http.MethodDelete,
+			path:      connectionPath,
+			body:      `{"command_id":"cmd_remove_e2e"}`,
+			commandID: "cmd_remove_e2e",
+			wantCommand: `{
+				"command_id":"cmd_remove_e2e",
+				"type":"agent_connection.delete",
+				"delete_agent_connection":{"connection_id":"conn_1"}
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			setJSON(req)
+			req.Header.Set("X-User-Email", "todd@example.com")
+			rec := httptest.NewRecorder()
+			done := make(chan struct{})
+			go func() {
+				srv.routes().ServeHTTP(rec, req)
+				close(done)
+			}()
+
+			_, payload, err := ws.ReadMessage()
+			require.NoError(t, err)
+			var frame struct {
+				Kind      string          `json:"kind"`
+				CommandID string          `json:"command_id"`
+				Command   json.RawMessage `json:"command"`
+			}
+			require.NoError(t, json.Unmarshal(payload, &frame))
+			require.Equal(t, "command", frame.Kind)
+			require.Equal(t, tt.commandID, frame.CommandID)
+			require.JSONEq(t, tt.wantCommand, string(frame.Command))
+
+			ack := `{"kind":"ack","command_id":` + strconv.Quote(tt.commandID) +
+				`,"command_ack":{"command_id":` + strconv.Quote(tt.commandID) +
+				`,"ok":true,"status":"received","target_id":"conn_1",` +
+				`"desired_generation":2}}`
+			require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(ack)))
+			select {
+			case <-done:
+			case <-time.After(2 * time.Second):
+				t.Fatal("daemon command API did not complete")
+			}
+			require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+			data := decodeData[struct {
+				CommandID      string `json:"command_id"`
+				CommandStatus  string `json:"command_status"`
+				DispatchStatus string `json:"dispatch_status"`
+			}](t, rec.Body.Bytes())
+			require.Equal(t, tt.commandID, data.CommandID)
+			require.Equal(t, "received", data.CommandStatus)
+			require.Equal(t, "acknowledged", data.DispatchStatus)
+		})
+	}
+
+	commandID := "cmd_restart_e2e"
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/nodes/"+registered.NodeID+"/daemon/commands/"+commandID,
+		nil,
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		srv.routes().ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	_, payload, err := ws.ReadMessage()
+	require.NoError(t, err)
+	var queryFrame struct {
+		Kind      string          `json:"kind"`
+		RequestID string          `json:"request_id"`
+		Query     json.RawMessage `json:"query"`
+	}
+	require.NoError(t, json.Unmarshal(payload, &queryFrame))
+	require.Equal(t, "query", queryFrame.Kind)
+	require.JSONEq(t, `{
+		"type":"command.get",
+		"get_command":{"command_id":"cmd_restart_e2e"}
+	}`, string(queryFrame.Query))
+	response := `{"kind":"response","request_id":` + strconv.Quote(queryFrame.RequestID) +
+		`,"query_result":{"type":"command.get","command":{` +
+		`"command_id":"cmd_restart_e2e","status":"received"}}}`
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(response)))
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("daemon command query API did not complete")
+	}
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	result := decodeData[json.RawMessage](t, rec.Body.Bytes())
+	require.JSONEq(t, `{
+		"type":"command.get",
+		"command":{"command_id":"cmd_restart_e2e","status":"received"}
+	}`, string(result))
+}
+
 func TestNodeControlRuntimeSnapshotUpdatesBoundAgentAndSkipsUnbound(t *testing.T) {
 	srv, registered := testNodeControlServer(t, "todd@example.com")
 	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
