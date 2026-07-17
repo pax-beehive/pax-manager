@@ -32,6 +32,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.PATCH("/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id", UpdateNodeDaemonAgentConnection)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id/stop", StopNodeDaemonAgentConnection)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id/restart", RestartNodeDaemonAgentConnection)
+	h.DELETE("/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id", RemoveNodeDaemonAgentConnection)
 	h.PATCH("/api/v1/user/:user_id/nodes/:node_id", UpdateNode)
 	h.DELETE("/api/v1/user/:user_id/nodes/:node_id", DeleteNode)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents", ListNodeAgents)

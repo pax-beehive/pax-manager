@@ -1413,6 +1413,20 @@ service PaxManagerAPI {
     openapi.path.connection_id = "Agent connection identifier."
   )
 
+  NodeDaemonCommandResponse RemoveNodeDaemonAgentConnection(
+    1: optional NodeDaemonAgentConnectionActionRequest request
+  ) (
+    api.delete = "/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id",
+    openapi.tag = "user",
+    openapi.summary = "Remove node daemon agent connection",
+    openapi.description = "Forwards agent_connection.delete to the connected paxd control tunnel without deleting the cloud Agent.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.connection_id = "Agent connection identifier."
+  )
+
   NodeResponse UpdateNode(1: optional UpdateNodeRequest request) (
     api.patch = "/api/v1/user/:user_id/nodes/:node_id",
     openapi.tag = "user",
