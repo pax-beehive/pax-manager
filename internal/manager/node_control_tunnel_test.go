@@ -566,7 +566,7 @@ func TestNodeControlRuntimeSnapshotUpdatesBoundAgentAndSkipsUnbound(t *testing.T
 			"sent_at":"2026-06-24T12:00:00Z",
 			"runtime_snapshot":{
 				"snapshot_id":"snap_1",
-				"host":{"hostname":"node-control","cpu_percent":12.5,"memory_percent":34.5},
+				"host":{"machine_name":"MacBook Pro","os":"darwin","arch":"amd64","cpu_percent":12.5,"memory_percent":34.5},
 				"agents":[{
 					"connection_id":"conn_bound",
 					"cloud_agent_id":"`+registered.AgentID+`",
@@ -634,6 +634,7 @@ func TestNodeControlRuntimeSnapshotUpdatesBoundAgentAndSkipsUnbound(t *testing.T
 	}
 
 	node := getNode(t, srv, registered.APIKey)
+	requireNodeIdentity(t, node, "MacBook Pro", "darwin", "amd64")
 	var nodeMetadata struct {
 		RuntimeSnapshot struct {
 			SnapshotID  string `json:"snapshot_id"`
@@ -650,6 +651,13 @@ func TestNodeControlRuntimeSnapshotUpdatesBoundAgentAndSkipsUnbound(t *testing.T
 		nodeMetadata.RuntimeSnapshot.HostMetrics.CPUPercent != 12.5 ||
 		nodeMetadata.RuntimeSnapshot.HostMetrics.MemoryPercent != 34.5 {
 		t.Fatalf("node metadata = %s", node.Metadata)
+	}
+}
+
+func requireNodeIdentity(t *testing.T, node Node, machineType, osName, arch string) {
+	t.Helper()
+	if node.MachineType != machineType || node.OS != osName || node.Arch != arch {
+		t.Fatalf("node identity = machine_type:%q os:%q arch:%q", node.MachineType, node.OS, node.Arch)
 	}
 }
 
