@@ -142,6 +142,10 @@ func Register(r *server.Hertz) {
 								{
 									_agent_connections := _daemon.Group("/agent-connections", _agent_connectionsMw()...)
 									_agent_connections.PATCH("/:connection_id", append(_updatenodedaemonagentconnectionMw(), handler.UpdateNodeDaemonAgentConnection)...)
+									{
+										_connection_id := _agent_connections.Group("/:connection_id", _connection_idMw()...)
+										_connection_id.POST("/stop", append(_stopnodedaemonagentconnectionMw(), handler.StopNodeDaemonAgentConnection)...)
+									}
 								}
 							}
 						}

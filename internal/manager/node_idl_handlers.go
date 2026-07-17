@@ -244,6 +244,20 @@ func UpdateNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext)
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func StopNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext) {
+	var req NodeDaemonAgentConnectionActionRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	req.ConnectionID = ctx.Param("connection_id")
+	status, data, err := serviceFromContext(ctx).userapi.StopNodeDaemonAgentConnection(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func UpdateNode(c context.Context, ctx *app.RequestContext) {
 	var req UpdateNodeRequest
 	decodeBody(ctx, &req)

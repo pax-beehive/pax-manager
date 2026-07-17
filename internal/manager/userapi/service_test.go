@@ -470,6 +470,58 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 	})
 }
 
+func TestStopNodeDaemonAgentConnection(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+	store := userapimocks.NewMockStore(t)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	client := &fakeNodeControlClient{
+		remoteID: "remote_prod",
+		commandAck: json.RawMessage(`{
+			"command_id":"cmd_stop_1",
+			"ok":true,
+			"status":"received",
+			"target_id":"conn_1",
+			"desired_generation":3
+		}`),
+	}
+
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+
+	svc := userapi.NewService(
+		store,
+		fixedUserClock,
+		principals,
+		userapimocks.NewMockSecretIssuer(t),
+	)
+	svc.SetNodeControlClient(client)
+	status, rawData, err := svc.StopNodeDaemonAgentConnection(
+		ctx,
+		auth.RequestMetadata{},
+		domain.NodeDaemonAgentConnectionActionRequest{
+			NodeID:       "node_1",
+			ConnectionID: "conn_1",
+			CommandID:    "cmd_stop_1",
+		},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, status)
+	data := rawData.(map[string]any)
+	require.Equal(t, "received", data["command_status"])
+	require.Equal(t, int64(3), data["desired_generation"])
+	require.Equal(t, map[string]any{
+		"command_id": "cmd_stop_1",
+		"type":       "agent_connection.update",
+		"update_agent_connection": map[string]any{
+			"connection_id": "conn_1",
+			"desired_state": "stopped",
+		},
+	}, client.command)
+}
+
 func TestCreateRegistrationToken(t *testing.T) {
 	t.Run(
 		"Given a non-admin principal when minting for another user then it returns forbidden before loading that user",

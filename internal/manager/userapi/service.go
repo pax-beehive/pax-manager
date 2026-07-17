@@ -1003,6 +1003,69 @@ func (s *Service) UpdateNodeDaemonAgentConnection(
 	}, data)
 }
 
+func (s *Service) StopNodeDaemonAgentConnection(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.NodeDaemonAgentConnectionActionRequest,
+) (int, any, error) {
+	node, remoteID, err := s.authorizeNodeDaemonAgentConnectionCommand(c, meta, &req)
+	if err != nil {
+		return 0, nil, err
+	}
+	data := map[string]any{
+		"connection_id":   req.ConnectionID,
+		"command_id":      req.CommandID,
+		"remote_id":       remoteID,
+		"dispatch_status": "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id": req.CommandID,
+		"type":       "agent_connection.update",
+		"update_agent_connection": map[string]any{
+			"connection_id": req.ConnectionID,
+			"desired_state": "stopped",
+		},
+	}, data)
+}
+
+func (s *Service) authorizeNodeDaemonAgentConnectionCommand(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req *domain.NodeDaemonAgentConnectionActionRequest,
+) (domain.Node, string, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return domain.Node{}, "", err
+	}
+	if req == nil {
+		return domain.Node{}, "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "command request is required",
+		}
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.ConnectionID = strings.TrimSpace(req.ConnectionID)
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	if req.NodeID == "" || req.ConnectionID == "" || req.CommandID == "" {
+		return domain.Node{}, "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id, connection_id, and command_id are required",
+		}
+	}
+	node, err := s.store.GetNode(c, principal, req.NodeID)
+	if err != nil {
+		return domain.Node{}, "", err
+	}
+	if s.nodeControl == nil {
+		return domain.Node{}, "", nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return domain.Node{}, "", nodeControlUnavailableError()
+	}
+	return node, remoteID, nil
+}
+
 func (s *Service) dispatchNodeDaemonCommand(
 	c context.Context,
 	nodeID string,
