@@ -2775,6 +2775,9 @@
             "format": "int32",
             "type": "integer"
           },
+          "desired_state": {
+            "type": "string"
+          },
           "harness": {
             "type": "string"
           },

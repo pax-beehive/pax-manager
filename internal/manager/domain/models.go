@@ -1588,6 +1588,7 @@ type UpdateNodeDaemonAgentConnectionRequest struct {
 	Command      *[]string `json:"command"`
 	WorkingDir   *string   `json:"working_dir"`
 	DesiredSlots *int      `json:"desired_slots"`
+	DesiredState *string   `json:"desired_state"`
 }
 
 type NodeDaemonAgentConnectionActionRequest struct {
