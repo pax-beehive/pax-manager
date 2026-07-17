@@ -133,6 +133,12 @@ type nodeControlRuntimeSnapshot struct {
 	Agents     []nodeControlAgentRuntime `json:"agents,omitempty"`
 }
 
+type nodeControlHostMetrics struct {
+	MachineName string `json:"machine_name"`
+	OS          string `json:"os"`
+	Arch        string `json:"arch"`
+}
+
 type nodeControlAgentRuntime struct {
 	ConnectionID            string          `json:"connection_id"`
 	CloudAgentID            string          `json:"cloud_agent_id"`
@@ -191,11 +197,18 @@ func (s *Server) upsertRuntimeSnapshotReport(
 	if report.RuntimeSnapshot == nil {
 		return errors.New("runtime.snapshot report missing runtime_snapshot")
 	}
+	var host nodeControlHostMetrics
+	if len(report.RuntimeSnapshot.Host) > 0 {
+		_ = json.Unmarshal(report.RuntimeSnapshot.Host, &host)
+	}
 	status := domain.NodeStatusReport{
-		NodeID:    node.NodeID,
-		Timestamp: s.clock().UTC(),
-		System:    cloneRawJSON(report.RuntimeSnapshot.Host),
-		Metadata:  runtimeSnapshotNodeMetadata(report.RemoteID, report.RuntimeSnapshot),
+		NodeID:      node.NodeID,
+		MachineType: host.MachineName,
+		OS:          host.OS,
+		Arch:        host.Arch,
+		Timestamp:   s.clock().UTC(),
+		System:      cloneRawJSON(report.RuntimeSnapshot.Host),
+		Metadata:    runtimeSnapshotNodeMetadata(report.RemoteID, report.RuntimeSnapshot),
 	}
 	for _, agent := range report.RuntimeSnapshot.Agents {
 		if agent.CloudAgentID == "" {

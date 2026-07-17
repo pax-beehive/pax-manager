@@ -1100,14 +1100,26 @@ func (s *PostgresStore) UpsertNodeStatus(
 	}
 	defer func() { _ = tx.Rollback() }()
 	now := s.now().UTC()
+	if report.MachineType != "" {
+		node.MachineType = report.MachineType
+	}
+	if report.OS != "" {
+		node.OS = report.OS
+	}
+	if report.Arch != "" {
+		node.Arch = report.Arch
+	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE nodes
 		SET status = 'online',
 			last_heartbeat = $2,
 			hostname = COALESCE(NULLIF($3, ''), hostname),
-			metadata = COALESCE($4, metadata)
+			metadata = COALESCE($4, metadata),
+			machine_type = COALESCE(NULLIF($5, ''), machine_type),
+			os = COALESCE(NULLIF($6, ''), os),
+			arch = COALESCE(NULLIF($7, ''), arch)
 		WHERE node_id = $1
-	`, node.NodeID, now, report.Hostname, nullRaw(report.Metadata)); err != nil {
+	`, node.NodeID, now, report.Hostname, nullRaw(report.Metadata), report.MachineType, report.OS, report.Arch); err != nil {
 		return err
 	}
 	for _, input := range report.Agents {

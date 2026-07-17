@@ -1003,6 +1003,15 @@ func (s *MemoryStore) UpsertNodeStatus(
 	if report.Hostname != "" {
 		current.Hostname = report.Hostname
 	}
+	if report.MachineType != "" {
+		current.MachineType = report.MachineType
+	}
+	if report.OS != "" {
+		current.OS = report.OS
+	}
+	if report.Arch != "" {
+		current.Arch = report.Arch
+	}
 	if len(report.Metadata) > 0 {
 		current.Metadata = report.Metadata
 	}

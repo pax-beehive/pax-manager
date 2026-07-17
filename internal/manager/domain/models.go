@@ -1396,12 +1396,15 @@ type AgentStatusReport struct {
 }
 
 type NodeStatusReport struct {
-	NodeID    string             `json:"node_id"`
-	Hostname  string             `json:"hostname"`
-	Timestamp time.Time          `json:"timestamp"`
-	Agents    []AgentStatusInput `json:"agents"`
-	System    json.RawMessage    `json:"system"`
-	Metadata  json.RawMessage    `json:"metadata"`
+	NodeID      string             `json:"node_id"`
+	Hostname    string             `json:"hostname"`
+	MachineType string             `json:"machine_type"`
+	OS          string             `json:"os"`
+	Arch        string             `json:"arch"`
+	Timestamp   time.Time          `json:"timestamp"`
+	Agents      []AgentStatusInput `json:"agents"`
+	System      json.RawMessage    `json:"system"`
+	Metadata    json.RawMessage    `json:"metadata"`
 }
 
 type NodeAgentSessionReport struct {
