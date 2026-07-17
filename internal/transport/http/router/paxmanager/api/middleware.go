@@ -541,3 +541,13 @@ func _updatenodedaemonagentconnectionMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _connection_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _stopnodedaemonagentconnectionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

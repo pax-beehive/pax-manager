@@ -1109,6 +1109,13 @@ struct NodeDaemonCommandResponse {
   3: optional string message
 }
 
+struct NodeDaemonAgentConnectionActionRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string connection_id (api.path = "connection_id")
+  4: optional string command_id
+}
+
 service PaxManagerAPI {
   HealthResponse Health(1: optional EmptyRequest request) (
     api.get = "/api/v1/health",
@@ -1371,6 +1378,20 @@ service PaxManagerAPI {
     openapi.tag = "user",
     openapi.summary = "Update node daemon agent connection",
     openapi.description = "Forwards agent_connection.update to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.connection_id = "Agent connection identifier."
+  )
+
+  NodeDaemonCommandResponse StopNodeDaemonAgentConnection(
+    1: optional NodeDaemonAgentConnectionActionRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id/stop",
+    openapi.tag = "user",
+    openapi.summary = "Stop node daemon agent connection",
+    openapi.description = "Sets the paxd agent connection desired state to stopped.",
     openapi.status = "202",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",

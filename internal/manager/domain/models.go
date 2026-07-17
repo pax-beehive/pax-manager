@@ -1581,6 +1581,13 @@ type UpdateNodeDaemonAgentConnectionRequest struct {
 	WorkingDir   *string   `json:"working_dir"`
 }
 
+type NodeDaemonAgentConnectionActionRequest struct {
+	UserID       string `json:"user_id"`
+	NodeID       string `json:"node_id"`
+	ConnectionID string `json:"connection_id"`
+	CommandID    string `json:"command_id"`
+}
+
 type UpdateNodeRequest struct {
 	UserID       string          `json:"user_id"`
 	NodeID       string          `json:"node_id"`
