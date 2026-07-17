@@ -118,6 +118,7 @@ type ApprovalDecisionRequest = domain.ApprovalDecisionRequest
 type ApprovalGrantLookup = domain.ApprovalGrantLookup
 type RevokeApprovalGrantRequest = domain.RevokeApprovalGrantRequest
 type CreateAgentRequest = domain.CreateAgentRequest
+type CreateNodeDaemonAgentConnectionRequest = domain.CreateNodeDaemonAgentConnectionRequest
 type UpdateNodeRequest = domain.UpdateNodeRequest
 type DeleteNodeRequest = domain.DeleteNodeRequest
 type UpdateAgentProfileRequest = domain.UpdateAgentProfileRequest

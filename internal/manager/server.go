@@ -35,6 +35,7 @@ type Service struct {
 	clock            func() time.Time
 	agentWS          *AgentWSHub
 	acpTunnels       *ACPTunnelHub
+	nodeControls     *NodeControlHub
 	acpRuntime       *acpRuntimeProjector
 	maxBodyBytes     int64
 	apiLimiter       *rateLimiter
@@ -97,6 +98,7 @@ func newServer(cfg Config, store Store) *Service {
 		clock:              time.Now,
 		agentWS:            NewAgentWSHub(),
 		acpTunnels:         NewACPTunnelHub(),
+		nodeControls:       NewNodeControlHub(),
 		maxBodyBytes:       cfg.MaxBodyBytes,
 		apiLimiter:         newRateLimiter(cfg.APIRateLimitPerMinute, cfg.APIRateLimitBurst, time.Now),
 		registerLimiter: newRateLimiter(
@@ -125,6 +127,7 @@ func newServer(cfg Config, store Store) *Service {
 		authService,
 		secrets,
 	)
+	s.userapi.SetNodeControlClient(s.nodeControls)
 	s.configureTeamMemexExecutor()
 	s.paxdArtifacts = newGCPPaxdArtifactBackend(cfg)
 	return s

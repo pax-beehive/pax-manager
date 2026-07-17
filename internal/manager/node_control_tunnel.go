@@ -54,7 +54,11 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 		logging.Error(ctx, "node control tunnel upgrade failed", logging.Err(err))
 		return
 	}
+	conn := newNodeControlConnection(node.NodeID, ws)
+	s.nodeControls.Add(node.NodeID, conn)
 	defer func() {
+		conn.Fail(ErrNodeControlDisconnected)
+		s.nodeControls.Remove(node.NodeID, conn)
 		_ = ws.Close()
 		logging.Info(ctx, "node control tunnel disconnected")
 	}()
@@ -71,6 +75,27 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 		if messageType != websocket.TextMessage {
 			continue
 		}
+		handled, err := conn.HandleIncoming(payload)
+		if handled {
+			if err != nil {
+				logging.Warn(
+					ctx,
+					"node control tunnel ignored response",
+					slog.Int("bytes", len(payload)),
+					logging.Err(err),
+				)
+			}
+			continue
+		}
+		if err != nil {
+			logging.Warn(
+				ctx,
+				"node control tunnel ignored frame",
+				slog.Int("bytes", len(payload)),
+				logging.Err(err),
+			)
+			continue
+		}
 		if err := s.handleNodeControlTunnelFrame(ctx, node, payload); err != nil {
 			logging.Warn(
 				ctx,
@@ -78,6 +103,10 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 				slog.Int("bytes", len(payload)),
 				logging.Err(err),
 			)
+			continue
+		}
+		if err := conn.ObserveReport(payload); err != nil {
+			logging.Warn(ctx, "node control tunnel ignored report identity", logging.Err(err))
 		}
 	}
 }
@@ -113,9 +142,12 @@ type nodeControlAgentRuntime struct {
 	AgentType               string          `json:"agent_type"`
 	DesiredState            string          `json:"desired_state"`
 	RuntimePhase            string          `json:"runtime_phase"`
-	StatusReason            string          `json:"status_reason"`
-	LastError               string          `json:"last_error"`
-	UpdatedAt               string          `json:"updated_at"`
+	ObservedGeneration      int64           `json:"observed_generation"`
+	ObservedRestartNonce    int64           `json:"observed_restart_nonce"`
+	StatusUpdatedAt         string          `json:"status_updated_at"`
+	FailureClass            string          `json:"failure_class"`
+	LastErrorCode           string          `json:"last_error_code"`
+	LastErrorMessage        string          `json:"last_error_message"`
 	ACPPoolCapabilityReport json.RawMessage `json:"acp_pool_capability_report,omitempty"`
 }
 
@@ -219,15 +251,18 @@ func runtimeSnapshotNodeMetadata(
 
 func runtimeSnapshotAgentMetadata(agent nodeControlAgentRuntime) json.RawMessage {
 	metadata := map[string]any{
-		"runtime": map[string]string{
-			"connection_id": agent.ConnectionID,
-			"remote_id":     agent.RemoteID,
-			"node_id":       agent.NodeID,
-			"desired_state": agent.DesiredState,
-			"runtime_phase": agent.RuntimePhase,
-			"status_reason": agent.StatusReason,
-			"last_error":    agent.LastError,
-			"updated_at":    agent.UpdatedAt,
+		"runtime": map[string]any{
+			"connection_id":          agent.ConnectionID,
+			"remote_id":              agent.RemoteID,
+			"node_id":                agent.NodeID,
+			"desired_state":          agent.DesiredState,
+			"runtime_phase":          agent.RuntimePhase,
+			"observed_generation":    agent.ObservedGeneration,
+			"observed_restart_nonce": agent.ObservedRestartNonce,
+			"status_updated_at":      agent.StatusUpdatedAt,
+			"failure_class":          agent.FailureClass,
+			"last_error_code":        agent.LastErrorCode,
+			"last_error_message":     agent.LastErrorMessage,
 		},
 	}
 	if len(agent.ACPPoolCapabilityReport) > 0 && string(agent.ACPPoolCapabilityReport) != "null" {

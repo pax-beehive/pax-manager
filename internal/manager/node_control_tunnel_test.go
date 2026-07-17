@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -43,6 +44,281 @@ func TestNodeControlHeartbeatReportRefreshesNodeLease(t *testing.T) {
 	}
 }
 
+func TestNodeControlTunnelRoutesQueryResponseWhileProcessingReport(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+	waitNodeControlConnection(t, srv.nodeControls, registered.NodeID)
+
+	resultCh := make(chan json.RawMessage, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		result, err := srv.nodeControls.Query(
+			context.Background(),
+			registered.NodeID,
+			"req_status_1",
+			map[string]any{"type": "status.get", "get_status": map[string]any{}},
+		)
+		resultCh <- result
+		errCh <- err
+	}()
+
+	messageType, payload, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, websocket.TextMessage, messageType)
+	require.JSONEq(t, `{
+		"kind":"query",
+		"request_id":"req_status_1",
+		"query":{"type":"status.get","get_status":{}}
+	}`, string(payload))
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{
+		"kind":"report",
+		"version":1,
+		"report_id":"rpt_during_query",
+		"report":{
+			"type":"heartbeat",
+			"remote_id":"remote_prod",
+			"node_id":"`+registered.NodeID+`",
+			"sent_at":"2026-06-24T12:00:00Z",
+			"heartbeat":{}
+		}
+	}`)))
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{
+		"kind":"response",
+		"request_id":"req_status_1",
+		"query_result":{"type":"status.get","status":{"phase":"running"}}
+	}`)))
+
+	require.NoError(t, <-errCh)
+	require.JSONEq(
+		t,
+		`{"type":"status.get","status":{"phase":"running"}}`,
+		string(<-resultCh),
+	)
+	waitNode(t, srv, registered.APIKey, func(node Node) bool {
+		return node.Online && node.LastHeartbeat != nil
+	})
+}
+
+func TestNodeDaemonReadAPIsForwardQueriesOverControlTunnel(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+	waitNodeControlConnection(t, srv.nodeControls, registered.NodeID)
+
+	tests := []struct {
+		path        string
+		wantQuery   string
+		queryResult string
+	}{
+		{
+			path:        "daemon/status",
+			wantQuery:   `{"type":"status.get","get_status":{}}`,
+			queryResult: `{"type":"status.get","status":{"phase":"running"}}`,
+		},
+		{
+			path:        "daemon/harnesses?include_missing=true",
+			wantQuery:   `{"type":"harnesses.list","list_harnesses":{"include_missing":true}}`,
+			queryResult: `{"type":"harnesses.list","harnesses":{"items":[]}}`,
+		},
+		{
+			path:        "daemon/agent-connections?include_disabled=true",
+			wantQuery:   `{"type":"agent_connections.list","list_agent_connections":{"include_disabled":true}}`,
+			queryResult: `{"type":"agent_connections.list","agent_connections":{"items":[]}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			req := httptest.NewRequest(
+				http.MethodGet,
+				"/api/v1/user/self/nodes/"+registered.NodeID+"/"+tt.path,
+				nil,
+			)
+			req.Header.Set("X-User-Email", "todd@example.com")
+			rec := httptest.NewRecorder()
+			done := make(chan struct{})
+			go func() {
+				srv.routes().ServeHTTP(rec, req)
+				close(done)
+			}()
+
+			messageType, payload, err := ws.ReadMessage()
+			require.NoError(t, err)
+			require.Equal(t, websocket.TextMessage, messageType)
+			var frame struct {
+				Kind      string          `json:"kind"`
+				RequestID string          `json:"request_id"`
+				Query     json.RawMessage `json:"query"`
+			}
+			require.NoError(t, json.Unmarshal(payload, &frame))
+			require.Equal(t, "query", frame.Kind)
+			require.NotEmpty(t, frame.RequestID)
+			require.JSONEq(t, tt.wantQuery, string(frame.Query))
+
+			response := `{"kind":"response","request_id":` +
+				strconv.Quote(frame.RequestID) +
+				`,"query_result":` + tt.queryResult + `}`
+			require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(response)))
+			<-done
+
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			result := decodeData[json.RawMessage](t, rec.Body.Bytes())
+			require.JSONEq(t, tt.queryResult, string(result))
+		})
+	}
+}
+
+func TestCreateNodeDaemonAgentConnectionAPI(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+	waitNodeControlConnection(t, srv.nodeControls, registered.NodeID)
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{
+		"kind":"report",
+		"version":1,
+		"report_id":"rpt_remote_identity",
+		"report":{
+			"type":"heartbeat",
+			"remote_id":"remote_prod",
+			"node_id":"`+registered.NodeID+`",
+			"heartbeat":{}
+		}
+	}`)))
+	waitNodeControlRemoteID(t, srv.nodeControls, registered.NodeID, "remote_prod")
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+registered.NodeID+"/daemon/agent-connections",
+		bytes.NewReader([]byte(`{
+			"command_id":"cmd_create_work_1",
+			"name":"work",
+			"agent_type":"codex",
+			"harness":"codex",
+			"instance_id":"work",
+			"working_dir":"/workspace"
+		}`)),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		srv.routes().ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	_, payload, err := ws.ReadMessage()
+	require.NoError(t, err)
+	var queryFrame struct {
+		Kind      string          `json:"kind"`
+		RequestID string          `json:"request_id"`
+		Query     json.RawMessage `json:"query"`
+	}
+	require.NoError(t, json.Unmarshal(payload, &queryFrame))
+	require.Equal(t, "query", queryFrame.Kind)
+	require.JSONEq(t, `{
+		"type":"harnesses.list",
+		"list_harnesses":{"include_missing":true}
+	}`, string(queryFrame.Query))
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(
+		`{"kind":"response","request_id":`+strconv.Quote(queryFrame.RequestID)+`,
+		"query_result":{
+			"type":"harnesses.list",
+			"harnesses":{"items":[{
+				"harness":"codex",
+				"state":"available",
+				"command":["codex","--acp"]
+			}]}
+		}}`,
+	)))
+
+	_, payload, err = ws.ReadMessage()
+	require.NoError(t, err)
+	var commandFrame struct {
+		Kind      string `json:"kind"`
+		CommandID string `json:"command_id"`
+		Command   struct {
+			CommandID string `json:"command_id"`
+			Type      string `json:"type"`
+			Create    struct {
+				RemoteID     string   `json:"remote_id"`
+				Name         string   `json:"name"`
+				CloudAgentID string   `json:"cloud_agent_id"`
+				InstanceID   string   `json:"instance_id"`
+				AgentType    string   `json:"agent_type"`
+				Harness      string   `json:"harness"`
+				Command      []string `json:"command"`
+				WorkingDir   string   `json:"working_dir"`
+				DesiredState string   `json:"desired_state"`
+			} `json:"create_agent_connection"`
+		} `json:"command"`
+	}
+	require.NoError(t, json.Unmarshal(payload, &commandFrame))
+	require.Equal(t, "command", commandFrame.Kind)
+	require.Equal(t, "cmd_create_work_1", commandFrame.CommandID)
+	require.Equal(t, commandFrame.CommandID, commandFrame.Command.CommandID)
+	require.Equal(t, "agent_connection.create", commandFrame.Command.Type)
+	create := commandFrame.Command.Create
+	require.Equal(t, "remote_prod", create.RemoteID)
+	require.Equal(t, "work", create.Name)
+	require.NotEmpty(t, create.CloudAgentID)
+	require.Equal(t, "work", create.InstanceID)
+	require.Equal(t, "codex", create.AgentType)
+	require.Equal(t, "codex", create.Harness)
+	require.Equal(t, []string{"codex", "--acp"}, create.Command)
+	require.Equal(t, "/workspace", create.WorkingDir)
+	require.Equal(t, "running", create.DesiredState)
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{
+		"kind":"ack",
+		"command_id":"cmd_create_work_1",
+		"command_ack":{
+			"command_id":"cmd_create_work_1",
+			"ok":true,
+			"status":"received",
+			"target_type":"agent_connection",
+			"target_id":"conn_work_1",
+			"desired_generation":1
+		}
+	}`)))
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("create daemon agent connection API did not complete")
+	}
+
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	data := decodeData[struct {
+		AgentID        string `json:"agent_id"`
+		ConnectionID   string `json:"connection_id"`
+		CommandID      string `json:"command_id"`
+		CommandStatus  string `json:"command_status"`
+		DispatchStatus string `json:"dispatch_status"`
+	}](t, rec.Body.Bytes())
+	require.Equal(t, create.CloudAgentID, data.AgentID)
+	require.Equal(t, "conn_work_1", data.ConnectionID)
+	require.Equal(t, "cmd_create_work_1", data.CommandID)
+	require.Equal(t, "received", data.CommandStatus)
+	require.Equal(t, "acknowledged", data.DispatchStatus)
+
+	agents := listNodeAgents(t, srv, registered.APIKey)
+	require.Len(t, agents, 2)
+	var createdAgent Agent
+	for _, agent := range agents {
+		if agent.AgentID == create.CloudAgentID {
+			createdAgent = agent
+		}
+	}
+	require.Equal(t, "work", createdAgent.Name)
+	require.Equal(t, "codex", createdAgent.AgentType)
+}
+
 func TestNodeControlRuntimeSnapshotUpdatesBoundAgentAndSkipsUnbound(t *testing.T) {
 	srv, registered := testNodeControlServer(t, "todd@example.com")
 	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
@@ -70,7 +346,12 @@ func TestNodeControlRuntimeSnapshotUpdatesBoundAgentAndSkipsUnbound(t *testing.T
 					"agent_type":"codex",
 					"desired_state":"enabled",
 					"runtime_phase":"running",
-					"updated_at":"2026-06-24T12:00:00Z"
+					"observed_generation":7,
+					"observed_restart_nonce":3,
+					"status_updated_at":"2026-06-24T12:00:00Z",
+					"failure_class":"transient",
+					"last_error_code":"reconnecting",
+					"last_error_message":"retrying"
 				},{
 					"connection_id":"conn_unbound",
 					"cloud_agent_id":"",
@@ -98,15 +379,27 @@ func TestNodeControlRuntimeSnapshotUpdatesBoundAgentAndSkipsUnbound(t *testing.T
 	}
 	var agentMetadata struct {
 		Runtime struct {
-			RuntimePhase string `json:"runtime_phase"`
-			DesiredState string `json:"desired_state"`
+			RuntimePhase         string `json:"runtime_phase"`
+			DesiredState         string `json:"desired_state"`
+			ObservedGeneration   int64  `json:"observed_generation"`
+			ObservedRestartNonce int64  `json:"observed_restart_nonce"`
+			StatusUpdatedAt      string `json:"status_updated_at"`
+			FailureClass         string `json:"failure_class"`
+			LastErrorCode        string `json:"last_error_code"`
+			LastErrorMessage     string `json:"last_error_message"`
 		} `json:"runtime"`
 	}
 	if err := json.Unmarshal(agents[0].Metadata, &agentMetadata); err != nil {
 		t.Fatalf("decode agent metadata: %v", err)
 	}
 	if agentMetadata.Runtime.RuntimePhase != "running" ||
-		agentMetadata.Runtime.DesiredState != "enabled" {
+		agentMetadata.Runtime.DesiredState != "enabled" ||
+		agentMetadata.Runtime.ObservedGeneration != 7 ||
+		agentMetadata.Runtime.ObservedRestartNonce != 3 ||
+		agentMetadata.Runtime.StatusUpdatedAt != "2026-06-24T12:00:00Z" ||
+		agentMetadata.Runtime.FailureClass != "transient" ||
+		agentMetadata.Runtime.LastErrorCode != "reconnecting" ||
+		agentMetadata.Runtime.LastErrorMessage != "retrying" {
 		t.Fatalf("agent metadata = %s", agents[0].Metadata)
 	}
 
@@ -424,6 +717,40 @@ func waitNode(
 	node := getNode(t, srv, apiKey)
 	t.Fatalf("node did not reach expected state: %+v", node)
 	return Node{}
+}
+
+func waitNodeControlConnection(
+	t *testing.T,
+	hub *NodeControlHub,
+	nodeID string,
+) *nodeControlConnection {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		conn, err := hub.Connection(nodeID)
+		if err == nil {
+			return conn
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	conn, err := hub.Connection(nodeID)
+	if err != nil {
+		t.Fatalf("node control connection %q was not registered: %v", nodeID, err)
+	}
+	return conn
+}
+
+func waitNodeControlRemoteID(
+	t *testing.T,
+	hub *NodeControlHub,
+	nodeID string,
+	want string,
+) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		remoteID, err := hub.RemoteID(nodeID)
+		return err == nil && remoteID == want
+	}, time.Second, 10*time.Millisecond)
 }
 
 func waitNodeAgents(
