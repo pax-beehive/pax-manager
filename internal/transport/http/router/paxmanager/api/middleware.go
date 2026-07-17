@@ -571,3 +571,13 @@ func _getnodedaemoncommandMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _harnessesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _discovernodedaemonharnessesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

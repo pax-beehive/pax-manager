@@ -207,6 +207,19 @@ func ListNodeDaemonHarnesses(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func DiscoverNodeDaemonHarnesses(c context.Context, ctx *app.RequestContext) {
+	var req DiscoverNodeDaemonHarnessesRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	status, data, err := serviceFromContext(ctx).userapi.DiscoverNodeDaemonHarnesses(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func ListNodeDaemonAgentConnections(c context.Context, ctx *app.RequestContext) {
 	status, data, err := serviceFromContext(ctx).userapi.ListNodeDaemonAgentConnections(
 		c,

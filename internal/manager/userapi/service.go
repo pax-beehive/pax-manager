@@ -664,6 +664,29 @@ func (s *Service) ListNodeDaemonHarnesses(
 	})
 }
 
+func (s *Service) DiscoverNodeDaemonHarnesses(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.DiscoverNodeDaemonHarnessesRequest,
+) (int, any, error) {
+	discover := map[string]any{"probe": req.Probe}
+	if len(req.Names) > 0 {
+		names := make([]string, 0, len(req.Names))
+		for _, name := range req.Names {
+			if name = strings.TrimSpace(name); name != "" {
+				names = append(names, name)
+			}
+		}
+		if len(names) > 0 {
+			discover["names"] = names
+		}
+	}
+	return s.queryNodeDaemon(c, meta, req.NodeID, map[string]any{
+		"type":               "harnesses.discover",
+		"discover_harnesses": discover,
+	})
+}
+
 func (s *Service) ListNodeDaemonAgentConnections(
 	c context.Context,
 	meta auth.RequestMetadata,

@@ -1570,6 +1570,13 @@ type CreateNodeDaemonAgentConnectionRequest struct {
 	WorkingDir string   `json:"working_dir"`
 }
 
+type DiscoverNodeDaemonHarnessesRequest struct {
+	UserID string   `json:"user_id"`
+	NodeID string   `json:"node_id"`
+	Probe  bool     `json:"probe"`
+	Names  []string `json:"names"`
+}
+
 type UpdateNodeDaemonAgentConnectionRequest struct {
 	UserID       string    `json:"user_id"`
 	NodeID       string    `json:"node_id"`

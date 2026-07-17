@@ -172,6 +172,60 @@ func TestNodeDaemonReadAPIsForwardQueriesOverControlTunnel(t *testing.T) {
 	}
 }
 
+func TestDiscoverNodeDaemonHarnessesForwardsQueryOverControlTunnel(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+	waitNodeControlConnection(t, srv.nodeControls, registered.NodeID)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+registered.NodeID+"/daemon/harnesses/discover",
+		strings.NewReader(`{"probe":true,"names":[" codex ",""]}`),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		srv.routes().ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	messageType, payload, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, websocket.TextMessage, messageType)
+	var frame struct {
+		Kind      string          `json:"kind"`
+		RequestID string          `json:"request_id"`
+		Query     json.RawMessage `json:"query"`
+	}
+	require.NoError(t, json.Unmarshal(payload, &frame))
+	require.Equal(t, "query", frame.Kind)
+	require.JSONEq(t, `{
+		"type":"harnesses.discover",
+		"discover_harnesses":{"probe":true,"names":["codex"]}
+	}`, string(frame.Query))
+
+	response := `{"kind":"response","request_id":` + strconv.Quote(frame.RequestID) +
+		`,"query_result":{"type":"harnesses.discover","harnesses":{"items":[{` +
+		`"harness":"codex","state":"available","command":["codex","--acp"]}]}}}`
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(response)))
+	<-done
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	result := decodeData[json.RawMessage](t, rec.Body.Bytes())
+	require.JSONEq(t, `{
+		"type":"harnesses.discover",
+		"harnesses":{"items":[{
+			"harness":"codex",
+			"state":"available",
+			"command":["codex","--acp"]
+		}]}
+	}`, string(result))
+}
+
 func TestCreateNodeDaemonAgentConnectionAPI(t *testing.T) {
 	srv, registered := testNodeControlServer(t, "todd@example.com")
 	ws, closeServer := dialNodeControlTunnel(t, srv, registered)

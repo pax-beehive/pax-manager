@@ -1037,6 +1037,13 @@ struct ListNodeDaemonHarnessesRequest {
   3: optional bool include_missing (api.query = "include_missing")
 }
 
+struct DiscoverNodeDaemonHarnessesRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional bool probe
+  4: optional list<string> names
+}
+
 struct ListNodeDaemonAgentConnectionsRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
@@ -1347,6 +1354,18 @@ service PaxManagerAPI {
     openapi.tag = "user",
     openapi.summary = "List node daemon harnesses",
     openapi.description = "Forwards a harnesses.list query to the connected paxd control tunnel.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonQueryResponse DiscoverNodeDaemonHarnesses(
+    1: optional DiscoverNodeDaemonHarnessesRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/harnesses/discover",
+    openapi.tag = "user",
+    openapi.summary = "Discover node daemon harnesses",
+    openapi.description = "Forwards a harnesses.discover query to the connected paxd control tunnel.",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier."

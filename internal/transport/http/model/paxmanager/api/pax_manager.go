@@ -49115,6 +49115,348 @@ func (p *ListNodeDaemonHarnessesRequest) String() string {
 
 }
 
+type DiscoverNodeDaemonHarnessesRequest struct {
+	UserID *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID *string  `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	Probe  *bool    `thrift:"probe,3,optional" form:"probe" json:"probe,omitempty" query:"probe"`
+	Names  []string `thrift:"names,4,optional,list<string>" form:"names" json:"names,omitempty" query:"names"`
+}
+
+func NewDiscoverNodeDaemonHarnessesRequest() *DiscoverNodeDaemonHarnessesRequest {
+	return &DiscoverNodeDaemonHarnessesRequest{}
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) InitDefault() {
+}
+
+var DiscoverNodeDaemonHarnessesRequest_UserID_DEFAULT string
+
+func (p *DiscoverNodeDaemonHarnessesRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return DiscoverNodeDaemonHarnessesRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var DiscoverNodeDaemonHarnessesRequest_NodeID_DEFAULT string
+
+func (p *DiscoverNodeDaemonHarnessesRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return DiscoverNodeDaemonHarnessesRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var DiscoverNodeDaemonHarnessesRequest_Probe_DEFAULT bool
+
+func (p *DiscoverNodeDaemonHarnessesRequest) GetProbe() (v bool) {
+	if !p.IsSetProbe() {
+		return DiscoverNodeDaemonHarnessesRequest_Probe_DEFAULT
+	}
+	return *p.Probe
+}
+
+var DiscoverNodeDaemonHarnessesRequest_Names_DEFAULT []string
+
+func (p *DiscoverNodeDaemonHarnessesRequest) GetNames() (v []string) {
+	if !p.IsSetNames() {
+		return DiscoverNodeDaemonHarnessesRequest_Names_DEFAULT
+	}
+	return p.Names
+}
+
+var fieldIDToName_DiscoverNodeDaemonHarnessesRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+	3: "probe",
+	4: "names",
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) IsSetProbe() bool {
+	return p.Probe != nil
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) IsSetNames() bool {
+	return p.Names != nil
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_DiscoverNodeDaemonHarnessesRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *DiscoverNodeDaemonHarnessesRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *DiscoverNodeDaemonHarnessesRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Probe = _field
+	return nil
+}
+func (p *DiscoverNodeDaemonHarnessesRequest) ReadField4(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]string, 0, size)
+	for i := 0; i < size; i++ {
+
+		var _elem string
+		if v, err := iprot.ReadString(); err != nil {
+			return err
+		} else {
+			_elem = v
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.Names = _field
+	return nil
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("DiscoverNodeDaemonHarnessesRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetProbe() {
+		if err = oprot.WriteFieldBegin("probe", thrift.BOOL, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.Probe); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNames() {
+		if err = oprot.WriteFieldBegin("names", thrift.LIST, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRING, len(p.Names)); err != nil {
+			return err
+		}
+		for _, v := range p.Names {
+			if err := oprot.WriteString(v); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *DiscoverNodeDaemonHarnessesRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("DiscoverNodeDaemonHarnessesRequest(%+v)", *p)
+
+}
+
 type ListNodeDaemonAgentConnectionsRequest struct {
 	UserID          *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
 	NodeID          *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
@@ -53261,6 +53603,8 @@ type PaxManagerAPI interface {
 
 	ListNodeDaemonHarnesses(ctx context.Context, request *ListNodeDaemonHarnessesRequest) (r *NodeDaemonQueryResponse, err error)
 
+	DiscoverNodeDaemonHarnesses(ctx context.Context, request *DiscoverNodeDaemonHarnessesRequest) (r *NodeDaemonQueryResponse, err error)
+
 	ListNodeDaemonAgentConnections(ctx context.Context, request *ListNodeDaemonAgentConnectionsRequest) (r *NodeDaemonQueryResponse, err error)
 
 	CreateNodeDaemonAgentConnection(ctx context.Context, request *CreateNodeDaemonAgentConnectionRequest) (r *CreateNodeDaemonAgentConnectionResponse, err error)
@@ -53545,6 +53889,15 @@ func (p *PaxManagerAPIClient) ListNodeDaemonHarnesses(ctx context.Context, reque
 	_args.Request = request
 	var _result PaxManagerAPIListNodeDaemonHarnessesResult
 	if err = p.Client_().Call(ctx, "ListNodeDaemonHarnesses", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) DiscoverNodeDaemonHarnesses(ctx context.Context, request *DiscoverNodeDaemonHarnessesRequest) (r *NodeDaemonQueryResponse, err error) {
+	var _args PaxManagerAPIDiscoverNodeDaemonHarnessesArgs
+	_args.Request = request
+	var _result PaxManagerAPIDiscoverNodeDaemonHarnessesResult
+	if err = p.Client_().Call(ctx, "DiscoverNodeDaemonHarnesses", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
@@ -53915,6 +54268,7 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("GetNode", &paxManagerAPIProcessorGetNode{handler: handler})
 	self.AddToProcessorMap("GetNodeDaemonStatus", &paxManagerAPIProcessorGetNodeDaemonStatus{handler: handler})
 	self.AddToProcessorMap("ListNodeDaemonHarnesses", &paxManagerAPIProcessorListNodeDaemonHarnesses{handler: handler})
+	self.AddToProcessorMap("DiscoverNodeDaemonHarnesses", &paxManagerAPIProcessorDiscoverNodeDaemonHarnesses{handler: handler})
 	self.AddToProcessorMap("ListNodeDaemonAgentConnections", &paxManagerAPIProcessorListNodeDaemonAgentConnections{handler: handler})
 	self.AddToProcessorMap("CreateNodeDaemonAgentConnection", &paxManagerAPIProcessorCreateNodeDaemonAgentConnection{handler: handler})
 	self.AddToProcessorMap("UpdateNodeDaemonAgentConnection", &paxManagerAPIProcessorUpdateNodeDaemonAgentConnection{handler: handler})
@@ -54962,6 +55316,54 @@ func (p *paxManagerAPIProcessorListNodeDaemonHarnesses) Process(ctx context.Cont
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("ListNodeDaemonHarnesses", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorDiscoverNodeDaemonHarnesses struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorDiscoverNodeDaemonHarnesses) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIDiscoverNodeDaemonHarnessesArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("DiscoverNodeDaemonHarnesses", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIDiscoverNodeDaemonHarnessesResult{}
+	var retval *NodeDaemonQueryResponse
+	if retval, err2 = p.handler.DiscoverNodeDaemonHarnesses(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing DiscoverNodeDaemonHarnesses: "+err2.Error())
+		oprot.WriteMessageBegin("DiscoverNodeDaemonHarnesses", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("DiscoverNodeDaemonHarnesses", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -62878,6 +63280,300 @@ func (p *PaxManagerAPIListNodeDaemonHarnessesResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIListNodeDaemonHarnessesResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIDiscoverNodeDaemonHarnessesArgs struct {
+	Request *DiscoverNodeDaemonHarnessesRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIDiscoverNodeDaemonHarnessesArgs() *PaxManagerAPIDiscoverNodeDaemonHarnessesArgs {
+	return &PaxManagerAPIDiscoverNodeDaemonHarnessesArgs{}
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesArgs) InitDefault() {
+}
+
+var PaxManagerAPIDiscoverNodeDaemonHarnessesArgs_Request_DEFAULT *DiscoverNodeDaemonHarnessesRequest
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesArgs) GetRequest() (v *DiscoverNodeDaemonHarnessesRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIDiscoverNodeDaemonHarnessesArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIDiscoverNodeDaemonHarnessesArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIDiscoverNodeDaemonHarnessesArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewDiscoverNodeDaemonHarnessesRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("DiscoverNodeDaemonHarnesses_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIDiscoverNodeDaemonHarnessesArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIDiscoverNodeDaemonHarnessesResult struct {
+	Success *NodeDaemonQueryResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIDiscoverNodeDaemonHarnessesResult() *PaxManagerAPIDiscoverNodeDaemonHarnessesResult {
+	return &PaxManagerAPIDiscoverNodeDaemonHarnessesResult{}
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesResult) InitDefault() {
+}
+
+var PaxManagerAPIDiscoverNodeDaemonHarnessesResult_Success_DEFAULT *NodeDaemonQueryResponse
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesResult) GetSuccess() (v *NodeDaemonQueryResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIDiscoverNodeDaemonHarnessesResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIDiscoverNodeDaemonHarnessesResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIDiscoverNodeDaemonHarnessesResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNodeDaemonQueryResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("DiscoverNodeDaemonHarnesses_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIDiscoverNodeDaemonHarnessesResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIDiscoverNodeDaemonHarnessesResult(%+v)", *p)
 
 }
 
