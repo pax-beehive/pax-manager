@@ -178,8 +178,25 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"WriteNodeSecretVersion":        WriteNodeSecretVersion,
 }
 
+var generatedNodeDaemonHandlerBridge = map[string]generatedHandlerFunc{
+	"CreateNodeDaemonAgentConnection":  CreateNodeDaemonAgentConnection,
+	"DiscoverNodeDaemonHarnesses":      DiscoverNodeDaemonHarnesses,
+	"GetNodeDaemonStatus":              GetNodeDaemonStatus,
+	"GetNodeDaemonCommand":             GetNodeDaemonCommand,
+	"ListNodeDaemonAgentConnections":   ListNodeDaemonAgentConnections,
+	"ListNodeDaemonHarnesses":          ListNodeDaemonHarnesses,
+	"RemoveNodeDaemonAgentConnection":  RemoveNodeDaemonAgentConnection,
+	"RestartNodeDaemonAgentConnection": RestartNodeDaemonAgentConnection,
+	"StopNodeDaemonAgentConnection":    StopNodeDaemonAgentConnection,
+	"UpdateNodeDaemonAgentConnection":  UpdateNodeDaemonAgentConnection,
+}
+
 func (s *Service) HandleGenerated(c context.Context, ctx *app.RequestContext, name string) {
 	if handler, ok := generatedHandlerBridge[name]; ok {
+		handler(c, ctx)
+		return
+	}
+	if handler, ok := generatedNodeDaemonHandlerBridge[name]; ok {
 		handler(c, ctx)
 		return
 	}

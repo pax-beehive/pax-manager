@@ -506,3 +506,78 @@ func _updatenodeagentsessionMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _daemonMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnodedaemonagentconnectionsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnodedaemonharnessesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getnodedaemonstatusMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createnodedaemonagentconnectionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _agent_connectionsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updatenodedaemonagentconnectionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _connection_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _stopnodedaemonagentconnectionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _restartnodedaemonagentconnectionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _removenodedaemonagentconnectionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _commandsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getnodedaemoncommandMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _harnessesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _discovernodedaemonharnessesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

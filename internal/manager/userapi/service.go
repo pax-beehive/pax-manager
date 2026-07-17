@@ -2,6 +2,7 @@ package userapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -422,6 +423,22 @@ type SecretIssuer interface {
 	Prefix(secret string) string
 }
 
+type NodeControlClient interface {
+	RemoteID(nodeID string) (string, error)
+	Query(
+		ctx context.Context,
+		nodeID string,
+		requestID string,
+		query any,
+	) (json.RawMessage, error)
+	Command(
+		ctx context.Context,
+		nodeID string,
+		commandID string,
+		command any,
+	) (json.RawMessage, error)
+}
+
 type Service struct {
 	store            Store
 	clock            func() time.Time
@@ -430,6 +447,7 @@ type Service struct {
 	vault            *vaultsecrets.Cipher
 	backgroundRunner func(context.Context, func(context.Context))
 	memexExecutor    TeamMemexExecutor
+	nodeControl      NodeControlClient
 }
 
 func NewService(
@@ -482,6 +500,10 @@ func (s *Service) SetTeamMemexExecutor(executor TeamMemexExecutor) {
 		return
 	}
 	s.memexExecutor = executor
+}
+
+func (s *Service) SetNodeControlClient(client NodeControlClient) {
+	s.nodeControl = client
 }
 
 func firstVaultCipher(values []*vaultsecrets.Cipher) *vaultsecrets.Cipher {
@@ -617,6 +639,145 @@ func (s *Service) GetNode(
 	return http.StatusOK, node, nil
 }
 
+func (s *Service) GetNodeDaemonStatus(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+) (int, any, error) {
+	return s.queryNodeDaemon(c, meta, nodeID, map[string]any{
+		"type":       "status.get",
+		"get_status": map[string]any{},
+	})
+}
+
+func (s *Service) ListNodeDaemonHarnesses(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+	includeMissing bool,
+) (int, any, error) {
+	return s.queryNodeDaemon(c, meta, nodeID, map[string]any{
+		"type": "harnesses.list",
+		"list_harnesses": map[string]any{
+			"include_missing": includeMissing,
+		},
+	})
+}
+
+func (s *Service) DiscoverNodeDaemonHarnesses(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.DiscoverNodeDaemonHarnessesRequest,
+) (int, any, error) {
+	discover := map[string]any{"probe": req.Probe}
+	if len(req.Names) > 0 {
+		names := make([]string, 0, len(req.Names))
+		for _, name := range req.Names {
+			if name = strings.TrimSpace(name); name != "" {
+				names = append(names, name)
+			}
+		}
+		if len(names) > 0 {
+			discover["names"] = names
+		}
+	}
+	return s.queryNodeDaemon(c, meta, req.NodeID, map[string]any{
+		"type":               "harnesses.discover",
+		"discover_harnesses": discover,
+	})
+}
+
+func (s *Service) ListNodeDaemonAgentConnections(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+	includeDisabled bool,
+) (int, any, error) {
+	return s.queryNodeDaemon(c, meta, nodeID, map[string]any{
+		"type": "agent_connections.list",
+		"list_agent_connections": map[string]any{
+			"include_disabled": includeDisabled,
+		},
+	})
+}
+
+func (s *Service) GetNodeDaemonCommand(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+	commandID string,
+) (int, any, error) {
+	commandID = strings.TrimSpace(commandID)
+	if commandID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "command_id is required",
+		}
+	}
+	return s.queryNodeDaemon(c, meta, nodeID, map[string]any{
+		"type": "command.get",
+		"get_command": map[string]any{
+			"command_id": commandID,
+		},
+	})
+}
+
+func (s *Service) queryNodeDaemon(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+	query any,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if nodeID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "node_id is required"}
+	}
+	node, err := s.store.GetNode(c, principal, nodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	result, err := s.queryNodeControl(c, node.NodeID, query)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, result, nil
+}
+
+func (s *Service) queryNodeControl(
+	c context.Context,
+	nodeID string,
+	query any,
+) (json.RawMessage, error) {
+	if s.nodeControl == nil {
+		return nil, nodeControlUnavailableError()
+	}
+	requestID, err := s.secrets.New("ctlq")
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.nodeControl.Query(c, nodeID, requestID, query)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, apperr.Error{
+				Status:  http.StatusGatewayTimeout,
+				Message: "node control query timed out",
+			}
+		}
+		return nil, nodeControlUnavailableError()
+	}
+	return result, nil
+}
+
+func nodeControlUnavailableError() error {
+	return apperr.Error{
+		Status:  http.StatusServiceUnavailable,
+		Message: "node control tunnel is not connected",
+	}
+}
+
 func (s *Service) UpdateNode(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -688,6 +849,530 @@ func (s *Service) CreateNodeAgent(
 		return 0, nil, err
 	}
 	return http.StatusOK, map[string]any{"agent": agent, "bootstrap_message": bootstrap}, nil
+}
+
+type nodeDaemonHarnessQueryResult struct {
+	Error     *nodeDaemonControlError `json:"error,omitempty"`
+	Harnesses *struct {
+		Items []nodeDaemonHarness `json:"items"`
+	} `json:"harnesses,omitempty"`
+}
+
+type nodeDaemonControlError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type nodeDaemonHarness struct {
+	Harness     string   `json:"harness"`
+	State       string   `json:"state"`
+	Command     []string `json:"command"`
+	InstallHint string   `json:"install_hint"`
+	LastError   string   `json:"last_error"`
+}
+
+type nodeDaemonCommandAck struct {
+	CommandID  string                  `json:"command_id"`
+	OK         bool                    `json:"ok"`
+	Status     string                  `json:"status"`
+	TargetID   string                  `json:"target_id"`
+	Generation int64                   `json:"desired_generation"`
+	Error      *nodeDaemonControlError `json:"error,omitempty"`
+	Result     *struct {
+		AgentConnection *struct {
+			ID string `json:"id"`
+		} `json:"agent_connection,omitempty"`
+	} `json:"result,omitempty"`
+}
+
+func (s *Service) CreateNodeDaemonAgentConnection(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.CreateNodeDaemonAgentConnectionRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	req.Harness = strings.TrimSpace(req.Harness)
+	if req.NodeID == "" || req.CommandID == "" || req.Harness == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id, command_id, and harness are required",
+		}
+	}
+	desiredSlots, err := nodeDaemonDesiredSlots(req.DesiredSlots)
+	if err != nil {
+		return 0, nil, err
+	}
+	node, err := s.store.GetNode(c, principal, req.NodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if s.nodeControl == nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	command, err := s.resolveNodeDaemonHarnessCommand(c, node.NodeID, req.Harness, req.Command)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	name := firstNodeDaemonValue(req.Name, req.Harness)
+	agentType := firstNodeDaemonValue(req.AgentType, req.Harness)
+	instanceID := firstNodeDaemonValue(req.InstanceID, name)
+	agent, bootstrap, err := s.store.CreateNodeAgent(c, principal, domain.CreateAgentRequest{
+		NodeID:    node.NodeID,
+		Name:      name,
+		AgentType: agentType,
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+
+	data := map[string]any{
+		"agent":             agent,
+		"agent_id":          agent.AgentID,
+		"bootstrap_message": bootstrap,
+		"command_id":        req.CommandID,
+		"remote_id":         remoteID,
+		"dispatch_status":   "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id": req.CommandID,
+		"type":       "agent_connection.create",
+		"create_agent_connection": map[string]any{
+			"remote_id":      remoteID,
+			"name":           name,
+			"cloud_agent_id": agent.AgentID,
+			"instance_id":    instanceID,
+			"agent_type":     agentType,
+			"harness":        req.Harness,
+			"command":        command,
+			"working_dir":    strings.TrimSpace(req.WorkingDir),
+			"desired_state":  "running",
+			"desired_slots":  desiredSlots,
+		},
+	}, data)
+}
+
+func (s *Service) UpdateNodeDaemonAgentConnection(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.UpdateNodeDaemonAgentConnectionRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.ConnectionID = strings.TrimSpace(req.ConnectionID)
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	if req.NodeID == "" || req.ConnectionID == "" || req.CommandID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id, connection_id, and command_id are required",
+		}
+	}
+	if !hasNodeDaemonAgentConnectionUpdate(req) {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "at least one update field is required",
+		}
+	}
+	if err := validateOptionalNodeDaemonDesiredSlots(req.DesiredSlots); err != nil {
+		return 0, nil, err
+	}
+	if err := validateOptionalNodeDaemonDesiredState(req.DesiredState); err != nil {
+		return 0, nil, err
+	}
+	node, err := s.store.GetNode(c, principal, req.NodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if s.nodeControl == nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+
+	update := map[string]any{"connection_id": req.ConnectionID}
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "name cannot be empty",
+			}
+		}
+		update["name"] = name
+	}
+	if req.Harness != nil {
+		harness := strings.TrimSpace(*req.Harness)
+		if harness == "" {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "harness cannot be empty",
+			}
+		}
+		var explicit []string
+		if req.Command != nil {
+			explicit = *req.Command
+		}
+		command, err := s.resolveNodeDaemonHarnessCommand(c, node.NodeID, harness, explicit)
+		if err != nil {
+			return 0, nil, err
+		}
+		update["harness"] = harness
+		update["command"] = command
+	} else if req.Command != nil {
+		command := normalizedNodeDaemonCommand(*req.Command)
+		if len(command) == 0 {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "command cannot be empty",
+			}
+		}
+		update["command"] = command
+	}
+	if req.WorkingDir != nil {
+		update["working_dir"] = strings.TrimSpace(*req.WorkingDir)
+	}
+	setNodeDaemonDesiredSlots(update, req.DesiredSlots)
+	setNodeDaemonDesiredState(update, req.DesiredState)
+	data := map[string]any{
+		"connection_id":   req.ConnectionID,
+		"command_id":      req.CommandID,
+		"remote_id":       remoteID,
+		"dispatch_status": "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id":              req.CommandID,
+		"type":                    "agent_connection.update",
+		"update_agent_connection": update,
+	}, data)
+}
+
+func validateNodeDaemonDesiredSlots(desiredSlots int) error {
+	if desiredSlots < 1 || desiredSlots > 16 {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "desired_slots must be between 1 and 16",
+		}
+	}
+	return nil
+}
+
+func nodeDaemonDesiredSlots(desiredSlots *int) (int, error) {
+	if desiredSlots == nil {
+		return 2, nil
+	}
+	return *desiredSlots, validateNodeDaemonDesiredSlots(*desiredSlots)
+}
+
+func validateOptionalNodeDaemonDesiredSlots(desiredSlots *int) error {
+	if desiredSlots == nil {
+		return nil
+	}
+	return validateNodeDaemonDesiredSlots(*desiredSlots)
+}
+
+func setNodeDaemonDesiredSlots(update map[string]any, desiredSlots *int) {
+	if desiredSlots != nil {
+		update["desired_slots"] = *desiredSlots
+	}
+}
+
+func hasNodeDaemonAgentConnectionUpdate(req domain.UpdateNodeDaemonAgentConnectionRequest) bool {
+	return req.Name != nil || req.Harness != nil || req.Command != nil ||
+		req.WorkingDir != nil || req.DesiredSlots != nil || req.DesiredState != nil
+}
+
+func validateOptionalNodeDaemonDesiredState(desiredState *string) error {
+	if desiredState == nil {
+		return nil
+	}
+	state := strings.TrimSpace(*desiredState)
+	if state != "running" && state != "stopped" {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "desired_state must be running or stopped",
+		}
+	}
+	return nil
+}
+
+func setNodeDaemonDesiredState(update map[string]any, desiredState *string) {
+	if desiredState != nil {
+		update["desired_state"] = strings.TrimSpace(*desiredState)
+	}
+}
+
+func (s *Service) StopNodeDaemonAgentConnection(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.NodeDaemonAgentConnectionActionRequest,
+) (int, any, error) {
+	node, remoteID, err := s.authorizeNodeDaemonAgentConnectionCommand(c, meta, &req)
+	if err != nil {
+		return 0, nil, err
+	}
+	data := map[string]any{
+		"connection_id":   req.ConnectionID,
+		"command_id":      req.CommandID,
+		"remote_id":       remoteID,
+		"dispatch_status": "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id": req.CommandID,
+		"type":       "agent_connection.update",
+		"update_agent_connection": map[string]any{
+			"connection_id": req.ConnectionID,
+			"desired_state": "stopped",
+		},
+	}, data)
+}
+
+func (s *Service) RestartNodeDaemonAgentConnection(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.NodeDaemonAgentConnectionActionRequest,
+) (int, any, error) {
+	node, remoteID, err := s.authorizeNodeDaemonAgentConnectionCommand(c, meta, &req)
+	if err != nil {
+		return 0, nil, err
+	}
+	data := map[string]any{
+		"connection_id":   req.ConnectionID,
+		"command_id":      req.CommandID,
+		"remote_id":       remoteID,
+		"dispatch_status": "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id": req.CommandID,
+		"type":       "agent_connection.restart",
+		"restart_agent_connection": map[string]any{
+			"connection_id": req.ConnectionID,
+		},
+	}, data)
+}
+
+func (s *Service) RemoveNodeDaemonAgentConnection(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.NodeDaemonAgentConnectionActionRequest,
+) (int, any, error) {
+	node, remoteID, err := s.authorizeNodeDaemonAgentConnectionCommand(c, meta, &req)
+	if err != nil {
+		return 0, nil, err
+	}
+	data := map[string]any{
+		"connection_id":   req.ConnectionID,
+		"command_id":      req.CommandID,
+		"remote_id":       remoteID,
+		"dispatch_status": "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id": req.CommandID,
+		"type":       "agent_connection.delete",
+		"delete_agent_connection": map[string]any{
+			"connection_id": req.ConnectionID,
+		},
+	}, data)
+}
+
+func (s *Service) authorizeNodeDaemonAgentConnectionCommand(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req *domain.NodeDaemonAgentConnectionActionRequest,
+) (domain.Node, string, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return domain.Node{}, "", err
+	}
+	if req == nil {
+		return domain.Node{}, "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "command request is required",
+		}
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.ConnectionID = strings.TrimSpace(req.ConnectionID)
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	if req.NodeID == "" || req.ConnectionID == "" || req.CommandID == "" {
+		return domain.Node{}, "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id, connection_id, and command_id are required",
+		}
+	}
+	node, err := s.store.GetNode(c, principal, req.NodeID)
+	if err != nil {
+		return domain.Node{}, "", err
+	}
+	if s.nodeControl == nil {
+		return domain.Node{}, "", nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return domain.Node{}, "", nodeControlUnavailableError()
+	}
+	return node, remoteID, nil
+}
+
+func (s *Service) dispatchNodeDaemonCommand(
+	c context.Context,
+	nodeID string,
+	commandID string,
+	command any,
+	data map[string]any,
+) (int, any, error) {
+	ackRaw, dispatchErr := s.nodeControl.Command(c, nodeID, commandID, command)
+	if dispatchErr != nil {
+		data["dispatch_error"] = dispatchErr.Error()
+		return http.StatusAccepted, data, nil
+	}
+	var ack nodeDaemonCommandAck
+	if err := json.Unmarshal(ackRaw, &ack); err != nil {
+		data["dispatch_error"] = "invalid command acknowledgement"
+		return http.StatusAccepted, data, nil
+	}
+	connectionID := ack.TargetID
+	if connectionID == "" && ack.Result != nil && ack.Result.AgentConnection != nil {
+		connectionID = ack.Result.AgentConnection.ID
+	}
+	data["command_ack"] = ackRaw
+	data["command_status"] = ack.Status
+	data["connection_id"] = connectionID
+	data["desired_generation"] = ack.Generation
+	data["dispatch_status"] = "acknowledged"
+	return http.StatusAccepted, data, nil
+}
+
+func (s *Service) resolveNodeDaemonHarnessCommand(
+	c context.Context,
+	nodeID string,
+	harness string,
+	explicit []string,
+) ([]string, error) {
+	if command := normalizedNodeDaemonCommand(explicit); len(command) > 0 {
+		return command, nil
+	}
+	result, err := s.queryNodeDaemonHarnesses(c, nodeID, map[string]any{
+		"type": "harnesses.list",
+		"list_harnesses": map[string]any{
+			"include_missing": true,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	command, found, cachedErr := commandForNodeDaemonHarness(result, harness)
+	if found && cachedErr == nil {
+		return command, nil
+	}
+	result, err = s.queryNodeDaemonHarnesses(c, nodeID, map[string]any{
+		"type": "harnesses.discover",
+		"discover_harnesses": map[string]any{
+			"names": []string{harness},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if command, found, err = commandForNodeDaemonHarness(result, harness); found || err != nil {
+		return command, err
+	}
+	if cachedErr != nil {
+		return nil, cachedErr
+	}
+	return nil, apperr.Error{
+		Status:  http.StatusBadRequest,
+		Message: "requested harness is not known to paxd",
+	}
+}
+
+func (s *Service) queryNodeDaemonHarnesses(
+	c context.Context,
+	nodeID string,
+	query any,
+) (nodeDaemonHarnessQueryResult, error) {
+	raw, err := s.queryNodeControl(c, nodeID, query)
+	if err != nil {
+		return nodeDaemonHarnessQueryResult{}, err
+	}
+	var result nodeDaemonHarnessQueryResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return result, apperr.Error{
+			Status:  http.StatusBadGateway,
+			Message: "paxd returned an invalid harness result",
+		}
+	}
+	if result.Error != nil {
+		message := strings.TrimSpace(result.Error.Message)
+		if message == "" {
+			message = "paxd harness query failed"
+		}
+		return result, apperr.Error{Status: http.StatusBadGateway, Message: message}
+	}
+	return result, nil
+}
+
+func commandForNodeDaemonHarness(
+	result nodeDaemonHarnessQueryResult,
+	harness string,
+) ([]string, bool, error) {
+	if result.Harnesses == nil {
+		return nil, false, nil
+	}
+	for _, item := range result.Harnesses.Items {
+		if !strings.EqualFold(strings.TrimSpace(item.Harness), harness) {
+			continue
+		}
+		state := strings.TrimSpace(item.State)
+		if state != "" && state != "available" {
+			message := firstNodeDaemonValue(
+				item.LastError,
+				item.InstallHint,
+				"requested harness is not available",
+			)
+			return nil, true, apperr.Error{Status: http.StatusBadRequest, Message: message}
+		}
+		command := normalizedNodeDaemonCommand(item.Command)
+		if len(command) == 0 {
+			return nil, true, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "requested harness has no command configured",
+			}
+		}
+		return command, true, nil
+	}
+	return nil, false, nil
+}
+
+func normalizedNodeDaemonCommand(command []string) []string {
+	normalized := make([]string, 0, len(command))
+	for _, word := range command {
+		if word = strings.TrimSpace(word); word != "" {
+			normalized = append(normalized, word)
+		}
+	}
+	return normalized
+}
+
+func firstNodeDaemonValue(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (s *Service) UpdateNodeAgent(

@@ -1558,6 +1558,46 @@ type CreateAgentRequest struct {
 	Metadata     json.RawMessage `json:"metadata"`
 }
 
+type CreateNodeDaemonAgentConnectionRequest struct {
+	UserID       string   `json:"user_id"`
+	NodeID       string   `json:"node_id"`
+	CommandID    string   `json:"command_id"`
+	Name         string   `json:"name"`
+	AgentType    string   `json:"agent_type"`
+	Harness      string   `json:"harness"`
+	InstanceID   string   `json:"instance_id"`
+	Command      []string `json:"command"`
+	WorkingDir   string   `json:"working_dir"`
+	DesiredSlots *int     `json:"desired_slots"`
+}
+
+type DiscoverNodeDaemonHarnessesRequest struct {
+	UserID string   `json:"user_id"`
+	NodeID string   `json:"node_id"`
+	Probe  bool     `json:"probe"`
+	Names  []string `json:"names"`
+}
+
+type UpdateNodeDaemonAgentConnectionRequest struct {
+	UserID       string    `json:"user_id"`
+	NodeID       string    `json:"node_id"`
+	ConnectionID string    `json:"connection_id"`
+	CommandID    string    `json:"command_id"`
+	Name         *string   `json:"name"`
+	Harness      *string   `json:"harness"`
+	Command      *[]string `json:"command"`
+	WorkingDir   *string   `json:"working_dir"`
+	DesiredSlots *int      `json:"desired_slots"`
+	DesiredState *string   `json:"desired_state"`
+}
+
+type NodeDaemonAgentConnectionActionRequest struct {
+	UserID       string `json:"user_id"`
+	NodeID       string `json:"node_id"`
+	ConnectionID string `json:"connection_id"`
+	CommandID    string `json:"command_id"`
+}
+
 type UpdateNodeRequest struct {
 	UserID       string          `json:"user_id"`
 	NodeID       string          `json:"node_id"`

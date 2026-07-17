@@ -133,6 +133,31 @@ func Register(r *server.Hertz) {
 									}
 								}
 							}
+							{
+								_daemon := _node_id.Group("/daemon", _daemonMw()...)
+								_daemon.GET("/agent-connections", append(_listnodedaemonagentconnectionsMw(), handler.ListNodeDaemonAgentConnections)...)
+								_daemon.POST("/agent-connections", append(_createnodedaemonagentconnectionMw(), handler.CreateNodeDaemonAgentConnection)...)
+								_daemon.GET("/harnesses", append(_listnodedaemonharnessesMw(), handler.ListNodeDaemonHarnesses)...)
+								_daemon.GET("/status", append(_getnodedaemonstatusMw(), handler.GetNodeDaemonStatus)...)
+								{
+									_agent_connections := _daemon.Group("/agent-connections", _agent_connectionsMw()...)
+									_agent_connections.DELETE("/:connection_id", append(_removenodedaemonagentconnectionMw(), handler.RemoveNodeDaemonAgentConnection)...)
+									_agent_connections.PATCH("/:connection_id", append(_updatenodedaemonagentconnectionMw(), handler.UpdateNodeDaemonAgentConnection)...)
+									{
+										_connection_id := _agent_connections.Group("/:connection_id", _connection_idMw()...)
+										_connection_id.POST("/restart", append(_restartnodedaemonagentconnectionMw(), handler.RestartNodeDaemonAgentConnection)...)
+										_connection_id.POST("/stop", append(_stopnodedaemonagentconnectionMw(), handler.StopNodeDaemonAgentConnection)...)
+									}
+								}
+								{
+									_commands := _daemon.Group("/commands", _commandsMw()...)
+									_commands.GET("/:command_id", append(_getnodedaemoncommandMw(), handler.GetNodeDaemonCommand)...)
+								}
+								{
+									_harnesses := _daemon.Group("/harnesses", _harnessesMw()...)
+									_harnesses.POST("/discover", append(_discovernodedaemonharnessesMw(), handler.DiscoverNodeDaemonHarnesses)...)
+								}
+							}
 						}
 					}
 					{

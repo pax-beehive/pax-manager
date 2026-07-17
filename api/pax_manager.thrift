@@ -1026,6 +1026,112 @@ struct AuditEventListResponse {
   3: optional string message
 }
 
+struct GetNodeDaemonStatusRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+}
+
+struct ListNodeDaemonHarnessesRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional bool include_missing (api.query = "include_missing")
+}
+
+struct DiscoverNodeDaemonHarnessesRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional bool probe
+  4: optional list<string> names
+}
+
+struct ListNodeDaemonAgentConnectionsRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional bool include_disabled (api.query = "include_disabled")
+}
+
+struct NodeDaemonQueryResponse {
+  1: optional JSON data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct CreateNodeDaemonAgentConnectionRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string command_id
+  4: optional string name
+  5: optional string agent_type
+  6: optional string harness
+  7: optional string instance_id
+  8: optional list<string> command
+  9: optional string working_dir
+  10: optional i32 desired_slots
+}
+
+struct CreateNodeDaemonAgentConnectionData {
+  1: optional Agent agent
+  2: optional string agent_id
+  3: optional MailboxMessage bootstrap_message
+  4: optional string remote_id
+  5: optional string connection_id
+  6: optional string command_id
+  7: optional string command_status
+  8: optional i64 desired_generation
+  9: optional string dispatch_status
+  10: optional string dispatch_error
+  11: optional JSON command_ack
+}
+
+struct CreateNodeDaemonAgentConnectionResponse {
+  1: optional CreateNodeDaemonAgentConnectionData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct UpdateNodeDaemonAgentConnectionRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string connection_id (api.path = "connection_id")
+  4: optional string command_id
+  5: optional string name
+  6: optional string harness
+  7: optional list<string> command
+  8: optional string working_dir
+  9: optional i32 desired_slots
+  10: optional string desired_state
+}
+
+struct NodeDaemonCommandData {
+  1: optional string remote_id
+  2: optional string connection_id
+  3: optional string command_id
+  4: optional string command_status
+  5: optional i64 desired_generation
+  6: optional string dispatch_status
+  7: optional string dispatch_error
+  8: optional JSON command_ack
+}
+
+struct NodeDaemonCommandResponse {
+  1: optional NodeDaemonCommandData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct NodeDaemonAgentConnectionActionRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string connection_id (api.path = "connection_id")
+  4: optional string command_id
+}
+
+struct GetNodeDaemonCommandRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string command_id (api.path = "command_id")
+}
+
 service PaxManagerAPI {
   HealthResponse Health(1: optional EmptyRequest request) (
     api.get = "/api/v1/health",
@@ -1230,6 +1336,136 @@ service PaxManagerAPI {
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonQueryResponse GetNodeDaemonStatus(
+    1: optional GetNodeDaemonStatusRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/nodes/:node_id/daemon/status",
+    openapi.tag = "user",
+    openapi.summary = "Get node daemon status",
+    openapi.description = "Forwards a status.get query to the connected paxd control tunnel.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonQueryResponse ListNodeDaemonHarnesses(
+    1: optional ListNodeDaemonHarnessesRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/nodes/:node_id/daemon/harnesses",
+    openapi.tag = "user",
+    openapi.summary = "List node daemon harnesses",
+    openapi.description = "Forwards a harnesses.list query to the connected paxd control tunnel.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonQueryResponse DiscoverNodeDaemonHarnesses(
+    1: optional DiscoverNodeDaemonHarnessesRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/harnesses/discover",
+    openapi.tag = "user",
+    openapi.summary = "Discover node daemon harnesses",
+    openapi.description = "Forwards a harnesses.discover query to the connected paxd control tunnel.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonQueryResponse ListNodeDaemonAgentConnections(
+    1: optional ListNodeDaemonAgentConnectionsRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections",
+    openapi.tag = "user",
+    openapi.summary = "List node daemon agent connections",
+    openapi.description = "Forwards an agent_connections.list query to the connected paxd control tunnel.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  CreateNodeDaemonAgentConnectionResponse CreateNodeDaemonAgentConnection(
+    1: optional CreateNodeDaemonAgentConnectionRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections",
+    openapi.tag = "user",
+    openapi.summary = "Create node daemon agent connection",
+    openapi.description = "Creates a cloud Agent and forwards agent_connection.create to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonCommandResponse UpdateNodeDaemonAgentConnection(
+    1: optional UpdateNodeDaemonAgentConnectionRequest request
+  ) (
+    api.patch = "/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id",
+    openapi.tag = "user",
+    openapi.summary = "Update node daemon agent connection",
+    openapi.description = "Forwards agent_connection.update to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.connection_id = "Agent connection identifier."
+  )
+
+  NodeDaemonCommandResponse StopNodeDaemonAgentConnection(
+    1: optional NodeDaemonAgentConnectionActionRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id/stop",
+    openapi.tag = "user",
+    openapi.summary = "Stop node daemon agent connection",
+    openapi.description = "Sets the paxd agent connection desired state to stopped.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.connection_id = "Agent connection identifier."
+  )
+
+  NodeDaemonCommandResponse RestartNodeDaemonAgentConnection(
+    1: optional NodeDaemonAgentConnectionActionRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id/restart",
+    openapi.tag = "user",
+    openapi.summary = "Restart node daemon agent connection",
+    openapi.description = "Forwards agent_connection.restart to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.connection_id = "Agent connection identifier."
+  )
+
+  NodeDaemonCommandResponse RemoveNodeDaemonAgentConnection(
+    1: optional NodeDaemonAgentConnectionActionRequest request
+  ) (
+    api.delete = "/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id",
+    openapi.tag = "user",
+    openapi.summary = "Remove node daemon agent connection",
+    openapi.description = "Forwards agent_connection.delete to the connected paxd control tunnel without deleting the cloud Agent.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.connection_id = "Agent connection identifier."
+  )
+
+  NodeDaemonQueryResponse GetNodeDaemonCommand(
+    1: optional GetNodeDaemonCommandRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/nodes/:node_id/daemon/commands/:command_id",
+    openapi.tag = "user",
+    openapi.summary = "Get node daemon command",
+    openapi.description = "Forwards command.get to the connected paxd control tunnel.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.command_id = "Command identifier."
   )
 
   NodeResponse UpdateNode(1: optional UpdateNodeRequest request) (

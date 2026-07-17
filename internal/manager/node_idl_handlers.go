@@ -188,6 +188,127 @@ func GetNode(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func GetNodeDaemonStatus(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.GetNodeDaemonStatus(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("node_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func ListNodeDaemonHarnesses(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.ListNodeDaemonHarnesses(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("node_id"),
+		queryBool(ctx, "include_missing"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func DiscoverNodeDaemonHarnesses(c context.Context, ctx *app.RequestContext) {
+	var req DiscoverNodeDaemonHarnessesRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	status, data, err := serviceFromContext(ctx).userapi.DiscoverNodeDaemonHarnesses(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func ListNodeDaemonAgentConnections(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.ListNodeDaemonAgentConnections(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("node_id"),
+		queryBool(ctx, "include_disabled"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func CreateNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext) {
+	var req CreateNodeDaemonAgentConnectionRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	status, data, err := serviceFromContext(ctx).userapi.CreateNodeDaemonAgentConnection(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func UpdateNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext) {
+	var req UpdateNodeDaemonAgentConnectionRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	req.ConnectionID = ctx.Param("connection_id")
+	status, data, err := serviceFromContext(ctx).userapi.UpdateNodeDaemonAgentConnection(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func StopNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext) {
+	var req NodeDaemonAgentConnectionActionRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	req.ConnectionID = ctx.Param("connection_id")
+	status, data, err := serviceFromContext(ctx).userapi.StopNodeDaemonAgentConnection(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func RestartNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext) {
+	var req NodeDaemonAgentConnectionActionRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	req.ConnectionID = ctx.Param("connection_id")
+	status, data, err := serviceFromContext(ctx).userapi.RestartNodeDaemonAgentConnection(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func RemoveNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext) {
+	var req NodeDaemonAgentConnectionActionRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	req.ConnectionID = ctx.Param("connection_id")
+	status, data, err := serviceFromContext(ctx).userapi.RemoveNodeDaemonAgentConnection(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func GetNodeDaemonCommand(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.GetNodeDaemonCommand(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("node_id"),
+		ctx.Param("command_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func UpdateNode(c context.Context, ctx *app.RequestContext) {
 	var req UpdateNodeRequest
 	decodeBody(ctx, &req)
