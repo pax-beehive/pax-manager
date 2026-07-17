@@ -1081,6 +1081,34 @@ struct CreateNodeDaemonAgentConnectionResponse {
   3: optional string message
 }
 
+struct UpdateNodeDaemonAgentConnectionRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string connection_id (api.path = "connection_id")
+  4: optional string command_id
+  5: optional string name
+  6: optional string harness
+  7: optional list<string> command
+  8: optional string working_dir
+}
+
+struct NodeDaemonCommandData {
+  1: optional string remote_id
+  2: optional string connection_id
+  3: optional string command_id
+  4: optional string command_status
+  5: optional i64 desired_generation
+  6: optional string dispatch_status
+  7: optional string dispatch_error
+  8: optional JSON command_ack
+}
+
+struct NodeDaemonCommandResponse {
+  1: optional NodeDaemonCommandData data
+  2: optional i32 code
+  3: optional string message
+}
+
 service PaxManagerAPI {
   HealthResponse Health(1: optional EmptyRequest request) (
     api.get = "/api/v1/health",
@@ -1334,6 +1362,20 @@ service PaxManagerAPI {
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonCommandResponse UpdateNodeDaemonAgentConnection(
+    1: optional UpdateNodeDaemonAgentConnectionRequest request
+  ) (
+    api.patch = "/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id",
+    openapi.tag = "user",
+    openapi.summary = "Update node daemon agent connection",
+    openapi.description = "Forwards agent_connection.update to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.connection_id = "Agent connection identifier."
   )
 
   NodeResponse UpdateNode(1: optional UpdateNodeRequest request) (

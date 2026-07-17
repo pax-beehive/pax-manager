@@ -183,6 +183,7 @@ var generatedNodeDaemonHandlerBridge = map[string]generatedHandlerFunc{
 	"GetNodeDaemonStatus":             GetNodeDaemonStatus,
 	"ListNodeDaemonAgentConnections":  ListNodeDaemonAgentConnections,
 	"ListNodeDaemonHarnesses":         ListNodeDaemonHarnesses,
+	"UpdateNodeDaemonAgentConnection": UpdateNodeDaemonAgentConnection,
 }
 
 func (s *Service) HandleGenerated(c context.Context, ctx *app.RequestContext, name string) {
