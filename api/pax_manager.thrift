@@ -1399,6 +1399,20 @@ service PaxManagerAPI {
     openapi.path.connection_id = "Agent connection identifier."
   )
 
+  NodeDaemonCommandResponse RestartNodeDaemonAgentConnection(
+    1: optional NodeDaemonAgentConnectionActionRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id/restart",
+    openapi.tag = "user",
+    openapi.summary = "Restart node daemon agent connection",
+    openapi.description = "Forwards agent_connection.restart to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.connection_id = "Agent connection identifier."
+  )
+
   NodeResponse UpdateNode(1: optional UpdateNodeRequest request) (
     api.patch = "/api/v1/user/:user_id/nodes/:node_id",
     openapi.tag = "user",
