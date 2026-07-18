@@ -217,17 +217,12 @@ func buildPaxdIntegrationImage(t *testing.T) string {
 		return image
 	}
 	paxdDir := paxdRepoDir(t)
-	runCommand(
-		t,
-		paxdDir,
-		"docker",
-		"build",
-		"-f",
-		"Dockerfile.integration",
-		"-t",
-		image,
-		".",
-	)
+	args := []string{"build", "-f", "Dockerfile.integration"}
+	if os.Getenv("PAX_BEEHIVE_READ_TOKEN") != "" {
+		args = append(args, "--secret", "id=github_token,env=PAX_BEEHIVE_READ_TOKEN")
+	}
+	args = append(args, "-t", image, ".")
+	runCommand(t, paxdDir, "docker", args...)
 	return image
 }
 

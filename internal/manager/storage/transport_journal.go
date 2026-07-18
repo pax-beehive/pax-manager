@@ -177,15 +177,25 @@ func (s *PostgresStore) ConsumerAckedThrough(
 	queueID string,
 	stream reliablemq.Stream,
 ) (int64, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.db.QueryContext(
+		ctx,
+		`
 		SELECT seq
 		FROM transport_journal
 		WHERE queue_id = $1 AND stream = $2
 			AND direction = $3
 			AND status IN ($4, $5, $6)
 		ORDER BY seq ASC
-	`, queueID, string(stream), string(reliablemq.DirectionInbound),
-		string(reliablemq.StatusReceived), string(reliablemq.StatusApplied), string(reliablemq.StatusRejected))
+	`,
+		queueID,
+		string(stream),
+		string(reliablemq.DirectionInbound),
+		string(
+			reliablemq.StatusReceived,
+		),
+		string(reliablemq.StatusApplied),
+		string(reliablemq.StatusRejected),
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -246,7 +256,8 @@ func (s *PostgresStore) ApplyBatch(ctx context.Context, batch reliablemq.StoreBa
 		if err := s.applyReliableFrameStateTx(ctx, tx, frame); err != nil {
 			return err
 		}
-		if frame.Key.Direction == reliablemq.DirectionInbound && frame.Status == reliablemq.StatusApplied {
+		if frame.Key.Direction == reliablemq.DirectionInbound &&
+			frame.Status == reliablemq.StatusApplied {
 			if err := s.updateInboundAppliedThroughTx(ctx, tx, frame.Key.QueueID, frame.Key.Stream, frame.Key.Seq); err != nil {
 				return err
 			}
@@ -773,18 +784,6 @@ func insertReliableFrameTx(ctx context.Context, tx *sql.Tx, frame reliablemq.Fra
 		return false, err
 	}
 	return affected > 0, nil
-}
-
-func (s *PostgresStore) getReliableFrame(
-	ctx context.Context,
-	key reliablemq.FrameKey,
-) (reliablemq.Frame, error) {
-	row := s.db.QueryRowContext(ctx, `
-		SELECT `+reliableFrameReturningSQL+`
-		FROM transport_journal
-		WHERE queue_id = $1 AND stream = $2 AND seq = $3 AND direction = $4
-	`, key.QueueID, string(key.Stream), key.Seq, string(key.Direction))
-	return scanReliableFrame(row)
 }
 
 func getReliableFrameTx(

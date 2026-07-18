@@ -459,7 +459,10 @@ func isSessionTurnAlreadyActive(err error) bool {
 		httpErr.Message == "session already has an active turn"
 }
 
-func (h *ACPTunnelHub) borrowAny(agentID string, sessionIDs ...string) (*ACPTunnelAgent, func(), error) {
+func (h *ACPTunnelHub) borrowAny(
+	agentID string,
+	sessionIDs ...string,
+) (*ACPTunnelAgent, func(), error) {
 	conn, err := h.findAny(agentID, sessionIDs...)
 	if err != nil {
 		return nil, func() {}, err
@@ -516,46 +519,6 @@ func (h *ACPTunnelHub) claimAnyWait(
 			return nil, ctx.Err()
 		case <-deadline.C:
 			return nil, lastErr
-		case <-ticker.C:
-		}
-	}
-}
-
-func (h *ACPTunnelHub) borrowAnyWait(
-	ctx context.Context,
-	waitFor time.Duration,
-	interval time.Duration,
-	agentID string,
-	sessionIDs ...string,
-) (*ACPTunnelAgent, func(), error) {
-	if waitFor <= 0 {
-		return h.borrowAny(agentID, sessionIDs...)
-	}
-	if interval <= 0 {
-		interval = 50 * time.Millisecond
-	}
-
-	deadline := time.NewTimer(waitFor)
-	defer deadline.Stop()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	var lastErr error
-	for {
-		conn, release, err := h.borrowAny(agentID, sessionIDs...)
-		if err == nil {
-			return conn, release, nil
-		}
-		if !isAgentTunnelNotConnected(err) {
-			return nil, func() {}, err
-		}
-		lastErr = err
-
-		select {
-		case <-ctx.Done():
-			return nil, func() {}, ctx.Err()
-		case <-deadline.C:
-			return nil, func() {}, lastErr
 		case <-ticker.C:
 		}
 	}
@@ -815,7 +778,10 @@ func (a *ACPTunnelAgent) nativeSessionID(
 			continue
 		}
 		if strings.TrimSpace(session.NativeID) == "" {
-			return "", fmt.Errorf("manager session %q has no native ACP session id", managerSessionID)
+			return "", fmt.Errorf(
+				"manager session %q has no native ACP session id",
+				managerSessionID,
+			)
 		}
 		return session.NativeID, nil
 	}
@@ -1300,7 +1266,15 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 		agentID,
 		sessionID,
 	)
-	agentConn, err := s.acpTunnels.claimAny(agentID, sessionID, nativeSessionID, "")
+	agentConn, err := s.acpTunnels.claimAnyWait(
+		r.Context(),
+		5*time.Second,
+		50*time.Millisecond,
+		agentID,
+		sessionID,
+		nativeSessionID,
+		"",
+	)
 	if err != nil {
 		status, message := endpointErrorStatus(err)
 		logging.Warn(
@@ -1769,7 +1743,10 @@ func (a *ACPTunnelAgent) observeHistoryBoundary(payload json.RawMessage) {
 
 const maxACPReconcileAdvanceGap = 100000
 
-func (a *ACPTunnelAgent) respondPaxdProducerReconcile(ctx context.Context, request reliablemq.Envelope) (reliablemq.ReconcileAction, error) {
+func (a *ACPTunnelAgent) respondPaxdProducerReconcile(
+	ctx context.Context,
+	request reliablemq.Envelope,
+) (reliablemq.ReconcileAction, error) {
 	if request.Type != reliablemq.EnvelopeTypeReconcileRequest {
 		return "", fmt.Errorf("expected reconcile_request, got %q", request.Type)
 	}
@@ -1841,7 +1818,8 @@ func (a *ACPTunnelAgent) reconcilePaxdProducerResponse(
 		response.Action = reliablemq.ReconcileActionAligned
 	case consumerAckedThrough < producerLastSeq:
 		from := consumerAckedThrough + 1
-		if request.ReplayFrom > 0 && request.ReplayFrom <= from && request.ReplayThrough >= producerLastSeq {
+		if request.ReplayFrom > 0 && request.ReplayFrom <= from &&
+			request.ReplayThrough >= producerLastSeq {
 			response.Action = reliablemq.ReconcileActionReplay
 			response.From = from
 			response.Through = producerLastSeq
@@ -1922,7 +1900,12 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 			)...,
 		)
 		if userWS == nil {
-			if shouldWarnDroppedACPFrame(frame.frame, deliveredWaiter, deliveredSSE, asyncReceivers) {
+			if shouldWarnDroppedACPFrame(
+				frame.frame,
+				deliveredWaiter,
+				deliveredSSE,
+				asyncReceivers,
+			) {
 				logging.Warn(
 					ctx,
 					"agent acp tunnel dropped frame without user",

@@ -17,5 +17,6 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 011 | resolved | [User-controlled artifact bucket/object gets server-signed GCS URLs (confused deputy)](011-artifact-content-gcs-signing.md) | high | storage / api |
 | 012 | resolved | [Representative agent upsert can overwrite another user's profile and impersonate owners](012-representative-agent-profile-takeover.md) | medium | storage / auth |
 | 013 | resolved | [Session creation stamps caller-supplied conversation_id (cross-tenant write injection)](013-session-conversation-id-injection.md) | medium | session / storage |
+| 014 | resolved | [ACP user tunnel claim races agent tunnel registration](014-acp-user-tunnel-claim-race.md) | medium | session / api |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.

@@ -123,7 +123,13 @@ func (s *PostgresStore) GetAgentOwnerInfo(
 		if err != nil {
 			return domain.AgentOwnerInfo{}, err
 		}
-		owner, err := s.agentOwnerSubject(ctx, principal, rep.RepresentsType, rep.RepresentsID, agent.OwnerUserID)
+		owner, err := s.agentOwnerSubject(
+			ctx,
+			principal,
+			rep.RepresentsType,
+			rep.RepresentsID,
+			agent.OwnerUserID,
+		)
 		if err != nil {
 			return domain.AgentOwnerInfo{}, err
 		}
@@ -176,11 +182,26 @@ func (s *PostgresStore) UpsertRepresentativeAgent(
 		return domain.RepresentativeAgent{}, domain.AgentProfile{}, err
 	}
 	displayName := firstNonEmpty(strings.TrimSpace(req.DisplayName), agent.Name, agent.AgentID)
-	profile, err := s.upsertAgentProfile(ctx, profileID, agent.OwnerUserID, principal.User.UserID, displayName, req.Description, req.Card, req.Metadata, now)
+	profile, err := s.upsertAgentProfile(
+		ctx,
+		profileID,
+		agent.OwnerUserID,
+		principal.User.UserID,
+		displayName,
+		req.Description,
+		req.Card,
+		req.Metadata,
+		now,
+	)
 	if err != nil {
 		return domain.RepresentativeAgent{}, domain.AgentProfile{}, err
 	}
-	repID := deterministicRepresentativeAgentID(agent.AgentID, profileID, representsType, representsID)
+	repID := deterministicRepresentativeAgentID(
+		agent.AgentID,
+		profileID,
+		representsType,
+		representsID,
+	)
 	row := s.db.QueryRowContext(ctx, `
 		INSERT INTO representative_agents (
 			representative_agent_id, profile_id, runtime_agent_id, represents_type,
@@ -296,7 +317,11 @@ func (s *PostgresStore) StartAgentConversation(
 	if err != nil {
 		return domain.AgentConversationStart{}, err
 	}
-	sourceRep, err := s.findSourceRepresentativeAgent(ctx, sourceAgent.AgentID, req.FromRepresentativeAgentID)
+	sourceRep, err := s.findSourceRepresentativeAgent(
+		ctx,
+		sourceAgent.AgentID,
+		req.FromRepresentativeAgentID,
+	)
 	if err != nil {
 		return domain.AgentConversationStart{}, err
 	}
@@ -311,7 +336,11 @@ func (s *PostgresStore) StartAgentConversation(
 	now := s.now().UTC()
 	conversationID := strings.TrimSpace(req.ConversationID)
 	if conversationID != "" {
-		member, err := s.hasActiveConversationMembership(ctx, conversationID, sourceAgent.OwnerUserID)
+		member, err := s.hasActiveConversationMembership(
+			ctx,
+			conversationID,
+			sourceAgent.OwnerUserID,
+		)
 		if err != nil {
 			return domain.AgentConversationStart{}, err
 		}
@@ -325,7 +354,12 @@ func (s *PostgresStore) StartAgentConversation(
 			return domain.AgentConversationStart{}, err
 		}
 	}
-	conversation, err := s.upsertAgentConversation(ctx, conversationID, sourceAgent.OwnerUserID, now)
+	conversation, err := s.upsertAgentConversation(
+		ctx,
+		conversationID,
+		sourceAgent.OwnerUserID,
+		now,
+	)
 	if err != nil {
 		return domain.AgentConversationStart{}, err
 	}
@@ -337,20 +371,48 @@ func (s *PostgresStore) StartAgentConversation(
 			return domain.AgentConversationStart{}, err
 		}
 	}
-	sourceBinding, err := s.upsertConversationAgentBinding(ctx, conversationID, sourceRep.RepresentativeAgentID, sourceAgent.OwnerUserID, domain.ConversationAgentRelationshipParticipant, now)
+	sourceBinding, err := s.upsertConversationAgentBinding(
+		ctx,
+		conversationID,
+		sourceRep.RepresentativeAgentID,
+		sourceAgent.OwnerUserID,
+		domain.ConversationAgentRelationshipParticipant,
+		now,
+	)
 	if err != nil {
 		return domain.AgentConversationStart{}, err
 	}
-	targetBinding, err := s.upsertConversationAgentBinding(ctx, conversationID, targetRep.RepresentativeAgentID, sourceAgent.OwnerUserID, domain.ConversationAgentRelationshipAssistant, now)
+	targetBinding, err := s.upsertConversationAgentBinding(
+		ctx,
+		conversationID,
+		targetRep.RepresentativeAgentID,
+		sourceAgent.OwnerUserID,
+		domain.ConversationAgentRelationshipAssistant,
+		now,
+	)
 	if err != nil {
 		return domain.AgentConversationStart{}, err
 	}
 
-	sourceSession, err := s.createConversationSession(ctx, sourceAgent, sourceRep, conversationID, sourceAgent.OwnerUserID, now)
+	sourceSession, err := s.createConversationSession(
+		ctx,
+		sourceAgent,
+		sourceRep,
+		conversationID,
+		sourceAgent.OwnerUserID,
+		now,
+	)
 	if err != nil {
 		return domain.AgentConversationStart{}, err
 	}
-	targetSession, err := s.createConversationSession(ctx, targetAgent, targetRep, conversationID, sourceAgent.OwnerUserID, now)
+	targetSession, err := s.createConversationSession(
+		ctx,
+		targetAgent,
+		targetRep,
+		conversationID,
+		sourceAgent.OwnerUserID,
+		now,
+	)
 	if err != nil {
 		return domain.AgentConversationStart{}, err
 	}
@@ -455,15 +517,33 @@ func (s *PostgresStore) deliverAgentConversationToRepresentative(
 		return domain.ConversationDelivery{}, err
 	}
 	ctx = logging.With(ctx, slog.String("source_owner_user_id", sourceAgent.OwnerUserID))
-	sourceRep, err := s.findSourceRepresentativeAgent(ctx, sourceAgent.AgentID, req.Source.RepresentativeAgentID)
+	sourceRep, err := s.findSourceRepresentativeAgent(
+		ctx,
+		sourceAgent.AgentID,
+		req.Source.RepresentativeAgentID,
+	)
 	if err != nil {
-		logging.Warn(ctx, "conversation delivery source representative lookup failed", logging.Err(err))
+		logging.Warn(
+			ctx,
+			"conversation delivery source representative lookup failed",
+			logging.Err(err),
+		)
 		return domain.ConversationDelivery{}, err
 	}
-	ctx = logging.With(ctx, slog.String("resolved_source_representative_agent_id", sourceRep.RepresentativeAgentID))
-	targetRep, targetAgent, err := s.getTargetRepresentativeAgent(ctx, req.Target.RepresentativeAgentID)
+	ctx = logging.With(
+		ctx,
+		slog.String("resolved_source_representative_agent_id", sourceRep.RepresentativeAgentID),
+	)
+	targetRep, targetAgent, err := s.getTargetRepresentativeAgent(
+		ctx,
+		req.Target.RepresentativeAgentID,
+	)
 	if err != nil {
-		logging.Warn(ctx, "conversation delivery target representative lookup failed", logging.Err(err))
+		logging.Warn(
+			ctx,
+			"conversation delivery target representative lookup failed",
+			logging.Err(err),
+		)
 		return domain.ConversationDelivery{}, err
 	}
 	ctx = logging.With(ctx,
@@ -478,7 +558,11 @@ func (s *PostgresStore) deliverAgentConversationToRepresentative(
 	now := s.now().UTC()
 	conversationID, err := newSecret("conv")
 	if err != nil {
-		logging.Warn(ctx, "conversation delivery conversation id generation failed", logging.Err(err))
+		logging.Warn(
+			ctx,
+			"conversation delivery conversation id generation failed",
+			logging.Err(err),
+		)
 		return domain.ConversationDelivery{}, err
 	}
 	receiptToken, err := newSecret("rcpt")
@@ -556,17 +640,31 @@ func (s *PostgresStore) deliverAgentConversationActiveInvocationReply(
 	logging.Info(ctx, "conversation reply active invocation found")
 	if strings.TrimSpace(req.Source.RepresentativeAgentID) != "" &&
 		req.Source.RepresentativeAgentID != parent.TargetRepresentativeAgentID {
-		logging.Warn(ctx, "conversation reply rejected because source representative does not match active invocation")
+		logging.Warn(
+			ctx,
+			"conversation reply rejected because source representative does not match active invocation",
+		)
 		return domain.ConversationDelivery{}, ErrUnauthorized
 	}
 	sourceRep, err := s.getRepresentativeAgent(ctx, parent.TargetRepresentativeAgentID)
 	if err != nil {
-		logging.Warn(ctx, "conversation reply source representative lookup failed", logging.Err(err))
+		logging.Warn(
+			ctx,
+			"conversation reply source representative lookup failed",
+			logging.Err(err),
+		)
 		return domain.ConversationDelivery{}, err
 	}
-	targetRep, targetAgent, err := s.getTargetRepresentativeAgent(ctx, parent.SourceRepresentativeAgentID)
+	targetRep, targetAgent, err := s.getTargetRepresentativeAgent(
+		ctx,
+		parent.SourceRepresentativeAgentID,
+	)
 	if err != nil {
-		logging.Warn(ctx, "conversation reply target representative lookup failed", logging.Err(err))
+		logging.Warn(
+			ctx,
+			"conversation reply target representative lookup failed",
+			logging.Err(err),
+		)
 		return domain.ConversationDelivery{}, err
 	}
 	now := s.now().UTC()
@@ -616,13 +714,19 @@ func conversationDeliveryRequestAttrs(
 		attrs = append(attrs, slog.String("source_agent_id", req.Source.AgentID))
 	}
 	if req.Source.RepresentativeAgentID != "" {
-		attrs = append(attrs, slog.String("source_representative_agent_id", req.Source.RepresentativeAgentID))
+		attrs = append(
+			attrs,
+			slog.String("source_representative_agent_id", req.Source.RepresentativeAgentID),
+		)
 	}
 	if req.Source.SessionID != "" {
 		attrs = append(attrs, slog.String("source_session_id", req.Source.SessionID))
 	}
 	if req.Target.RepresentativeAgentID != "" {
-		attrs = append(attrs, slog.String("target_representative_agent_id", req.Target.RepresentativeAgentID))
+		attrs = append(
+			attrs,
+			slog.String("target_representative_agent_id", req.Target.RepresentativeAgentID),
+		)
 	}
 	if req.Target.SessionID != "" {
 		attrs = append(attrs, slog.String("target_session_id", req.Target.SessionID))
@@ -677,11 +781,27 @@ func (s *PostgresStore) createConversationDelivery(
 	if _, err := s.upsertConversationAgentBinding(ctx, spec.conversationID, spec.targetRep.RepresentativeAgentID, spec.sourceAgent.OwnerUserID, domain.ConversationAgentRelationshipAssistant, spec.now); err != nil {
 		return domain.ConversationDelivery{}, err
 	}
-	sourceSession, err := s.ensureConversationSession(ctx, spec.sourceAgent, spec.sourceRep, spec.conversationID, spec.sourceAgent.OwnerUserID, spec.sourceSessionID, spec.now)
+	sourceSession, err := s.ensureConversationSession(
+		ctx,
+		spec.sourceAgent,
+		spec.sourceRep,
+		spec.conversationID,
+		spec.sourceAgent.OwnerUserID,
+		spec.sourceSessionID,
+		spec.now,
+	)
 	if err != nil {
 		return domain.ConversationDelivery{}, err
 	}
-	targetSession, err := s.ensureConversationSession(ctx, spec.targetAgent, spec.targetRep, spec.conversationID, spec.sourceAgent.OwnerUserID, spec.targetSessionID, spec.now)
+	targetSession, err := s.ensureConversationSession(
+		ctx,
+		spec.targetAgent,
+		spec.targetRep,
+		spec.conversationID,
+		spec.sourceAgent.OwnerUserID,
+		spec.targetSessionID,
+		spec.now,
+	)
 	if err != nil {
 		return domain.ConversationDelivery{}, err
 	}
@@ -762,11 +882,27 @@ func (s *PostgresStore) completeConversationInvocationReply(
 	if err != nil {
 		return domain.ConversationDelivery{}, err
 	}
-	sourceSession, err := s.ensureConversationSession(ctx, spec.sourceAgent, spec.sourceRep, spec.conversationID, spec.sourceAgent.OwnerUserID, spec.sourceSessionID, spec.now)
+	sourceSession, err := s.ensureConversationSession(
+		ctx,
+		spec.sourceAgent,
+		spec.sourceRep,
+		spec.conversationID,
+		spec.sourceAgent.OwnerUserID,
+		spec.sourceSessionID,
+		spec.now,
+	)
 	if err != nil {
 		return domain.ConversationDelivery{}, err
 	}
-	targetSession, err := s.ensureConversationSession(ctx, spec.targetAgent, spec.targetRep, spec.conversationID, spec.targetAgent.OwnerUserID, spec.targetSessionID, spec.now)
+	targetSession, err := s.ensureConversationSession(
+		ctx,
+		spec.targetAgent,
+		spec.targetRep,
+		spec.conversationID,
+		spec.targetAgent.OwnerUserID,
+		spec.targetSessionID,
+		spec.now,
+	)
 	if err != nil {
 		return domain.ConversationDelivery{}, err
 	}
@@ -994,13 +1130,22 @@ func (s *PostgresStore) getActiveConversationInvocationForReply(
 		if err != nil {
 			return domain.ConversationAgentInvocation{}, err
 		}
-		if !activeInvocationMatchesReply(invocation, targetRuntimeAgentID, targetRepresentativeAgentID, targetSessionID) {
+		if !activeInvocationMatchesReply(
+			invocation,
+			targetRuntimeAgentID,
+			targetRepresentativeAgentID,
+			targetSessionID,
+		) {
 			return domain.ConversationAgentInvocation{}, ErrNotFound
 		}
 		return invocation, nil
 	}
 	if targetSessionID != "" {
-		invocation, err := s.getActiveConversationInvocation(ctx, targetRuntimeAgentID, targetSessionID)
+		invocation, err := s.getActiveConversationInvocation(
+			ctx,
+			targetRuntimeAgentID,
+			targetSessionID,
+		)
 		if err == nil {
 			return invocation, nil
 		}
@@ -1343,7 +1488,14 @@ func (s *PostgresStore) createPaxInvocationDisplayMessage(
 	}
 	if display.Side == "source" {
 		if toolParent, toolCallID, ok := s.latestPaxInvocationToolCall(ctx, parent); ok {
-			return s.createPaxInvocationPendingMessage(ctx, parent, toolParent, toolCallID, display, now)
+			return s.createPaxInvocationPendingMessage(
+				ctx,
+				parent,
+				toolParent,
+				toolCallID,
+				display,
+				now,
+			)
 		}
 	}
 	messageID, err := newSecret("msg")
@@ -1393,7 +1545,12 @@ func (s *PostgresStore) createPaxInvocationPendingMessage(
 	if err != nil {
 		return err
 	}
-	raw, text := paxInvocationPendingPayload(prompt.MessageID, toolParent.MessageID, toolCallID, display)
+	raw, text := paxInvocationPendingPayload(
+		prompt.MessageID,
+		toolParent.MessageID,
+		toolCallID,
+		display,
+	)
 	msg := Message{
 		MessageID:       messageID,
 		ConversationID:  prompt.ConversationID,
@@ -1424,7 +1581,10 @@ func (s *PostgresStore) createPaxInvocationPendingMessage(
 	})
 }
 
-func (s *PostgresStore) latestPaxInvocationToolCall(ctx context.Context, parent Message) (Message, string, bool) {
+func (s *PostgresStore) latestPaxInvocationToolCall(
+	ctx context.Context,
+	parent Message,
+) (Message, string, bool) {
 	if parent.AgentID == "" || parent.SessionID == "" {
 		return Message{}, "", false
 	}
@@ -1494,7 +1654,9 @@ func scanAgentProfile(row interface{ Scan(dest ...any) error }) (domain.AgentPro
 	return profile, nil
 }
 
-func scanRepresentativeAgent(row interface{ Scan(dest ...any) error }) (domain.RepresentativeAgent, error) {
+func scanRepresentativeAgent(
+	row interface{ Scan(dest ...any) error },
+) (domain.RepresentativeAgent, error) {
 	var rep domain.RepresentativeAgent
 	if err := row.Scan(
 		&rep.RepresentativeAgentID,
@@ -1531,7 +1693,9 @@ func scanConversation(row interface{ Scan(dest ...any) error }) (domain.Conversa
 	return conv, nil
 }
 
-func scanConversationAgentBinding(row interface{ Scan(dest ...any) error }) (domain.ConversationAgentBinding, error) {
+func scanConversationAgentBinding(
+	row interface{ Scan(dest ...any) error },
+) (domain.ConversationAgentBinding, error) {
 	var binding domain.ConversationAgentBinding
 	if err := row.Scan(
 		&binding.BindingID,
@@ -1549,7 +1713,9 @@ func scanConversationAgentBinding(row interface{ Scan(dest ...any) error }) (dom
 	return binding, nil
 }
 
-func scanConversationAgentInvocation(row interface{ Scan(dest ...any) error }) (domain.ConversationAgentInvocation, error) {
+func scanConversationAgentInvocation(
+	row interface{ Scan(dest ...any) error },
+) (domain.ConversationAgentInvocation, error) {
 	var invocation domain.ConversationAgentInvocation
 	if err := row.Scan(
 		&invocation.InvocationID,
@@ -1577,7 +1743,10 @@ func scanConversationAgentInvocation(row interface{ Scan(dest ...any) error }) (
 	return invocation, nil
 }
 
-func deterministicConversationBindingID(conversationID string, representativeAgentID string) string {
+func deterministicConversationBindingID(
+	conversationID string,
+	representativeAgentID string,
+) string {
 	sum := sha256.Sum256([]byte(conversationID + ":" + representativeAgentID))
 	return "bind_" + hex.EncodeToString(sum[:])[:24]
 }
@@ -1598,7 +1767,9 @@ func deterministicRepresentativeAgentID(
 	representsType string,
 	representsID string,
 ) string {
-	sum := sha256.Sum256([]byte(runtimeAgentID + ":" + profileID + ":" + representsType + ":" + representsID))
+	sum := sha256.Sum256(
+		[]byte(runtimeAgentID + ":" + profileID + ":" + representsType + ":" + representsID),
+	)
 	return "rep_" + hex.EncodeToString(sum[:])[:24]
 }
 
@@ -1650,7 +1821,11 @@ func paxInvocationDisplayPayload(
 	replacesMessageIDs []string,
 	display paxInvocationPromptDisplay,
 ) (json.RawMessage, string) {
-	text := firstNonEmpty(strings.TrimSpace(display.DisplayText), strings.TrimSpace(display.OriginalText), "Pax agent conversation update.")
+	text := firstNonEmpty(
+		strings.TrimSpace(display.DisplayText),
+		strings.TrimSpace(display.OriginalText),
+		"Pax agent conversation update.",
+	)
 	if len(replacesMessageIDs) == 0 {
 		replacesMessageIDs = []string{parentMessageID}
 	}
@@ -1676,7 +1851,11 @@ func paxInvocationPendingPayload(
 	toolCallID string,
 	display paxInvocationPromptDisplay,
 ) (json.RawMessage, string) {
-	text := firstNonEmpty(strings.TrimSpace(display.DisplayText), strings.TrimSpace(display.OriginalText), "Pax agent conversation update.")
+	text := firstNonEmpty(
+		strings.TrimSpace(display.DisplayText),
+		strings.TrimSpace(display.OriginalText),
+		"Pax agent conversation update.",
+	)
 	raw, _ := json.Marshal(paxInvocationPendingRaw{
 		InvocationID:      display.InvocationID,
 		InvocationType:    "agent_conversation",
@@ -1714,10 +1893,6 @@ func latestPaxInvocationToolCall(messages []Message) (Message, string, bool) {
 	return Message{}, "", false
 }
 
-func isToolCallHistoryMessage(message Message) bool {
-	return message.MessageType == "tool_call" || message.MessageType == "tool_call_update"
-}
-
 func toolCallIDFromRaw(raw json.RawMessage) string {
 	var rpc struct {
 		Params struct {
@@ -1738,18 +1913,6 @@ func stringMapField(values map[string]any, key string) string {
 	return strings.TrimSpace(value)
 }
 
-func appendUniqueString(values []string, value string) []string {
-	if value == "" {
-		return values
-	}
-	for _, existing := range values {
-		if existing == value {
-			return values
-		}
-	}
-	return append(values, value)
-}
-
 func paxInvocationDisplayLogicalKey(display paxInvocationPromptDisplay) string {
 	scope := strings.TrimSpace(display.LogicalKeyScope)
 	if scope == "" {
@@ -1759,7 +1922,11 @@ func paxInvocationDisplayLogicalKey(display paxInvocationPromptDisplay) string {
 }
 
 func conversationAgentLabel(agent Agent) string {
-	return firstNonEmpty(strings.TrimSpace(agent.Name), strings.TrimSpace(agent.AgentID), "the agent")
+	return firstNonEmpty(
+		strings.TrimSpace(agent.Name),
+		strings.TrimSpace(agent.AgentID),
+		"the agent",
+	)
 }
 
 func conversationDeliveryPromptText(spec conversationDeliverySpec) string {
@@ -1823,7 +1990,13 @@ func (s *MemoryStore) GetAgentOwnerInfo(
 		if err != nil {
 			return domain.AgentOwnerInfo{}, err
 		}
-		owner, err := s.memoryAgentOwnerSubject(ctx, principal, rep.RepresentsType, rep.RepresentsID, agent.OwnerUserID)
+		owner, err := s.memoryAgentOwnerSubject(
+			ctx,
+			principal,
+			rep.RepresentsType,
+			rep.RepresentsID,
+			agent.OwnerUserID,
+		)
 		if err != nil {
 			return domain.AgentOwnerInfo{}, err
 		}
@@ -1841,7 +2014,13 @@ func (s *MemoryStore) GetAgentOwnerInfo(
 	if err != nil {
 		return domain.AgentOwnerInfo{}, err
 	}
-	owner, err := s.memoryAgentOwnerSubject(ctx, principal, "user", agent.OwnerUserID, agent.OwnerUserID)
+	owner, err := s.memoryAgentOwnerSubject(
+		ctx,
+		principal,
+		"user",
+		agent.OwnerUserID,
+		agent.OwnerUserID,
+	)
 	if err != nil {
 		return domain.AgentOwnerInfo{}, err
 	}
@@ -1900,7 +2079,12 @@ func (s *MemoryStore) UpsertRepresentativeAgent(
 	profile.ArchivedAt = nil
 	s.agentProfiles[profileID] = profile
 
-	repID := deterministicRepresentativeAgentID(agent.AgentID, profileID, representsType, representsID)
+	repID := deterministicRepresentativeAgentID(
+		agent.AgentID,
+		profileID,
+		representsType,
+		representsID,
+	)
 	rep := s.representativeAgents[repID]
 	if rep.RepresentativeAgentID == "" {
 		rep = domain.RepresentativeAgent{
@@ -2008,7 +2192,10 @@ func (s *MemoryStore) StartAgentConversation(
 	if !ok || sourceAgent.NodeID != node.NodeID {
 		return domain.AgentConversationStart{}, ErrNotFound
 	}
-	sourceRep, ok := s.findSourceRepresentativeAgentLocked(sourceAgent.AgentID, req.FromRepresentativeAgentID)
+	sourceRep, ok := s.findSourceRepresentativeAgentLocked(
+		sourceAgent.AgentID,
+		req.FromRepresentativeAgentID,
+	)
 	if !ok {
 		return domain.AgentConversationStart{}, ErrNotFound
 	}
@@ -2020,13 +2207,17 @@ func (s *MemoryStore) StartAgentConversation(
 	if !ok {
 		return domain.AgentConversationStart{}, ErrNotFound
 	}
-	if !s.agentConversationUsersCanInteractLocked(sourceAgent.OwnerUserID, targetAgent.OwnerUserID) {
+	if !s.agentConversationUsersCanInteractLocked(
+		sourceAgent.OwnerUserID,
+		targetAgent.OwnerUserID,
+	) {
 		return domain.AgentConversationStart{}, ErrUnauthorized
 	}
 
 	now := s.now().UTC()
 	conversationID := strings.TrimSpace(req.ConversationID)
-	if conversationID != "" && !s.canReadConversationLocked(sourceAgent.OwnerUserID, conversationID) {
+	if conversationID != "" &&
+		!s.canReadConversationLocked(sourceAgent.OwnerUserID, conversationID) {
 		return domain.AgentConversationStart{}, ErrNotFound
 	}
 	if conversationID == "" {
@@ -2037,17 +2228,51 @@ func (s *MemoryStore) StartAgentConversation(
 		conversationID = generated
 	}
 	conversation := s.upsertAgentConversationLocked(conversationID, sourceAgent.OwnerUserID, now)
-	s.upsertConversationMemberLocked(conversationID, sourceAgent.OwnerUserID, domain.ConversationMemberRoleOwner, now)
+	s.upsertConversationMemberLocked(
+		conversationID,
+		sourceAgent.OwnerUserID,
+		domain.ConversationMemberRoleOwner,
+		now,
+	)
 	if targetAgent.OwnerUserID != sourceAgent.OwnerUserID {
-		s.upsertConversationMemberLocked(conversationID, targetAgent.OwnerUserID, domain.ConversationMemberRoleMember, now)
+		s.upsertConversationMemberLocked(
+			conversationID,
+			targetAgent.OwnerUserID,
+			domain.ConversationMemberRoleMember,
+			now,
+		)
 	}
-	sourceBinding := s.upsertConversationAgentBindingLocked(conversationID, sourceRep.RepresentativeAgentID, sourceAgent.OwnerUserID, domain.ConversationAgentRelationshipParticipant, now)
-	targetBinding := s.upsertConversationAgentBindingLocked(conversationID, targetRep.RepresentativeAgentID, sourceAgent.OwnerUserID, domain.ConversationAgentRelationshipAssistant, now)
-	sourceSession, err := s.createConversationSessionLocked(sourceAgent, sourceRep, conversationID, sourceAgent.OwnerUserID, now)
+	sourceBinding := s.upsertConversationAgentBindingLocked(
+		conversationID,
+		sourceRep.RepresentativeAgentID,
+		sourceAgent.OwnerUserID,
+		domain.ConversationAgentRelationshipParticipant,
+		now,
+	)
+	targetBinding := s.upsertConversationAgentBindingLocked(
+		conversationID,
+		targetRep.RepresentativeAgentID,
+		sourceAgent.OwnerUserID,
+		domain.ConversationAgentRelationshipAssistant,
+		now,
+	)
+	sourceSession, err := s.createConversationSessionLocked(
+		sourceAgent,
+		sourceRep,
+		conversationID,
+		sourceAgent.OwnerUserID,
+		now,
+	)
 	if err != nil {
 		return domain.AgentConversationStart{}, err
 	}
-	targetSession, err := s.createConversationSessionLocked(targetAgent, targetRep, conversationID, sourceAgent.OwnerUserID, now)
+	targetSession, err := s.createConversationSessionLocked(
+		targetAgent,
+		targetRep,
+		conversationID,
+		sourceAgent.OwnerUserID,
+		now,
+	)
 	if err != nil {
 		return domain.AgentConversationStart{}, err
 	}
@@ -2133,7 +2358,10 @@ func (s *MemoryStore) deliverAgentConversationToRepresentativeLocked(
 	if !ok || sourceAgent.NodeID != node.NodeID {
 		return domain.ConversationDelivery{}, ErrNotFound
 	}
-	sourceRep, ok := s.findSourceRepresentativeAgentLocked(sourceAgent.AgentID, req.Source.RepresentativeAgentID)
+	sourceRep, ok := s.findSourceRepresentativeAgentLocked(
+		sourceAgent.AgentID,
+		req.Source.RepresentativeAgentID,
+	)
 	if !ok {
 		return domain.ConversationDelivery{}, ErrNotFound
 	}
@@ -2145,7 +2373,10 @@ func (s *MemoryStore) deliverAgentConversationToRepresentativeLocked(
 	if !ok {
 		return domain.ConversationDelivery{}, ErrNotFound
 	}
-	if !s.agentConversationUsersCanInteractLocked(sourceAgent.OwnerUserID, targetAgent.OwnerUserID) {
+	if !s.agentConversationUsersCanInteractLocked(
+		sourceAgent.OwnerUserID,
+		targetAgent.OwnerUserID,
+	) {
 		return domain.ConversationDelivery{}, ErrUnauthorized
 	}
 	conversationID, err := newSecret("conv")
@@ -2231,17 +2462,53 @@ func (s *MemoryStore) createConversationDeliveryLocked(
 		spec.sourceAgent.OwnerUserID,
 		spec.now,
 	)
-	s.upsertConversationMemberLocked(spec.conversationID, spec.sourceAgent.OwnerUserID, domain.ConversationMemberRoleOwner, spec.now)
+	s.upsertConversationMemberLocked(
+		spec.conversationID,
+		spec.sourceAgent.OwnerUserID,
+		domain.ConversationMemberRoleOwner,
+		spec.now,
+	)
 	if spec.targetAgent.OwnerUserID != spec.sourceAgent.OwnerUserID {
-		s.upsertConversationMemberLocked(spec.conversationID, spec.targetAgent.OwnerUserID, domain.ConversationMemberRoleMember, spec.now)
+		s.upsertConversationMemberLocked(
+			spec.conversationID,
+			spec.targetAgent.OwnerUserID,
+			domain.ConversationMemberRoleMember,
+			spec.now,
+		)
 	}
-	s.upsertConversationAgentBindingLocked(spec.conversationID, spec.sourceRep.RepresentativeAgentID, spec.sourceAgent.OwnerUserID, domain.ConversationAgentRelationshipParticipant, spec.now)
-	s.upsertConversationAgentBindingLocked(spec.conversationID, spec.targetRep.RepresentativeAgentID, spec.sourceAgent.OwnerUserID, domain.ConversationAgentRelationshipAssistant, spec.now)
-	sourceSession, err := s.ensureConversationSessionLocked(spec.sourceAgent, spec.sourceRep, spec.conversationID, spec.sourceAgent.OwnerUserID, spec.sourceSessionID, spec.now)
+	s.upsertConversationAgentBindingLocked(
+		spec.conversationID,
+		spec.sourceRep.RepresentativeAgentID,
+		spec.sourceAgent.OwnerUserID,
+		domain.ConversationAgentRelationshipParticipant,
+		spec.now,
+	)
+	s.upsertConversationAgentBindingLocked(
+		spec.conversationID,
+		spec.targetRep.RepresentativeAgentID,
+		spec.sourceAgent.OwnerUserID,
+		domain.ConversationAgentRelationshipAssistant,
+		spec.now,
+	)
+	sourceSession, err := s.ensureConversationSessionLocked(
+		spec.sourceAgent,
+		spec.sourceRep,
+		spec.conversationID,
+		spec.sourceAgent.OwnerUserID,
+		spec.sourceSessionID,
+		spec.now,
+	)
 	if err != nil {
 		return domain.ConversationDelivery{}, err
 	}
-	targetSession, err := s.ensureConversationSessionLocked(spec.targetAgent, spec.targetRep, spec.conversationID, spec.sourceAgent.OwnerUserID, spec.targetSessionID, spec.now)
+	targetSession, err := s.ensureConversationSessionLocked(
+		spec.targetAgent,
+		spec.targetRep,
+		spec.conversationID,
+		spec.sourceAgent.OwnerUserID,
+		spec.targetSessionID,
+		spec.now,
+	)
 	if err != nil {
 		return domain.ConversationDelivery{}, err
 	}
@@ -2315,11 +2582,25 @@ func (s *MemoryStore) completeConversationInvocationReplyLocked(
 		spec.targetAgent.OwnerUserID,
 		spec.now,
 	)
-	sourceSession, err := s.ensureConversationSessionLocked(spec.sourceAgent, spec.sourceRep, spec.conversationID, spec.sourceAgent.OwnerUserID, spec.sourceSessionID, spec.now)
+	sourceSession, err := s.ensureConversationSessionLocked(
+		spec.sourceAgent,
+		spec.sourceRep,
+		spec.conversationID,
+		spec.sourceAgent.OwnerUserID,
+		spec.sourceSessionID,
+		spec.now,
+	)
 	if err != nil {
 		return domain.ConversationDelivery{}, err
 	}
-	targetSession, err := s.ensureConversationSessionLocked(spec.targetAgent, spec.targetRep, spec.conversationID, spec.targetAgent.OwnerUserID, spec.targetSessionID, spec.now)
+	targetSession, err := s.ensureConversationSessionLocked(
+		spec.targetAgent,
+		spec.targetRep,
+		spec.conversationID,
+		spec.targetAgent.OwnerUserID,
+		spec.targetSessionID,
+		spec.now,
+	)
 	if err != nil {
 		return domain.ConversationDelivery{}, err
 	}
@@ -2614,7 +2895,12 @@ func (s *MemoryStore) activeConversationInvocationForReplyLocked(
 		if !ok {
 			return domain.ConversationAgentInvocation{}, ErrNotFound
 		}
-		if !activeInvocationMatchesReply(invocation, targetRuntimeAgentID, targetRepresentativeAgentID, targetSessionID) {
+		if !activeInvocationMatchesReply(
+			invocation,
+			targetRuntimeAgentID,
+			targetRepresentativeAgentID,
+			targetSessionID,
+		) {
 			return domain.ConversationAgentInvocation{}, ErrNotFound
 		}
 		return invocation, nil
@@ -2709,7 +2995,9 @@ func (s *MemoryStore) createConversationPromptMessageLocked(
 		CreatedAt:   now,
 	}
 	s.prepareMessagePartLocked(&part)
-	s.messageParts[messagePartKey{MessageID: part.MessageID, Index: part.PartIndex}] = cloneMessagePart(part)
+	s.messageParts[messagePartKey{MessageID: part.MessageID, Index: part.PartIndex}] = cloneMessagePart(
+		part,
+	)
 	if err := s.createPaxInvocationDisplayMessageLocked(msg, display, now); err != nil {
 		return domain.MessageWithParts{}, err
 	}
@@ -2726,7 +3014,13 @@ func (s *MemoryStore) createPaxInvocationDisplayMessageLocked(
 	}
 	if display.Side == "source" {
 		if toolParent, toolCallID, ok := s.latestPaxInvocationToolCallLocked(parent); ok {
-			return s.createPaxInvocationPendingMessageLocked(parent, toolParent, toolCallID, display, now)
+			return s.createPaxInvocationPendingMessageLocked(
+				parent,
+				toolParent,
+				toolCallID,
+				display,
+				now,
+			)
 		}
 	}
 	messageID, err := newSecret("msg")
@@ -2763,7 +3057,9 @@ func (s *MemoryStore) createPaxInvocationDisplayMessageLocked(
 		CreatedAt:   now,
 	}
 	s.prepareMessagePartLocked(&part)
-	s.messageParts[messagePartKey{MessageID: part.MessageID, Index: part.PartIndex}] = cloneMessagePart(part)
+	s.messageParts[messagePartKey{MessageID: part.MessageID, Index: part.PartIndex}] = cloneMessagePart(
+		part,
+	)
 	return nil
 }
 
@@ -2778,7 +3074,12 @@ func (s *MemoryStore) createPaxInvocationPendingMessageLocked(
 	if err != nil {
 		return err
 	}
-	raw, text := paxInvocationPendingPayload(prompt.MessageID, toolParent.MessageID, toolCallID, display)
+	raw, text := paxInvocationPendingPayload(
+		prompt.MessageID,
+		toolParent.MessageID,
+		toolCallID,
+		display,
+	)
 	msg := Message{
 		MessageID:       messageID,
 		ConversationID:  prompt.ConversationID,
@@ -2808,7 +3109,9 @@ func (s *MemoryStore) createPaxInvocationPendingMessageLocked(
 		CreatedAt:   now,
 	}
 	s.prepareMessagePartLocked(&part)
-	s.messageParts[messagePartKey{MessageID: part.MessageID, Index: part.PartIndex}] = cloneMessagePart(part)
+	s.messageParts[messagePartKey{MessageID: part.MessageID, Index: part.PartIndex}] = cloneMessagePart(
+		part,
+	)
 	return nil
 }
 

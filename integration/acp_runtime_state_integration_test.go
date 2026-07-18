@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
 func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
@@ -143,6 +144,34 @@ func (f *integrationFixture) connectACPAgentTunnel(
 	)
 	if err != nil {
 		t.Fatalf("connect ACP agent tunnel: %v", err)
+	}
+	request, err := reliablemq.MarshalEnvelope(reliablemq.ReconcileRequestEnvelope(
+		reliablemq.ProducerReconcileCheckpoint{
+			QueueID:         agentID,
+			Stream:          reliablemq.StreamACP,
+			ProducerNextSeq: 1,
+		},
+	))
+	if err != nil {
+		t.Fatalf("marshal reconcile request: %v", err)
+	}
+	writeRawWS(t, ws, string(request))
+	if err := ws.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("set websocket read deadline: %v", err)
+	}
+	_, payload, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("read reconcile response: %v", err)
+	}
+	if err := ws.SetReadDeadline(time.Time{}); err != nil {
+		t.Fatalf("clear websocket read deadline: %v", err)
+	}
+	response, err := reliablemq.UnmarshalEnvelope(payload)
+	if err != nil {
+		t.Fatalf("unmarshal reconcile response: %v", err)
+	}
+	if response.Type != reliablemq.EnvelopeTypeReconcileResponse {
+		t.Fatalf("unexpected reconcile response type %q", response.Type)
 	}
 	return ws
 }

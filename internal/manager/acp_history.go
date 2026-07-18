@@ -328,7 +328,8 @@ func projectACPPaxInvocationPendingDisplay(
 	store domain.Store,
 	terminal domain.Message,
 ) error {
-	if terminal.MessageType != "tool_call_update" || !acpHistoryTerminalToolCallUpdate(terminal.RawJSON) {
+	if terminal.MessageType != "tool_call_update" ||
+		!acpHistoryTerminalToolCallUpdate(terminal.RawJSON) {
 		return nil
 	}
 	toolCallID := acpHistoryToolCallIDFromRaw(terminal.RawJSON)
@@ -343,7 +344,12 @@ func projectACPPaxInvocationPendingDisplay(
 	if !ok {
 		return nil
 	}
-	replaces := acpHistoryToolCallReplaceMessageIDs(messages, toolCallID, pendingRaw.PromptMessageID, pending.MessageID)
+	replaces := acpHistoryToolCallReplaceMessageIDs(
+		messages,
+		toolCallID,
+		pendingRaw.PromptMessageID,
+		pending.MessageID,
+	)
 	if len(replaces) == 0 {
 		return nil
 	}
@@ -396,7 +402,8 @@ func acpHistoryPendingInvocationForToolCall(
 		if len(message.RawJSON) == 0 || json.Unmarshal(message.RawJSON, &raw) != nil {
 			continue
 		}
-		if strings.TrimSpace(raw.ToolCallID) != toolCallID || strings.TrimSpace(raw.InvocationID) == "" {
+		if strings.TrimSpace(raw.ToolCallID) != toolCallID ||
+			strings.TrimSpace(raw.InvocationID) == "" {
 			continue
 		}
 		if raw.InvocationType == "" {
@@ -428,7 +435,8 @@ func acpHistoryToolCallReplaceMessageIDs(
 
 func acpHistoryTerminalToolCallUpdate(raw json.RawMessage) bool {
 	status := strings.ToLower(acpHistoryToolCallUpdateStatus(raw))
-	return status == "completed" || status == "failed" || status == "canceled" || status == "cancelled"
+	return status == "completed" || status == "failed" || status == "canceled" ||
+		status == "cancelled"
 }
 
 func acpHistoryToolCallUpdateStatus(raw json.RawMessage) string {
@@ -473,19 +481,6 @@ func appendUniqueString(values []string, value string) []string {
 		}
 	}
 	return append(values, value)
-}
-
-func projectACPUserRawFrame(
-	ctx context.Context,
-	agent *ACPTunnelAgent,
-	payload []byte,
-	rpc acpHistoryRPC,
-) error {
-	managerSessionID := ""
-	if agent != nil {
-		managerSessionID = agent.currentSessionID()
-	}
-	return projectACPUserRawFrameForSession(ctx, agent, managerSessionID, payload, rpc)
 }
 
 func projectACPUserRawFrameForSession(
