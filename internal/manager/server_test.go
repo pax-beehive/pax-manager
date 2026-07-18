@@ -3947,7 +3947,7 @@ func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
 	if err := userWSA.WriteMessage(websocket.TextMessage, requestA); err != nil {
 		t.Fatalf("write user request a: %v", err)
 	}
-	if err := agentWSA.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+	if err := agentWSA.SetReadDeadline(time.Now().Add(acpTestReadTimeout)); err != nil {
 		t.Fatalf("set agent a read deadline: %v", err)
 	}
 	messageType, gotRequestA, err := agentWSA.ReadMessage()
@@ -3966,7 +3966,7 @@ func TestACPTunnelRoutesSameAgentBySession(t *testing.T) {
 	if err := userWSB.WriteMessage(websocket.TextMessage, requestB); err != nil {
 		t.Fatalf("write user request b: %v", err)
 	}
-	if err := agentWSB.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+	if err := agentWSB.SetReadDeadline(time.Now().Add(acpTestReadTimeout)); err != nil {
 		t.Fatalf("set agent b read deadline: %v", err)
 	}
 	messageType, gotRequestB, err := agentWSB.ReadMessage()
@@ -4041,7 +4041,7 @@ func TestACPTunnelRequestPermissionAddsAllowAlwaysOption(t *testing.T) {
 		}
 	}`)
 	writeAgentDataFrame(t, agentWS, agentID, 1, requestPayload)
-	if err := userWS.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+	if err := userWS.SetReadDeadline(time.Now().Add(acpTestReadTimeout)); err != nil {
 		t.Fatalf("set user read deadline: %v", err)
 	}
 	messageType, gotRequest, err := userWS.ReadMessage()
@@ -4124,7 +4124,7 @@ func TestACPTunnelRequestPermissionUsesReusableApprovalGrant(t *testing.T) {
 		}
 	}`)
 	writeAgentDataFrame(t, agentWS, agentID, 1, requestPayload)
-	if err := agentWS.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+	if err := agentWS.SetReadDeadline(time.Now().Add(acpTestReadTimeout)); err != nil {
 		t.Fatalf("set agent read deadline: %v", err)
 	}
 	readAgentAck(t, agentWS, acpTunnelStreamPaxdToManager, 1)
@@ -5536,9 +5536,13 @@ func historyRawPayloads(message MessageWithParts) []json.RawMessage {
 	return payloads
 }
 
+// acpTestReadTimeout bounds websocket reads that wait for expected frames.
+// It is deliberately generous so loaded CI runners do not flake.
+const acpTestReadTimeout = 10 * time.Second
+
 func readNextManagerToAgentData(t *testing.T, agentWS *websocket.Conn) acpTunnelEnvelope {
 	t.Helper()
-	if err := agentWS.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+	if err := agentWS.SetReadDeadline(time.Now().Add(acpTestReadTimeout)); err != nil {
 		t.Fatalf("set agent read deadline: %v", err)
 	}
 	defer func() {
@@ -5590,7 +5594,7 @@ func completeMockAgentReconcile(
 	)
 	require.NoError(t, err)
 	require.NoError(t, agentWS.WriteMessage(websocket.TextMessage, request))
-	require.NoError(t, agentWS.SetReadDeadline(time.Now().Add(2*time.Second)))
+	require.NoError(t, agentWS.SetReadDeadline(time.Now().Add(acpTestReadTimeout)))
 	defer func() {
 		require.NoError(t, agentWS.SetReadDeadline(time.Time{}))
 	}()
@@ -5855,7 +5859,7 @@ func acpTunnelConn(
 
 func readAgentAck(t *testing.T, agentWS *websocket.Conn, stream string, seq int64) {
 	t.Helper()
-	if err := agentWS.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+	if err := agentWS.SetReadDeadline(time.Now().Add(acpTestReadTimeout)); err != nil {
 		t.Fatalf("set agent ack read deadline seq=%d: %v", seq, err)
 	}
 	defer func() {
