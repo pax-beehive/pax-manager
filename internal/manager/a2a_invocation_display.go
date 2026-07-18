@@ -90,7 +90,8 @@ func paxInvocationPromptMetadataFromRaw(raw json.RawMessage) (paxInvocationPromp
 		return paxInvocationPromptMetadata{}, false
 	}
 	var meta paxInvocationPromptMetadata
-	if err := json.Unmarshal(metaRaw, &meta); err != nil || strings.TrimSpace(meta.InvocationID) == "" {
+	if err := json.Unmarshal(metaRaw, &meta); err != nil ||
+		strings.TrimSpace(meta.InvocationID) == "" {
 		return paxInvocationPromptMetadata{}, false
 	}
 	if meta.InvocationType == "" {

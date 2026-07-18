@@ -657,7 +657,12 @@ func TestNodeControlRuntimeSnapshotUpdatesBoundAgentAndSkipsUnbound(t *testing.T
 func requireNodeIdentity(t *testing.T, node Node, machineType, osName, arch string) {
 	t.Helper()
 	if node.MachineType != machineType || node.OS != osName || node.Arch != arch {
-		t.Fatalf("node identity = machine_type:%q os:%q arch:%q", node.MachineType, node.OS, node.Arch)
+		t.Fatalf(
+			"node identity = machine_type:%q os:%q arch:%q",
+			node.MachineType,
+			node.OS,
+			node.Arch,
+		)
 	}
 }
 

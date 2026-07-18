@@ -272,15 +272,21 @@ func validateDeliverConversationRequest(req domain.DeliverConversationRequest) e
 	switch req.Target.Kind {
 	case domain.ConversationDeliveryTargetRepresentative:
 		if req.Source.AgentID == "" || req.Source.SessionID == "" {
-			return errBadConversationDelivery("source.agent_id and source.session_id are required for representative delivery")
+			return errBadConversationDelivery(
+				"source.agent_id and source.session_id are required for representative delivery",
+			)
 		}
 		if req.Target.RepresentativeAgentID == "" {
-			return errBadConversationDelivery("target.representative_agent_id is required for representative delivery")
+			return errBadConversationDelivery(
+				"target.representative_agent_id is required for representative delivery",
+			)
 		}
 		return nil
 	case domain.ConversationDeliveryTargetActiveInvocation:
 		if req.Source.AgentID == "" || req.Source.SessionID == "" {
-			return errBadConversationDelivery("source.agent_id and source.session_id are required for active invocation delivery")
+			return errBadConversationDelivery(
+				"source.agent_id and source.session_id are required for active invocation delivery",
+			)
 		}
 		return nil
 	default:
@@ -576,12 +582,14 @@ Inquiry:
 	if delivery.Invocation.Status == domain.ConversationAgentInvocationStatusCompleted &&
 		delivery.Invocation.SourceRuntimeAgentID == delivery.TargetSession.AgentID &&
 		delivery.Invocation.SourceSessionID == delivery.TargetSession.SessionID {
-		return strings.TrimSpace(`Your Pax conversation inquiry has received a reply from another agent.
+		return strings.TrimSpace(
+			`Your Pax conversation inquiry has received a reply from another agent.
 
 This is the reply you asked for. Do not call the pax-conversation reply tool here, and do not try to fetch a reply through that tool; reply is only for the other agent to send an answer back to you.
 
 Reply:
-` + prompt)
+` + prompt,
+		)
 	}
 	return prompt
 }

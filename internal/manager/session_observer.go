@@ -126,7 +126,11 @@ func sessionObserverPayloadCompletesTurn(payload []byte, activePromptID string) 
 	return len(frame.Result) > 0 || len(frame.Error) > 0
 }
 
-func writeSessionObserverEvent(w http.ResponseWriter, flusher http.Flusher, event conversationEvent) error {
+func writeSessionObserverEvent(
+	w http.ResponseWriter,
+	flusher http.Flusher,
+	event conversationEvent,
+) error {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		return err

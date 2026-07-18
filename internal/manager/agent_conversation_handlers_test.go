@@ -9,7 +9,9 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
-func TestDeliveryConversationTurnMetadataGivenWrappedReplyThenDisplayTextUsesReplyBody(t *testing.T) {
+func TestDeliveryConversationTurnMetadataGivenWrappedReplyThenDisplayTextUsesReplyBody(
+	t *testing.T,
+) {
 	reply := "西雅图今天（2026年7月5日）天气晴朗，目前约 70°F / 21°C。下午多为晴到少云，最高约 73°F / 23°C；傍晚后转晴，晚间降到约 61-65°F / 16-19°C。整体适合户外活动。"
 	delivery := domain.ConversationDelivery{
 		Invocation: domain.ConversationAgentInvocation{
@@ -31,7 +33,11 @@ func TestDeliveryConversationTurnMetadataGivenWrappedReplyThenDisplayTextUsesRep
 
 	assert.Equal(t, reply, meta.Content.DisplayText)
 	assert.Equal(t, wrapped, meta.Content.OriginalText)
-	assert.NotContains(t, meta.Content.DisplayText, "Your Pax conversation inquiry has received a reply")
+	assert.NotContains(
+		t,
+		meta.Content.DisplayText,
+		"Your Pax conversation inquiry has received a reply",
+	)
 	assert.Contains(t, meta.Content.OriginalText, "Reply:\n"+reply)
 }
 

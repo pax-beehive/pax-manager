@@ -62,18 +62,20 @@ func newServer(cfg Config, store Store) *Service {
 	transportStore := reliablemq.NewProducerWriteBehindStore(
 		transportBaseStore,
 		reliablemq.WithProducerWriteBehindRequireBatchStore(),
-		reliablemq.WithProducerWriteBehindFlushFailureHandler(func(err error, stats reliablemq.ProducerWriteBehindStats) {
-			logging.Error(
-				context.Background(),
-				"acp transport producer write-behind flush failed",
-				logging.Err(err),
-				slog.Int("dirty_frames", stats.DirtyFrames),
-				slog.Int("dirty_patches", stats.DirtyPatches),
-				slog.Int64("dirty_bytes", stats.DirtyBytes),
-				slog.Int("consecutive_failures", stats.ConsecutiveFlushFailures),
-				slog.String("last_flush_error", stats.LastFlushError),
-			)
-		}),
+		reliablemq.WithProducerWriteBehindFlushFailureHandler(
+			func(err error, stats reliablemq.ProducerWriteBehindStats) {
+				logging.Error(
+					context.Background(),
+					"acp transport producer write-behind flush failed",
+					logging.Err(err),
+					slog.Int("dirty_frames", stats.DirtyFrames),
+					slog.Int("dirty_patches", stats.DirtyPatches),
+					slog.Int64("dirty_bytes", stats.DirtyBytes),
+					slog.Int("consecutive_failures", stats.ConsecutiveFlushFailures),
+					slog.String("last_flush_error", stats.LastFlushError),
+				)
+			},
+		),
 	)
 	transportProducers, err := reliablemq.NewProducerRegistry(
 		transportStore,
@@ -101,7 +103,11 @@ func newServer(cfg Config, store Store) *Service {
 		acpTunnels:         NewACPTunnelHub(),
 		nodeControls:       NewNodeControlHub(),
 		maxBodyBytes:       cfg.MaxBodyBytes,
-		apiLimiter:         newRateLimiter(cfg.APIRateLimitPerMinute, cfg.APIRateLimitBurst, time.Now),
+		apiLimiter: newRateLimiter(
+			cfg.APIRateLimitPerMinute,
+			cfg.APIRateLimitBurst,
+			time.Now,
+		),
 		registerLimiter: newRateLimiter(
 			cfg.RegisterLimitPerMinute,
 			cfg.RegisterLimitBurst,

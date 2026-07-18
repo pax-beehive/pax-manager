@@ -140,7 +140,10 @@ func TestNodeDaemonQueries(t *testing.T) {
 				secrets := userapimocks.NewMockSecretIssuer(t)
 				client := &fakeNodeControlClient{result: json.RawMessage(`{"type":"ok"}`)}
 
-				principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+				principals.EXPECT().
+					Principal(ctx, auth.RequestMetadata{}).
+					Return(principal, nil).
+					Once()
 				store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
 				secrets.EXPECT().New("ctlq").Return("ctlq_1", nil).Once()
 
@@ -329,54 +332,57 @@ func TestCreateNodeDaemonAgentConnection(t *testing.T) {
 		}, client.command)
 	})
 
-	t.Run("explicit command skips harness query and preserves uncertain dispatch", func(t *testing.T) {
-		ctx := context.Background()
-		principal := userPrincipal("usr_self", false)
-		node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
-		agent := domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}
-		store := userapimocks.NewMockStore(t)
-		principals := userapimocks.NewMockPrincipalResolver(t)
-		client := &fakeNodeControlClient{
-			remoteID:   "remote_prod",
-			commandErr: context.DeadlineExceeded,
-		}
+	t.Run(
+		"explicit command skips harness query and preserves uncertain dispatch",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+			agent := domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			client := &fakeNodeControlClient{
+				remoteID:   "remote_prod",
+				commandErr: context.DeadlineExceeded,
+			}
 
-		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
-		store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
-		store.EXPECT().CreateNodeAgent(
-			ctx,
-			principal,
-			domain.CreateAgentRequest{NodeID: "node_1", Name: "codex", AgentType: "codex"},
-		).Return(agent, domain.MailboxMessage{}, nil).Once()
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+			store.EXPECT().CreateNodeAgent(
+				ctx,
+				principal,
+				domain.CreateAgentRequest{NodeID: "node_1", Name: "codex", AgentType: "codex"},
+			).Return(agent, domain.MailboxMessage{}, nil).Once()
 
-		svc := userapi.NewService(
-			store,
-			fixedUserClock,
-			principals,
-			userapimocks.NewMockSecretIssuer(t),
-		)
-		svc.SetNodeControlClient(client)
-		status, rawData, err := svc.CreateNodeDaemonAgentConnection(
-			ctx,
-			auth.RequestMetadata{},
-			domain.CreateNodeDaemonAgentConnectionRequest{
-				NodeID:    "node_1",
-				CommandID: "cmd_create_1",
-				Harness:   "codex",
-				Command:   []string{" codex ", "", " --acp "},
-			},
-		)
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			svc.SetNodeControlClient(client)
+			status, rawData, err := svc.CreateNodeDaemonAgentConnection(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateNodeDaemonAgentConnectionRequest{
+					NodeID:    "node_1",
+					CommandID: "cmd_create_1",
+					Harness:   "codex",
+					Command:   []string{" codex ", "", " --acp "},
+				},
+			)
 
-		require.NoError(t, err)
-		require.Equal(t, http.StatusAccepted, status)
-		data := rawData.(map[string]any)
-		require.Equal(t, "agent_1", data["agent_id"])
-		require.Equal(t, "unknown", data["dispatch_status"])
-		require.Contains(t, data["dispatch_error"], "deadline exceeded")
-		require.Zero(t, client.calls)
-		command := client.command.(map[string]any)["create_agent_connection"].(map[string]any)
-		require.Equal(t, []string{"codex", "--acp"}, command["command"])
-	})
+			require.NoError(t, err)
+			require.Equal(t, http.StatusAccepted, status)
+			data := rawData.(map[string]any)
+			require.Equal(t, "agent_1", data["agent_id"])
+			require.Equal(t, "unknown", data["dispatch_status"])
+			require.Contains(t, data["dispatch_error"], "deadline exceeded")
+			require.Zero(t, client.calls)
+			command := client.command.(map[string]any)["create_agent_connection"].(map[string]any)
+			require.Equal(t, []string{"codex", "--acp"}, command["command"])
+		},
+	)
 
 	t.Run("missing reported remote id fails before creating cloud agent", func(t *testing.T) {
 		ctx := context.Background()
@@ -1429,26 +1435,29 @@ func TestAgents(t *testing.T) {
 		require.Equal(t, agent, data)
 	})
 
-	t.Run("Given an empty agent ID when deleting an agent then it returns bad request", func(t *testing.T) {
-		ctx := context.Background()
-		principals := userapimocks.NewMockPrincipalResolver(t)
-		principals.EXPECT().
-			Principal(ctx, auth.RequestMetadata{}).
-			Return(userPrincipal("usr_self", false), nil).
-			Once()
+	t.Run(
+		"Given an empty agent ID when deleting an agent then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().
+				Principal(ctx, auth.RequestMetadata{}).
+				Return(userPrincipal("usr_self", false), nil).
+				Once()
 
-		svc := userapi.NewService(
-			userapimocks.NewMockStore(t),
-			fixedUserClock,
-			principals,
-			userapimocks.NewMockSecretIssuer(t),
-		)
-		_, _, err := svc.DeleteAgent(ctx, auth.RequestMetadata{}, "")
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.DeleteAgent(ctx, auth.RequestMetadata{}, "")
 
-		var appErr apperr.Error
-		require.ErrorAs(t, err, &appErr)
-		require.Equal(t, http.StatusBadRequest, appErr.Status)
-	})
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
 
 	t.Run(
 		"Given a node-scoped agent request with a different node then it returns not found",
@@ -1976,24 +1985,27 @@ func TestNodeService(t *testing.T) {
 		require.Equal(t, node, data)
 	})
 
-	t.Run("Given an empty node ID when deleting node then it returns bad request", func(t *testing.T) {
-		ctx := context.Background()
-		principal := userPrincipal("usr_self", false)
-		principals := userapimocks.NewMockPrincipalResolver(t)
-		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+	t.Run(
+		"Given an empty node ID when deleting node then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 
-		svc := userapi.NewService(
-			userapimocks.NewMockStore(t),
-			fixedUserClock,
-			principals,
-			userapimocks.NewMockSecretIssuer(t),
-		)
-		_, _, err := svc.DeleteNode(ctx, auth.RequestMetadata{}, domain.DeleteNodeRequest{})
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.DeleteNode(ctx, auth.RequestMetadata{}, domain.DeleteNodeRequest{})
 
-		var appErr apperr.Error
-		require.ErrorAs(t, err, &appErr)
-		require.Equal(t, http.StatusBadRequest, appErr.Status)
-	})
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
 
 	t.Run(
 		"Given a node agent create without node ID then it returns bad request",
@@ -2075,26 +2087,29 @@ func TestNodeService(t *testing.T) {
 		require.Equal(t, agent, data)
 	})
 
-	t.Run("Given a missing node agent delete target then it returns bad request", func(t *testing.T) {
-		ctx := context.Background()
-		principal := userPrincipal("usr_self", false)
-		principals := userapimocks.NewMockPrincipalResolver(t)
-		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+	t.Run(
+		"Given a missing node agent delete target then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 
-		svc := userapi.NewService(
-			userapimocks.NewMockStore(t),
-			fixedUserClock,
-			principals,
-			userapimocks.NewMockSecretIssuer(t),
-		)
-		_, _, err := svc.DeleteNodeAgent(ctx, auth.RequestMetadata{}, domain.DeleteAgentRequest{
-			NodeID: "node_1",
-		})
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.DeleteNodeAgent(ctx, auth.RequestMetadata{}, domain.DeleteAgentRequest{
+				NodeID: "node_1",
+			})
 
-		var appErr apperr.Error
-		require.ErrorAs(t, err, &appErr)
-		require.Equal(t, http.StatusBadRequest, appErr.Status)
-	})
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		},
+	)
 }
 
 func TestMailbox(t *testing.T) {

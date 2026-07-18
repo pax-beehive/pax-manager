@@ -1312,7 +1312,9 @@ func (s *MemoryStore) CreateNodeAgentSession(
 	}
 	if req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != "" {
 		session.PaxConfig = req.PaxConfig
-		session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(session.PaxConfig.ApprovalMode)
+		session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(
+			session.PaxConfig.ApprovalMode,
+		)
 		session.Metadata = paxConfigMetadata(session.Metadata, session.PaxConfig)
 	}
 	s.sessions[sessionKey(req.AgentID, input.SessionID)] = session

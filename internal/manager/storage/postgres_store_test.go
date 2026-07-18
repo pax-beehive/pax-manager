@@ -38,13 +38,18 @@ func TestPostgresStoreHelperDecisionTables(t *testing.T) {
 	}
 }
 
-func TestPostgresSchemaGivenLegacyDuplicateActiveInvocationsThenExpiresOlderRowsBeforeUniqueIndex(t *testing.T) {
+func TestPostgresSchemaGivenLegacyDuplicateActiveInvocationsThenExpiresOlderRowsBeforeUniqueIndex(
+	t *testing.T,
+) {
 	initSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "init.sql"))
 	require.NoError(t, err)
 
 	sql := string(initSQL)
 	dedupeIndex := strings.Index(sql, "WITH duplicate_active_invocations AS")
-	uniqueIndex := strings.Index(sql, "CREATE UNIQUE INDEX IF NOT EXISTS idx_active_invocation_target_session")
+	uniqueIndex := strings.Index(
+		sql,
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_active_invocation_target_session",
+	)
 
 	require.NotEqual(t, -1, dedupeIndex)
 	require.NotEqual(t, -1, uniqueIndex)

@@ -406,7 +406,9 @@ func TestACPTunnelHubLegacyClaimIsExclusiveWithStructuredTurns(t *testing.T) {
 	hub.release(legacy)
 }
 
-func TestACPTunnelHubBorrowAnyGivenPairedSessionTunnelThenReturnsWithoutReleasingUserPair(t *testing.T) {
+func TestACPTunnelHubBorrowAnyGivenPairedSessionTunnelThenReturnsWithoutReleasingUserPair(
+	t *testing.T,
+) {
 	hub := NewACPTunnelHub()
 	agentConn := &ACPTunnelAgent{agentID: "agent-1", sessionID: "sess-1"}
 	hub.add("agent-1", "sess-1", agentConn)

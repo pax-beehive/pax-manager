@@ -225,7 +225,11 @@ type Store interface {
 		principal UserPrincipal,
 		req UpdateAgentProfileRequest,
 	) (Agent, error)
-	DeleteNodeAgent(ctx context.Context, principal UserPrincipal, req DeleteAgentRequest) (Agent, error)
+	DeleteNodeAgent(
+		ctx context.Context,
+		principal UserPrincipal,
+		req DeleteAgentRequest,
+	) (Agent, error)
 	CreateNodeAgentSession(
 		ctx context.Context,
 		principal UserPrincipal,

@@ -279,7 +279,9 @@ func runtimeSnapshotAgentMetadata(agent nodeControlAgentRuntime) json.RawMessage
 		},
 	}
 	if len(agent.ACPPoolCapabilityReport) > 0 && string(agent.ACPPoolCapabilityReport) != "null" {
-		metadata["acp_pool_capability_report"] = json.RawMessage(cloneRawJSON(agent.ACPPoolCapabilityReport))
+		metadata["acp_pool_capability_report"] = json.RawMessage(
+			cloneRawJSON(agent.ACPPoolCapabilityReport),
+		)
 	}
 	return mustMarshalRawJSON(metadata)
 }
