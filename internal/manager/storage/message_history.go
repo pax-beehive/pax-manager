@@ -157,7 +157,7 @@ func (s *PostgresStore) ListMessages(
 		SELECT `+messageReturningSQL+`
 		FROM messages
 		WHERE `+filter+`
-		ORDER BY id ASC
+		ORDER BY id DESC
 		LIMIT $`+strconvArg(len(args)), args...)
 	if err != nil {
 		return nil, err
@@ -171,7 +171,11 @@ func (s *PostgresStore) ListMessages(
 		}
 		messages = append(messages, msg)
 	}
-	return messages, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	reverseMessages(messages)
+	return messages, nil
 }
 
 func (s *PostgresStore) ListConversationMessages(
@@ -371,12 +375,19 @@ func (s *MemoryStore) ListMessages(
 		messages = append(messages, cloneMessage(msg))
 	}
 	sort.Slice(messages, func(i, j int) bool {
-		return messages[i].ID < messages[j].ID
+		return messages[i].ID > messages[j].ID
 	})
 	if len(messages) > limit {
 		messages = messages[:limit]
 	}
+	reverseMessages(messages)
 	return messages, nil
+}
+
+func reverseMessages(messages []Message) {
+	for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
+		messages[left], messages[right] = messages[right], messages[left]
+	}
 }
 
 func uniqueNonEmptyStrings(values ...string) []string {

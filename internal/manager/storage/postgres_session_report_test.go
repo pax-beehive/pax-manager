@@ -24,6 +24,7 @@ var (
 
 type scriptedPostgresScript struct {
 	queries     []scriptedRows
+	queryTexts  []string
 	execResults []int64
 	execCount   int
 	committed   bool
@@ -186,6 +187,7 @@ func (c *scriptedPostgresConn) QueryContext(
 	query string,
 	args []driver.NamedValue,
 ) (driver.Rows, error) {
+	c.script.queryTexts = append(c.script.queryTexts, query)
 	if len(c.script.queries) == 0 {
 		return nil, errors.New("unexpected query")
 	}
