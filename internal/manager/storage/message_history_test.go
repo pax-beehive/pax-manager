@@ -2,7 +2,9 @@ package storage
 
 import (
 	"context"
+	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -197,6 +199,97 @@ func TestMemoryMessageHistoryLogicalKeyUpsertAndSessionTranslation(t *testing.T)
 	}
 	if len(messages) != 1 || messages[0].SessionID != session.SessionID {
 		t.Fatalf("native session messages = %+v", messages)
+	}
+}
+
+func TestMemoryListMessagesReturnsLatestLimitChronologically(t *testing.T) {
+	store := NewMemoryStore(func() time.Time {
+		return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
+	})
+	ctx := context.Background()
+	for _, messageID := range []string{"msg_1", "msg_2", "msg_3", "msg_4"} {
+		message := Message{
+			MessageID:  messageID,
+			AgentID:    "agent_1",
+			SessionID:  "session_1",
+			Source:     domain.MessageSourceACPTunnel,
+			Direction:  domain.MessageDirectionAgentToUser,
+			LogicalKey: messageID,
+		}
+		if err := store.UpsertMessage(ctx, &message); err != nil {
+			t.Fatalf("upsert message %s: %v", messageID, err)
+		}
+	}
+
+	messages, err := store.ListMessages(ctx, "agent_1", "session_1", 2)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	if len(messages) != 2 ||
+		messages[0].MessageID != "msg_3" ||
+		messages[1].MessageID != "msg_4" {
+		t.Fatalf("messages = %+v, want latest two in chronological order", messages)
+	}
+}
+
+func TestPostgresListMessagesQueriesLatestAndReturnsChronologically(t *testing.T) {
+	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
+	script := &scriptedPostgresScript{
+		queries: []scriptedRows{{
+			columns: []string{
+				"id", "message_id", "conversation_id", "owner_user_id", "node_id",
+				"agent_id", "session_id", "source", "direction", "role", "status",
+				"message_type", "parent_message_id", "turn_id", "response_id",
+				"logical_key", "raw_json", "created_at", "updated_at",
+			},
+			values: [][]driver.Value{
+				scriptedMessageHistoryRow(4, "msg_4", now),
+				scriptedMessageHistoryRow(3, "msg_3", now),
+			},
+		}},
+	}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+
+	messages, err := store.ListMessages(context.Background(), "agent_1", "", 2)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	if len(messages) != 2 ||
+		messages[0].MessageID != "msg_3" ||
+		messages[1].MessageID != "msg_4" {
+		t.Fatalf("messages = %+v, want latest two in chronological order", messages)
+	}
+	if len(script.queryTexts) != 1 {
+		t.Fatalf("queries = %d, want 1", len(script.queryTexts))
+	}
+	query := strings.Join(strings.Fields(script.queryTexts[0]), " ")
+	if !strings.Contains(query, "ORDER BY id DESC LIMIT $2") {
+		t.Fatalf("query = %q, want latest messages selected first", query)
+	}
+}
+
+func scriptedMessageHistoryRow(id int64, messageID string, now time.Time) []driver.Value {
+	return []driver.Value{
+		id,
+		messageID,
+		"",
+		"",
+		"",
+		"agent_1",
+		"session_1",
+		string(domain.MessageSourceACPTunnel),
+		string(domain.MessageDirectionAgentToUser),
+		"assistant",
+		"",
+		"",
+		"",
+		"",
+		"",
+		messageID,
+		[]byte(`{}`),
+		now,
+		now,
 	}
 }
 
