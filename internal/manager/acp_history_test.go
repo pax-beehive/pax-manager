@@ -11,9 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/pax-beehive/paxkit/reliablemq"
+
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/storage"
-	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
 //nolint:gocyclo // This regression fixture keeps the observed frame boundary cases together.
@@ -620,14 +621,20 @@ func TestACPHistoryGivenPaxInvocationPromptThenProjectsDisplayReplacement(t *tes
 	assert.Equal(t, domain.MessageTypePaxUser, messages[0].MessageType)
 	assert.Equal(t, domain.MessageTypePaxInvocation, messages[1].MessageType)
 	assert.Equal(t, messages[0].MessageID, messages[1].ParentMessageID)
-	assert.Contains(t, string(messages[1].RawJSON), `"replaces_message_ids":["`+messages[0].MessageID+`"]`)
+	assert.Contains(
+		t,
+		string(messages[1].RawJSON),
+		`"replaces_message_ids":["`+messages[0].MessageID+`"]`,
+	)
 	parts, err := store.ListMessageParts(ctx, messages[1].MessageID)
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	assert.Equal(t, "Agent source asked for input.", parts[0].Text)
 }
 
-func TestACPHistoryGivenPendingInvocationWhenTerminalToolUpdateArrivesThenProjectsDisplayReplacement(t *testing.T) {
+func TestACPHistoryGivenPendingInvocationWhenTerminalToolUpdateArrivesThenProjectsDisplayReplacement(
+	t *testing.T,
+) {
 	ctx := context.Background()
 	store := storage.NewMemoryStore(func() time.Time {
 		return time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)

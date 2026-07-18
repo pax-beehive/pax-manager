@@ -222,7 +222,11 @@ func (s *Service) readConversationRequest(
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	if req.SessionID != "" && req.ApprovalMode != "" {
-		writeHTTPError(w, http.StatusBadRequest, "approval_mode can only be set when creating a session; use session PATCH to change it")
+		writeHTTPError(
+			w,
+			http.StatusBadRequest,
+			"approval_mode can only be set when creating a session; use session PATCH to change it",
+		)
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	if req.ApprovalMode != "" && !domain.IsSessionApprovalMode(req.ApprovalMode) {
@@ -443,7 +447,13 @@ func (s *Service) resumeConversation(
 	if err := runner.sendWorkerResponseRaw(ctx, response); err != nil {
 		return err
 	}
-	recorded, err := s.store.RecordApprovalResponse(ctx, principal, approval.ApprovalID, response, "")
+	recorded, err := s.store.RecordApprovalResponse(
+		ctx,
+		principal,
+		approval.ApprovalID,
+		response,
+		"",
+	)
 	if err != nil {
 		return err
 	}
@@ -486,7 +496,8 @@ func (r *conversationRunner) request(
 ) (conversationResponse, error) {
 	for attempt := 0; attempt < 2; attempt++ {
 		response, err := r.requestOnce(ctx, method, params, activity)
-		if !isConversationACPErrorKind(err, "session_route_missing") || attempt > 0 || method == "session/resume" {
+		if !isConversationACPErrorKind(err, "session_route_missing") || attempt > 0 ||
+			method == "session/resume" {
 			return response, err
 		}
 		if err := r.resumeMissingRoute(ctx); err != nil {
@@ -751,7 +762,11 @@ func (s *Service) writeConversationACPEvent(
 		if err != nil {
 			return false, err
 		}
-		if s.conversationApprovalMode(ctx, runner, session) == domain.SessionApprovalModeAutoApproveAll {
+		if s.conversationApprovalMode(
+			ctx,
+			runner,
+			session,
+		) == domain.SessionApprovalModeAutoApproveAll {
 			if err := s.writeConversationEvent(w, flusher, conversationEvent{
 				Type:      "acp",
 				NodeID:    runner.agentConn.nodeID,
@@ -828,10 +843,15 @@ func (s *Service) autoApproveConversationApproval(
 ) (json.RawMessage, error) {
 	principal := UserPrincipal{User: User{UserID: runner.agentConn.ownerUserID}}
 	grantBody := json.RawMessage(`{"approval_mode":"auto_approve_all"}`)
-	decided, err := s.store.DecideApproval(ctx, principal, approval.ApprovalID, ApprovalDecisionRequest{
-		DecisionOption: "allow_once",
-		GrantBody:      grantBody,
-	})
+	decided, err := s.store.DecideApproval(
+		ctx,
+		principal,
+		approval.ApprovalID,
+		ApprovalDecisionRequest{
+			DecisionOption: "allow_once",
+			GrantBody:      grantBody,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -842,7 +862,13 @@ func (s *Service) autoApproveConversationApproval(
 	if err := runner.sendWorkerResponseRaw(ctx, response); err != nil {
 		return nil, err
 	}
-	recorded, err := s.store.RecordApprovalResponse(ctx, principal, decided.ApprovalID, response, "")
+	recorded, err := s.store.RecordApprovalResponse(
+		ctx,
+		principal,
+		decided.ApprovalID,
+		response,
+		"",
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1031,7 +1057,10 @@ func conversationHistoryMessageMatchesPermission(msg domain.Message, requestID s
 	return acpRequestID(frame.ID) == requestID
 }
 
-func conversationHistoryMessageMatchesPermissionResponse(msg domain.Message, requestID string) bool {
+func conversationHistoryMessageMatchesPermissionResponse(
+	msg domain.Message,
+	requestID string,
+) bool {
 	var frame acpJSONRPCMessage
 	if len(msg.RawJSON) == 0 || json.Unmarshal(msg.RawJSON, &frame) != nil {
 		return false

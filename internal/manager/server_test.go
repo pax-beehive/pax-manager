@@ -647,7 +647,11 @@ func TestSessionArtifactUploadCompleteAndContentURL(t *testing.T) {
 	require.Len(t, completed.Artifact.Contents, 1)
 	assert.Equal(t, "main", completed.Artifact.Contents[0].Ref)
 	assert.Equal(t, int64(99), completed.Artifact.Contents[0].Generation)
-	assert.Equal(t, "gs://session-artifacts-test/"+ticket.Object, completed.Artifact.Contents[0].StorageURI)
+	assert.Equal(
+		t,
+		"gs://session-artifacts-test/"+ticket.Object,
+		completed.Artifact.Contents[0].StorageURI,
+	)
 
 	getReq := httptest.NewRequest(
 		http.MethodGet,
@@ -676,6 +680,56 @@ func TestSessionArtifactUploadCompleteAndContentURL(t *testing.T) {
 	content := decodeData[ArtifactContentURLResponse](t, contentRec.Body.Bytes())
 	assert.Contains(t, content.URL, "https://signed.example/session-artifacts/")
 	assert.Equal(t, "notes.txt", content.Content.Filename)
+}
+
+func TestSessionArtifactRejectsCallerSuppliedGCSContent(t *testing.T) {
+	srv, _ := testServer(t, "artifact@example.com")
+	srv.cfg.SessionArtifactGCSBucket = "session-artifacts-test"
+
+	createReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/artifacts",
+		strings.NewReader(`{
+			"kind":"file",
+			"contents":[{"ref":"main","bucket":"other-bucket","object":"secret/object.txt"}]
+		}`),
+	)
+	createReq.Header.Set("X-User-Email", "artifact@example.com")
+	createRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createRec, createReq)
+	require.Equal(t, http.StatusBadRequest, createRec.Code, createRec.Body.String())
+}
+
+func TestSessionArtifactContentURLRefusesForeignBucket(t *testing.T) {
+	srv, _ := testServer(t, "artifact@example.com")
+	srv.cfg.SessionArtifactGCSBucket = "session-artifacts-test"
+
+	user, err := srv.store.GetUserByEmail(context.Background(), "artifact@example.com")
+	require.NoError(t, err)
+	principal := domain.UserPrincipal{User: user}
+	artifact, err := srv.store.CreateSessionArtifact(
+		context.Background(),
+		principal,
+		CreateSessionArtifactRequest{
+			Kind: "file",
+			Contents: []ArtifactContent{{
+				Ref:    "main",
+				Bucket: "other-bucket",
+				Object: "secret/object.txt",
+			}},
+		},
+	)
+	require.NoError(t, err)
+
+	contentReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/artifacts/"+artifact.ArtifactID+"/content/main",
+		nil,
+	)
+	contentReq.Header.Set("X-User-Email", "artifact@example.com")
+	contentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(contentRec, contentReq)
+	require.Equal(t, http.StatusForbidden, contentRec.Code, contentRec.Body.String())
 }
 
 func TestGenericArtifactResolverSeparatesProducts(t *testing.T) {
@@ -1273,7 +1327,10 @@ func TestNewServerProducerWriteBehindTransportKeepsOutboundSequence(t *testing.T
 		nil,
 	)
 	require.NoError(t, err)
-	require.NoError(t, store.AckOutboundThrough(ctx, first.Key.QueueID, first.Key.Stream, first.Key.Seq))
+	require.NoError(
+		t,
+		store.AckOutboundThrough(ctx, first.Key.QueueID, first.Key.Stream, first.Key.Seq),
+	)
 
 	srv := newServer(Config{}, store)
 	t.Cleanup(func() {
@@ -2086,7 +2143,12 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "/tmp", storedSession.PaxConfig.CWD)
 	assert.Equal(t, domain.SessionApprovalModeManual, storedSession.PaxConfig.ApprovalMode)
-	messages, err := srv.store.ListMessages(t.Context(), fixture.agentID, sessionEvent.SessionID, 10)
+	messages, err := srv.store.ListMessages(
+		t.Context(),
+		fixture.agentID,
+		sessionEvent.SessionID,
+		10,
+	)
 	require.NoError(t, err)
 	require.NotEmpty(t, messages)
 	for _, msg := range messages {
@@ -2164,7 +2226,9 @@ func TestConversationTurnStopSendsSessionCancelForActivePrompt(t *testing.T) {
 	assert.Equal(t, "42", updated.RuntimeState.ActivePromptRequestID)
 }
 
-func TestConversationTurnQueueCRUDGivenQueuedTurnWhenReadUpdatedAndDeletedThenReflectsCurrentState(t *testing.T) {
+func TestConversationTurnQueueCRUDGivenQueuedTurnWhenReadUpdatedAndDeletedThenReflectsCurrentState(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 	createConversationTestSession(t, srv, fixture, "sess-queue-crud", "native-queue-crud")
@@ -2215,7 +2279,15 @@ func TestConversationTurnQueueCRUDGivenQueuedTurnWhenReadUpdatedAndDeletedThenRe
 	assert.Equal(t, "cmd_update", updated.CommandID)
 	assert.Equal(t, "queued updated", updated.Input)
 
-	deleteResp := doConversationTurnQueueRequest(t, srv, fixture, http.MethodDelete, queueURL, "cmd_delete", "")
+	deleteResp := doConversationTurnQueueRequest(
+		t,
+		srv,
+		fixture,
+		http.MethodDelete,
+		queueURL,
+		"cmd_delete",
+		"",
+	)
 	require.Equal(t, http.StatusOK, deleteResp.Code, deleteResp.Body.String())
 	deleted := decodeData[conversationTurnQueueDeleteResponse](t, deleteResp.Body.Bytes())
 	assert.Equal(t, turnQueueDeleteEffectDeleted, deleted.Effect)
@@ -2298,7 +2370,9 @@ func TestConversationTurnQueueReplacesDraftAndDrainsAfterActivePrompt(t *testing
 		agentWS,
 		firstPromptEnv.QueueID,
 		1,
-		json.RawMessage(`{"jsonrpc":"2.0","id":`+firstPromptID+`,"result":{"stopReason":"end_turn"}}`),
+		json.RawMessage(
+			`{"jsonrpc":"2.0","id":`+firstPromptID+`,"result":{"stopReason":"end_turn"}}`,
+		),
 	)
 	queuedPromptEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, queuedPromptEnv.Payload, "session/prompt")
@@ -2311,7 +2385,9 @@ func TestConversationTurnQueueReplacesDraftAndDrainsAfterActivePrompt(t *testing
 		agentWS,
 		queuedPromptEnv.QueueID,
 		2,
-		json.RawMessage(`{"jsonrpc":"2.0","id":`+queuedPromptID+`,"result":{"stopReason":"end_turn"}}`),
+		json.RawMessage(
+			`{"jsonrpc":"2.0","id":`+queuedPromptID+`,"result":{"stopReason":"end_turn"}}`,
+		),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -2442,7 +2518,9 @@ func TestConversationMissingPaxdRouteResumesOnceThenRetriesPrompt(t *testing.T) 
 	var firstPrompt acpJSONRPCMessage
 	require.NoError(t, json.Unmarshal(firstPromptEnv.Payload, &firstPrompt))
 	writeAgentDataFrame(t, agentWS, firstPromptEnv.QueueID, 1, json.RawMessage(
-		`{"jsonrpc":"2.0","id":`+string(firstPrompt.ID)+`,"error":{"code":-32002,"message":"ACP session route requires resume","data":{"kind":"session_route_missing","requiresResume":true}}}`,
+		`{"jsonrpc":"2.0","id":`+string(
+			firstPrompt.ID,
+		)+`,"error":{"code":-32002,"message":"ACP session route requires resume","data":{"kind":"session_route_missing","requiresResume":true}}}`,
 	))
 
 	resumeEnv := readNextManagerToAgentData(t, agentWS)
@@ -2524,8 +2602,22 @@ func TestConversationDifferentSessionsPromptConcurrentlyOnDevPool(t *testing.T) 
 
 	respA, respB := make(chan *http.Response, 1), make(chan *http.Response, 1)
 	errA, errB := make(chan error, 1), make(chan error, 1)
-	go postConversation(t, httpServer.URL, fixture, `{"input":"prompt a","session_id":"sess-a"}`, respA, errA)
-	go postConversation(t, httpServer.URL, fixture, `{"input":"prompt b","session_id":"sess-b"}`, respB, errB)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"prompt a","session_id":"sess-a"}`,
+		respA,
+		errA,
+	)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"prompt b","session_id":"sess-b"}`,
+		respB,
+		errB,
+	)
 
 	firstEnv := readNextManagerToAgentData(t, agentWS)
 	secondEnv := readNextManagerToAgentData(t, agentWS)
@@ -2536,7 +2628,11 @@ func TestConversationDifferentSessionsPromptConcurrentlyOnDevPool(t *testing.T) 
 	require.Equal(t, "session/prompt", second.Method)
 	firstSession := findStringFromRaw(first.Params, "sessionId", "session_id")
 	secondSession := findStringFromRaw(second.Params, "sessionId", "session_id")
-	require.ElementsMatch(t, []string{"native-a", "native-b"}, []string{firstSession, secondSession})
+	require.ElementsMatch(
+		t,
+		[]string{"native-a", "native-b"},
+		[]string{firstSession, secondSession},
+	)
 
 	writeAgentDataFrame(t, agentWS, firstEnv.QueueID, 1, json.RawMessage(
 		`{"jsonrpc":"2.0","id":`+string(second.ID)+`,"result":{"stopReason":"end_turn"}}`,
@@ -2762,7 +2858,11 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
 	events := decodeConversationEvents(t, body)
-	permissionRequestEvent := requireConversationACPFrameContaining(t, events, `"method":"session/request_permission"`)
+	permissionRequestEvent := requireConversationACPFrameContaining(
+		t,
+		events,
+		`"method":"session/request_permission"`,
+	)
 	assert.Contains(t, string(permissionRequestEvent.Frame), `"id":1`)
 	assert.Contains(t, string(permissionRequestEvent.Frame), `"approval_id"`)
 	permissionResponseEvent := requireConversationACPFrameContaining(t, events, `"result"`)
@@ -2876,7 +2976,11 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 	events := decodeConversationEvents(t, body)
 	responseEvent := requireConversationACPFrameContaining(t, events, `"result"`)
 	assert.Contains(t, string(responseEvent.Frame), `"id":"perm_1"`)
-	assert.Contains(t, string(responseEvent.Frame), `"decided_by_user_id":"`+approval.OwnerUserID+`"`)
+	assert.Contains(
+		t,
+		string(responseEvent.Frame),
+		`"decided_by_user_id":"`+approval.OwnerUserID+`"`,
+	)
 	acpEvent := requireConversationACPFrameContaining(t, events, "approved output")
 	assert.Contains(t, string(acpEvent.Frame), "approved output")
 	requireConversationEvent(t, events, "done")
@@ -4432,7 +4536,9 @@ func upsertRepresentativeAgentForOwnerInfoTest(
 	return got.RepresentativeAgent
 }
 
-func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenValidatesContract(t *testing.T) {
+func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenValidatesContract(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
@@ -4468,7 +4574,11 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenValidatesCon
 	assert.Equal(t, "pending", got.Delivery.DeliveryStatus)
 	assert.NotEmpty(t, got.DeliveryError)
 	assert.Equal(t, domain.ConversationAgentInvocationStatusActive, got.Delivery.Invocation.Status)
-	assert.Equal(t, sourceRep.RepresentativeAgentID, got.Delivery.Invocation.SourceRepresentativeAgentID)
+	assert.Equal(
+		t,
+		sourceRep.RepresentativeAgentID,
+		got.Delivery.Invocation.SourceRepresentativeAgentID,
+	)
 	assert.Equal(t, fixture.agentID, got.Delivery.Invocation.SourceRuntimeAgentID)
 	assert.Equal(t, "sess_source", got.Delivery.Invocation.SourceSessionID)
 	assert.Equal(t, targetAgent.AgentID, got.Delivery.Invocation.TargetRuntimeAgentID)
@@ -4478,10 +4588,16 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenValidatesCon
 	assert.False(t, got.Delivery.Context.ReasoningSummary)
 	assert.True(t, got.Delivery.Context.Artifacts)
 	require.Len(t, got.Delivery.PromptMessage.Parts, 1)
-	assert.Equal(t, "Ask this agent to review the request contract.", got.Delivery.PromptMessage.Parts[0].Text)
+	assert.Equal(
+		t,
+		"Ask this agent to review the request contract.",
+		got.Delivery.PromptMessage.Parts[0].Text,
+	)
 }
 
-func TestConversationDeliveryGivenTargetSessionAlreadyHasActiveInvocationWhenPostedThenReturnsConflict(t *testing.T) {
+func TestConversationDeliveryGivenTargetSessionAlreadyHasActiveInvocationWhenPostedThenReturnsConflict(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
@@ -4493,14 +4609,22 @@ func TestConversationDeliveryGivenTargetSessionAlreadyHasActiveInvocationWhenPos
 			"target":{"kind":"representative","representative_agent_id":"` + rep.RepresentativeAgentID + `","session_id":"sess_target"},
 			"instruction":"Please answer this."
 		}`)
-	firstReq := httptest.NewRequest(http.MethodPost, "/api/v1/node/conversation/deliver", bytes.NewReader(body))
+	firstReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader(body),
+	)
 	firstReq.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
 	setJSON(firstReq)
 	firstRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(firstRec, firstReq)
 	require.Equal(t, http.StatusAccepted, firstRec.Code, firstRec.Body.String())
 
-	secondReq := httptest.NewRequest(http.MethodPost, "/api/v1/node/conversation/deliver", bytes.NewReader(body))
+	secondReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader(body),
+	)
 	secondReq.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
 	setJSON(secondReq)
 	secondRec := httptest.NewRecorder()
@@ -4510,7 +4634,9 @@ func TestConversationDeliveryGivenTargetSessionAlreadyHasActiveInvocationWhenPos
 	assert.Contains(t, secondRec.Body.String(), "conflict")
 }
 
-func TestConversationDeliveryGivenActiveInvocationTargetWhenPostedThenRepliesToCurrentSession(t *testing.T) {
+func TestConversationDeliveryGivenActiveInvocationTargetWhenPostedThenRepliesToCurrentSession(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
@@ -4556,8 +4682,16 @@ func TestConversationDeliveryGivenActiveInvocationTargetWhenPostedThenRepliesToC
 	}](t, rec.Body.Bytes())
 	assert.Equal(t, parent.Delivery.Invocation.InvocationID, got.Delivery.Invocation.InvocationID)
 	assert.Empty(t, got.Delivery.Invocation.ParentInvocationID)
-	assert.Equal(t, domain.ConversationAgentInvocationStatusCompleted, got.Delivery.Invocation.Status)
-	assert.Equal(t, parent.Delivery.Conversation.ConversationID, got.Delivery.Conversation.ConversationID)
+	assert.Equal(
+		t,
+		domain.ConversationAgentInvocationStatusCompleted,
+		got.Delivery.Invocation.Status,
+	)
+	assert.Equal(
+		t,
+		parent.Delivery.Conversation.ConversationID,
+		got.Delivery.Conversation.ConversationID,
+	)
 	assert.Equal(t, fixture.agentID, got.Delivery.Invocation.SourceRuntimeAgentID)
 	assert.Equal(t, "sess_source", got.Delivery.Invocation.SourceSessionID)
 	assert.Equal(t, targetAgent.AgentID, got.Delivery.Invocation.TargetRuntimeAgentID)
@@ -4587,7 +4721,9 @@ func TestConversationDeliveryGivenActiveInvocationTargetWhenPostedThenRepliesToC
 	require.Equal(t, http.StatusNotFound, secondReplyRec.Code, secondReplyRec.Body.String())
 }
 
-func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTargetTunnel(t *testing.T) {
+func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTargetTunnel(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
@@ -4624,7 +4760,12 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 
 	sessionNewEnv, sessionNew := readMockACPRequest(t, targetWS, "session/new")
 	assertACPMCPEnv(t, sessionNew.Params, "PAX_AGENT_ID", targetAgent.AgentID)
-	assertACPMCPEnv(t, sessionNew.Params, "PAX_REPRESENTATIVE_AGENT_ID", targetRep.RepresentativeAgentID)
+	assertACPMCPEnv(
+		t,
+		sessionNew.Params,
+		"PAX_REPRESENTATIVE_AGENT_ID",
+		targetRep.RepresentativeAgentID,
+	)
 	targetManagerSessionID := assertACPMCPEnvPrefix(t, sessionNew.Params, "PAX_SESSION_ID", "sess_")
 	writeMockACPResponse(
 		t,
@@ -4647,8 +4788,16 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 	)
 	targetPromptEnv, targetPrompt := readMockACPRequest(t, targetWS, "session/prompt")
 	targetPromptText := acpPromptText(targetPrompt.Params)
-	require.Contains(t, targetPromptText, "You must answer this inquiry by calling the pax-conversation reply tool")
-	require.Contains(t, targetPromptText, "must pass your final answer explicitly in the tool input")
+	require.Contains(
+		t,
+		targetPromptText,
+		"You must answer this inquiry by calling the pax-conversation reply tool",
+	)
+	require.Contains(
+		t,
+		targetPromptText,
+		"must pass your final answer explicitly in the tool input",
+	)
 	require.Contains(t, targetPromptText, "Please answer this.")
 	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-target", targetNativeSessionID)
@@ -4674,13 +4823,20 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 	}](t, rec.Body.Bytes())
 	assert.Equal(t, "delivered", got.Delivery.DeliveryStatus)
 	require.Equal(t, targetManagerSessionID, got.Delivery.TargetSession.SessionID)
-	messages, err := srv.store.ListMessages(t.Context(), targetAgent.AgentID, got.Delivery.TargetSession.SessionID, 10)
+	messages, err := srv.store.ListMessages(
+		t.Context(),
+		targetAgent.AgentID,
+		got.Delivery.TargetSession.SessionID,
+		10,
+	)
 	require.NoError(t, err)
 	require.NotEmpty(t, messages)
 	assert.Equal(t, domain.MessageDirectionAgentToUser, messages[len(messages)-1].Direction)
 }
 
-func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOriginalSourceTunnel(t *testing.T) {
+func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOriginalSourceTunnel(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 	createConversationTestSession(t, srv, fixture, "sess_source", "native-source")
@@ -4766,7 +4922,11 @@ func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOrig
 		Delivery domain.ConversationDelivery `json:"delivery"`
 	}](t, rec.Body.Bytes())
 	assert.Equal(t, "delivered", got.Delivery.DeliveryStatus)
-	assert.Equal(t, domain.ConversationAgentInvocationStatusCompleted, got.Delivery.Invocation.Status)
+	assert.Equal(
+		t,
+		domain.ConversationAgentInvocationStatusCompleted,
+		got.Delivery.Invocation.Status,
+	)
 	assert.Equal(t, "sess_source", got.Delivery.TargetSession.SessionID)
 	messages, err := srv.store.ListMessages(t.Context(), fixture.agentID, "sess_source", 10)
 	require.NoError(t, err)
@@ -4774,7 +4934,9 @@ func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOrig
 	assert.Equal(t, domain.MessageDirectionAgentToUser, messages[len(messages)-1].Direction)
 }
 
-func TestConversationDeliveryGivenBusyOriginalSourceTunnelWhenReplyPostedThenQueuesAndPromptsAfterRelease(t *testing.T) {
+func TestConversationDeliveryGivenBusyOriginalSourceTunnelWhenReplyPostedThenQueuesAndPromptsAfterRelease(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 	createConversationTestSession(t, srv, fixture, "sess_source", "native-source")
@@ -4845,7 +5007,14 @@ func TestConversationDeliveryGivenBusyOriginalSourceTunnelWhenReplyPostedThenQue
 	require.Contains(t, sourcePromptText, "Here is the queued answer.")
 	sourceNativeSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-source", sourceNativeSessionID)
-	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 1, sourceNativeSessionID, "received queued")
+	writeMockACPChunk(
+		t,
+		sourceWS,
+		sourcePromptEnv.QueueID,
+		1,
+		sourceNativeSessionID,
+		"received queued",
+	)
 	writeMockACPResponse(
 		t,
 		sourceWS,
@@ -5262,7 +5431,11 @@ func requireHistoryPermissionRequestWithApprovalID(
 			return
 		}
 	}
-	t.Fatalf("missing permission request history message with approval_id %q: %+v", approvalID, messages)
+	t.Fatalf(
+		"missing permission request history message with approval_id %q: %+v",
+		approvalID,
+		messages,
+	)
 }
 
 func requireHistoryUserPrompt(t *testing.T, messages []MessageWithParts, text string) {
@@ -5408,11 +5581,13 @@ func completeMockAgentReconcile(
 	producerNextSeq int64,
 ) reliablemq.Envelope {
 	t.Helper()
-	request, err := reliablemq.MarshalEnvelope(reliablemq.ReconcileRequestEnvelope(reliablemq.ProducerReconcileCheckpoint{
-		QueueID:         queueID,
-		Stream:          reliablemq.StreamACP,
-		ProducerNextSeq: producerNextSeq,
-	}))
+	request, err := reliablemq.MarshalEnvelope(
+		reliablemq.ReconcileRequestEnvelope(reliablemq.ProducerReconcileCheckpoint{
+			QueueID:         queueID,
+			Stream:          reliablemq.StreamACP,
+			ProducerNextSeq: producerNextSeq,
+		}),
+	)
 	require.NoError(t, err)
 	require.NoError(t, agentWS.WriteMessage(websocket.TextMessage, request))
 	require.NoError(t, agentWS.SetReadDeadline(time.Now().Add(2*time.Second)))
@@ -5566,14 +5741,24 @@ func assertACPMCPEnvInPayload(t *testing.T, payload json.RawMessage, name string
 	require.Equal(t, want, acpMCPEnvValue(t, acpParams(t, payload), name))
 }
 
-func assertACPMCPEnvPrefix(t *testing.T, params json.RawMessage, name string, prefix string) string {
+func assertACPMCPEnvPrefix(
+	t *testing.T,
+	params json.RawMessage,
+	name string,
+	prefix string,
+) string {
 	t.Helper()
 	got := acpMCPEnvValue(t, params, name)
 	require.True(t, strings.HasPrefix(got, prefix), "%s = %q, want prefix %q", name, got, prefix)
 	return got
 }
 
-func assertACPMCPEnvPrefixInPayload(t *testing.T, payload json.RawMessage, name string, prefix string) string {
+func assertACPMCPEnvPrefixInPayload(
+	t *testing.T,
+	payload json.RawMessage,
+	name string,
+	prefix string,
+) string {
 	t.Helper()
 	got := acpMCPEnvValue(t, acpParams(t, payload), name)
 	require.True(t, strings.HasPrefix(got, prefix), "%s = %q, want prefix %q", name, got, prefix)
@@ -6347,7 +6532,11 @@ func TestRepresentativeAgentEndpointGivenOwnedAgentWhenUpsertedThenItCanBeListed
 		RepresentativeAgents []domain.RepresentativeAgent `json:"representative_agents"`
 	}](t, listRec.Body.Bytes())
 	require.Len(t, listed.RepresentativeAgents, 1)
-	require.Equal(t, created.RepresentativeAgent.RepresentativeAgentID, listed.RepresentativeAgents[0].RepresentativeAgentID)
+	require.Equal(
+		t,
+		created.RepresentativeAgent.RepresentativeAgentID,
+		listed.RepresentativeAgents[0].RepresentativeAgentID,
+	)
 }
 
 func TestAgentOwnerInfoEndpointGivenAgentIDWhenFetchedThenReturnsUserOwner(t *testing.T) {
@@ -6374,16 +6563,23 @@ func TestAgentOwnerInfoEndpointGivenAgentIDWhenFetchedThenReturnsUserOwner(t *te
 	assert.Nil(t, got.OwnerInfo.Owner.Team)
 }
 
-func TestAgentOwnerInfoEndpointGivenTeamRepresentativeWhenFetchedThenReturnsTeamOwner(t *testing.T) {
+func TestAgentOwnerInfoEndpointGivenTeamRepresentativeWhenFetchedThenReturnsTeamOwner(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
 	team := createTeamForOwnerInfoTest(t, srv, "Core")
-	rep := upsertRepresentativeAgentForOwnerInfoTest(t, srv, agentID, domain.UpsertRepresentativeAgentRequest{
-		RuntimeAgentID: agentID,
-		DisplayName:    "Core reviewer",
-		RepresentsType: "team",
-		RepresentsID:   team.TeamID,
-	})
+	rep := upsertRepresentativeAgentForOwnerInfoTest(
+		t,
+		srv,
+		agentID,
+		domain.UpsertRepresentativeAgentRequest{
+			RuntimeAgentID: agentID,
+			DisplayName:    "Core reviewer",
+			RepresentsType: "team",
+			RepresentsID:   team.TeamID,
+		},
+	)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -6400,7 +6596,11 @@ func TestAgentOwnerInfoEndpointGivenTeamRepresentativeWhenFetchedThenReturnsTeam
 	}](t, rec.Body.Bytes())
 	assert.Equal(t, agentID, got.OwnerInfo.Agent.AgentID)
 	require.NotNil(t, got.OwnerInfo.RepresentativeAgent)
-	assert.Equal(t, rep.RepresentativeAgentID, got.OwnerInfo.RepresentativeAgent.RepresentativeAgentID)
+	assert.Equal(
+		t,
+		rep.RepresentativeAgentID,
+		got.OwnerInfo.RepresentativeAgent.RepresentativeAgentID,
+	)
 	require.NotNil(t, got.OwnerInfo.Profile)
 	assert.Equal(t, "Core reviewer", got.OwnerInfo.Profile.DisplayName)
 	require.Equal(t, "team", got.OwnerInfo.Owner.Kind)
@@ -6412,16 +6612,23 @@ func TestAgentOwnerInfoEndpointGivenTeamRepresentativeWhenFetchedThenReturnsTeam
 	assert.Equal(t, 0, got.OwnerInfo.Owner.Team.AgentCount)
 }
 
-func TestAgentOwnerInfoEndpointGivenTeamRepresentativeWhenCallerCannotSeeTeamThenHidesTeamOwner(t *testing.T) {
+func TestAgentOwnerInfoEndpointGivenTeamRepresentativeWhenCallerCannotSeeTeamThenHidesTeamOwner(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	agentID := testAgentID(t, srv, "todd@example.com")
 	team := createTeamForOwnerInfoTest(t, srv, "Core")
-	rep := upsertRepresentativeAgentForOwnerInfoTest(t, srv, agentID, domain.UpsertRepresentativeAgentRequest{
-		RuntimeAgentID: agentID,
-		DisplayName:    "Core reviewer",
-		RepresentsType: "team",
-		RepresentsID:   team.TeamID,
-	})
+	rep := upsertRepresentativeAgentForOwnerInfoTest(
+		t,
+		srv,
+		agentID,
+		domain.UpsertRepresentativeAgentRequest{
+			RuntimeAgentID: agentID,
+			DisplayName:    "Core reviewer",
+			RepresentsType: "team",
+			RepresentsID:   team.TeamID,
+		},
+	)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -6473,9 +6680,21 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 		recCh <- rec
 	}()
 
-	respondMockACPRequest(t, sourceWS, 1, "session/new", json.RawMessage(`{"sessionId":"native-source"}`))
+	respondMockACPRequest(
+		t,
+		sourceWS,
+		1,
+		"session/new",
+		json.RawMessage(`{"sessionId":"native-source"}`),
+	)
 	respondMockACPRequest(t, sourceWS, 2, "session/set_mode", json.RawMessage(`{}`))
-	respondMockACPRequest(t, targetWS, 1, "session/new", json.RawMessage(`{"sessionId":"native-target"}`))
+	respondMockACPRequest(
+		t,
+		targetWS,
+		1,
+		"session/new",
+		json.RawMessage(`{"sessionId":"native-target"}`),
+	)
 	respondMockACPRequest(t, targetWS, 2, "session/set_mode", json.RawMessage(`{}`))
 
 	targetPromptEnv, targetPrompt := readMockACPRequest(t, targetWS, "session/prompt")
@@ -6540,7 +6759,9 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 	require.Equal(t, "native-target", targetSession.NativeID)
 }
 
-func TestAgentConversationEndpointGivenMissingConversationWhenListingMessagesThenReturnsNotFound(t *testing.T) {
+func TestAgentConversationEndpointGivenMissingConversationWhenListingMessagesThenReturnsNotFound(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	req := httptest.NewRequest(
 		http.MethodGet,

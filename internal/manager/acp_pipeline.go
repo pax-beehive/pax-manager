@@ -533,10 +533,15 @@ func (m acpApprovalMiddleware) autoApproveSessionPolicy(
 		return true, err
 	}
 	principal := domain.UserPrincipal{User: domain.User{UserID: frame.agent.ownerUserID}}
-	decided, err := m.store.DecideApproval(ctx, principal, approval.ApprovalID, ApprovalDecisionRequest{
-		DecisionOption: "allow_once",
-		GrantBody:      json.RawMessage(`{"approval_mode":"auto_approve_all"}`),
-	})
+	decided, err := m.store.DecideApproval(
+		ctx,
+		principal,
+		approval.ApprovalID,
+		ApprovalDecisionRequest{
+			DecisionOption: "allow_once",
+			GrantBody:      json.RawMessage(`{"approval_mode":"auto_approve_all"}`),
+		},
+	)
 	if err != nil {
 		return true, err
 	}
@@ -553,7 +558,13 @@ func (m acpApprovalMiddleware) autoApproveSessionPolicy(
 	); err != nil {
 		return true, err
 	}
-	recorded, err := m.store.RecordApprovalResponse(ctx, principal, decided.ApprovalID, response, "")
+	recorded, err := m.store.RecordApprovalResponse(
+		ctx,
+		principal,
+		decided.ApprovalID,
+		response,
+		"",
+	)
 	if err != nil {
 		return true, err
 	}

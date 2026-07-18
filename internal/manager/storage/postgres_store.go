@@ -1130,7 +1130,7 @@ func (s *PostgresStore) UpsertNodeStatus(
 				return err
 			}
 		}
-		_, err := tx.ExecContext(
+		result, err := tx.ExecContext(
 			ctx,
 			`
 			INSERT INTO agents (
@@ -1140,7 +1140,6 @@ func (s *PostgresStore) UpsertNodeStatus(
 			)
 			VALUES ($1,$2,$3,$4,$5,COALESCE($6, '{}'::jsonb),$7,$8,$9,$10,$11,$12,$13,$14,$15,$15,$16)
 			ON CONFLICT (agent_id) DO UPDATE SET
-				node_id = EXCLUDED.node_id,
 				name = COALESCE(NULLIF(EXCLUDED.name, ''), agents.name),
 				description = COALESCE(NULLIF(EXCLUDED.description, ''), agents.description),
 				card = COALESCE(EXCLUDED.card, agents.card),
@@ -1148,6 +1147,8 @@ func (s *PostgresStore) UpsertNodeStatus(
 				status = EXCLUDED.status,
 				last_heartbeat = EXCLUDED.last_heartbeat,
 				metadata = COALESCE(EXCLUDED.metadata, agents.metadata)
+			WHERE agents.node_id = EXCLUDED.node_id
+				AND agents.owner_user_id = EXCLUDED.owner_user_id
 		`,
 			agentID,
 			node.NodeID,
@@ -1168,6 +1169,15 @@ func (s *PostgresStore) UpsertNodeStatus(
 		)
 		if err != nil {
 			return err
+		}
+		adopted, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if adopted == 0 {
+			// An existing agent with this ID belongs to a different node or
+			// owner. Status reports must never re-home agents.
+			continue
 		}
 		for _, session := range input.Sessions {
 			if session.SessionID == "" {
@@ -1535,6 +1545,57 @@ func (s *PostgresStore) DeleteNodeAgent(
 	return agent, nil
 }
 
+// validateSessionReferences rejects session reference fields that point at
+// resources the principal cannot legitimately attach: conversations they are
+// not a member of, or profiles/representative agents owned by someone else.
+func (s *PostgresStore) validateSessionReferences(
+	ctx context.Context,
+	principal UserPrincipal,
+	req CreateSessionRequest,
+) error {
+	if req.ConversationID != "" {
+		member, err := s.hasActiveConversationMembership(
+			ctx,
+			req.ConversationID,
+			principal.User.UserID,
+		)
+		if err != nil {
+			return err
+		}
+		if !member {
+			return ErrNotFound
+		}
+	}
+	if req.ProfileID != "" {
+		var profileOwner string
+		err := s.db.QueryRowContext(ctx, `
+			SELECT owner_id FROM agent_profiles WHERE profile_id = $1
+		`, req.ProfileID).Scan(&profileOwner)
+		if err != nil {
+			return mapSQLError(err)
+		}
+		if profileOwner != principal.User.UserID {
+			return ErrNotFound
+		}
+	}
+	if req.RepresentativeAgentID != "" {
+		var repOwner string
+		err := s.db.QueryRowContext(ctx, `
+			SELECT a.owner_user_id
+			FROM representative_agents r
+			JOIN agents a ON a.agent_id = r.runtime_agent_id
+			WHERE r.representative_agent_id = $1 AND r.status = $2
+		`, req.RepresentativeAgentID, domain.ConversationStatusActive).Scan(&repOwner)
+		if err != nil {
+			return mapSQLError(err)
+		}
+		if repOwner != principal.User.UserID {
+			return ErrNotFound
+		}
+	}
+	return nil
+}
+
 func (s *PostgresStore) CreateNodeAgentSession(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -1576,17 +1637,34 @@ func (s *PostgresStore) CreateNodeAgentSession(
 	if err := upsertSessionTx(ctx, dbExecer{s.db}, req.NodeID, req.AgentID, input, now); err != nil {
 		return AgentSession{}, err
 	}
+	if err := s.validateSessionReferences(ctx, principal, req); err != nil {
+		return AgentSession{}, err
+	}
+	createdBy := strings.TrimSpace(req.CreatedByUserID)
+	if createdBy != principal.User.UserID {
+		createdByMember := false
+		if req.ConversationID != "" {
+			member, err := s.hasActiveConversationMembership(ctx, req.ConversationID, createdBy)
+			if err != nil {
+				return AgentSession{}, err
+			}
+			createdByMember = member
+		}
+		if !createdByMember {
+			createdBy = principal.User.UserID
+		}
+	}
 	if req.ConversationID != "" || req.ProfileID != "" ||
-		req.RepresentativeAgentID != "" || req.CreatedByUserID != "" {
+		req.RepresentativeAgentID != "" || createdBy != "" {
 		if _, err := s.db.ExecContext(ctx, `
 			UPDATE agent_sessions
 			SET conversation_id = COALESCE(NULLIF($3,''), conversation_id),
 				profile_id = COALESCE(NULLIF($4,''), profile_id),
 				representative_agent_id = COALESCE(NULLIF($5,''), representative_agent_id),
-				created_by_user_id = COALESCE(NULLIF($6,''), created_by_user_id)
+				created_by_user_id = COALESCE(NULLIF(created_by_user_id, ''), $6)
 			WHERE agent_id = $1 AND session_id = $2
 		`, req.AgentID, req.SessionID, req.ConversationID, req.ProfileID,
-			req.RepresentativeAgentID, req.CreatedByUserID); err != nil {
+			req.RepresentativeAgentID, createdBy); err != nil {
 			return AgentSession{}, err
 		}
 	}

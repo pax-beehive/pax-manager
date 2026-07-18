@@ -65,15 +65,23 @@ func (q *conversationTurnQueue) get(agentID, sessionID string) (conversationQueu
 	return turn, ok
 }
 
-func (q *conversationTurnQueue) upsert(turn conversationQueuedTurn) (conversationQueuedTurn, string, error) {
+func (q *conversationTurnQueue) upsert(
+	turn conversationQueuedTurn,
+) (conversationQueuedTurn, string, error) {
 	if q == nil {
-		return conversationQueuedTurn{}, "", apperr.Error{Status: http.StatusInternalServerError, Message: "turn queue unavailable"}
+		return conversationQueuedTurn{}, "", apperr.Error{
+			Status:  http.StatusInternalServerError,
+			Message: "turn queue unavailable",
+		}
 	}
 	if turn.AgentID == "" || turn.SessionID == "" {
 		return conversationQueuedTurn{}, "", ErrNotFound
 	}
 	if turn.Input = strings.TrimSpace(turn.Input); turn.Input == "" {
-		return conversationQueuedTurn{}, "", apperr.Error{Status: http.StatusBadRequest, Message: "input is required"}
+		return conversationQueuedTurn{}, "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "input is required",
+		}
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -97,13 +105,21 @@ func (q *conversationTurnQueue) upsert(turn conversationQueuedTurn) (conversatio
 	return turn, effect, nil
 }
 
-func (q *conversationTurnQueue) patch(agentID, sessionID, commandID, input string) (conversationQueuedTurn, error) {
+func (q *conversationTurnQueue) patch(
+	agentID, sessionID, commandID, input string,
+) (conversationQueuedTurn, error) {
 	if q == nil {
-		return conversationQueuedTurn{}, apperr.Error{Status: http.StatusInternalServerError, Message: "turn queue unavailable"}
+		return conversationQueuedTurn{}, apperr.Error{
+			Status:  http.StatusInternalServerError,
+			Message: "turn queue unavailable",
+		}
 	}
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return conversationQueuedTurn{}, apperr.Error{Status: http.StatusBadRequest, Message: "input is required"}
+		return conversationQueuedTurn{}, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "input is required",
+		}
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -221,7 +237,10 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 		writeHTTPData(w, http.StatusOK, conversationQueuedTurnData(turn))
 	case http.MethodPost:
 		if !conversationSessionHasActiveTurn(control.session) {
-			writeHTTPEndpointError(w, apperr.Error{Status: http.StatusConflict, Message: "session has no active turn"})
+			writeHTTPEndpointError(
+				w,
+				apperr.Error{Status: http.StatusConflict, Message: "session has no active turn"},
+			)
 			return
 		}
 		input, ok := readConversationTurnInput(w, r)
@@ -255,7 +274,12 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 		if !ok {
 			return
 		}
-		turn, err := s.conversationTurns.patch(control.agent.AgentID, control.session.SessionID, commandID, input.Input)
+		turn, err := s.conversationTurns.patch(
+			control.agent.AgentID,
+			control.session.SessionID,
+			commandID,
+			input.Input,
+		)
 		if err != nil {
 			writeHTTPEndpointError(w, err)
 			return
@@ -324,7 +348,10 @@ func (s *Service) handleConversationTurnSteer(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if !conversationSessionHasActiveTurn(control.session) {
-		writeHTTPEndpointError(w, apperr.Error{Status: http.StatusConflict, Message: "session has no active turn"})
+		writeHTTPEndpointError(
+			w,
+			apperr.Error{Status: http.StatusConflict, Message: "session has no active turn"},
+		)
 		return
 	}
 	input, ok := readConversationTurnInput(w, r)
@@ -363,7 +390,10 @@ func (s *Service) handleConversationTurnSteer(w http.ResponseWriter, r *http.Req
 	})
 }
 
-func (s *Service) stopConversationTurn(ctx context.Context, control conversationTurnControlSession) (string, error) {
+func (s *Service) stopConversationTurn(
+	ctx context.Context,
+	control conversationTurnControlSession,
+) (string, error) {
 	if !conversationSessionHasActiveTurn(control.session) {
 		return turnStopEffectNoop, nil
 	}
@@ -430,7 +460,10 @@ func (s *Service) resolveConversationTurnControlSession(
 ) (conversationTurnControlSession, error) {
 	routeUserID, agentID, sessionID := conversationTurnControlRouteIDs(r.URL.Path)
 	if agentID == "" || sessionID == "" {
-		return conversationTurnControlSession{}, apperr.Error{Status: http.StatusBadRequest, Message: "agent_id and session_id are required"}
+		return conversationTurnControlSession{}, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "agent_id and session_id are required",
+		}
 	}
 	principal, err := s.auth.Principal(r.Context(), httpRequestMetadata(r))
 	if err != nil {
@@ -465,7 +498,10 @@ func conversationTurnControlRouteIDs(path string) (userID, agentID, sessionID st
 	return parts[0], parts[2], parts[4]
 }
 
-func readConversationTurnInput(w http.ResponseWriter, r *http.Request) (conversationTurnInput, bool) {
+func readConversationTurnInput(
+	w http.ResponseWriter,
+	r *http.Request,
+) (conversationTurnInput, bool) {
 	var input conversationTurnInput
 	body := r.Body
 	if err := json.NewDecoder(body).Decode(&input); err != nil {
@@ -528,7 +564,10 @@ func conversationActiveTurnID(session domain.AgentSession) string {
 	if session.RuntimeState == nil {
 		return ""
 	}
-	return firstNonEmpty(session.RuntimeState.ActiveTurnID, session.RuntimeState.ActivePromptRequestID)
+	return firstNonEmpty(
+		session.RuntimeState.ActiveTurnID,
+		session.RuntimeState.ActivePromptRequestID,
+	)
 }
 
 func conversationSessionStatus(session domain.AgentSession) string {

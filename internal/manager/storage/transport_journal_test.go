@@ -321,11 +321,23 @@ func TestMemoryReliableTransportJournalSeqSurvivesSweptRows(t *testing.T) {
 	store := NewMemoryStore(func() time.Time { return now })
 	ctx := context.Background()
 
-	first, err := store.AppendOutboundData(ctx, "queue_1", reliablemq.StreamACP, json.RawMessage(`{"n":1}`), nil)
+	first, err := store.AppendOutboundData(
+		ctx,
+		"queue_1",
+		reliablemq.StreamACP,
+		json.RawMessage(`{"n":1}`),
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("append first: %v", err)
 	}
-	second, err := store.AppendOutboundData(ctx, "queue_1", reliablemq.StreamACP, json.RawMessage(`{"n":2}`), nil)
+	second, err := store.AppendOutboundData(
+		ctx,
+		"queue_1",
+		reliablemq.StreamACP,
+		json.RawMessage(`{"n":2}`),
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("append second: %v", err)
 	}
@@ -341,7 +353,13 @@ func TestMemoryReliableTransportJournalSeqSurvivesSweptRows(t *testing.T) {
 	}
 	store.mu.Unlock()
 
-	third, err := store.AppendOutboundData(ctx, "queue_1", reliablemq.StreamACP, json.RawMessage(`{"n":3}`), nil)
+	third, err := store.AppendOutboundData(
+		ctx,
+		"queue_1",
+		reliablemq.StreamACP,
+		json.RawMessage(`{"n":3}`),
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("append third: %v", err)
 	}
@@ -398,7 +416,12 @@ func TestMemoryReliableTransportJournalAppliedInboundSurvivesSweptRow(t *testing
 	store := NewMemoryStore(func() time.Time { return now })
 	ctx := context.Background()
 	inbound := reliablemq.Frame{
-		Key:      reliablemq.FrameKey{QueueID: "queue_1", Stream: reliablemq.StreamACP, Seq: 1, Direction: reliablemq.DirectionInbound},
+		Key: reliablemq.FrameKey{
+			QueueID:   "queue_1",
+			Stream:    reliablemq.StreamACP,
+			Seq:       1,
+			Direction: reliablemq.DirectionInbound,
+		},
 		Kind:     reliablemq.FrameKindData,
 		Payload:  json.RawMessage(`{"result":true}`),
 		Metadata: reliablemq.Metadata{"agent_id": "agent_1"},

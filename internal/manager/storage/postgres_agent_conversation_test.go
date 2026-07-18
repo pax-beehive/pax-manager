@@ -12,14 +12,31 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
-func TestPostgresAgentConversationGivenSameOwnerAgentsWhenStartedThenWritesGraphAndPrompt(t *testing.T) {
+func TestPostgresAgentConversationGivenSameOwnerAgentsWhenStartedThenWritesGraphAndPrompt(
+	t *testing.T,
+) {
 	now := time.Date(2026, 6, 28, 12, 0, 0, 0, time.UTC)
 	script := &scriptedPostgresScript{
 		queries: []scriptedRows{
 			scriptedRow(postgresAgentValues("agent_source", "user_1", now)...),
-			scriptedRow(postgresRepresentativeValues("rep_source", "profile_source", "agent_source", "user_1", now)...),
-			scriptedRow(postgresRepresentativeValues("rep_target", "profile_target", "agent_target", "user_1", now)...),
+			scriptedRow(
+				postgresRepresentativeValues(
+					"rep_source",
+					"profile_source",
+					"agent_source",
+					"user_1",
+					now,
+				)...),
+			scriptedRow(
+				postgresRepresentativeValues(
+					"rep_target",
+					"profile_target",
+					"agent_target",
+					"user_1",
+					now,
+				)...),
 			scriptedRow(postgresAgentValues("agent_target", "user_1", now)...),
+			scriptedRow(true),
 			scriptedRow(
 				"conv_1",
 				domain.ConversationTypeAgentThread,
@@ -53,9 +70,31 @@ func TestPostgresAgentConversationGivenSameOwnerAgentsWhenStartedThenWritesGraph
 				nil,
 			),
 			scriptedRow("user_1"),
-			scriptedRow(postgresSessionValues("agent_source", "sess_source", "conv_1", "profile_source", "rep_source", now)...),
+			scriptedRow(true),
 			scriptedRow("user_1"),
-			scriptedRow(postgresSessionValues("agent_target", "sess_target", "conv_1", "profile_target", "rep_target", now)...),
+			scriptedRow("user_1"),
+			scriptedRow(
+				postgresSessionValues(
+					"agent_source",
+					"sess_source",
+					"conv_1",
+					"profile_source",
+					"rep_source",
+					now,
+				)...),
+			scriptedRow("user_1"),
+			scriptedRow(true),
+			scriptedRow("user_1"),
+			scriptedRow("user_1"),
+			scriptedRow(
+				postgresSessionValues(
+					"agent_target",
+					"sess_target",
+					"conv_1",
+					"profile_target",
+					"rep_target",
+					now,
+				)...),
 			scriptedRow(
 				"inv_1",
 				"conv_1",
@@ -147,7 +186,9 @@ func TestPostgresAgentConversationGivenSameOwnerAgentsWhenStartedThenWritesGraph
 				"",
 				"",
 				"agent_conversation:inv_1:inquiry:source:display",
-				[]byte(`{"invocation_id":"inv_1","invocation_type":"agent_conversation","phase":"inquiry","side":"source","replaces_message_ids":["msg_prompt"],"sender":{"representative_agent_id":"rep_source","agent_id":"agent_source","session_id":"sess_source"},"receiver":{"representative_agent_id":"rep_target","agent_id":"agent_target","session_id":"sess_target"},"content":{"display_text":"Asked agent_target for input.","original_text":"Review this"}}`),
+				[]byte(
+					`{"invocation_id":"inv_1","invocation_type":"agent_conversation","phase":"inquiry","side":"source","replaces_message_ids":["msg_prompt"],"sender":{"representative_agent_id":"rep_source","agent_id":"agent_source","session_id":"sess_source"},"receiver":{"representative_agent_id":"rep_target","agent_id":"agent_target","session_id":"sess_target"},"content":{"display_text":"Asked agent_target for input.","original_text":"Review this"}}`,
+				),
 				now,
 				now,
 			),
@@ -157,7 +198,9 @@ func TestPostgresAgentConversationGivenSameOwnerAgentsWhenStartedThenWritesGraph
 				0,
 				domain.MessagePartText,
 				"Asked agent_target for input.",
-				[]byte(`{"invocation_id":"inv_1","invocation_type":"agent_conversation","phase":"inquiry","side":"source","replaces_message_ids":["msg_prompt"],"sender":{"representative_agent_id":"rep_source","agent_id":"agent_source","session_id":"sess_source"},"receiver":{"representative_agent_id":"rep_target","agent_id":"agent_target","session_id":"sess_target"},"content":{"display_text":"Asked agent_target for input.","original_text":"Review this"}}`),
+				[]byte(
+					`{"invocation_id":"inv_1","invocation_type":"agent_conversation","phase":"inquiry","side":"source","replaces_message_ids":["msg_prompt"],"sender":{"representative_agent_id":"rep_source","agent_id":"agent_source","session_id":"sess_source"},"receiver":{"representative_agent_id":"rep_target","agent_id":"agent_target","session_id":"sess_target"},"content":{"display_text":"Asked agent_target for input.","original_text":"Review this"}}`,
+				),
 				"",
 				now,
 				now,
@@ -200,7 +243,9 @@ func TestPostgresAgentConversationGivenSameOwnerAgentsWhenStartedThenWritesGraph
 	assert.Empty(t, script.queries)
 }
 
-func TestPostgresRepresentativeAgentGivenOwnedRuntimeAgentWhenUpsertedThenWritesProfileAndRep(t *testing.T) {
+func TestPostgresRepresentativeAgentGivenOwnedRuntimeAgentWhenUpsertedThenWritesProfileAndRep(
+	t *testing.T,
+) {
 	now := time.Date(2026, 6, 28, 12, 0, 0, 0, time.UTC)
 	script := &scriptedPostgresScript{
 		queries: []scriptedRows{
@@ -222,7 +267,8 @@ func TestPostgresRepresentativeAgentGivenOwnedRuntimeAgentWhenUpsertedThenWrites
 				now,
 				nil,
 			),
-			scriptedRow(postgresRepresentativeValues("rep_1", "prof_1", "agent_source", "user_1", now)...),
+			scriptedRow(
+				postgresRepresentativeValues("rep_1", "prof_1", "agent_source", "user_1", now)...),
 		},
 	}
 	store, cleanup := scriptedPostgresStore(t, script)
@@ -246,11 +292,14 @@ func TestPostgresRepresentativeAgentGivenOwnedRuntimeAgentWhenUpsertedThenWrites
 	assert.Empty(t, script.queries)
 }
 
-func TestPostgresRepresentativeAgentGivenVisibleRuntimeAgentWhenListedThenReturnsRepresentatives(t *testing.T) {
+func TestPostgresRepresentativeAgentGivenVisibleRuntimeAgentWhenListedThenReturnsRepresentatives(
+	t *testing.T,
+) {
 	now := time.Date(2026, 6, 28, 12, 0, 0, 0, time.UTC)
 	script := &scriptedPostgresScript{
 		queries: []scriptedRows{
-			scriptedRow(postgresRepresentativeValues("rep_1", "prof_1", "agent_source", "user_1", now)...),
+			scriptedRow(
+				postgresRepresentativeValues("rep_1", "prof_1", "agent_source", "user_1", now)...),
 		},
 	}
 	store, cleanup := scriptedPostgresStore(t, script)
@@ -279,7 +328,9 @@ func TestPostgresAgentConversationGivenInvocationWhenCompletingThenUpdatesStatus
 	assert.Equal(t, 1, script.execCount)
 }
 
-func TestPostgresAgentConversationGivenMissingInvocationWhenCompletingThenReturnsNotFound(t *testing.T) {
+func TestPostgresAgentConversationGivenMissingInvocationWhenCompletingThenReturnsNotFound(
+	t *testing.T,
+) {
 	script := &scriptedPostgresScript{execResults: []int64{0}}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
@@ -290,7 +341,9 @@ func TestPostgresAgentConversationGivenMissingInvocationWhenCompletingThenReturn
 	assert.Equal(t, 1, script.execCount)
 }
 
-func TestPostgresAgentConversationGivenEmptyInvocationWhenCompletingThenReturnsNotFound(t *testing.T) {
+func TestPostgresAgentConversationGivenEmptyInvocationWhenCompletingThenReturnsNotFound(
+	t *testing.T,
+) {
 	script := &scriptedPostgresScript{}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
@@ -301,17 +354,22 @@ func TestPostgresAgentConversationGivenEmptyInvocationWhenCompletingThenReturnsN
 	assert.Equal(t, 0, script.execCount)
 }
 
-func TestPostgresAgentConversationGivenUserPairsWhenCheckingInteractionThenUsesOwnerOrSharedTeam(t *testing.T) {
-	t.Run("Given an empty source user then interaction is rejected without querying", func(t *testing.T) {
-		script := &scriptedPostgresScript{}
-		store, cleanup := scriptedPostgresStore(t, script)
-		defer cleanup()
+func TestPostgresAgentConversationGivenUserPairsWhenCheckingInteractionThenUsesOwnerOrSharedTeam(
+	t *testing.T,
+) {
+	t.Run(
+		"Given an empty source user then interaction is rejected without querying",
+		func(t *testing.T) {
+			script := &scriptedPostgresScript{}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
 
-		ok := store.agentConversationUsersCanInteract(context.Background(), "", "user_2")
+			ok := store.agentConversationUsersCanInteract(context.Background(), "", "user_2")
 
-		require.False(t, ok)
-		assert.Empty(t, script.queries)
-	})
+			require.False(t, ok)
+			assert.Empty(t, script.queries)
+		},
+	)
 
 	t.Run("Given the same user then interaction is allowed without querying", func(t *testing.T) {
 		script := &scriptedPostgresScript{}

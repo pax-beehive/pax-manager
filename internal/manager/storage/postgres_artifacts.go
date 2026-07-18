@@ -23,7 +23,9 @@ func (s *PostgresStore) CreateArtifactUpload(
 		return ArtifactUpload{}, err
 	}
 	now := s.now().UTC()
-	row := s.db.QueryRowContext(ctx, `
+	row := s.db.QueryRowContext(
+		ctx,
+		`
 		INSERT INTO artifact_uploads (
 			upload_id, owner_user_id, session_id, kind, title, summary, filename, content_type,
 			size_bytes, sha256, bucket, object, status, expires_at, created_at, updated_at
@@ -32,10 +34,27 @@ func (s *PostgresStore) CreateArtifactUpload(
 		RETURNING upload_id, owner_user_id, session_id, kind, title, summary, filename,
 			content_type, size_bytes, sha256, bucket, object, generation, status, expires_at,
 			completed_at, created_at, updated_at
-	`, uploadID, principal.User.UserID, strings.TrimSpace(req.SessionID), strings.TrimSpace(req.Kind),
-		strings.TrimSpace(req.Title), strings.TrimSpace(req.Summary), strings.TrimSpace(req.Filename),
-		strings.TrimSpace(req.ContentType), req.SizeBytes, strings.TrimSpace(req.SHA256), bucket, object,
-		domain.ArtifactUploadStatusPending, expiresAt, now)
+	`,
+		uploadID,
+		principal.User.UserID,
+		strings.TrimSpace(req.SessionID),
+		strings.TrimSpace(req.Kind),
+		strings.TrimSpace(
+			req.Title,
+		),
+		strings.TrimSpace(req.Summary),
+		strings.TrimSpace(req.Filename),
+		strings.TrimSpace(
+			req.ContentType,
+		),
+		req.SizeBytes,
+		strings.TrimSpace(req.SHA256),
+		bucket,
+		object,
+		domain.ArtifactUploadStatusPending,
+		expiresAt,
+		now,
+	)
 	return scanArtifactUpload(row)
 }
 
@@ -78,7 +97,8 @@ func (s *PostgresStore) CompleteArtifactUpload(
 	if err != nil {
 		return ArtifactUpload{}, SessionArtifact{}, err
 	}
-	if upload.Status == domain.ArtifactUploadStatusCompleted || s.now().UTC().After(upload.ExpiresAt) {
+	if upload.Status == domain.ArtifactUploadStatusCompleted ||
+		s.now().UTC().After(upload.ExpiresAt) {
 		return upload, SessionArtifact{}, ErrConflict
 	}
 
@@ -169,7 +189,9 @@ func (s *PostgresStore) createSessionArtifactTx(
 	if status == "" {
 		status = domain.SessionArtifactStatusAvailable
 	}
-	artifact, err := scanSessionArtifact(tx.QueryRowContext(ctx, `
+	artifact, err := scanSessionArtifact(tx.QueryRowContext(
+		ctx,
+		`
 		INSERT INTO session_artifacts (
 			artifact_id, owner_user_id, kind, schema_version, title, summary, status,
 			session_id, message_id, node_id, agent_id, source_json, payload_json,
@@ -180,10 +202,24 @@ func (s *PostgresStore) createSessionArtifactTx(
 		RETURNING artifact_id, owner_user_id, kind, schema_version, title, summary, status,
 			session_id, message_id, node_id, agent_id, source_json, payload_json,
 			created_at, updated_at, deleted_at
-	`, artifactID, principal.User.UserID, strings.TrimSpace(req.Kind), schemaVersion,
-		strings.TrimSpace(req.Title), strings.TrimSpace(req.Summary), status,
-		strings.TrimSpace(req.SessionID), strings.TrimSpace(req.MessageID), strings.TrimSpace(req.NodeID),
-		strings.TrimSpace(req.AgentID), nullRaw(req.SourceJSON), nullRaw(req.PayloadJSON), now))
+	`,
+		artifactID,
+		principal.User.UserID,
+		strings.TrimSpace(req.Kind),
+		schemaVersion,
+		strings.TrimSpace(req.Title),
+		strings.TrimSpace(req.Summary),
+		status,
+		strings.TrimSpace(
+			req.SessionID,
+		),
+		strings.TrimSpace(req.MessageID),
+		strings.TrimSpace(req.NodeID),
+		strings.TrimSpace(req.AgentID),
+		nullRaw(req.SourceJSON),
+		nullRaw(req.PayloadJSON),
+		now,
+	))
 	if err != nil {
 		return SessionArtifact{}, err
 	}

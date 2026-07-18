@@ -66,7 +66,9 @@ func TestNormalTranscriptMessagesGivenEmptyReplacementThenHidesParent(t *testing
 	assert.Equal(t, "msg_display", normal[0].MessageID)
 }
 
-func TestNormalTranscriptMessagesGivenPendingInvocationThenShowsPendingAndHidesReplacedRows(t *testing.T) {
+func TestNormalTranscriptMessagesGivenPendingInvocationThenShowsPendingAndHidesReplacedRows(
+	t *testing.T,
+) {
 	messages := []MessageWithParts{
 		{Message: Message{MessageID: "msg_tool", MessageType: "tool_call"}},
 		{Message: Message{MessageID: "msg_prompt", MessageType: MessageTypePaxUser}},
@@ -75,7 +77,9 @@ func TestNormalTranscriptMessagesGivenPendingInvocationThenShowsPendingAndHidesR
 				MessageID:       "msg_pending",
 				MessageType:     MessageTypePaxInvocationPending,
 				ParentMessageID: "msg_tool",
-				RawJSON:         json.RawMessage(`{"replaces_message_ids":["msg_tool","msg_prompt"]}`),
+				RawJSON: json.RawMessage(
+					`{"replaces_message_ids":["msg_tool","msg_prompt"]}`,
+				),
 			},
 			Parts: []MessagePart{{Text: "Asked target for input."}},
 		},

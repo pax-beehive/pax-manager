@@ -604,7 +604,12 @@ func (s *MemoryStore) applyReliableBatchFrame(frame reliablemq.Frame) error {
 		frame.UpdatedAt = frame.CreatedAt
 	}
 	if frame.Key.Direction == reliablemq.DirectionOutbound {
-		s.updateNextOutboundSeqAtLeastLocked(frame.Key.QueueID, frame.Key.Stream, frame.Key.Seq+1, now)
+		s.updateNextOutboundSeqAtLeastLocked(
+			frame.Key.QueueID,
+			frame.Key.Stream,
+			frame.Key.Seq+1,
+			now,
+		)
 	}
 	key := makeReliableTransportFrameKey(frame.Key)
 	compat := transportFrameFromReliable(frame, frame.Metadata["agent_id"])
@@ -619,7 +624,8 @@ func (s *MemoryStore) applyReliableBatchFrame(frame reliablemq.Frame) error {
 	}
 	setTransportStatusTimestamp(&compat, compat.Status, frame.UpdatedAt)
 	s.transportJournal[key] = cloneTransportFrame(compat)
-	if frame.Key.Direction == reliablemq.DirectionInbound && frame.Status == reliablemq.StatusApplied {
+	if frame.Key.Direction == reliablemq.DirectionInbound &&
+		frame.Status == reliablemq.StatusApplied {
 		s.updateInboundAppliedThroughLocked(frame.Key.QueueID, frame.Key.Stream, frame.Key.Seq, now)
 	}
 	return nil
@@ -667,7 +673,9 @@ func (s *MemoryStore) allocateReliableOutboundSeqLocked(
 	key := transportQueueStateKey{QueueID: queueID, Stream: string(stream)}
 	state, ok := s.transportQueueState[key]
 	if !ok {
-		state = transportQueueState{NextOutboundSeq: s.nextOutboundSeqFromJournalLocked(queueID, stream)}
+		state = transportQueueState{
+			NextOutboundSeq: s.nextOutboundSeqFromJournalLocked(queueID, stream),
+		}
 	}
 	seq := state.NextOutboundSeq
 	if seq <= 0 {
@@ -690,7 +698,10 @@ func (s *MemoryStore) nextOutboundSeqLocked(queueID string, stream reliablemq.St
 	return s.nextOutboundSeqFromJournalLocked(queueID, stream)
 }
 
-func (s *MemoryStore) nextOutboundSeqFromJournalLocked(queueID string, stream reliablemq.Stream) int64 {
+func (s *MemoryStore) nextOutboundSeqFromJournalLocked(
+	queueID string,
+	stream reliablemq.Stream,
+) int64 {
 	var maxSeq int64
 	for key := range s.transportJournal {
 		if key.QueueID == queueID &&

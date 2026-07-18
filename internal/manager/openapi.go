@@ -204,9 +204,15 @@ func addNodeConversationDeliveryPath(doc map[string]any) {
 									"type":        "object",
 									"description": "Required for representative and active_invocation delivery. For model-facing MCP calls, paxd should fill this from local context.",
 									"properties": map[string]any{
-										"agent_id":                map[string]string{"type": "string"},
-										"representative_agent_id": map[string]string{"type": "string"},
-										"session_id":              map[string]string{"type": "string"},
+										"agent_id": map[string]string{
+											"type": "string",
+										},
+										"representative_agent_id": map[string]string{
+											"type": "string",
+										},
+										"session_id": map[string]string{
+											"type": "string",
+										},
 									},
 								},
 								"target": map[string]any{
@@ -214,9 +220,16 @@ func addNodeConversationDeliveryPath(doc map[string]any) {
 									"description": "Delivery target. kind=representative asks another representative agent; kind=active_invocation replies to the current session's active invocation.",
 									"required":    []string{"kind"},
 									"properties": map[string]any{
-										"kind":                    map[string]any{"type": "string", "enum": []string{"representative", "active_invocation"}},
-										"representative_agent_id": map[string]string{"type": "string"},
-										"session_id":              map[string]string{"type": "string"},
+										"kind": map[string]any{
+											"type": "string",
+											"enum": []string{"representative", "active_invocation"},
+										},
+										"representative_agent_id": map[string]string{
+											"type": "string",
+										},
+										"session_id": map[string]string{
+											"type": "string",
+										},
 									},
 								},
 								"context": map[string]any{
@@ -421,7 +434,9 @@ func addACPWebSocketPaths(doc map[string]any) {
 			"security":    []map[string][]string{{"cloudflareAccess": {}}},
 			"parameters":  turnCommandParameters,
 			"responses": map[string]any{
-				"200": map[string]string{"description": "Stop request accepted or no active turn was present."},
+				"200": map[string]string{
+					"description": "Stop request accepted or no active turn was present.",
+				},
 				"401": map[string]string{"description": "User authentication failed."},
 				"404": map[string]string{"description": "Agent, session, or tunnel was not found."},
 				"409": map[string]string{"description": "Session belongs to a different agent."},
@@ -465,7 +480,9 @@ func addACPWebSocketPaths(doc map[string]any) {
 			"responses": map[string]any{
 				"200": map[string]string{"description": "Pending prompt updated."},
 				"401": map[string]string{"description": "User authentication failed."},
-				"404": map[string]string{"description": "Agent, session, or queued turn was not found."},
+				"404": map[string]string{
+					"description": "Agent, session, or queued turn was not found.",
+				},
 			},
 		},
 		"delete": map[string]any{
@@ -475,7 +492,9 @@ func addACPWebSocketPaths(doc map[string]any) {
 			"security":    []map[string][]string{{"cloudflareAccess": {}}},
 			"parameters":  turnCommandParameters,
 			"responses": map[string]any{
-				"200": map[string]string{"description": "Pending prompt deleted or already absent."},
+				"200": map[string]string{
+					"description": "Pending prompt deleted or already absent.",
+				},
 				"401": map[string]string{"description": "User authentication failed."},
 				"404": map[string]string{"description": "Agent or session was not found."},
 			},
@@ -513,7 +532,9 @@ func addACPWebSocketPaths(doc map[string]any) {
 			"security":    []map[string][]string{{"cloudflareAccess": {}}},
 			"parameters":  sessionObserverParameters,
 			"responses": map[string]any{
-				"200": map[string]string{"description": "SSE stream of active turn observer events."},
+				"200": map[string]string{
+					"description": "SSE stream of active turn observer events.",
+				},
 				"401": map[string]string{"description": "User authentication failed."},
 				"404": map[string]string{"description": "Agent or session was not found."},
 			},
