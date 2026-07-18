@@ -249,3 +249,115 @@ func sessionReportStoreFixture(
 	require.NoError(t, err)
 	return store, node, agent
 }
+
+func TestMemoryStoreUpsertNodeStatusAgentAdoption(t *testing.T) {
+	t.Run(
+		"Given another owner's agent ID in a status report then the agent is not re-homed",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store, node, agent := sessionReportStoreFixture(t, ctx)
+			other, err := store.EnsureUser(ctx, "other@example.com", "Other", "user")
+			require.NoError(t, err)
+			otherNode, err := store.RegisterNode(
+				ctx,
+				other,
+				RegisterNodeRequest{Name: "node-b", Hostname: "node-b", OS: "linux"},
+				"hash_node_b",
+			)
+			require.NoError(t, err)
+
+			err = store.UpsertNodeStatus(ctx, otherNode, NodeStatusReport{
+				NodeID: otherNode.NodeID,
+				Agents: []AgentStatusInput{{
+					AgentID:  agent.AgentID,
+					Name:     "hijacked",
+					Status:   "online",
+					Sessions: []SessionStatusInput{{SessionID: "codex:evil"}},
+				}},
+			})
+			require.NoError(t, err)
+
+			after, err := store.GetNodeAgent(ctx, node.NodeID, agent.AgentID)
+			require.NoError(t, err)
+			assert.Equal(t, node.NodeID, after.NodeID)
+			assert.Equal(t, node.OwnerUserID, after.OwnerUserID)
+			assert.Equal(t, agent.Name, after.Name)
+
+			_, err = store.GetNodeAgent(ctx, otherNode.NodeID, agent.AgentID)
+			require.ErrorIs(t, err, ErrNotFound)
+
+			sessions, err := store.ListAgentSessions(
+				ctx,
+				UserPrincipal{User: User{UserID: node.OwnerUserID}},
+				agent.AgentID,
+			)
+			require.NoError(t, err)
+			assert.Empty(t, sessions)
+		},
+	)
+
+	t.Run(
+		"Given another node of the same owner in a status report then the agent stays on its node",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store, node, agent := sessionReportStoreFixture(t, ctx)
+			otherNode, err := store.RegisterNode(
+				ctx,
+				User{UserID: node.OwnerUserID},
+				RegisterNodeRequest{Name: "node-b", Hostname: "node-b", OS: "linux"},
+				"hash_node_b",
+			)
+			require.NoError(t, err)
+
+			err = store.UpsertNodeStatus(ctx, otherNode, NodeStatusReport{
+				NodeID: otherNode.NodeID,
+				Agents: []AgentStatusInput{{
+					AgentID: agent.AgentID,
+					Name:    "hijacked",
+					Status:  "online",
+				}},
+			})
+			require.NoError(t, err)
+
+			after, err := store.GetNodeAgent(ctx, node.NodeID, agent.AgentID)
+			require.NoError(t, err)
+			assert.Equal(t, node.NodeID, after.NodeID)
+			assert.Equal(t, agent.Name, after.Name)
+
+			_, err = store.GetNodeAgent(ctx, otherNode.NodeID, agent.AgentID)
+			require.ErrorIs(t, err, ErrNotFound)
+		},
+	)
+
+	t.Run(
+		"Given the owning node when reporting its agent then the report still applies",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store, node, agent := sessionReportStoreFixture(t, ctx)
+
+			err := store.UpsertNodeStatus(ctx, node, NodeStatusReport{
+				NodeID: node.NodeID,
+				Agents: []AgentStatusInput{{
+					AgentID:  agent.AgentID,
+					Name:     "codex-renamed",
+					Status:   "online",
+					Sessions: []SessionStatusInput{{SessionID: "codex:abc"}},
+				}},
+			})
+			require.NoError(t, err)
+
+			after, err := store.GetNodeAgent(ctx, node.NodeID, agent.AgentID)
+			require.NoError(t, err)
+			assert.Equal(t, "codex-renamed", after.Name)
+			assert.Equal(t, "online", after.Status)
+
+			sessions, err := store.ListAgentSessions(
+				ctx,
+				UserPrincipal{User: User{UserID: node.OwnerUserID}},
+				agent.AgentID,
+			)
+			require.NoError(t, err)
+			assert.Len(t, sessions, 1)
+		},
+	)
+}

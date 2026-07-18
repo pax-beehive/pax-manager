@@ -240,6 +240,18 @@ func (s *Service) handleGetArtifactContent(c context.Context, ctx *app.RequestCo
 		})
 		return
 	}
+	allowedBucket, err := s.sessionArtifactBucket()
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	if content.Bucket != allowedBucket {
+		writeEndpointError(ctx, apperr.Error{
+			Status:  http.StatusForbidden,
+			Message: "artifact content bucket is not allowed",
+		})
+		return
+	}
 	expiresAt := s.clock().UTC().Add(s.paxdArtifactDownloadTTL())
 	query := map[string]string{}
 	if content.ContentType != "" {
@@ -352,6 +364,15 @@ func normalizeCreateSessionArtifactRequest(
 	req.Status = strings.TrimSpace(req.Status)
 	if req.Status == "" {
 		req.Status = domain.SessionArtifactStatusAvailable
+	}
+	for _, content := range req.Contents {
+		if content.Bucket != "" || content.Object != "" ||
+			content.StorageURI != "" || content.Generation != 0 {
+			return CreateSessionArtifactRequest{}, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "gcs-backed artifact contents must be created via artifact uploads",
+			}
+		}
 	}
 	return req, nil
 }

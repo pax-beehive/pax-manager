@@ -678,6 +678,52 @@ func TestSessionArtifactUploadCompleteAndContentURL(t *testing.T) {
 	assert.Equal(t, "notes.txt", content.Content.Filename)
 }
 
+func TestSessionArtifactRejectsCallerSuppliedGCSContent(t *testing.T) {
+	srv, _ := testServer(t, "artifact@example.com")
+	srv.cfg.SessionArtifactGCSBucket = "session-artifacts-test"
+
+	createReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/artifacts",
+		strings.NewReader(`{
+			"kind":"file",
+			"contents":[{"ref":"main","bucket":"other-bucket","object":"secret/object.txt"}]
+		}`),
+	)
+	createReq.Header.Set("X-User-Email", "artifact@example.com")
+	createRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(createRec, createReq)
+	require.Equal(t, http.StatusBadRequest, createRec.Code, createRec.Body.String())
+}
+
+func TestSessionArtifactContentURLRefusesForeignBucket(t *testing.T) {
+	srv, _ := testServer(t, "artifact@example.com")
+	srv.cfg.SessionArtifactGCSBucket = "session-artifacts-test"
+
+	user, err := srv.store.GetUserByEmail(context.Background(), "artifact@example.com")
+	require.NoError(t, err)
+	principal := domain.UserPrincipal{User: user}
+	artifact, err := srv.store.CreateSessionArtifact(context.Background(), principal, CreateSessionArtifactRequest{
+		Kind: "file",
+		Contents: []ArtifactContent{{
+			Ref:    "main",
+			Bucket: "other-bucket",
+			Object: "secret/object.txt",
+		}},
+	})
+	require.NoError(t, err)
+
+	contentReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/artifacts/"+artifact.ArtifactID+"/content/main",
+		nil,
+	)
+	contentReq.Header.Set("X-User-Email", "artifact@example.com")
+	contentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(contentRec, contentReq)
+	require.Equal(t, http.StatusForbidden, contentRec.Code, contentRec.Body.String())
+}
+
 func TestGenericArtifactResolverSeparatesProducts(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	srv.cfg.PaxdArtifactUploadAudience = "https://manager.example.com"

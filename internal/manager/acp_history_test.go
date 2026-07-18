@@ -11,9 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/pax-beehive/paxkit/reliablemq"
+
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/storage"
-	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
 //nolint:gocyclo // This regression fixture keeps the observed frame boundary cases together.

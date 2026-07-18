@@ -3,8 +3,10 @@ package storage
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"sort"
 	"strings"
@@ -164,7 +166,15 @@ func (s *PostgresStore) UpsertRepresentativeAgent(
 		profileID = deterministicAgentProfileID(agent.AgentID, agent.OwnerUserID)
 	}
 	representsType := firstNonEmpty(strings.TrimSpace(req.RepresentsType), "user")
-	representsID := firstNonEmpty(strings.TrimSpace(req.RepresentsID), agent.OwnerUserID)
+	representsID, err := s.validateRepresentsSubject(
+		ctx,
+		representsType,
+		strings.TrimSpace(req.RepresentsID),
+		agent.OwnerUserID,
+	)
+	if err != nil {
+		return domain.RepresentativeAgent{}, domain.AgentProfile{}, err
+	}
 	displayName := firstNonEmpty(strings.TrimSpace(req.DisplayName), agent.Name, agent.AgentID)
 	profile, err := s.upsertAgentProfile(ctx, profileID, agent.OwnerUserID, principal.User.UserID, displayName, req.Description, req.Card, req.Metadata, now)
 	if err != nil {
@@ -196,6 +206,48 @@ func (s *PostgresStore) UpsertRepresentativeAgent(
 	return rep, profile, err
 }
 
+func (s *PostgresStore) validateRepresentsSubject(
+	ctx context.Context,
+	representsType string,
+	representsID string,
+	ownerUserID string,
+) (string, error) {
+	switch representsType {
+	case "user":
+		if representsID == "" {
+			return ownerUserID, nil
+		}
+		if representsID != ownerUserID {
+			return "", ErrUnauthorized
+		}
+		return representsID, nil
+	case "team":
+		if representsID == "" {
+			return "", ErrConflict
+		}
+		var ok bool
+		if err := s.db.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1
+				FROM team_members
+				JOIN teams ON teams.team_id = team_members.team_id
+				WHERE team_members.team_id = $1
+					AND team_members.user_id = $2
+					AND team_members.status = $3
+					AND teams.status = $4
+			)
+		`, representsID, ownerUserID, domain.TeamMemberStatusActive, domain.TeamStatusActive).Scan(&ok); err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", ErrUnauthorized
+		}
+		return representsID, nil
+	default:
+		return "", ErrConflict
+	}
+}
+
 func (s *PostgresStore) upsertAgentProfile(
 	ctx context.Context,
 	profileID string,
@@ -221,12 +273,18 @@ func (s *PostgresStore) upsertAgentProfile(
 			status = EXCLUDED.status,
 			updated_at = EXCLUDED.updated_at,
 			archived_at = NULL
+		WHERE agent_profiles.owner_id = EXCLUDED.owner_id
 		RETURNING profile_id, owner_type, owner_id, display_name, description,
 			card_json, instructions_md, default_model, tool_policy_json, metadata_json,
 			status, created_by_user_id, created_at, updated_at, archived_at
 	`, profileID, "user", ownerUserID, displayName, description, jsonDefault(card, "{}"),
 		jsonDefault(metadata, "{}"), domain.ConversationStatusActive, createdByUserID, now)
-	return scanAgentProfile(row)
+	profile, err := scanAgentProfile(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		// The profile exists but belongs to a different owner.
+		return domain.AgentProfile{}, ErrConflict
+	}
+	return profile, err
 }
 
 func (s *PostgresStore) StartAgentConversation(
@@ -252,6 +310,15 @@ func (s *PostgresStore) StartAgentConversation(
 
 	now := s.now().UTC()
 	conversationID := strings.TrimSpace(req.ConversationID)
+	if conversationID != "" {
+		member, err := s.hasActiveConversationMembership(ctx, conversationID, sourceAgent.OwnerUserID)
+		if err != nil {
+			return domain.AgentConversationStart{}, err
+		}
+		if !member {
+			return domain.AgentConversationStart{}, ErrNotFound
+		}
+	}
 	if conversationID == "" {
 		conversationID, err = newSecret("conv")
 		if err != nil {
@@ -1034,6 +1101,24 @@ func (s *PostgresStore) upsertAgentConversation(
 	return scanConversation(row)
 }
 
+func (s *PostgresStore) hasActiveConversationMembership(
+	ctx context.Context,
+	conversationID string,
+	userID string,
+) (bool, error) {
+	var ok bool
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM conversation_members
+			WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL
+		)
+	`, conversationID, userID).Scan(&ok); err != nil {
+		return false, err
+	}
+	return ok, nil
+}
+
 func (s *PostgresStore) upsertConversationMember(
 	ctx context.Context,
 	conversationID string,
@@ -1783,9 +1868,19 @@ func (s *MemoryStore) UpsertRepresentativeAgent(
 		profileID = deterministicAgentProfileID(agent.AgentID, agent.OwnerUserID)
 	}
 	representsType := firstNonEmpty(strings.TrimSpace(req.RepresentsType), "user")
-	representsID := firstNonEmpty(strings.TrimSpace(req.RepresentsID), agent.OwnerUserID)
+	representsID, err := s.validateRepresentsSubjectLocked(
+		representsType,
+		strings.TrimSpace(req.RepresentsID),
+		agent.OwnerUserID,
+	)
+	if err != nil {
+		return domain.RepresentativeAgent{}, domain.AgentProfile{}, err
+	}
 	displayName := firstNonEmpty(strings.TrimSpace(req.DisplayName), agent.Name, agent.AgentID)
 	profile := s.agentProfiles[profileID]
+	if profile.ProfileID != "" && profile.OwnerID != agent.OwnerUserID {
+		return domain.RepresentativeAgent{}, domain.AgentProfile{}, ErrConflict
+	}
 	if profile.ProfileID == "" {
 		profile = domain.AgentProfile{
 			ProfileID:       profileID,
@@ -1824,6 +1919,38 @@ func (s *MemoryStore) UpsertRepresentativeAgent(
 	rep.ArchivedAt = nil
 	s.representativeAgents[repID] = rep
 	return rep, profile, nil
+}
+
+func (s *MemoryStore) validateRepresentsSubjectLocked(
+	representsType string,
+	representsID string,
+	ownerUserID string,
+) (string, error) {
+	switch representsType {
+	case "user":
+		if representsID == "" {
+			return ownerUserID, nil
+		}
+		if representsID != ownerUserID {
+			return "", ErrUnauthorized
+		}
+		return representsID, nil
+	case "team":
+		if representsID == "" {
+			return "", ErrConflict
+		}
+		team, ok := s.teams[representsID]
+		if !ok || team.Status != domain.TeamStatusActive {
+			return "", ErrUnauthorized
+		}
+		member, ok := s.teamMembers[teamMemberKey{TeamID: representsID, UserID: ownerUserID}]
+		if !ok || member.Status != domain.TeamMemberStatusActive {
+			return "", ErrUnauthorized
+		}
+		return representsID, nil
+	default:
+		return "", ErrConflict
+	}
 }
 
 func (s *MemoryStore) memoryAgentOwnerSubject(
@@ -1899,6 +2026,9 @@ func (s *MemoryStore) StartAgentConversation(
 
 	now := s.now().UTC()
 	conversationID := strings.TrimSpace(req.ConversationID)
+	if conversationID != "" && !s.canReadConversationLocked(sourceAgent.OwnerUserID, conversationID) {
+		return domain.AgentConversationStart{}, ErrNotFound
+	}
 	if conversationID == "" {
 		generated, err := newSecret("conv")
 		if err != nil {

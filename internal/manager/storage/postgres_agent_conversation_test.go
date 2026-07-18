@@ -20,6 +20,7 @@ func TestPostgresAgentConversationGivenSameOwnerAgentsWhenStartedThenWritesGraph
 			scriptedRow(postgresRepresentativeValues("rep_source", "profile_source", "agent_source", "user_1", now)...),
 			scriptedRow(postgresRepresentativeValues("rep_target", "profile_target", "agent_target", "user_1", now)...),
 			scriptedRow(postgresAgentValues("agent_target", "user_1", now)...),
+			scriptedRow(true),
 			scriptedRow(
 				"conv_1",
 				domain.ConversationTypeAgentThread,
@@ -53,7 +54,13 @@ func TestPostgresAgentConversationGivenSameOwnerAgentsWhenStartedThenWritesGraph
 				nil,
 			),
 			scriptedRow("user_1"),
+			scriptedRow(true),
+			scriptedRow("user_1"),
+			scriptedRow("user_1"),
 			scriptedRow(postgresSessionValues("agent_source", "sess_source", "conv_1", "profile_source", "rep_source", now)...),
+			scriptedRow("user_1"),
+			scriptedRow(true),
+			scriptedRow("user_1"),
 			scriptedRow("user_1"),
 			scriptedRow(postgresSessionValues("agent_target", "sess_target", "conv_1", "profile_target", "rep_target", now)...),
 			scriptedRow(

@@ -12,5 +12,10 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 006 | resolved | [No GET /api/user/me endpoint](006-get-me-endpoint.md) | medium | api |
 | 007 | open | [Mailbox pull response envelope wrapping breaks HTTP fallback](007-mailbox-envelope-wrapping.md) | high | api |
 | 008 | resolved | [Token usage model too narrow vs paxd reporting](008-token-usage-model.md) | medium | session / storage |
+| 009 | resolved | [Node status report can hijack any agent by ID (cross-tenant)](009-node-status-agent-hijack.md) | blocker | storage / auth |
+| 010 | resolved | [Caller-supplied conversation_id joins any existing conversation (cross-tenant)](010-conversation-id-membership-graft.md) | blocker | storage / auth |
+| 011 | resolved | [User-controlled artifact bucket/object gets server-signed GCS URLs (confused deputy)](011-artifact-content-gcs-signing.md) | high | storage / api |
+| 012 | resolved | [Representative agent upsert can overwrite another user's profile and impersonate owners](012-representative-agent-profile-takeover.md) | medium | storage / auth |
+| 013 | resolved | [Session creation stamps caller-supplied conversation_id (cross-tenant write injection)](013-session-conversation-id-injection.md) | medium | session / storage |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.

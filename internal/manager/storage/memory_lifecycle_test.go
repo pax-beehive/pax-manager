@@ -1142,3 +1142,244 @@ func messageTypes(messages []Message) []string {
 	}
 	return types
 }
+
+func TestMemoryAgentConversationGivenForeignConversationIDWhenStartedThenReturnsNotFound(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{NodeID: node.NodeID, Name: "target", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+	seedMemoryRepresentativeAgent(store, "rep_source", "profile_source", sourceAgent.AgentID, owner.UserID, now)
+	seedMemoryRepresentativeAgent(store, "rep_target", "profile_target", targetAgent.AgentID, owner.UserID, now)
+	start, err := store.StartAgentConversation(ctx, node, domain.StartAgentConversationRequest{
+		FromRuntimeAgentID:      sourceAgent.AgentID,
+		ToRepresentativeAgentID: "rep_target",
+		Input:                   "Keep this private.",
+	})
+	require.NoError(t, err)
+
+	outsider, err := store.EnsureUser(ctx, "outsider@example.com", "Outsider", "user")
+	require.NoError(t, err)
+	outsiderNode, err := store.RegisterNode(ctx, outsider, RegisterNodeRequest{
+		Name:     "Outsider Mac",
+		Hostname: "outsider",
+		OS:       "darwin",
+	}, "outsider_node_hash")
+	require.NoError(t, err)
+	outsiderAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: outsider},
+		CreateAgentRequest{NodeID: outsiderNode.NodeID, Name: "outsider", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+	seedMemoryRepresentativeAgent(store, "rep_outsider", "profile_outsider", outsiderAgent.AgentID, outsider.UserID, now)
+
+	_, err = store.StartAgentConversation(ctx, outsiderNode, domain.StartAgentConversationRequest{
+		FromRuntimeAgentID:      outsiderAgent.AgentID,
+		ToRepresentativeAgentID: "rep_outsider",
+		ConversationID:          start.Conversation.ConversationID,
+		Input:                   "Let me in.",
+	})
+
+	require.ErrorIs(t, err, ErrNotFound)
+	_, err = store.ListConversationMessages(
+		ctx,
+		UserPrincipal{User: outsider},
+		start.Conversation.ConversationID,
+		10,
+	)
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestMemoryAgentConversationGivenMemberConversationIDWhenStartedThenContinues(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{NodeID: node.NodeID, Name: "target", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+	seedMemoryRepresentativeAgent(store, "rep_source", "profile_source", sourceAgent.AgentID, owner.UserID, now)
+	seedMemoryRepresentativeAgent(store, "rep_target", "profile_target", targetAgent.AgentID, owner.UserID, now)
+	start, err := store.StartAgentConversation(ctx, node, domain.StartAgentConversationRequest{
+		FromRuntimeAgentID:      sourceAgent.AgentID,
+		ToRepresentativeAgentID: "rep_target",
+		Input:                   "Start a thread.",
+	})
+	require.NoError(t, err)
+
+	again, err := store.StartAgentConversation(ctx, node, domain.StartAgentConversationRequest{
+		FromRuntimeAgentID:      sourceAgent.AgentID,
+		ToRepresentativeAgentID: "rep_target",
+		ConversationID:          start.Conversation.ConversationID,
+		Input:                   "Follow up.",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, start.Conversation.ConversationID, again.Conversation.ConversationID)
+}
+
+func TestMemoryUpsertRepresentativeAgentGivenForeignProfileIDThenReturnsConflict(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	victim, _, victimAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	_, victimProfile, err := store.UpsertRepresentativeAgent(
+		ctx,
+		UserPrincipal{User: victim},
+		domain.UpsertRepresentativeAgentRequest{RuntimeAgentID: victimAgent.AgentID},
+	)
+	require.NoError(t, err)
+
+	attacker, err := store.EnsureUser(ctx, "attacker@example.com", "Attacker", "user")
+	require.NoError(t, err)
+	attackerNode, err := store.RegisterNode(ctx, attacker, RegisterNodeRequest{
+		Name:     "Attacker Mac",
+		Hostname: "attacker",
+		OS:       "darwin",
+	}, "attacker_node_hash")
+	require.NoError(t, err)
+	attackerAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: attacker},
+		CreateAgentRequest{NodeID: attackerNode.NodeID, Name: "attacker", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+
+	_, _, err = store.UpsertRepresentativeAgent(
+		ctx,
+		UserPrincipal{User: attacker},
+		domain.UpsertRepresentativeAgentRequest{
+			RuntimeAgentID: attackerAgent.AgentID,
+			ProfileID:      victimProfile.ProfileID,
+			DisplayName:    "defaced",
+		},
+	)
+	require.ErrorIs(t, err, ErrConflict)
+	require.NotEqual(t, "defaced", store.agentProfiles[victimProfile.ProfileID].DisplayName)
+}
+
+func TestMemoryUpsertRepresentativeAgentGivenForeignRepresentsThenReturnsUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	victim, _, _ := seedMemoryNodeAgent(t, ctx, store, now)
+
+	attacker, err := store.EnsureUser(ctx, "attacker@example.com", "Attacker", "user")
+	require.NoError(t, err)
+	attackerNode, err := store.RegisterNode(ctx, attacker, RegisterNodeRequest{
+		Name:     "Attacker Mac",
+		Hostname: "attacker",
+		OS:       "darwin",
+	}, "attacker_node_hash")
+	require.NoError(t, err)
+	attackerAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: attacker},
+		CreateAgentRequest{NodeID: attackerNode.NodeID, Name: "attacker", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+
+	_, _, err = store.UpsertRepresentativeAgent(
+		ctx,
+		UserPrincipal{User: attacker},
+		domain.UpsertRepresentativeAgentRequest{
+			RuntimeAgentID: attackerAgent.AgentID,
+			RepresentsType: "user",
+			RepresentsID:   victim.UserID,
+		},
+	)
+	require.ErrorIs(t, err, ErrUnauthorized)
+
+	_, _, err = store.UpsertRepresentativeAgent(
+		ctx,
+		UserPrincipal{User: attacker},
+		domain.UpsertRepresentativeAgentRequest{
+			RuntimeAgentID: attackerAgent.AgentID,
+			RepresentsType: "team",
+			RepresentsID:   "team_missing",
+		},
+	)
+	require.ErrorIs(t, err, ErrUnauthorized)
+}
+
+func TestMemoryCreateNodeAgentSessionGivenForeignReferencesThenReturnsNotFound(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{NodeID: node.NodeID, Name: "target", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+	seedMemoryRepresentativeAgent(store, "rep_source", "profile_source", sourceAgent.AgentID, owner.UserID, now)
+	seedMemoryRepresentativeAgent(store, "rep_target", "profile_target", targetAgent.AgentID, owner.UserID, now)
+	start, err := store.StartAgentConversation(ctx, node, domain.StartAgentConversationRequest{
+		FromRuntimeAgentID:      sourceAgent.AgentID,
+		ToRepresentativeAgentID: "rep_target",
+		Input:                   "Private thread.",
+	})
+	require.NoError(t, err)
+
+	attacker, err := store.EnsureUser(ctx, "attacker@example.com", "Attacker", "user")
+	require.NoError(t, err)
+	attackerNode, err := store.RegisterNode(ctx, attacker, RegisterNodeRequest{
+		Name:     "Attacker Mac",
+		Hostname: "attacker",
+		OS:       "darwin",
+	}, "attacker_node_hash")
+	require.NoError(t, err)
+	attackerAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: attacker},
+		CreateAgentRequest{NodeID: attackerNode.NodeID, Name: "attacker", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+
+	_, err = store.CreateNodeAgentSession(ctx, UserPrincipal{User: attacker}, CreateSessionRequest{
+		NodeID:         attackerNode.NodeID,
+		AgentID:        attackerAgent.AgentID,
+		ConversationID: start.Conversation.ConversationID,
+	})
+	require.ErrorIs(t, err, ErrNotFound)
+
+	_, err = store.CreateNodeAgentSession(ctx, UserPrincipal{User: attacker}, CreateSessionRequest{
+		NodeID:    attackerNode.NodeID,
+		AgentID:   attackerAgent.AgentID,
+		ProfileID: "profile_source",
+	})
+	require.ErrorIs(t, err, ErrNotFound)
+
+	_, err = store.CreateNodeAgentSession(ctx, UserPrincipal{User: attacker}, CreateSessionRequest{
+		NodeID:                attackerNode.NodeID,
+		AgentID:               attackerAgent.AgentID,
+		RepresentativeAgentID: "rep_source",
+	})
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestMemoryCreateNodeAgentSessionGivenSpoofedCreatedByThenCoercesToPrincipal(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, agent := seedMemoryNodeAgent(t, ctx, store, now)
+
+	session, err := store.CreateNodeAgentSession(ctx, UserPrincipal{User: owner}, CreateSessionRequest{
+		NodeID:          node.NodeID,
+		AgentID:         agent.AgentID,
+		CreatedByUserID: "usr_victim",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, owner.UserID, session.CreatedByUserID)
+}

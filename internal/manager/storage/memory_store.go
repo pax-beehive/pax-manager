@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -1020,6 +1021,9 @@ func (s *MemoryStore) UpsertNodeStatus(
 	for _, input := range report.Agents {
 		agent, err := s.upsertNodeAgentLocked(current, input, now)
 		if err != nil {
+			if errors.Is(err, errAgentNodeMismatch) {
+				continue
+			}
 			return err
 		}
 		for _, session := range input.Sessions {
@@ -1267,6 +1271,9 @@ func (s *MemoryStore) CreateNodeAgentSession(
 	if !ok || agent.NodeID != req.NodeID || !s.canAccessAgentLocked(principal, agent) {
 		return AgentSession{}, ErrNotFound
 	}
+	if err := s.validateSessionReferencesLocked(principal, req); err != nil {
+		return AgentSession{}, err
+	}
 	now := s.now().UTC()
 	input := SessionStatusInput{
 		SessionID:      req.SessionID,
@@ -1295,8 +1302,13 @@ func (s *MemoryStore) CreateNodeAgentSession(
 	if req.RepresentativeAgentID != "" {
 		session.RepresentativeAgentID = req.RepresentativeAgentID
 	}
-	if req.CreatedByUserID != "" {
-		session.CreatedByUserID = req.CreatedByUserID
+	createdBy := strings.TrimSpace(req.CreatedByUserID)
+	if createdBy != principal.User.UserID &&
+		(req.ConversationID == "" || !s.canReadConversationLocked(createdBy, req.ConversationID)) {
+		createdBy = principal.User.UserID
+	}
+	if session.CreatedByUserID == "" {
+		session.CreatedByUserID = createdBy
 	}
 	if req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != "" {
 		session.PaxConfig = req.PaxConfig
@@ -1305,6 +1317,37 @@ func (s *MemoryStore) CreateNodeAgentSession(
 	}
 	s.sessions[sessionKey(req.AgentID, input.SessionID)] = session
 	return session, nil
+}
+
+// validateSessionReferencesLocked rejects session reference fields that point
+// at resources the principal cannot legitimately attach: conversations they
+// are not a member of, or profiles/representative agents owned by someone
+// else.
+func (s *MemoryStore) validateSessionReferencesLocked(
+	principal UserPrincipal,
+	req CreateSessionRequest,
+) error {
+	if req.ConversationID != "" &&
+		!s.canReadConversationLocked(principal.User.UserID, req.ConversationID) {
+		return ErrNotFound
+	}
+	if req.ProfileID != "" {
+		profile, ok := s.agentProfiles[req.ProfileID]
+		if !ok || profile.OwnerID != principal.User.UserID {
+			return ErrNotFound
+		}
+	}
+	if req.RepresentativeAgentID != "" {
+		rep, ok := s.representativeAgents[req.RepresentativeAgentID]
+		if !ok || rep.Status != domain.ConversationStatusActive {
+			return ErrNotFound
+		}
+		runtimeAgent, ok := s.agents[rep.RuntimeAgentID]
+		if !ok || runtimeAgent.OwnerUserID != principal.User.UserID {
+			return ErrNotFound
+		}
+	}
+	return nil
 }
 
 func (s *MemoryStore) UpdateNodeAgentSession(
@@ -2316,6 +2359,10 @@ func defaultAPIEndpoint(v string) string {
 	return "http://localhost:8642"
 }
 
+// errAgentNodeMismatch marks a status-report agent ID that already exists on
+// a different node or owner. Status reports must never re-home agents.
+var errAgentNodeMismatch = errors.New("agent belongs to a different node")
+
 func (s *MemoryStore) upsertNodeAgentLocked(
 	node Node,
 	input AgentStatusInput,
@@ -2323,8 +2370,9 @@ func (s *MemoryStore) upsertNodeAgentLocked(
 ) (Agent, error) {
 	if input.AgentID != "" {
 		if agent, ok := s.agents[input.AgentID]; ok {
-			agent.NodeID = node.NodeID
-			agent.OwnerUserID = node.OwnerUserID
+			if agent.NodeID != node.NodeID || agent.OwnerUserID != node.OwnerUserID {
+				return Agent{}, errAgentNodeMismatch
+			}
 			agent.Name = firstNonEmpty(input.Name, agent.Name)
 			agent.Description = firstNonEmpty(input.Description, agent.Description)
 			if len(input.Card) > 0 {
