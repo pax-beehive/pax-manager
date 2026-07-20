@@ -3088,7 +3088,7 @@ func upsertSessionTx(
 			source = COALESCE(NULLIF(agent_sessions.source, ''), EXCLUDED.source),
 			status = EXCLUDED.status,
 			current_task = EXCLUDED.current_task,
-			last_message_at = EXCLUDED.last_message_at,
+			last_message_at = GREATEST(agent_sessions.last_message_at, EXCLUDED.last_message_at),
 			message_count = EXCLUDED.message_count,
 			token_input = EXCLUDED.token_input,
 			token_output = EXCLUDED.token_output,
