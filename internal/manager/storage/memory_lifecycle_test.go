@@ -1100,6 +1100,7 @@ func TestMemoryAgentStatusAndMailboxEdgeCases(t *testing.T) {
 	require.Len(t, sessions, 1)
 	require.NotEqual(t, "native_from_agent", sessions[0].SessionID)
 	require.Equal(t, "native_from_agent", sessions[0].NativeID)
+	require.Equal(t, node.NodeID, sessions[0].NodeID)
 
 	message, err := store.CreateMailboxMessage(ctx, principal, CreateMailboxRequest{
 		NodeID:    node.NodeID,

@@ -26,6 +26,7 @@ type scriptedPostgresScript struct {
 	queries     []scriptedRows
 	queryTexts  []string
 	execResults []int64
+	execArgs    [][]driver.NamedValue
 	execCount   int
 	committed   bool
 	rolled      bool
@@ -114,6 +115,57 @@ func TestPostgresStoreUpsertAgentSessions(t *testing.T) {
 	)
 }
 
+func TestPostgresStoreUpsertAgentStatus(t *testing.T) {
+	t.Run(
+		"Given a node-owned agent when reporting sessions then it upserts with the agent node ID",
+		func(t *testing.T) {
+			script := &scriptedPostgresScript{
+				queries: []scriptedRows{
+					{columns: []string{"node_id"}, values: [][]driver.Value{{"node_1"}}},
+					{columns: []string{"session_id"}},
+				},
+			}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+
+			err := store.UpsertAgentStatus(context.Background(), AgentStatusReport{
+				AgentID:  "agent_1",
+				Sessions: []SessionStatusInput{{SessionID: "sess_1", Status: "available"}},
+			})
+
+			require.NoError(t, err)
+			assert.Equal(t, 1, script.execCount)
+			require.Len(t, script.execArgs, 1)
+			require.NotEmpty(t, script.execArgs[0])
+			assert.Equal(t, "node_1", script.execArgs[0][0].Value)
+			assert.True(t, script.committed)
+			assert.False(t, script.rolled)
+		},
+	)
+
+	t.Run(
+		"Given a missing agent when reporting status then it rolls back not found",
+		func(t *testing.T) {
+			script := &scriptedPostgresScript{
+				queries: []scriptedRows{
+					{columns: []string{"node_id"}},
+				},
+			}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+
+			err := store.UpsertAgentStatus(context.Background(), AgentStatusReport{
+				AgentID: "agent_missing",
+			})
+
+			require.ErrorIs(t, err, ErrNotFound)
+			assert.Equal(t, 0, script.execCount)
+			assert.False(t, script.committed)
+			assert.True(t, script.rolled)
+		},
+	)
+}
+
 func scriptedPostgresStore(
 	t *testing.T,
 	script *scriptedPostgresScript,
@@ -174,6 +226,7 @@ func (c *scriptedPostgresConn) ExecContext(
 	args []driver.NamedValue,
 ) (driver.Result, error) {
 	c.script.execCount++
+	c.script.execArgs = append(c.script.execArgs, args)
 	if len(c.script.execResults) == 0 {
 		return driver.RowsAffected(1), nil
 	}
