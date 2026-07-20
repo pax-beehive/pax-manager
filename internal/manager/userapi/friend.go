@@ -36,6 +36,32 @@ func (s *Service) CreateFriend(
 	if err != nil {
 		return 0, nil, err
 	}
+	existing, err := s.store.ListFriendsBetween(c, principal, recipientEmail)
+	if err != nil {
+		return 0, nil, err
+	}
+	hasRemoved := false
+	for _, friend := range existing {
+		switch friend.Status {
+		case domain.FriendStatusPending, domain.FriendStatusAccepted:
+			return 0, nil, apperr.Error{
+				Status:  http.StatusConflict,
+				Message: "friend relationship already exists",
+			}
+		case domain.FriendStatusBlocked:
+			return 0, nil, apperr.Error{
+				Status:  http.StatusConflict,
+				Message: "cannot friend this user",
+			}
+		case domain.FriendStatusRemoved:
+			hasRemoved = true
+		}
+	}
+	if hasRemoved {
+		if err := s.store.DeleteRemovedFriendsBetween(c, principal, recipientEmail); err != nil {
+			return 0, nil, err
+		}
+	}
 	friendID, err := s.secrets.New("fr")
 	if err != nil {
 		return 0, nil, err

@@ -236,6 +236,16 @@ type FriendStore interface {
 		principal domain.UserPrincipal,
 		email string,
 	) (domain.Friend, error)
+	ListFriendsBetween(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		email string,
+	) ([]domain.Friend, error)
+	DeleteRemovedFriendsBetween(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		email string,
+	) error
 	GetFriend(
 		ctx context.Context,
 		principal domain.UserPrincipal,

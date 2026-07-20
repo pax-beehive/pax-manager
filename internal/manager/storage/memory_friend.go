@@ -43,7 +43,11 @@ func (s *MemoryStore) ListFriends(
 		if !friendVisibleToPrincipal(filter.Principal, principalEmail, friend) {
 			continue
 		}
-		if filter.Status != "" && friend.Status != filter.Status {
+		if filter.Status != "" {
+			if friend.Status != filter.Status {
+				continue
+			}
+		} else if friend.Status == domain.FriendStatusRemoved {
 			continue
 		}
 		if filter.Direction != "" &&
@@ -96,6 +100,45 @@ func (s *MemoryStore) GetAcceptedFriendByEmail(
 		}
 	}
 	return Friend{}, ErrNotFound
+}
+
+func (s *MemoryStore) ListFriendsBetween(
+	ctx context.Context,
+	principal UserPrincipal,
+	email string,
+) ([]Friend, error) {
+	principalEmail := normalizeEmail(principal.User.Email)
+	counterpartyEmail := normalizeEmail(email)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Friend, 0)
+	for _, friend := range s.friends {
+		if friendCounterpartyMatches(principal, principalEmail, friend, counterpartyEmail) {
+			out = append(out, friend)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	return out, nil
+}
+
+func (s *MemoryStore) DeleteRemovedFriendsBetween(
+	ctx context.Context,
+	principal UserPrincipal,
+	email string,
+) error {
+	principalEmail := normalizeEmail(principal.User.Email)
+	counterpartyEmail := normalizeEmail(email)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, friend := range s.friends {
+		if friend.Status == domain.FriendStatusRemoved &&
+			friendCounterpartyMatches(principal, principalEmail, friend, counterpartyEmail) {
+			delete(s.friends, id)
+		}
+	}
+	return nil
 }
 
 func (s *MemoryStore) AcceptFriend(
@@ -157,6 +200,9 @@ func (s *MemoryStore) RemoveFriend(
 	removedAt time.Time,
 ) (Friend, error) {
 	return s.updateVisibleFriend(ctx, principal, friendID, func(friend Friend) (Friend, error) {
+		if !friendStatusActive(friend.Status) {
+			return Friend{}, ErrNotFound
+		}
 		friend.Status = domain.FriendStatusRemoved
 		friend.RemovedAt = &removedAt
 		return friend, nil
@@ -257,8 +303,12 @@ func normalizeFriendAlias(alias string) string {
 	return normalizeEmail(alias)
 }
 
-func friendStatusAllowsAliasUpdate(status string) bool {
+func friendStatusActive(status string) bool {
 	return status == domain.FriendStatusPending || status == domain.FriendStatusAccepted
+}
+
+func friendStatusAllowsAliasUpdate(status string) bool {
+	return friendStatusActive(status)
 }
 
 func friendAliasColumnForPrincipal(

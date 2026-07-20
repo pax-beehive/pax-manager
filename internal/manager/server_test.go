@@ -300,6 +300,100 @@ func TestFriendAliasEndpointUpdatesCallerAlias(t *testing.T) {
 	}
 }
 
+func TestFriendRemoveThenReAddFlow(t *testing.T) {
+	srv, _ := testServer(t, "alice@example.com")
+
+	friendCall := func(method, path, body, actor string) *httptest.ResponseRecorder {
+		t.Helper()
+		var reader io.Reader
+		if body != "" {
+			reader = bytes.NewReader([]byte(body))
+		}
+		req := httptest.NewRequest(method, path, reader)
+		if body != "" {
+			setJSON(req)
+		}
+		req.Header.Set("X-User-Email", actor)
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		return rec
+	}
+
+	rec := friendCall(
+		http.MethodPost,
+		"/api/v1/user/self/friends",
+		`{"email":"bob@example.com","alias":"bob"}`,
+		"alice@example.com",
+	)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	created := decodeData[struct {
+		Friend Friend `json:"friend"`
+	}](t, rec.Body.Bytes())
+
+	rec = friendCall(
+		http.MethodPost,
+		"/api/v1/user/self/friends/"+created.Friend.FriendID+"/accept",
+		`{"alias":"alice"}`,
+		"bob@example.com",
+	)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = friendCall(
+		http.MethodPost,
+		"/api/v1/user/self/friends/"+created.Friend.FriendID+"/remove",
+		"",
+		"alice@example.com",
+	)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = friendCall(http.MethodGet, "/api/v1/user/self/friends", "", "alice@example.com")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	listed := decodeData[struct {
+		Friends []Friend `json:"friends"`
+	}](t, rec.Body.Bytes())
+	require.Empty(t, listed.Friends, "removed friend should be hidden from the default list")
+
+	rec = friendCall(
+		http.MethodPost,
+		"/api/v1/user/self/friends",
+		`{"email":"bob@example.com","alias":"bob"}`,
+		"alice@example.com",
+	)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	recreated := decodeData[struct {
+		Friend Friend `json:"friend"`
+	}](t, rec.Body.Bytes())
+	require.NotEqual(t, created.Friend.FriendID, recreated.Friend.FriendID)
+
+	rec = friendCall(http.MethodGet, "/api/v1/user/self/friends", "", "alice@example.com")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	listed = decodeData[struct {
+		Friends []Friend `json:"friends"`
+	}](t, rec.Body.Bytes())
+	require.Len(t, listed.Friends, 1, "only the new relationship should remain")
+	require.Equal(t, recreated.Friend.FriendID, listed.Friends[0].FriendID)
+
+	rec = friendCall(
+		http.MethodGet,
+		"/api/v1/user/self/friends?status=removed",
+		"",
+		"alice@example.com",
+	)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	listed = decodeData[struct {
+		Friends []Friend `json:"friends"`
+	}](t, rec.Body.Bytes())
+	require.Empty(t, listed.Friends, "re-adding should clear the old removed relationship")
+
+	rec = friendCall(
+		http.MethodPost,
+		"/api/v1/user/self/friends",
+		`{"email":"bob@example.com","alias":"bob"}`,
+		"alice@example.com",
+	)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+}
+
 func TestNodeRegistrationSessionConnectsNodeAfterUserApproval(t *testing.T) {
 	srv, _ := testServer(t, "owner@example.com")
 

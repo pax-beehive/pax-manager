@@ -441,6 +441,16 @@ type Store interface {
 		principal UserPrincipal,
 		email string,
 	) (Friend, error)
+	ListFriendsBetween(
+		ctx context.Context,
+		principal UserPrincipal,
+		email string,
+	) ([]Friend, error)
+	DeleteRemovedFriendsBetween(
+		ctx context.Context,
+		principal UserPrincipal,
+		email string,
+	) error
 	GetFriend(ctx context.Context, principal UserPrincipal, friendID string) (Friend, error)
 	AcceptFriend(
 		ctx context.Context,
