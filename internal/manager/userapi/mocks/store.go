@@ -2931,6 +2931,66 @@ func (_c *MockStore_ListMailbox_Call) RunAndReturn(run func(context.Context, dom
 	return _c
 }
 
+// ListMessageHistoryPage provides a mock function with given fields: ctx, agentID, sessionID, beforeID, limit
+func (_m *MockStore) ListMessageHistoryPage(ctx context.Context, agentID string, sessionID string, beforeID int64, limit int) (domain.MessageHistoryPage, error) {
+	ret := _m.Called(ctx, agentID, sessionID, beforeID, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListMessageHistoryPage")
+	}
+
+	var r0 domain.MessageHistoryPage
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, int) (domain.MessageHistoryPage, error)); ok {
+		return rf(ctx, agentID, sessionID, beforeID, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, int) domain.MessageHistoryPage); ok {
+		r0 = rf(ctx, agentID, sessionID, beforeID, limit)
+	} else {
+		r0 = ret.Get(0).(domain.MessageHistoryPage)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int64, int) error); ok {
+		r1 = rf(ctx, agentID, sessionID, beforeID, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListMessageHistoryPage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListMessageHistoryPage'
+type MockStore_ListMessageHistoryPage_Call struct {
+	*mock.Call
+}
+
+// ListMessageHistoryPage is a helper method to define mock.On call
+//   - ctx context.Context
+//   - agentID string
+//   - sessionID string
+//   - beforeID int64
+//   - limit int
+func (_e *MockStore_Expecter) ListMessageHistoryPage(ctx interface{}, agentID interface{}, sessionID interface{}, beforeID interface{}, limit interface{}) *MockStore_ListMessageHistoryPage_Call {
+	return &MockStore_ListMessageHistoryPage_Call{Call: _e.mock.On("ListMessageHistoryPage", ctx, agentID, sessionID, beforeID, limit)}
+}
+
+func (_c *MockStore_ListMessageHistoryPage_Call) Run(run func(ctx context.Context, agentID string, sessionID string, beforeID int64, limit int)) *MockStore_ListMessageHistoryPage_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int64), args[4].(int))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListMessageHistoryPage_Call) Return(_a0 domain.MessageHistoryPage, _a1 error) *MockStore_ListMessageHistoryPage_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListMessageHistoryPage_Call) RunAndReturn(run func(context.Context, string, string, int64, int) (domain.MessageHistoryPage, error)) *MockStore_ListMessageHistoryPage_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListMessageParts provides a mock function with given fields: ctx, messageID
 func (_m *MockStore) ListMessageParts(ctx context.Context, messageID string) ([]domain.MessagePart, error) {
 	ret := _m.Called(ctx, messageID)
@@ -2986,6 +3046,65 @@ func (_c *MockStore_ListMessageParts_Call) Return(_a0 []domain.MessagePart, _a1 
 }
 
 func (_c *MockStore_ListMessageParts_Call) RunAndReturn(run func(context.Context, string) ([]domain.MessagePart, error)) *MockStore_ListMessageParts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListMessagePartsByMessageIDs provides a mock function with given fields: ctx, messageIDs
+func (_m *MockStore) ListMessagePartsByMessageIDs(ctx context.Context, messageIDs []string) (map[string][]domain.MessagePart, error) {
+	ret := _m.Called(ctx, messageIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListMessagePartsByMessageIDs")
+	}
+
+	var r0 map[string][]domain.MessagePart
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) (map[string][]domain.MessagePart, error)); ok {
+		return rf(ctx, messageIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) map[string][]domain.MessagePart); ok {
+		r0 = rf(ctx, messageIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string][]domain.MessagePart)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, messageIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListMessagePartsByMessageIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListMessagePartsByMessageIDs'
+type MockStore_ListMessagePartsByMessageIDs_Call struct {
+	*mock.Call
+}
+
+// ListMessagePartsByMessageIDs is a helper method to define mock.On call
+//   - ctx context.Context
+//   - messageIDs []string
+func (_e *MockStore_Expecter) ListMessagePartsByMessageIDs(ctx interface{}, messageIDs interface{}) *MockStore_ListMessagePartsByMessageIDs_Call {
+	return &MockStore_ListMessagePartsByMessageIDs_Call{Call: _e.mock.On("ListMessagePartsByMessageIDs", ctx, messageIDs)}
+}
+
+func (_c *MockStore_ListMessagePartsByMessageIDs_Call) Run(run func(ctx context.Context, messageIDs []string)) *MockStore_ListMessagePartsByMessageIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListMessagePartsByMessageIDs_Call) Return(_a0 map[string][]domain.MessagePart, _a1 error) *MockStore_ListMessagePartsByMessageIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListMessagePartsByMessageIDs_Call) RunAndReturn(run func(context.Context, []string) (map[string][]domain.MessagePart, error)) *MockStore_ListMessagePartsByMessageIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }

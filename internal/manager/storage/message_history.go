@@ -83,6 +83,8 @@ func (s *PostgresStore) UpsertMessagePart(ctx context.Context, part *MessagePart
 		part.CreatedAt = now
 	}
 	part.UpdatedAt = now
+	text, _ := postgresSafeText(part.Text)
+	artifactURI, _ := postgresSafeText(part.ArtifactURI)
 	row := s.db.QueryRowContext(ctx, `
 		INSERT INTO message_parts (
 			message_id, part_index, part_type, text, payload_json, artifact_uri, created_at, updated_at
@@ -95,8 +97,8 @@ func (s *PostgresStore) UpsertMessagePart(ctx context.Context, part *MessagePart
 			artifact_uri = COALESCE(EXCLUDED.artifact_uri, message_parts.artifact_uri),
 			updated_at = EXCLUDED.updated_at
 		RETURNING `+messagePartReturningSQL+`
-	`, part.MessageID, part.PartIndex, part.PartType, part.Text, nullRaw(part.PayloadJSON),
-		part.ArtifactURI, part.CreatedAt, part.UpdatedAt)
+	`, part.MessageID, part.PartIndex, part.PartType, text, nullRaw(part.PayloadJSON),
+		artifactURI, part.CreatedAt, part.UpdatedAt)
 	saved, err := scanMessagePart(row)
 	if err != nil {
 		return err
@@ -115,6 +117,7 @@ func (s *PostgresStore) AppendMessagePartText(
 	if messageID == "" {
 		return fmt.Errorf("message_id is required")
 	}
+	delta, _ = postgresSafeText(delta)
 	now := s.now().UTC()
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO message_parts (
@@ -138,6 +141,45 @@ func (s *PostgresStore) ListMessages(
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
+	return s.listMessagesBefore(ctx, agentID, sessionID, 0, limit)
+}
+
+func (s *PostgresStore) ListMessageHistoryPage(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	beforeID int64,
+	limit int,
+) (domain.MessageHistoryPage, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	messages, err := s.listMessagesBefore(ctx, agentID, sessionID, beforeID, limit+1)
+	if err != nil {
+		return domain.MessageHistoryPage{}, err
+	}
+	hasMore := len(messages) > limit
+	if hasMore {
+		messages = messages[1:]
+	}
+	nextBeforeID := int64(0)
+	if hasMore && len(messages) > 0 {
+		nextBeforeID = messages[0].ID
+	}
+	return domain.MessageHistoryPage{
+		Messages:     messages,
+		NextBeforeID: nextBeforeID,
+		HasMore:      hasMore,
+	}, nil
+}
+
+func (s *PostgresStore) listMessagesBefore(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	beforeID int64,
+	limit int,
+) ([]Message, error) {
 	args := []any{agentID}
 	filter := "agent_id = $1"
 	if sessionID != "" {
@@ -151,6 +193,10 @@ func (s *PostgresStore) ListMessages(
 			placeholders = append(placeholders, "$"+strconvArg(len(args)))
 		}
 		filter += " AND session_id IN (" + strings.Join(placeholders, ",") + ")"
+	}
+	if beforeID > 0 {
+		args = append(args, beforeID)
+		filter += " AND id < $" + strconvArg(len(args))
 	}
 	args = append(args, limit)
 	rows, err := s.db.QueryContext(ctx, `
@@ -270,6 +316,44 @@ func (s *PostgresStore) ListMessageParts(
 	return parts, rows.Err()
 }
 
+func (s *PostgresStore) ListMessagePartsByMessageIDs(
+	ctx context.Context,
+	messageIDs []string,
+) (map[string][]MessagePart, error) {
+	partsByMessageID := make(map[string][]MessagePart, len(messageIDs))
+	if len(messageIDs) == 0 {
+		return partsByMessageID, nil
+	}
+	args := make([]any, 0, len(messageIDs))
+	placeholders := make([]string, 0, len(messageIDs))
+	for _, messageID := range messageIDs {
+		partsByMessageID[messageID] = make([]MessagePart, 0)
+		args = append(args, messageID)
+		placeholders = append(placeholders, "$"+strconvArg(len(args)))
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+messagePartReturningSQL+`
+		FROM message_parts
+		WHERE message_id IN (`+strings.Join(placeholders, ",")+`)
+		ORDER BY message_id ASC, part_index ASC
+	`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		part, err := scanMessagePart(rows)
+		if err != nil {
+			return nil, err
+		}
+		partsByMessageID[part.MessageID] = append(partsByMessageID[part.MessageID], part)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return partsByMessageID, nil
+}
+
 func (s *MemoryStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	if err := validateMessage(msg); err != nil {
 		return err
@@ -350,6 +434,45 @@ func (s *MemoryStore) ListMessages(
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
+	return s.listMessagesBefore(ctx, agentID, sessionID, 0, limit)
+}
+
+func (s *MemoryStore) ListMessageHistoryPage(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	beforeID int64,
+	limit int,
+) (domain.MessageHistoryPage, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	messages, err := s.listMessagesBefore(ctx, agentID, sessionID, beforeID, limit+1)
+	if err != nil {
+		return domain.MessageHistoryPage{}, err
+	}
+	hasMore := len(messages) > limit
+	if hasMore {
+		messages = messages[1:]
+	}
+	nextBeforeID := int64(0)
+	if hasMore && len(messages) > 0 {
+		nextBeforeID = messages[0].ID
+	}
+	return domain.MessageHistoryPage{
+		Messages:     messages,
+		NextBeforeID: nextBeforeID,
+		HasMore:      hasMore,
+	}, nil
+}
+
+func (s *MemoryStore) listMessagesBefore(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	beforeID int64,
+	limit int,
+) ([]Message, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sessionIDs := map[string]struct{}{}
@@ -363,6 +486,9 @@ func (s *MemoryStore) ListMessages(
 	messages := make([]Message, 0)
 	for _, msg := range s.messages {
 		if msg.AgentID != agentID {
+			continue
+		}
+		if beforeID > 0 && msg.ID >= beforeID {
 			continue
 		}
 		if len(sessionIDs) > 0 {
@@ -422,6 +548,34 @@ func (s *MemoryStore) ListMessageParts(
 		return parts[i].PartIndex < parts[j].PartIndex
 	})
 	return parts, nil
+}
+
+func (s *MemoryStore) ListMessagePartsByMessageIDs(
+	ctx context.Context,
+	messageIDs []string,
+) (map[string][]MessagePart, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	partsByMessageID := make(map[string][]MessagePart, len(messageIDs))
+	for _, messageID := range messageIDs {
+		partsByMessageID[messageID] = make([]MessagePart, 0)
+	}
+	for key, part := range s.messageParts {
+		if _, ok := partsByMessageID[key.MessageID]; !ok {
+			continue
+		}
+		partsByMessageID[key.MessageID] = append(
+			partsByMessageID[key.MessageID],
+			cloneMessagePart(part),
+		)
+	}
+	for messageID := range partsByMessageID {
+		sort.Slice(partsByMessageID[messageID], func(i, j int) bool {
+			return partsByMessageID[messageID][i].PartIndex <
+				partsByMessageID[messageID][j].PartIndex
+		})
+	}
+	return partsByMessageID, nil
 }
 
 func (s *MemoryStore) UpsertMessagePart(ctx context.Context, part *MessagePart) error {

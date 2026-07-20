@@ -487,6 +487,17 @@ type MessageWithParts struct {
 	Parts []MessagePart `json:"parts"`
 }
 
+type MessageHistoryPage struct {
+	Messages     []Message
+	NextBeforeID int64
+	HasMore      bool
+}
+
+type MessageHistoryPagination struct {
+	NextBeforeID int64 `json:"next_before_id,omitempty"`
+	HasMore      bool  `json:"has_more"`
+}
+
 const (
 	KnowledgeCapsuleStatusActive   = "active"
 	KnowledgeCapsuleStatusArchived = "archived"

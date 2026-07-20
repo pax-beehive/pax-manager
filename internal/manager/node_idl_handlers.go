@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"strconv"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -504,12 +505,34 @@ func ListNodeAgentSessionMessages(c context.Context, ctx *app.RequestContext) {
 }
 
 func ListAgentSessionHistory(c context.Context, ctx *app.RequestContext) {
+	beforeID, validBeforeID := queryOptionalPositiveInt64(ctx, "before_id")
+	if !validBeforeID {
+		writeError(ctx, http.StatusBadRequest, "before_id must be a positive integer")
+		return
+	}
 	status, data, err := serviceFromContext(ctx).userapi.ListAgentSessionHistory(
 		c,
 		requestMetadata(ctx),
 		firstString(ctx.Param("agentId"), ctx.Param("agent_id"), ctx.Param("agentID")),
 		firstString(ctx.Param("sessionId"), ctx.Param("session_id"), ctx.Param("sessionID")),
 		queryInt(ctx, "limit"),
+		beforeID,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func ListSessionHistory(c context.Context, ctx *app.RequestContext) {
+	beforeID, validBeforeID := queryOptionalPositiveInt64(ctx, "before_id")
+	if !validBeforeID {
+		writeError(ctx, http.StatusBadRequest, "before_id must be a positive integer")
+		return
+	}
+	status, data, err := serviceFromContext(ctx).userapi.ListSessionHistory(
+		c,
+		requestMetadata(ctx),
+		firstString(ctx.Param("sessionId"), ctx.Param("session_id"), ctx.Param("sessionID")),
+		queryInt(ctx, "limit"),
+		beforeID,
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
@@ -688,6 +711,15 @@ func queryInt64(ctx *app.RequestContext, key string) int64 {
 		return 0
 	}
 	return value
+}
+
+func queryOptionalPositiveInt64(ctx *app.RequestContext, key string) (int64, bool) {
+	raw := string(ctx.QueryArgs().Peek(key))
+	if raw == "" {
+		return 0, true
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	return value, err == nil && value > 0
 }
 
 func queryInt(ctx *app.RequestContext, key string) int {

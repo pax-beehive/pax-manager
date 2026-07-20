@@ -23,6 +23,7 @@ const (
 
 	routeLegacySessionHistory = "/api/user/agents/:agentId/sessions/:sessionId/history"
 	routeSessionHistory       = "/api/v1/user/:user_id/agents/:agent_id/sessions/:session_id/history"
+	routeUserSessionHistory   = "/api/v1/user/:user_id/sessions/:session_id/history"
 
 	routeCreateKnowledgeCapsule  = "/api/v1/user/:user_id/sessions/:session_id/knowledge-capsules"
 	routeListKnowledgeCapsules   = "/api/v1/user/:user_id/knowledge-capsules"
@@ -117,6 +118,7 @@ const (
 	routePublishPaxdArtifact     = "/api/v1/admin/paxd/artifacts"
 
 	openAPISessionHistoryPath       = "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history"
+	openAPIUserSessionHistoryPath   = "/api/v1/user/{user_id}/sessions/{session_id}/history"
 	openAPIUserAgentsPath           = "/api/v1/user/{user_id}/agents"
 	openAPIUserAgentPath            = "/api/v1/user/{user_id}/agents/{agent_id}"
 	openAPIUserACPTunnelPath        = "/api/v1/user/{user_id}/agents/{agent_id}/tunnel"

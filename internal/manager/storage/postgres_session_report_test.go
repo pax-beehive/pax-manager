@@ -25,6 +25,7 @@ var (
 type scriptedPostgresScript struct {
 	queries     []scriptedRows
 	queryTexts  []string
+	queryArgs   [][]driver.NamedValue
 	execResults []int64
 	execArgs    [][]driver.NamedValue
 	execCount   int
@@ -226,7 +227,7 @@ func (c *scriptedPostgresConn) ExecContext(
 	args []driver.NamedValue,
 ) (driver.Result, error) {
 	c.script.execCount++
-	c.script.execArgs = append(c.script.execArgs, args)
+	c.script.execArgs = append(c.script.execArgs, append([]driver.NamedValue(nil), args...))
 	if len(c.script.execResults) == 0 {
 		return driver.RowsAffected(1), nil
 	}
@@ -241,6 +242,7 @@ func (c *scriptedPostgresConn) QueryContext(
 	args []driver.NamedValue,
 ) (driver.Rows, error) {
 	c.script.queryTexts = append(c.script.queryTexts, query)
+	c.script.queryArgs = append(c.script.queryArgs, append([]driver.NamedValue(nil), args...))
 	if len(c.script.queries) == 0 {
 		return nil, errors.New("unexpected query")
 	}

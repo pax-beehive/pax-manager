@@ -134,8 +134,14 @@ func (s *PostgresStore) CreateEnvelope(
 	ctx context.Context,
 	envelope Envelope,
 ) (Envelope, error) {
+	payload, _, err := postgresSafeJSON(envelope.PayloadJSON)
+	if err != nil {
+		return Envelope{}, err
+	}
+	envelope.PayloadJSON = payload
+	envelope.Message, _ = postgresSafeText(envelope.Message)
 	row := envelopeModel(envelope)
-	if err := s.gormDB.WithContext(ctx).Create(row).Error; err != nil {
+	if err = s.gormDB.WithContext(ctx).Create(row).Error; err != nil {
 		return Envelope{}, err
 	}
 	return envelopeFromModel(row), nil

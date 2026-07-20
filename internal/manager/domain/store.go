@@ -388,7 +388,18 @@ type Store interface {
 		sessionID string,
 		limit int,
 	) ([]Message, error)
+	ListMessageHistoryPage(
+		ctx context.Context,
+		agentID string,
+		sessionID string,
+		beforeID int64,
+		limit int,
+	) (MessageHistoryPage, error)
 	ListMessageParts(ctx context.Context, messageID string) ([]MessagePart, error)
+	ListMessagePartsByMessageIDs(
+		ctx context.Context,
+		messageIDs []string,
+	) (map[string][]MessagePart, error)
 	CreateKnowledgeCapsule(ctx context.Context, capsule KnowledgeCapsule) (KnowledgeCapsule, error)
 	ListKnowledgeCapsules(
 		ctx context.Context,

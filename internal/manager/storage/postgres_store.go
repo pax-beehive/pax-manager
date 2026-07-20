@@ -1980,6 +1980,11 @@ func (s *PostgresStore) CreateMailboxMessage(
 	if err != nil {
 		return MailboxMessage{}, ErrConflict
 	}
+	payload, _, err = postgresSafeJSON(payload)
+	if err != nil {
+		return MailboxMessage{}, ErrConflict
+	}
+	message, _ := postgresSafeText(req.Message)
 	var ownerUserID string
 	var agentNodeID string
 	agentQuery := `SELECT owner_user_id, COALESCE(node_id, '') FROM agents WHERE agent_id = $1 AND deleted_at IS NULL`
@@ -2024,7 +2029,7 @@ func (s *PostgresStore) CreateMailboxMessage(
 		)
 		VALUES ($1,$2,$3,NULLIF($4,''),$5,NULLIF($6,''),$7,$8,$9,'pending','user_to_node',$10,$11)
 		RETURNING `+mailboxReturningSQL+`
-	`, messageID, principal.User.UserID, ownerUserID, agentNodeID, req.AgentID, req.SessionID, req.Message, messageType, payload, now, expiresAt(now, messageType))
+	`, messageID, principal.User.UserID, ownerUserID, agentNodeID, req.AgentID, req.SessionID, message, messageType, payload, now, expiresAt(now, messageType))
 	msg, err := scanMailbox(row)
 	if err != nil {
 		return MailboxMessage{}, err
@@ -2529,11 +2534,13 @@ func (s *PostgresStore) MarkMessageResult(
 	if req.CompletedAt != nil {
 		completedAt = req.CompletedAt.UTC()
 	}
+	resultText, _ := postgresSafeText(req.Result)
+	errorText, _ := postgresSafeText(req.Error)
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE mailbox
 		SET status = $3, result = $4, error = $5, completed_at = $6
 		WHERE agent_id = $1 AND message_id = $2
-	`, agentID, messageID, req.Status, req.Result, req.Error, completedAt)
+	`, agentID, messageID, req.Status, resultText, errorText, completedAt)
 	if err != nil {
 		return err
 	}
@@ -2572,6 +2579,8 @@ func (s *PostgresStore) MarkNodeMessageResult(
 	if req.CompletedAt != nil {
 		completedAt = req.CompletedAt.UTC()
 	}
+	resultText, _ := postgresSafeText(firstNonEmpty(req.Result, req.Content, req.ResultMessageID))
+	errorText, _ := postgresSafeText(req.Error)
 	result, err := s.db.ExecContext(
 		ctx,
 		`
@@ -2583,8 +2592,8 @@ func (s *PostgresStore) MarkNodeMessageResult(
 		nodeID,
 		messageID,
 		req.Status,
-		firstNonEmpty(req.Result, req.Content, req.ResultMessageID),
-		req.Error,
+		resultText,
+		errorText,
 		completedAt,
 		nullRaw(req.Payload),
 		nullRaw(req.Events),
@@ -3146,6 +3155,13 @@ func (s *PostgresStore) insertMailbox(
 	if err != nil {
 		return MailboxMessage{}, err
 	}
+	message, _ = postgresSafeText(message)
+	if len(payload) > 0 {
+		payload, _, err = postgresSafeJSON(payload)
+		if err != nil {
+			return MailboxMessage{}, err
+		}
+	}
 	row := s.db.QueryRowContext(ctx, `
 		INSERT INTO mailbox (
 			message_id, user_id, owner_user_id, node_id, agent_id, session_id, message, message_type,
@@ -3170,14 +3186,22 @@ func jsonOrNil(v any) any {
 	if err != nil || string(data) == "null" || string(data) == "{}" {
 		return nil
 	}
-	return data
+	normalized, _, err := postgresSafeJSON(data)
+	if err != nil {
+		return nil
+	}
+	return []byte(normalized)
 }
 
 func jsonDefault(raw json.RawMessage, fallback string) []byte {
 	if len(raw) == 0 || !json.Valid(raw) {
 		return []byte(fallback)
 	}
-	return raw
+	normalized, _, err := postgresSafeJSON(raw)
+	if err != nil {
+		return []byte(fallback)
+	}
+	return normalized
 }
 
 func jsonOrDefault(v any, fallback string) []byte {
@@ -3185,7 +3209,11 @@ func jsonOrDefault(v any, fallback string) []byte {
 	if err != nil || string(data) == "null" {
 		return []byte(fallback)
 	}
-	return data
+	normalized, _, err := postgresSafeJSON(data)
+	if err != nil {
+		return []byte(fallback)
+	}
+	return normalized
 }
 
 func secretVersionLookup(

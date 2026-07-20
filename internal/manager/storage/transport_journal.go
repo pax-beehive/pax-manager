@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,6 +69,10 @@ func (s *PostgresStore) SaveInboundIfAbsent(
 			reliablemq.ErrInvalidFrame,
 			frame.Key.Direction,
 		)
+	}
+	frame, err := normalizeReliableFrameForPostgres(frame)
+	if err != nil {
+		return false, reliablemq.Frame{}, err
 	}
 	now := s.now().UTC()
 	frame = frame.Clone()
@@ -233,6 +238,10 @@ func (s *PostgresStore) ApplyBatch(ctx context.Context, batch reliablemq.StoreBa
 	defer func() { _ = tx.Rollback() }()
 	for _, frame := range batch.Frames {
 		if err := reliablemq.ValidateFrame(frame); err != nil {
+			return err
+		}
+		frame, err = normalizeReliableFrameForPostgres(frame)
+		if err != nil {
 			return err
 		}
 		now := s.now().UTC()
@@ -596,6 +605,10 @@ func (s *PostgresStore) appendOutboundReliableFrame(
 	if err := reliablemq.ValidateFrame(frame); err != nil {
 		return reliablemq.Frame{}, err
 	}
+	frame, err = normalizeReliableFrameForPostgres(frame)
+	if err != nil {
+		return reliablemq.Frame{}, err
+	}
 	if _, err := insertReliableFrameTx(ctx, tx, frame); err != nil {
 		return reliablemq.Frame{}, err
 	}
@@ -734,6 +747,10 @@ func (s *PostgresStore) insertReliableFrame(
 	if err := reliablemq.ValidateFrame(frame); err != nil {
 		return reliablemq.Frame{}, err
 	}
+	frame, err := normalizeReliableFrameForPostgres(frame)
+	if err != nil {
+		return reliablemq.Frame{}, err
+	}
 	if frame.CreatedAt.IsZero() {
 		frame.CreatedAt = s.now().UTC()
 	}
@@ -760,6 +777,10 @@ func (s *PostgresStore) insertReliableFrame(
 }
 
 func insertReliableFrameTx(ctx context.Context, tx *sql.Tx, frame reliablemq.Frame) (bool, error) {
+	frame, err := normalizeReliableFrameForPostgres(frame)
+	if err != nil {
+		return false, err
+	}
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO transport_journal (
 			queue_id, agent_id, stream, seq, direction, local_direction, kind,
@@ -866,6 +887,7 @@ func (s *PostgresStore) updateReliableFrameStatusTx(
 	status reliablemq.Status,
 	errMsg string,
 ) error {
+	errMsg, _ = postgresSafeText(errMsg)
 	now := s.now().UTC()
 	column := timestampColumnForReliableStatus(status)
 	query := `
@@ -981,8 +1003,12 @@ func (s *PostgresStore) updateReliableMetadataTx(
 	key reliablemq.FrameKey,
 	metadata reliablemq.Metadata,
 ) error {
+	metadata, err := postgresSafeReliableMetadata(metadata)
+	if err != nil {
+		return err
+	}
 	now := s.now().UTC()
-	_, err := tx.ExecContext(ctx, `
+	_, err = tx.ExecContext(ctx, `
 		UPDATE transport_journal
 		SET metadata_json = $1, agent_id = $2, updated_at = $3
 		WHERE queue_id = $4 AND stream = $5 AND seq = $6 AND direction = $7
@@ -1013,6 +1039,7 @@ func (s *PostgresStore) updateReliableFrameErrorTx(
 	key reliablemq.FrameKey,
 	errorMessage string,
 ) error {
+	errorMessage, _ = postgresSafeText(errorMessage)
 	now := s.now().UTC()
 	_, err := tx.ExecContext(ctx, `
 		UPDATE transport_journal
@@ -1166,6 +1193,62 @@ func mustMarshalReliableMetadata(metadata reliablemq.Metadata) json.RawMessage {
 		return json.RawMessage(`{}`)
 	}
 	return data
+}
+
+const (
+	reliableMetadataPayloadSanitized    = "payload_sanitized"
+	reliableMetadataNULReplacementCount = "nul_replacements"
+)
+
+func normalizeReliableFrameForPostgres(
+	frame reliablemq.Frame,
+) (reliablemq.Frame, error) {
+	frame = frame.Clone()
+	payload, report, err := postgresSafeJSON(frame.Payload)
+	if err != nil {
+		return reliablemq.Frame{}, fmt.Errorf(
+			"%w: sanitize transport payload: %v",
+			reliablemq.ErrInvalidFrame,
+			err,
+		)
+	}
+	metadata, err := postgresSafeReliableMetadata(frame.Metadata)
+	if err != nil {
+		return reliablemq.Frame{}, fmt.Errorf(
+			"%w: sanitize transport metadata: %v",
+			reliablemq.ErrInvalidFrame,
+			err,
+		)
+	}
+	if report.NULReplacements > 0 {
+		if metadata == nil {
+			metadata = reliablemq.Metadata{}
+		}
+		metadata[reliableMetadataPayloadSanitized] = "true"
+		metadata[reliableMetadataNULReplacementCount] = strconv.Itoa(report.NULReplacements)
+	}
+	frame.Payload = payload
+	frame.Metadata = metadata
+	frame.ErrorMessage, _ = postgresSafeText(frame.ErrorMessage)
+	return frame, nil
+}
+
+func postgresSafeReliableMetadata(
+	metadata reliablemq.Metadata,
+) (reliablemq.Metadata, error) {
+	if len(metadata) == 0 {
+		return nil, nil
+	}
+	normalized := make(reliablemq.Metadata, len(metadata))
+	for key, value := range metadata {
+		cleanKey, _ := postgresSafeText(key)
+		if _, exists := normalized[cleanKey]; exists {
+			return nil, fmt.Errorf("metadata key %q has a normalized key collision", key)
+		}
+		cleanValue, _ := postgresSafeText(value)
+		normalized[cleanKey] = cleanValue
+	}
+	return normalized, nil
 }
 
 func nullablePayload(payload json.RawMessage) any {

@@ -514,7 +514,11 @@ func nullRaw(raw json.RawMessage) any {
 	if len(raw) == 0 {
 		return nil
 	}
-	return raw
+	normalized, _, err := postgresSafeJSON(raw)
+	if err != nil {
+		return nil
+	}
+	return normalized
 }
 
 func strconvArg(i int) string {

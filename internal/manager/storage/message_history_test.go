@@ -232,6 +232,56 @@ func TestMemoryListMessagesReturnsLatestLimitChronologically(t *testing.T) {
 	}
 }
 
+func TestMemoryListMessageHistoryPageLoadsOlderMessages(t *testing.T) {
+	store := NewMemoryStore(func() time.Time {
+		return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
+	})
+	ctx := context.Background()
+	for _, messageID := range []string{"msg_1", "msg_2", "msg_3", "msg_4"} {
+		message := Message{
+			MessageID:  messageID,
+			AgentID:    "agent_1",
+			SessionID:  "session_1",
+			Source:     domain.MessageSourceACPTunnel,
+			Direction:  domain.MessageDirectionAgentToUser,
+			LogicalKey: messageID,
+		}
+		if err := store.UpsertMessage(ctx, &message); err != nil {
+			t.Fatalf("upsert message %s: %v", messageID, err)
+		}
+	}
+
+	latest, err := store.ListMessageHistoryPage(ctx, "agent_1", "session_1", 0, 2)
+	if err != nil {
+		t.Fatalf("list latest history page: %v", err)
+	}
+	if len(latest.Messages) != 2 ||
+		latest.Messages[0].MessageID != "msg_3" ||
+		latest.Messages[1].MessageID != "msg_4" ||
+		!latest.HasMore ||
+		latest.NextBeforeID != latest.Messages[0].ID {
+		t.Fatalf("latest page = %+v", latest)
+	}
+
+	older, err := store.ListMessageHistoryPage(
+		ctx,
+		"agent_1",
+		"session_1",
+		latest.NextBeforeID,
+		2,
+	)
+	if err != nil {
+		t.Fatalf("list older history page: %v", err)
+	}
+	if len(older.Messages) != 2 ||
+		older.Messages[0].MessageID != "msg_1" ||
+		older.Messages[1].MessageID != "msg_2" ||
+		older.HasMore ||
+		older.NextBeforeID != 0 {
+		t.Fatalf("older page = %+v", older)
+	}
+}
+
 func TestPostgresListMessagesQueriesLatestAndReturnsChronologically(t *testing.T) {
 	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
 	script := &scriptedPostgresScript{
@@ -266,6 +316,43 @@ func TestPostgresListMessagesQueriesLatestAndReturnsChronologically(t *testing.T
 	query := strings.Join(strings.Fields(script.queryTexts[0]), " ")
 	if !strings.Contains(query, "ORDER BY id DESC LIMIT $2") {
 		t.Fatalf("query = %q, want latest messages selected first", query)
+	}
+}
+
+func TestPostgresListMessageHistoryPageUsesBeforeIDAndProbesForMore(t *testing.T) {
+	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
+	script := &scriptedPostgresScript{
+		queries: []scriptedRows{{
+			columns: []string{
+				"id", "message_id", "conversation_id", "owner_user_id", "node_id",
+				"agent_id", "session_id", "source", "direction", "role", "status",
+				"message_type", "parent_message_id", "turn_id", "response_id",
+				"logical_key", "raw_json", "created_at", "updated_at",
+			},
+			values: [][]driver.Value{
+				scriptedMessageHistoryRow(3, "msg_3", now),
+				scriptedMessageHistoryRow(2, "msg_2", now),
+				scriptedMessageHistoryRow(1, "msg_1", now),
+			},
+		}},
+	}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+
+	page, err := store.ListMessageHistoryPage(context.Background(), "agent_1", "", 4, 2)
+	if err != nil {
+		t.Fatalf("list history page: %v", err)
+	}
+	if len(page.Messages) != 2 ||
+		page.Messages[0].MessageID != "msg_2" ||
+		page.Messages[1].MessageID != "msg_3" ||
+		!page.HasMore ||
+		page.NextBeforeID != 2 {
+		t.Fatalf("page = %+v", page)
+	}
+	query := strings.Join(strings.Fields(script.queryTexts[0]), " ")
+	if !strings.Contains(query, "agent_id = $1 AND id < $2 ORDER BY id DESC LIMIT $3") {
+		t.Fatalf("query = %q, want before_id keyset pagination", query)
 	}
 }
 
