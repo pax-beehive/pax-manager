@@ -1203,21 +1203,19 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 	defer func() { _ = tx.Rollback() }()
 
 	now := s.now().UTC()
-	result, err := tx.ExecContext(ctx, `
+	var agentNodeID sql.NullString
+	err = tx.QueryRowContext(ctx, `
 		UPDATE agents
 		SET status = 'online', last_heartbeat = $2, hostname = COALESCE(NULLIF($3, ''), hostname)
 		WHERE agent_id = $1
 			AND deleted_at IS NULL
-	`, report.AgentID, now, report.Hostname)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
+		RETURNING node_id
+	`, report.AgentID, now, report.Hostname).Scan(&agentNodeID)
+	if err == sql.ErrNoRows {
 		return ErrNotFound
+	}
+	if err != nil {
+		return err
 	}
 
 	for _, input := range report.Sessions {
@@ -1228,7 +1226,7 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 		if err != nil {
 			return err
 		}
-		if err := upsertSessionTx(ctx, tx, "", report.AgentID, input, now); err != nil {
+		if err := upsertSessionTx(ctx, tx, agentNodeID.String, report.AgentID, input, now); err != nil {
 			return err
 		}
 	}
