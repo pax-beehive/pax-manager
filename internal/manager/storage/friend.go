@@ -106,6 +106,8 @@ func (s *PostgresStore) ListFriends(
 		Limit(limit)
 	if filter.Status != "" {
 		query = query.Where("status = ?", filter.Status)
+	} else {
+		query = query.Where("status <> ?", domain.FriendStatusRemoved)
 	}
 	switch filter.Direction {
 	case domain.FriendDirectionSent:
@@ -143,12 +145,56 @@ func (s *PostgresStore) GetAcceptedFriendByEmail(
 	principal UserPrincipal,
 	email string,
 ) (Friend, error) {
+	var row friendRow
+	err := s.friendsBetweenQuery(ctx, principal, email).
+		Where("status = ?", domain.FriendStatusAccepted).
+		First(&row).
+		Error
+	if err != nil {
+		return Friend{}, mapGormError(err)
+	}
+	return friendFromModel(&row), nil
+}
+
+func (s *PostgresStore) ListFriendsBetween(
+	ctx context.Context,
+	principal UserPrincipal,
+	email string,
+) ([]Friend, error) {
+	var rows []friendRow
+	err := s.friendsBetweenQuery(ctx, principal, email).
+		Order("created_at DESC").
+		Find(&rows).
+		Error
+	if err != nil {
+		return nil, mapGormError(err)
+	}
+	return friendsFromModels(rows), nil
+}
+
+func (s *PostgresStore) DeleteRemovedFriendsBetween(
+	ctx context.Context,
+	principal UserPrincipal,
+	email string,
+) error {
+	result := s.friendsBetweenQuery(ctx, principal, email).
+		Where("status = ?", domain.FriendStatusRemoved).
+		Delete(&friendRow{})
+	if result.Error != nil {
+		return mapGormError(result.Error)
+	}
+	return nil
+}
+
+func (s *PostgresStore) friendsBetweenQuery(
+	ctx context.Context,
+	principal UserPrincipal,
+	email string,
+) *gorm.DB {
 	principalEmail := normalizeEmail(principal.User.Email)
 	counterpartyEmail := normalizeEmail(email)
-	var row friendRow
-	err := s.gormDB.WithContext(ctx).
+	return s.gormDB.WithContext(ctx).
 		Model(&friendRow{}).
-		Where("status = ?", domain.FriendStatusAccepted).
 		Where(
 			`(
 				(requester_user_id = ? AND recipient_email = ?) OR
@@ -159,13 +205,7 @@ func (s *PostgresStore) GetAcceptedFriendByEmail(
 			principal.User.UserID,
 			principalEmail,
 			counterpartyEmail,
-		).
-		First(&row).
-		Error
-	if err != nil {
-		return Friend{}, mapGormError(err)
-	}
-	return friendFromModel(&row), nil
+		)
 }
 
 func (s *PostgresStore) GetFriend(
@@ -231,7 +271,7 @@ func (s *PostgresStore) RemoveFriend(
 	friendID string,
 	removedAt time.Time,
 ) (Friend, error) {
-	return s.updateVisibleFriend(ctx, principal, friendID, map[string]any{
+	return s.updateVisibleActiveFriend(ctx, principal, friendID, map[string]any{
 		"status":     domain.FriendStatusRemoved,
 		"removed_at": removedAt,
 	})

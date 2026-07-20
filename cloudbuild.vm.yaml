@@ -7,6 +7,7 @@ substitutions:
   _CLOUD_SQL_INSTANCE: pax-tech-499219:us-west1:pax-manager-postgres
   _DB_SECRET: pax-manager-database-url
   _DEPLOY_SCRIPT: /opt/pax-manager/deploy.sh
+  _SSH_KEY_TTL: 30m
 
 steps:
   - id: build
@@ -29,6 +30,21 @@ steps:
       - push
       - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
 
+  # Every gcloud compute ssh/scp step below runs in a fresh container, so each
+  # one adds a brand-new key to the build service account's OS Login profile.
+  # Without cleanup the profile eventually exceeds the 32 KiB limit and ssh
+  # fails with FAILED_PRECONDITION. Trim the profile up front and let new keys
+  # expire on their own.
+  - id: trim-os-login-keys
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        for fp in $$(gcloud compute os-login ssh-keys list --format='value(value.fingerprint)' 2>/dev/null); do
+          gcloud compute os-login ssh-keys remove --key "$$fp" || true
+        done
+
   - id: prepare-vm
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
@@ -38,6 +54,8 @@ steps:
       - ${_VM_NAME}
       - --zone
       - ${_VM_ZONE}
+      - --ssh-key-expire-after
+      - ${_SSH_KEY_TTL}
       - --command
       - mkdir -p /tmp/pax-manager-vm
 
@@ -52,6 +70,8 @@ steps:
       - ${_VM_NAME}:/tmp/pax-manager-vm/
       - --zone
       - ${_VM_ZONE}
+      - --ssh-key-expire-after
+      - ${_SSH_KEY_TTL}
 
   - id: bootstrap-vm
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -62,6 +82,8 @@ steps:
       - ${_VM_NAME}
       - --zone
       - ${_VM_ZONE}
+      - --ssh-key-expire-after
+      - ${_SSH_KEY_TTL}
       - --command
       - >
         sudo install -d -m 0755 /opt/pax-manager;
@@ -78,6 +100,8 @@ steps:
       - ${_VM_NAME}
       - --zone
       - ${_VM_ZONE}
+      - --ssh-key-expire-after
+      - ${_SSH_KEY_TTL}
       - --command
       - sudo ${_DEPLOY_SCRIPT} ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA} ${_DB_SECRET}
 

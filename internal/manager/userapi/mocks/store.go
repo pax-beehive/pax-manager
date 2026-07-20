@@ -1596,6 +1596,54 @@ func (_c *MockStore_DeleteNodeAgent_Call) RunAndReturn(run func(context.Context,
 	return _c
 }
 
+// DeleteRemovedFriendsBetween provides a mock function with given fields: ctx, principal, email
+func (_m *MockStore) DeleteRemovedFriendsBetween(ctx context.Context, principal domain.UserPrincipal, email string) error {
+	ret := _m.Called(ctx, principal, email)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteRemovedFriendsBetween")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r0 = rf(ctx, principal, email)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStore_DeleteRemovedFriendsBetween_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteRemovedFriendsBetween'
+type MockStore_DeleteRemovedFriendsBetween_Call struct {
+	*mock.Call
+}
+
+// DeleteRemovedFriendsBetween is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - email string
+func (_e *MockStore_Expecter) DeleteRemovedFriendsBetween(ctx interface{}, principal interface{}, email interface{}) *MockStore_DeleteRemovedFriendsBetween_Call {
+	return &MockStore_DeleteRemovedFriendsBetween_Call{Call: _e.mock.On("DeleteRemovedFriendsBetween", ctx, principal, email)}
+}
+
+func (_c *MockStore_DeleteRemovedFriendsBetween_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, email string)) *MockStore_DeleteRemovedFriendsBetween_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_DeleteRemovedFriendsBetween_Call) Return(_a0 error) *MockStore_DeleteRemovedFriendsBetween_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStore_DeleteRemovedFriendsBetween_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) error) *MockStore_DeleteRemovedFriendsBetween_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetAcceptedFriendByEmail provides a mock function with given fields: ctx, principal, email
 func (_m *MockStore) GetAcceptedFriendByEmail(ctx context.Context, principal domain.UserPrincipal, email string) (domain.Friend, error) {
 	ret := _m.Called(ctx, principal, email)
@@ -2642,6 +2690,66 @@ func (_c *MockStore_ListFriends_Call) Return(_a0 []domain.Friend, _a1 error) *Mo
 }
 
 func (_c *MockStore_ListFriends_Call) RunAndReturn(run func(context.Context, domain.ListFriendsFilter) ([]domain.Friend, error)) *MockStore_ListFriends_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListFriendsBetween provides a mock function with given fields: ctx, principal, email
+func (_m *MockStore) ListFriendsBetween(ctx context.Context, principal domain.UserPrincipal, email string) ([]domain.Friend, error) {
+	ret := _m.Called(ctx, principal, email)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListFriendsBetween")
+	}
+
+	var r0 []domain.Friend
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) ([]domain.Friend, error)); ok {
+		return rf(ctx, principal, email)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) []domain.Friend); ok {
+		r0 = rf(ctx, principal, email)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.Friend)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, email)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListFriendsBetween_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListFriendsBetween'
+type MockStore_ListFriendsBetween_Call struct {
+	*mock.Call
+}
+
+// ListFriendsBetween is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - email string
+func (_e *MockStore_Expecter) ListFriendsBetween(ctx interface{}, principal interface{}, email interface{}) *MockStore_ListFriendsBetween_Call {
+	return &MockStore_ListFriendsBetween_Call{Call: _e.mock.On("ListFriendsBetween", ctx, principal, email)}
+}
+
+func (_c *MockStore_ListFriendsBetween_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, email string)) *MockStore_ListFriendsBetween_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListFriendsBetween_Call) Return(_a0 []domain.Friend, _a1 error) *MockStore_ListFriendsBetween_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListFriendsBetween_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) ([]domain.Friend, error)) *MockStore_ListFriendsBetween_Call {
 	_c.Call.Return(run)
 	return _c
 }

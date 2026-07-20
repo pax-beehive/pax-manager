@@ -3268,6 +3268,9 @@ func TestFriendFlow(t *testing.T) {
 		secrets := userapimocks.NewMockSecretIssuer(t)
 
 		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().ListFriendsBetween(ctx, principal, "recipient@example.com").
+			Return(nil, nil).
+			Once()
 		store.EXPECT().GetUserByEmail(ctx, "recipient@example.com").Return(recipient, nil).Once()
 		secrets.EXPECT().New("fr").Return("fr_1", nil).Once()
 		store.EXPECT().CreateFriend(
@@ -3294,6 +3297,114 @@ func TestFriendFlow(t *testing.T) {
 		require.Equal(t, http.StatusOK, status)
 		require.Equal(t, "fr_1", data.(map[string]any)["friend"].(domain.Friend).FriendID)
 	})
+
+	t.Run("Given an active relationship then create returns conflict", func(t *testing.T) {
+		for _, status := range []string{
+			domain.FriendStatusPending,
+			domain.FriendStatusAccepted,
+		} {
+			ctx := context.Background()
+			principal := userPrincipal("usr_sender", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().ListFriendsBetween(ctx, principal, "recipient@example.com").
+				Return([]domain.Friend{{FriendID: "fr_existing", Status: status}}, nil).
+				Once()
+
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			_, _, err := svc.CreateFriend(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateFriendRequest{Email: "recipient@example.com"},
+			)
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr, "status %s should conflict", status)
+			require.Equal(t, http.StatusConflict, appErr.Status)
+		}
+	})
+
+	t.Run("Given a blocked relationship then create returns conflict", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_sender", false)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().ListFriendsBetween(ctx, principal, "recipient@example.com").
+			Return(
+				[]domain.Friend{{FriendID: "fr_blocked", Status: domain.FriendStatusBlocked}},
+				nil,
+			).
+			Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		_, _, err := svc.CreateFriend(
+			ctx,
+			auth.RequestMetadata{},
+			domain.CreateFriendRequest{Email: "recipient@example.com"},
+		)
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusConflict, appErr.Status)
+	})
+
+	t.Run(
+		"Given a removed relationship then create clears it and issues a new request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_sender", false)
+			recipient := domain.User{UserID: "usr_recipient", Email: "recipient@example.com"}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			secrets := userapimocks.NewMockSecretIssuer(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().ListFriendsBetween(ctx, principal, "recipient@example.com").
+				Return(
+					[]domain.Friend{{FriendID: "fr_old", Status: domain.FriendStatusRemoved}},
+					nil,
+				).
+				Once()
+			store.EXPECT().DeleteRemovedFriendsBetween(ctx, principal, "recipient@example.com").
+				Return(nil).
+				Once()
+			store.EXPECT().GetUserByEmail(ctx, "recipient@example.com").Return(recipient, nil).Once()
+			secrets.EXPECT().New("fr").Return("fr_2", nil).Once()
+			store.EXPECT().CreateFriend(
+				ctx,
+				mock.MatchedBy(func(friend domain.Friend) bool {
+					require.Equal(t, "fr_2", friend.FriendID)
+					require.Equal(t, domain.FriendStatusPending, friend.Status)
+					return true
+				}),
+			).Return(domain.Friend{FriendID: "fr_2"}, nil).Once()
+
+			svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+			status, data, err := svc.CreateFriend(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateFriendRequest{Email: "recipient@example.com"},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, "fr_2", data.(map[string]any)["friend"].(domain.Friend).FriendID)
+		},
+	)
 
 	t.Run("Given a recipient principal then it accepts the friend request", func(t *testing.T) {
 		ctx := context.Background()
