@@ -135,46 +135,69 @@ func addSessionHistoryPath(doc map[string]any) {
 		paths = map[string]any{}
 		doc["paths"] = paths
 	}
-	paths[openAPISessionHistoryPath] = map[string]any{
+	paths[openAPISessionHistoryPath] = sessionHistoryPathOperation(true)
+	paths[openAPIUserSessionHistoryPath] = sessionHistoryPathOperation(false)
+}
+
+func sessionHistoryPathOperation(agentScoped bool) map[string]any {
+	parameters := []map[string]any{
+		{
+			"name":        "user_id",
+			"in":          "path",
+			"required":    true,
+			"schema":      map[string]string{"type": "string"},
+			"description": "User ID or self.",
+		},
+	}
+	if agentScoped {
+		parameters = append(parameters, map[string]any{
+			"name":        "agent_id",
+			"in":          "path",
+			"required":    true,
+			"schema":      map[string]string{"type": "string"},
+			"description": "Agent identifier.",
+		})
+	}
+	parameters = append(parameters,
+		map[string]any{
+			"name":        "session_id",
+			"in":          "path",
+			"required":    true,
+			"schema":      map[string]string{"type": "string"},
+			"description": "Session identifier.",
+		},
+		map[string]any{
+			"name":        "limit",
+			"in":          "query",
+			"required":    false,
+			"schema":      map[string]any{"type": "integer", "maximum": 1000},
+			"description": "Maximum number of history messages to return. Defaults to 1000.",
+		},
+		map[string]any{
+			"name":        "before_id",
+			"in":          "query",
+			"required":    false,
+			"schema":      map[string]any{"type": "integer", "format": "int64", "minimum": 1},
+			"description": "Returns messages with a database ID lower than this value. Use pagination.next_before_id to load older history.",
+		},
+	)
+	summary := "List session history"
+	notFoundDescription := "Session not found."
+	if agentScoped {
+		summary = "List agent session history"
+		notFoundDescription = "Agent or session not found."
+	}
+	return map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"user"},
-			"summary":     "List agent session history",
-			"description": "Lists durable session history messages with their message parts for a specific session under an agent visible to the current user.",
+			"summary":     summary,
+			"description": "Lists a page of durable session history messages with their message parts. The first page contains the latest messages; responses are ordered chronologically.",
 			"security":    []map[string][]string{{"cloudflareAccess": {}}},
-			"parameters": []map[string]any{
-				{
-					"name":        "user_id",
-					"in":          "path",
-					"required":    true,
-					"schema":      map[string]string{"type": "string"},
-					"description": "User ID or self.",
-				},
-				{
-					"name":        "agent_id",
-					"in":          "path",
-					"required":    true,
-					"schema":      map[string]string{"type": "string"},
-					"description": "Agent identifier.",
-				},
-				{
-					"name":        "session_id",
-					"in":          "path",
-					"required":    true,
-					"schema":      map[string]string{"type": "string"},
-					"description": "Session identifier.",
-				},
-				{
-					"name":        "limit",
-					"in":          "query",
-					"required":    false,
-					"schema":      map[string]any{"type": "integer", "maximum": 1000},
-					"description": "Maximum number of history messages to return. Defaults to 1000.",
-				},
-			},
+			"parameters":  parameters,
 			"responses": map[string]any{
 				"200": map[string]string{"description": "Session history messages."},
 				"401": map[string]string{"description": "User authentication failed."},
-				"404": map[string]string{"description": "Agent or session not found."},
+				"404": map[string]string{"description": notFoundDescription},
 			},
 		},
 	}

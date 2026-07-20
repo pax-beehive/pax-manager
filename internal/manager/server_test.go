@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -102,6 +103,7 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/v1/user/{user_id}/api-keys",
 		"/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages",
 		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history",
+		"/api/v1/user/{user_id}/sessions/{session_id}/history",
 		"/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}",
 		"/api/v1/agent/tunnel",
 		"/api/v1/node/agents/register",
@@ -7258,6 +7260,24 @@ func TestNodeAPIUserNodeAgentSessionHistory(t *testing.T) {
 		gotTextByID["msg_history_native"] != "hello from native history" {
 		t.Fatalf("bad history response: %+v", got.Messages)
 	}
+
+	sessionOnlyReq := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/sessions/sess_manager_1/history",
+		nil,
+	)
+	sessionOnlyReq.Header.Set("X-User-Email", "todd@example.com")
+	sessionOnlyRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(sessionOnlyRec, sessionOnlyReq)
+	require.Equal(t, http.StatusOK, sessionOnlyRec.Code, sessionOnlyRec.Body.String())
+	sessionOnlyHistory := decodeData[struct {
+		Messages []MessageWithParts `json:"messages"`
+	}](t, sessionOnlyRec.Body.Bytes())
+	require.Len(t, sessionOnlyHistory.Messages, 2)
+	require.ElementsMatch(t, []string{"msg_history_1", "msg_history_native"}, []string{
+		sessionOnlyHistory.Messages[0].MessageID,
+		sessionOnlyHistory.Messages[1].MessageID,
+	})
 }
 
 func TestAgentSessionHistoryFallsBackToDurableMessages(t *testing.T) {
@@ -7306,6 +7326,80 @@ func TestAgentSessionHistoryFallsBackToDurableMessages(t *testing.T) {
 		got.Messages[0].Parts[0].Text != "hello from durable history" {
 		t.Fatalf("history messages = %+v", got.Messages)
 	}
+}
+
+func TestAgentSessionHistoryPaginatesOlderMessages(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+	sessionID := "sess_history_page"
+	for index := 1; index <= 4; index++ {
+		messageID := fmt.Sprintf("msg_history_page_%d", index)
+		message := domain.Message{
+			MessageID:  messageID,
+			AgentID:    agentID,
+			SessionID:  sessionID,
+			Source:     domain.MessageSourceACPTunnel,
+			Direction:  domain.MessageDirectionAgentToUser,
+			Role:       "assistant",
+			LogicalKey: messageID,
+		}
+		require.NoError(t, srv.store.UpsertMessage(t.Context(), &message))
+		require.NoError(t, srv.store.UpsertMessagePart(t.Context(), &domain.MessagePart{
+			MessageID: messageID,
+			PartIndex: 0,
+			PartType:  domain.MessagePartText,
+			Text:      messageID,
+		}))
+	}
+
+	type historyPageData struct {
+		Messages   []MessageWithParts              `json:"messages"`
+		Pagination domain.MessageHistoryPagination `json:"pagination"`
+	}
+	requestPage := func(path string) historyPageData {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("X-User-Email", "todd@example.com")
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return decodeData[historyPageData](t, rec.Body.Bytes())
+	}
+
+	basePath := "/api/v1/user/self/agents/" + agentID + "/sessions/" + sessionID + "/history"
+	latest := requestPage(basePath + "?limit=2")
+	require.Len(t, latest.Messages, 2)
+	require.Equal(t, []string{"msg_history_page_3", "msg_history_page_4"}, []string{
+		latest.Messages[0].MessageID,
+		latest.Messages[1].MessageID,
+	})
+	require.True(t, latest.Pagination.HasMore)
+	require.Equal(t, latest.Messages[0].ID, latest.Pagination.NextBeforeID)
+
+	older := requestPage(
+		basePath + "?limit=2&before_id=" + strconv.FormatInt(latest.Pagination.NextBeforeID, 10),
+	)
+	require.Len(t, older.Messages, 2)
+	require.Equal(t, []string{"msg_history_page_1", "msg_history_page_2"}, []string{
+		older.Messages[0].MessageID,
+		older.Messages[1].MessageID,
+	})
+	require.False(t, older.Pagination.HasMore)
+	require.Zero(t, older.Pagination.NextBeforeID)
+}
+
+func TestAgentSessionHistoryRejectsInvalidBeforeID(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	agentID := testAgentID(t, srv, "todd@example.com")
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agents/"+agentID+"/sessions/sess_history/history?before_id=bad",
+		nil,
+	)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 }
 
 func testServer(t *testing.T, ownerEmail string) (*Server, string) {

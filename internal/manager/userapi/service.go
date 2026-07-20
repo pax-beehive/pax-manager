@@ -32,6 +32,8 @@ type Store interface {
 const (
 	defaultSessionPageSize = 50
 	maxSessionPageSize     = 200
+	defaultHistoryPageSize = 1000
+	maxHistoryPageSize     = 1000
 )
 
 type UserStore interface {
@@ -161,7 +163,18 @@ type SessionHistoryStore interface {
 		sessionID string,
 		limit int,
 	) ([]domain.Message, error)
+	ListMessageHistoryPage(
+		ctx context.Context,
+		agentID string,
+		sessionID string,
+		beforeID int64,
+		limit int,
+	) (domain.MessageHistoryPage, error)
 	ListMessageParts(ctx context.Context, messageID string) ([]domain.MessagePart, error)
+	ListMessagePartsByMessageIDs(
+		ctx context.Context,
+		messageIDs []string,
+	) (map[string][]domain.MessagePart, error)
 }
 
 type KnowledgeStore interface {
@@ -1781,6 +1794,7 @@ func (s *Service) ListAgentSessionHistory(
 	agentID string,
 	sessionID string,
 	limit int,
+	beforeID int64,
 ) (int, any, error) {
 	principal, err := s.principal.Principal(c, meta)
 	if err != nil {
@@ -1802,7 +1816,31 @@ func (s *Service) ListAgentSessionHistory(
 			return 0, nil, agentErr
 		}
 	}
-	return s.listSessionHistory(c, agentID, sessionID, limit)
+	return s.listSessionHistory(c, agentID, sessionID, limit, beforeID)
+}
+
+func (s *Service) ListSessionHistory(
+	c context.Context,
+	meta auth.RequestMetadata,
+	sessionID string,
+	limit int,
+	beforeID int64,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if sessionID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "session_id is required",
+		}
+	}
+	session, err := s.store.GetSession(c, principal, sessionID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return s.listSessionHistory(c, session.AgentID, session.SessionID, limit, beforeID)
 }
 
 func (s *Service) listSessionHistory(
@@ -1810,27 +1848,47 @@ func (s *Service) listSessionHistory(
 	agentID string,
 	sessionID string,
 	limit int,
+	beforeID int64,
 ) (int, any, error) {
-	if limit <= 0 || limit > 1000 {
-		limit = 1000
+	if limit <= 0 {
+		limit = defaultHistoryPageSize
 	}
-	messages, err := s.store.ListMessages(c, agentID, sessionID, limit)
+	if limit > maxHistoryPageSize {
+		limit = maxHistoryPageSize
+	}
+	if beforeID < 0 {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "before_id must be non-negative",
+		}
+	}
+	page, err := s.store.ListMessageHistoryPage(c, agentID, sessionID, beforeID, limit)
 	if err != nil {
 		return 0, nil, err
 	}
-	history := make([]domain.MessageWithParts, 0, len(messages))
-	for _, message := range messages {
-		parts, err := s.store.ListMessageParts(c, message.MessageID)
-		if err != nil {
-			return 0, nil, err
-		}
+	messageIDs := make([]string, 0, len(page.Messages))
+	for _, message := range page.Messages {
+		messageIDs = append(messageIDs, message.MessageID)
+	}
+	partsByMessageID, err := s.store.ListMessagePartsByMessageIDs(c, messageIDs)
+	if err != nil {
+		return 0, nil, err
+	}
+	history := make([]domain.MessageWithParts, 0, len(page.Messages))
+	for _, message := range page.Messages {
 		history = append(history, domain.MessageWithParts{
 			Message: message,
-			Parts:   parts,
+			Parts:   partsByMessageID[message.MessageID],
 		})
 	}
 	history = domain.NormalTranscriptMessages(history)
-	return http.StatusOK, map[string]any{"messages": history}, nil
+	return http.StatusOK, map[string]any{
+		"messages": history,
+		"pagination": domain.MessageHistoryPagination{
+			NextBeforeID: page.NextBeforeID,
+			HasMore:      page.HasMore,
+		},
+	}, nil
 }
 
 func (s *Service) CreateMailboxMessage(
