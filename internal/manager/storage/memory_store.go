@@ -2479,7 +2479,7 @@ func (s *MemoryStore) upsertSessionLocked(
 	}
 	existing.Status = defaultSessionStatus(input.Status)
 	existing.CurrentTask = input.CurrentTask
-	existing.LastMessageAt = input.LastMessageAt
+	existing.LastMessageAt = laterOptionalTime(existing.LastMessageAt, input.LastMessageAt)
 	existing.MessageCount = input.MessageCount
 	existing.TokenUsage = input.TokenUsage
 	existing.TokenInput = input.TokenUsage.Input
@@ -2492,6 +2492,16 @@ func (s *MemoryStore) upsertSessionLocked(
 	existing.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(existing.PaxConfig.ApprovalMode)
 	s.sessions[sessionKey(agentID, input.SessionID)] = existing
 	return existing
+}
+
+func laterOptionalTime(left *time.Time, right *time.Time) *time.Time {
+	if left == nil {
+		return right
+	}
+	if right == nil || !right.After(*left) {
+		return left
+	}
+	return right
 }
 
 func (s *MemoryStore) normalizeReportedSessionLocked(

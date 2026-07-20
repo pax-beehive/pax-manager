@@ -193,6 +193,35 @@ func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 	)
 
 	t.Run(
+		"Given older or empty activity is reported then the newest activity is preserved",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store, node, agent := sessionReportStoreFixture(t, ctx)
+			newerActivity := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+			olderActivity := newerActivity.Add(-time.Hour)
+
+			for _, activity := range []*time.Time{&newerActivity, &olderActivity, nil} {
+				err := store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+					SessionID:     "codex:active",
+					AgentType:     "codex",
+					LastMessageAt: activity,
+				}})
+				require.NoError(t, err)
+			}
+
+			sessions, err := store.ListAgentSessions(
+				ctx,
+				UserPrincipal{User: User{UserID: node.OwnerUserID}},
+				agent.AgentID,
+			)
+			require.NoError(t, err)
+			require.Len(t, sessions, 1)
+			require.NotNil(t, sessions[0].LastMessageAt)
+			assert.Equal(t, newerActivity, *sessions[0].LastMessageAt)
+		},
+	)
+
+	t.Run(
 		"Given empty sessions when upserting then it succeeds without changes",
 		func(t *testing.T) {
 			ctx := context.Background()

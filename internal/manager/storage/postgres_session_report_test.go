@@ -27,6 +27,7 @@ type scriptedPostgresScript struct {
 	queryTexts  []string
 	queryArgs   [][]driver.NamedValue
 	execResults []int64
+	execTexts   []string
 	execArgs    [][]driver.NamedValue
 	execCount   int
 	committed   bool
@@ -112,6 +113,32 @@ func TestPostgresStoreUpsertAgentSessions(t *testing.T) {
 			assert.Equal(t, 0, script.execCount)
 			assert.False(t, script.committed)
 			assert.True(t, script.rolled)
+		},
+	)
+
+	t.Run(
+		"Given activity is reported then the upsert keeps the newest timestamp",
+		func(t *testing.T) {
+			script := &scriptedPostgresScript{
+				queries: []scriptedRows{
+					{columns: []string{"exists"}, values: [][]driver.Value{{true}}},
+					{columns: []string{"session_id"}},
+				},
+			}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+			activity := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+
+			err := store.UpsertAgentSessions(
+				context.Background(),
+				Node{NodeID: "node_1"},
+				"agent_1",
+				[]SessionStatusInput{{SessionID: "codex:abc", LastMessageAt: &activity}},
+			)
+
+			require.NoError(t, err)
+			require.Len(t, script.execTexts, 1)
+			assert.Contains(t, script.execTexts[0], "GREATEST(agent_sessions.last_message_at, EXCLUDED.last_message_at)")
 		},
 	)
 }
@@ -227,6 +254,7 @@ func (c *scriptedPostgresConn) ExecContext(
 	args []driver.NamedValue,
 ) (driver.Result, error) {
 	c.script.execCount++
+	c.script.execTexts = append(c.script.execTexts, query)
 	c.script.execArgs = append(c.script.execArgs, append([]driver.NamedValue(nil), args...))
 	if len(c.script.execResults) == 0 {
 		return driver.RowsAffected(1), nil
