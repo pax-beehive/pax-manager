@@ -601,14 +601,27 @@ func (s *Service) GetSecret(
 	return http.StatusOK, map[string]any{"secret": secret}, nil
 }
 
-func (s *Service) ListAgents(c context.Context, meta auth.RequestMetadata) (int, any, error) {
+func (s *Service) ListAgents(c context.Context, meta auth.RequestMetadata, scope string) (int, any, error) {
 	principal, err := s.principal.Principal(c, meta)
 	if err != nil {
 		return 0, nil, err
 	}
+	scope = strings.ToLower(strings.TrimSpace(scope))
+	if scope != "" && scope != "accessible" && scope != "owned" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "scope must be accessible or owned"}
+	}
 	agents, err := s.store.ListAgents(c, principal)
 	if err != nil {
 		return 0, nil, err
+	}
+	if scope == "owned" {
+		owned := make([]domain.Agent, 0, len(agents))
+		for _, agent := range agents {
+			if agent.OwnerUserID == principal.User.UserID {
+				owned = append(owned, agent)
+			}
+		}
+		agents = owned
 	}
 	return http.StatusOK, map[string]any{"agents": agents}, nil
 }
