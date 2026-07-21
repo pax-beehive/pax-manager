@@ -1353,11 +1353,52 @@ func TestAgents(t *testing.T) {
 				principals,
 				userapimocks.NewMockSecretIssuer(t),
 			)
-			status, data, err := svc.ListAgents(ctx, auth.RequestMetadata{})
+			status, data, err := svc.ListAgents(ctx, auth.RequestMetadata{}, "")
 
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, status)
 			require.Equal(t, agents, data.(map[string]any)["agents"])
+		},
+	)
+
+	t.Run(
+		"Given owned scope when listing agents then it excludes team-visible agents owned by others",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			agents := []domain.Agent{
+				{AgentID: "agent_owned", OwnerUserID: "usr_self"},
+				{AgentID: "agent_shared", OwnerUserID: "usr_other"},
+			}
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			store.EXPECT().ListAgents(ctx, principal).Return(agents, nil).Once()
+
+			svc := userapi.NewService(store, fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+			status, data, err := svc.ListAgents(ctx, auth.RequestMetadata{}, "owned")
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, agents[:1], data.(map[string]any)["agents"])
+		},
+	)
+
+	t.Run(
+		"Given an invalid scope when listing agents then it returns bad request",
+		func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+			svc := userapi.NewService(userapimocks.NewMockStore(t), fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+			_, _, err := svc.ListAgents(ctx, auth.RequestMetadata{}, "all")
+
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
 		},
 	)
 

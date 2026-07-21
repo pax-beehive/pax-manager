@@ -7,7 +7,11 @@ import (
 )
 
 func (s *Service) handleUserAgents(c context.Context, ctx *app.RequestContext) {
-	status, data, err := s.userapi.ListAgents(c, requestMetadata(ctx))
+	status, data, err := s.userapi.ListAgents(
+		c,
+		requestMetadata(ctx),
+		string(ctx.QueryArgs().Peek("scope")),
+	)
 	writeEndpointResult(ctx, status, data, err)
 }
 
