@@ -241,6 +241,7 @@ type Store interface {
 		req UpdateSessionRequest,
 	) (AgentSession, error)
 	UpsertAgentStatus(ctx context.Context, report AgentStatusReport) error
+	NextAgentACPRequestID(ctx context.Context, agentID string) (int64, error)
 	ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error)
 	GetAgent(ctx context.Context, principal UserPrincipal, agentID string) (Agent, error)
 	DeleteAgent(ctx context.Context, principal UserPrincipal, req DeleteAgentRequest) (Agent, error)

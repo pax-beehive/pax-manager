@@ -513,7 +513,10 @@ func (r *conversationRunner) requestOnce(
 	params map[string]any,
 	activity <-chan struct{},
 ) (conversationResponse, error) {
-	requestID := r.agentConn.nextManagerRequestID()
+	requestID, err := r.service.store.NextAgentACPRequestID(ctx, r.agentConn.agentID)
+	if err != nil {
+		return conversationResponse{}, err
+	}
 	payload, err := conversationRequestPayload(requestID, method, params)
 	if err != nil {
 		return conversationResponse{}, err
@@ -574,7 +577,10 @@ func (r *conversationRunner) send(
 	method string,
 	params map[string]any,
 ) (int64, <-chan []byte, func(), error) {
-	requestID := r.agentConn.nextManagerRequestID()
+	requestID, err := r.service.store.NextAgentACPRequestID(ctx, r.agentConn.agentID)
+	if err != nil {
+		return 0, nil, func() {}, err
+	}
 	payload, err := conversationRequestPayload(requestID, method, params)
 	if err != nil {
 		return 0, nil, func() {}, err

@@ -601,6 +601,23 @@ func (s *PostgresStore) RegisterAgent(
 	return scanAgent(row)
 }
 
+func (s *PostgresStore) NextAgentACPRequestID(
+	ctx context.Context,
+	agentID string,
+) (int64, error) {
+	var requestID int64
+	err := s.db.QueryRowContext(ctx, `
+		UPDATE agents
+		SET next_acp_request_id = next_acp_request_id + 1
+		WHERE agent_id = $1
+		RETURNING next_acp_request_id
+	`, agentID).Scan(&requestID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return requestID, err
+}
+
 func (s *PostgresStore) RegisterNode(
 	ctx context.Context,
 	owner User,
