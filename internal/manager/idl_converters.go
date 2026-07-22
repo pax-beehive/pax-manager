@@ -44,23 +44,28 @@ func sessionStatusInputs(inputs []*hzapi.SessionStatusInput) []SessionStatusInpu
 		if ts, ok := parseOptionalTime(input.GetLastMessageAt()); ok {
 			lastMessageAt = &ts
 		}
+		var lastUserMessageAt *time.Time
+		if ts, ok := parseOptionalTime(input.GetLastUserMessageAt()); ok {
+			lastUserMessageAt = &ts
+		}
 		out = append(out, SessionStatusInput{
-			SessionID:      input.GetSessionID(),
-			AgentType:      input.GetAgentType(),
-			NativeID:       input.GetNativeID(),
-			SessionName:    input.GetName(),
-			ProjectID:      input.GetProjectID(),
-			Preview:        input.GetPreview(),
-			WorkspaceRoots: input.GetWorkspaceRoots(),
-			Source:         input.GetSource(),
-			Status:         input.GetStatus(),
-			CurrentTask:    input.GetCurrentTask(),
-			LastMessageAt:  lastMessageAt,
-			MessageCount:   int(input.GetMessageCount()),
-			TokenUsage:     tokenUsage(input.GetTokenUsage()),
-			Model:          input.GetModel(),
-			RunID:          input.GetRunID(),
-			RunStatus:      input.GetRunStatus(),
+			SessionID:         input.GetSessionID(),
+			AgentType:         input.GetAgentType(),
+			NativeID:          input.GetNativeID(),
+			SessionName:       input.GetName(),
+			ProjectID:         input.GetProjectID(),
+			Preview:           input.GetPreview(),
+			WorkspaceRoots:    input.GetWorkspaceRoots(),
+			Source:            input.GetSource(),
+			Status:            input.GetStatus(),
+			CurrentTask:       input.GetCurrentTask(),
+			LastMessageAt:     lastMessageAt,
+			LastUserMessageAt: lastUserMessageAt,
+			MessageCount:      int(input.GetMessageCount()),
+			TokenUsage:        tokenUsage(input.GetTokenUsage()),
+			Model:             input.GetModel(),
+			RunID:             input.GetRunID(),
+			RunStatus:         input.GetRunStatus(),
 		})
 	}
 	return out

@@ -206,6 +206,7 @@ func scanSession(row rowScanner) (AgentSession, error) {
 		&session.Status,
 		&session.CurrentTask,
 		&session.LastMessageAt,
+		&session.LastUserMessageAt,
 		&session.MessageCount,
 		&session.TokenUsage.Input,
 		&session.TokenUsage.Output,

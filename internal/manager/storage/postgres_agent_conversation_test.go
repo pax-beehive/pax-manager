@@ -476,6 +476,7 @@ func postgresSessionValues(
 		"idle",
 		"",
 		nil,
+		nil,
 		int64(0),
 		int64(0),
 		int64(0),

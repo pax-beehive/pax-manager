@@ -300,6 +300,9 @@
           "last_message_at": {
             "type": "string"
           },
+          "last_user_message_at": {
+            "type": "string"
+          },
           "message_count": {
             "format": "int32",
             "type": "integer"
@@ -2609,6 +2612,9 @@
             "type": "string"
           },
           "last_message_at": {
+            "type": "string"
+          },
+          "last_user_message_at": {
             "type": "string"
           },
           "message_count": {

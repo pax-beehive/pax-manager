@@ -3069,22 +3069,23 @@ func (p *AgentStatusInput) String() string {
 }
 
 type SessionStatusInput struct {
-	SessionID      *string     `thrift:"session_id,1,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
-	AgentType      *string     `thrift:"agent_type,2,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
-	NativeID       *string     `thrift:"native_id,3,optional" form:"native_id" json:"native_id,omitempty" query:"native_id"`
-	Name           *string     `thrift:"name,4,optional" form:"name" json:"name,omitempty" query:"name"`
-	ProjectID      *string     `thrift:"project_id,5,optional" form:"project_id" json:"project_id,omitempty" query:"project_id"`
-	Preview        *string     `thrift:"preview,6,optional" form:"preview" json:"preview,omitempty" query:"preview"`
-	WorkspaceRoots []string    `thrift:"workspace_roots,7,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`
-	Source         *string     `thrift:"source,8,optional" form:"source" json:"source,omitempty" query:"source"`
-	Status         *string     `thrift:"status,9,optional" form:"status" json:"status,omitempty" query:"status"`
-	CurrentTask    *string     `thrift:"current_task,10,optional" form:"current_task" json:"current_task,omitempty" query:"current_task"`
-	LastMessageAt  *string     `thrift:"last_message_at,11,optional" form:"last_message_at" json:"last_message_at,omitempty" query:"last_message_at"`
-	MessageCount   *int32      `thrift:"message_count,12,optional" form:"message_count" json:"message_count,omitempty" query:"message_count"`
-	TokenUsage     *TokenUsage `thrift:"token_usage,13,optional" form:"token_usage" json:"token_usage,omitempty" query:"token_usage"`
-	Model          *string     `thrift:"model,14,optional" form:"model" json:"model,omitempty" query:"model"`
-	RunID          *string     `thrift:"run_id,15,optional" form:"run_id" json:"run_id,omitempty" query:"run_id"`
-	RunStatus      *string     `thrift:"run_status,16,optional" form:"run_status" json:"run_status,omitempty" query:"run_status"`
+	SessionID         *string     `thrift:"session_id,1,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
+	AgentType         *string     `thrift:"agent_type,2,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
+	NativeID          *string     `thrift:"native_id,3,optional" form:"native_id" json:"native_id,omitempty" query:"native_id"`
+	Name              *string     `thrift:"name,4,optional" form:"name" json:"name,omitempty" query:"name"`
+	ProjectID         *string     `thrift:"project_id,5,optional" form:"project_id" json:"project_id,omitempty" query:"project_id"`
+	Preview           *string     `thrift:"preview,6,optional" form:"preview" json:"preview,omitempty" query:"preview"`
+	WorkspaceRoots    []string    `thrift:"workspace_roots,7,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`
+	Source            *string     `thrift:"source,8,optional" form:"source" json:"source,omitempty" query:"source"`
+	Status            *string     `thrift:"status,9,optional" form:"status" json:"status,omitempty" query:"status"`
+	CurrentTask       *string     `thrift:"current_task,10,optional" form:"current_task" json:"current_task,omitempty" query:"current_task"`
+	LastMessageAt     *string     `thrift:"last_message_at,11,optional" form:"last_message_at" json:"last_message_at,omitempty" query:"last_message_at"`
+	MessageCount      *int32      `thrift:"message_count,12,optional" form:"message_count" json:"message_count,omitempty" query:"message_count"`
+	TokenUsage        *TokenUsage `thrift:"token_usage,13,optional" form:"token_usage" json:"token_usage,omitempty" query:"token_usage"`
+	Model             *string     `thrift:"model,14,optional" form:"model" json:"model,omitempty" query:"model"`
+	RunID             *string     `thrift:"run_id,15,optional" form:"run_id" json:"run_id,omitempty" query:"run_id"`
+	RunStatus         *string     `thrift:"run_status,16,optional" form:"run_status" json:"run_status,omitempty" query:"run_status"`
+	LastUserMessageAt *string     `thrift:"last_user_message_at,17,optional" form:"last_user_message_at" json:"last_user_message_at,omitempty" query:"last_user_message_at"`
 }
 
 func NewSessionStatusInput() *SessionStatusInput {
@@ -3238,6 +3239,15 @@ func (p *SessionStatusInput) GetRunStatus() (v string) {
 	return *p.RunStatus
 }
 
+var SessionStatusInput_LastUserMessageAt_DEFAULT string
+
+func (p *SessionStatusInput) GetLastUserMessageAt() (v string) {
+	if !p.IsSetLastUserMessageAt() {
+		return SessionStatusInput_LastUserMessageAt_DEFAULT
+	}
+	return *p.LastUserMessageAt
+}
+
 var fieldIDToName_SessionStatusInput = map[int16]string{
 	1:  "session_id",
 	2:  "agent_type",
@@ -3255,6 +3265,7 @@ var fieldIDToName_SessionStatusInput = map[int16]string{
 	14: "model",
 	15: "run_id",
 	16: "run_status",
+	17: "last_user_message_at",
 }
 
 func (p *SessionStatusInput) IsSetSessionID() bool {
@@ -3319,6 +3330,10 @@ func (p *SessionStatusInput) IsSetRunID() bool {
 
 func (p *SessionStatusInput) IsSetRunStatus() bool {
 	return p.RunStatus != nil
+}
+
+func (p *SessionStatusInput) IsSetLastUserMessageAt() bool {
+	return p.LastUserMessageAt != nil
 }
 
 func (p *SessionStatusInput) Read(iprot thrift.TProtocol) (err error) {
@@ -3463,6 +3478,14 @@ func (p *SessionStatusInput) Read(iprot thrift.TProtocol) (err error) {
 		case 16:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField16(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 17:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField17(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -3682,6 +3705,17 @@ func (p *SessionStatusInput) ReadField16(iprot thrift.TProtocol) error {
 	p.RunStatus = _field
 	return nil
 }
+func (p *SessionStatusInput) ReadField17(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.LastUserMessageAt = _field
+	return nil
+}
 
 func (p *SessionStatusInput) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -3751,6 +3785,10 @@ func (p *SessionStatusInput) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField16(oprot); err != nil {
 			fieldId = 16
+			goto WriteFieldError
+		}
+		if err = p.writeField17(oprot); err != nil {
+			fieldId = 17
 			goto WriteFieldError
 		}
 	}
@@ -4081,6 +4119,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 16 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 16 end error: ", p), err)
+}
+
+func (p *SessionStatusInput) writeField17(oprot thrift.TProtocol) (err error) {
+	if p.IsSetLastUserMessageAt() {
+		if err = oprot.WriteFieldBegin("last_user_message_at", thrift.STRING, 17); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.LastUserMessageAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 17 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 17 end error: ", p), err)
 }
 
 func (p *SessionStatusInput) String() string {
@@ -11655,28 +11712,29 @@ func (p *Agent) String() string {
 }
 
 type AgentSession struct {
-	ID             *int64            `thrift:"id,1,optional" form:"id" json:"id,omitempty" query:"id"`
-	NodeID         *string           `thrift:"node_id,2,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
-	AgentID        *string           `thrift:"agent_id,3,optional" form:"agent_id" json:"agent_id,omitempty" query:"agent_id"`
-	SessionID      *string           `thrift:"session_id,4,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
-	Name           *string           `thrift:"name,5,optional" form:"name" json:"name,omitempty" query:"name"`
-	AgentType      *string           `thrift:"agent_type,6,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
-	ProjectID      *string           `thrift:"project_id,8,optional" form:"project_id" json:"project_id,omitempty" query:"project_id"`
-	Preview        *string           `thrift:"preview,9,optional" form:"preview" json:"preview,omitempty" query:"preview"`
-	WorkspaceRoots []string          `thrift:"workspace_roots,10,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`
-	Source         *string           `thrift:"source,11,optional" form:"source" json:"source,omitempty" query:"source"`
-	Status         *string           `thrift:"status,12,optional" form:"status" json:"status,omitempty" query:"status"`
-	CurrentTask    *string           `thrift:"current_task,13,optional" form:"current_task" json:"current_task,omitempty" query:"current_task"`
-	LastMessageAt  *string           `thrift:"last_message_at,14,optional" form:"last_message_at" json:"last_message_at,omitempty" query:"last_message_at"`
-	MessageCount   *int32            `thrift:"message_count,15,optional" form:"message_count" json:"message_count,omitempty" query:"message_count"`
-	TokenUsage     *TokenUsage       `thrift:"token_usage,16,optional" form:"token_usage" json:"token_usage,omitempty" query:"token_usage"`
-	Model          *string           `thrift:"model,19,optional" form:"model" json:"model,omitempty" query:"model"`
-	RunID          *string           `thrift:"run_id,20,optional" form:"run_id" json:"run_id,omitempty" query:"run_id"`
-	RunStatus      *string           `thrift:"run_status,21,optional" form:"run_status" json:"run_status,omitempty" query:"run_status"`
-	CreatedAt      *string           `thrift:"created_at,22,optional" form:"created_at" json:"created_at,omitempty" query:"created_at"`
-	UpdatedAt      *string           `thrift:"updated_at,23,optional" form:"updated_at" json:"updated_at,omitempty" query:"updated_at"`
-	Metadata       JSON              `thrift:"metadata,24,optional" form:"metadata" json:"metadata,omitempty" query:"metadata"`
-	PaxConfig      *SessionPaxConfig `thrift:"pax_config,25,optional" form:"pax_config" json:"pax_config,omitempty" query:"pax_config"`
+	ID                *int64            `thrift:"id,1,optional" form:"id" json:"id,omitempty" query:"id"`
+	NodeID            *string           `thrift:"node_id,2,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
+	AgentID           *string           `thrift:"agent_id,3,optional" form:"agent_id" json:"agent_id,omitempty" query:"agent_id"`
+	SessionID         *string           `thrift:"session_id,4,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
+	Name              *string           `thrift:"name,5,optional" form:"name" json:"name,omitempty" query:"name"`
+	AgentType         *string           `thrift:"agent_type,6,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
+	ProjectID         *string           `thrift:"project_id,8,optional" form:"project_id" json:"project_id,omitempty" query:"project_id"`
+	Preview           *string           `thrift:"preview,9,optional" form:"preview" json:"preview,omitempty" query:"preview"`
+	WorkspaceRoots    []string          `thrift:"workspace_roots,10,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`
+	Source            *string           `thrift:"source,11,optional" form:"source" json:"source,omitempty" query:"source"`
+	Status            *string           `thrift:"status,12,optional" form:"status" json:"status,omitempty" query:"status"`
+	CurrentTask       *string           `thrift:"current_task,13,optional" form:"current_task" json:"current_task,omitempty" query:"current_task"`
+	LastMessageAt     *string           `thrift:"last_message_at,14,optional" form:"last_message_at" json:"last_message_at,omitempty" query:"last_message_at"`
+	MessageCount      *int32            `thrift:"message_count,15,optional" form:"message_count" json:"message_count,omitempty" query:"message_count"`
+	TokenUsage        *TokenUsage       `thrift:"token_usage,16,optional" form:"token_usage" json:"token_usage,omitempty" query:"token_usage"`
+	Model             *string           `thrift:"model,19,optional" form:"model" json:"model,omitempty" query:"model"`
+	RunID             *string           `thrift:"run_id,20,optional" form:"run_id" json:"run_id,omitempty" query:"run_id"`
+	RunStatus         *string           `thrift:"run_status,21,optional" form:"run_status" json:"run_status,omitempty" query:"run_status"`
+	CreatedAt         *string           `thrift:"created_at,22,optional" form:"created_at" json:"created_at,omitempty" query:"created_at"`
+	UpdatedAt         *string           `thrift:"updated_at,23,optional" form:"updated_at" json:"updated_at,omitempty" query:"updated_at"`
+	Metadata          JSON              `thrift:"metadata,24,optional" form:"metadata" json:"metadata,omitempty" query:"metadata"`
+	PaxConfig         *SessionPaxConfig `thrift:"pax_config,25,optional" form:"pax_config" json:"pax_config,omitempty" query:"pax_config"`
+	LastUserMessageAt *string           `thrift:"last_user_message_at,26,optional" form:"last_user_message_at" json:"last_user_message_at,omitempty" query:"last_user_message_at"`
 }
 
 func NewAgentSession() *AgentSession {
@@ -11884,6 +11942,15 @@ func (p *AgentSession) GetPaxConfig() (v *SessionPaxConfig) {
 	return p.PaxConfig
 }
 
+var AgentSession_LastUserMessageAt_DEFAULT string
+
+func (p *AgentSession) GetLastUserMessageAt() (v string) {
+	if !p.IsSetLastUserMessageAt() {
+		return AgentSession_LastUserMessageAt_DEFAULT
+	}
+	return *p.LastUserMessageAt
+}
+
 var fieldIDToName_AgentSession = map[int16]string{
 	1:  "id",
 	2:  "node_id",
@@ -11907,6 +11974,7 @@ var fieldIDToName_AgentSession = map[int16]string{
 	23: "updated_at",
 	24: "metadata",
 	25: "pax_config",
+	26: "last_user_message_at",
 }
 
 func (p *AgentSession) IsSetID() bool {
@@ -11995,6 +12063,10 @@ func (p *AgentSession) IsSetMetadata() bool {
 
 func (p *AgentSession) IsSetPaxConfig() bool {
 	return p.PaxConfig != nil
+}
+
+func (p *AgentSession) IsSetLastUserMessageAt() bool {
+	return p.LastUserMessageAt != nil
 }
 
 func (p *AgentSession) Read(iprot thrift.TProtocol) (err error) {
@@ -12187,6 +12259,14 @@ func (p *AgentSession) Read(iprot thrift.TProtocol) (err error) {
 		case 25:
 			if fieldTypeId == thrift.STRUCT {
 				if err = p.ReadField25(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 26:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField26(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -12469,6 +12549,17 @@ func (p *AgentSession) ReadField25(iprot thrift.TProtocol) error {
 	p.PaxConfig = _field
 	return nil
 }
+func (p *AgentSession) ReadField26(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.LastUserMessageAt = _field
+	return nil
+}
 
 func (p *AgentSession) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -12562,6 +12653,10 @@ func (p *AgentSession) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField25(oprot); err != nil {
 			fieldId = 25
+			goto WriteFieldError
+		}
+		if err = p.writeField26(oprot); err != nil {
+			fieldId = 26
 			goto WriteFieldError
 		}
 	}
@@ -13006,6 +13101,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 25 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 25 end error: ", p), err)
+}
+
+func (p *AgentSession) writeField26(oprot thrift.TProtocol) (err error) {
+	if p.IsSetLastUserMessageAt() {
+		if err = oprot.WriteFieldBegin("last_user_message_at", thrift.STRING, 26); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.LastUserMessageAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 26 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 26 end error: ", p), err)
 }
 
 func (p *AgentSession) String() string {

@@ -1594,6 +1594,9 @@ func sortSessionsByActivity(sessions []AgentSession) {
 }
 
 func sessionActivityTime(session AgentSession) time.Time {
+	if session.LastUserMessageAt != nil {
+		return *session.LastUserMessageAt
+	}
 	if session.LastMessageAt != nil {
 		return *session.LastMessageAt
 	}
@@ -2480,6 +2483,7 @@ func (s *MemoryStore) upsertSessionLocked(
 	existing.Status = defaultSessionStatus(input.Status)
 	existing.CurrentTask = input.CurrentTask
 	existing.LastMessageAt = laterOptionalTime(existing.LastMessageAt, input.LastMessageAt)
+	existing.LastUserMessageAt = laterOptionalTime(existing.LastUserMessageAt, input.LastUserMessageAt)
 	existing.MessageCount = input.MessageCount
 	existing.TokenUsage = input.TokenUsage
 	existing.TokenInput = input.TokenUsage.Input

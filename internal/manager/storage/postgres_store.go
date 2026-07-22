@@ -1808,7 +1808,7 @@ func (s *PostgresStore) ListAgentSessions(
 		OR ` + teamAgentAccessSQL("a.agent_id", "$2") + `
 	)`
 	args := []any{agentID, principal.User.UserID}
-	query += ` ORDER BY COALESCE(agent_sessions.last_message_at, agent_sessions.updated_at) DESC, agent_sessions.updated_at DESC`
+	query += ` ORDER BY COALESCE(agent_sessions.last_user_message_at, agent_sessions.last_message_at, agent_sessions.updated_at) DESC, agent_sessions.updated_at DESC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -1867,7 +1867,7 @@ func (s *PostgresStore) ListSessions(
 	query := sessionSelectSQL + `
 		JOIN agents a ON a.agent_id = agent_sessions.agent_id
 	` + where + `
-		ORDER BY COALESCE(agent_sessions.last_message_at, agent_sessions.updated_at) DESC,
+		ORDER BY COALESCE(agent_sessions.last_user_message_at, agent_sessions.last_message_at, agent_sessions.updated_at) DESC,
 			agent_sessions.updated_at DESC
 		LIMIT $` + strconv.Itoa(len(args)-1) + ` OFFSET $` + strconv.Itoa(len(args))
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -2750,7 +2750,7 @@ const sessionSelectSQL = `
 		COALESCE(session_name, ''), COALESCE(agent_sessions.agent_type, ''),
 		COALESCE(native_id, ''), COALESCE(project_id, ''), COALESCE(preview, ''),
 		COALESCE(workspace_roots, '[]'::jsonb), COALESCE(source, ''), agent_sessions.status,
-		COALESCE(current_task, ''), last_message_at, message_count, token_input,
+		COALESCE(current_task, ''), last_message_at, last_user_message_at, message_count, token_input,
 		token_output, token_total, cache_read_tokens, cache_write_tokens, cache_creation_tokens,
 		reasoning_tokens, estimated_cost_usd, actual_cost_usd, cost_usd, COALESCE(model, ''), COALESCE(run_id, ''),
 		COALESCE(run_status, ''), agent_sessions.created_at, agent_sessions.updated_at,
@@ -3071,12 +3071,12 @@ func upsertSessionTx(
 		`
 		INSERT INTO agent_sessions (
 			node_id, agent_id, session_id, session_name, agent_type, native_id, project_id, preview,
-			workspace_roots, source, status, current_task, last_message_at, message_count,
+			workspace_roots, source, status, current_task, last_message_at, last_user_message_at, message_count,
 			token_input, token_output, token_total, cache_read_tokens, cache_write_tokens,
 			cache_creation_tokens, reasoning_tokens, estimated_cost_usd, actual_cost_usd, cost_usd,
 			model, run_id, run_status, created_at, updated_at
 		)
-		VALUES (NULLIF($1,''),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$28)
+		VALUES (NULLIF($1,''),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$29)
 		ON CONFLICT (agent_id, session_id) DO UPDATE SET
 			node_id = COALESCE(EXCLUDED.node_id, agent_sessions.node_id),
 			session_name = COALESCE(NULLIF(EXCLUDED.session_name, ''), agent_sessions.session_name),
@@ -3089,6 +3089,7 @@ func upsertSessionTx(
 			status = EXCLUDED.status,
 			current_task = EXCLUDED.current_task,
 			last_message_at = GREATEST(agent_sessions.last_message_at, EXCLUDED.last_message_at),
+			last_user_message_at = GREATEST(agent_sessions.last_user_message_at, EXCLUDED.last_user_message_at),
 			message_count = EXCLUDED.message_count,
 			token_input = EXCLUDED.token_input,
 			token_output = EXCLUDED.token_output,
@@ -3118,6 +3119,7 @@ func upsertSessionTx(
 		defaultSessionStatus(input.Status),
 		input.CurrentTask,
 		input.LastMessageAt,
+		input.LastUserMessageAt,
 		input.MessageCount,
 		input.TokenUsage.Input,
 		input.TokenUsage.Output,

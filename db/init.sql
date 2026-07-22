@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     status TEXT NOT NULL DEFAULT 'idle',
     current_task TEXT,
     last_message_at TIMESTAMPTZ,
+    last_user_message_at TIMESTAMPTZ,
     message_count INTEGER NOT NULL DEFAULT 0,
     token_input BIGINT NOT NULL DEFAULT 0,
     token_output BIGINT NOT NULL DEFAULT 0,
@@ -128,6 +129,7 @@ ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS workspace_roots JSONB NOT NU
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS source TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS current_task TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS last_user_message_at TIMESTAMPTZ;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS message_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS token_input BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS token_output BIGINT NOT NULL DEFAULT 0;

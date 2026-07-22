@@ -86,6 +86,7 @@ struct SessionStatusInput {
   14: optional string model
   15: optional string run_id
   16: optional string run_status
+  17: optional string last_user_message_at
 }
 
 struct RegisterAgentRequest {
@@ -270,6 +271,7 @@ struct AgentSession {
   23: optional string updated_at
   24: optional JSON metadata
   25: optional SessionPaxConfig pax_config
+  26: optional string last_user_message_at
 }
 
 struct SessionPaxConfig {
