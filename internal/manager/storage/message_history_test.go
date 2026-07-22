@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMemoryMessageHistoryAppendsTextDeltas(t *testing.T) {
@@ -44,6 +46,61 @@ func TestMemoryMessageHistoryAppendsTextDeltas(t *testing.T) {
 	if len(store.messageParts) != 1 {
 		t.Fatalf("message parts = %d, want 1", len(store.messageParts))
 	}
+}
+
+func TestUserPromptMessageAdvancesSessionOrderingTimestamp(t *testing.T) {
+	ctx := context.Background()
+	store, node, agent := sessionReportStoreFixture(t, ctx)
+	promptAt := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+		SessionID: "codex:prompt-native", NativeID: "prompt-native",
+	}}))
+	sessions, err := store.ListAgentSessions(ctx, UserPrincipal{User: User{UserID: node.OwnerUserID}}, agent.AgentID)
+	require.NoError(t, err)
+	managerSessionID := ""
+	for i := range sessions {
+		if sessions[i].NativeID == "prompt-native" {
+			managerSessionID = sessions[i].SessionID
+			break
+		}
+	}
+	require.NotEmpty(t, managerSessionID)
+	message := Message{
+		MessageID: "msg_prompt", AgentID: agent.AgentID, SessionID: managerSessionID,
+		Source: domain.MessageSourceACPTunnel, Direction: domain.MessageDirectionUserToAgent,
+		Role: "user", CreatedAt: promptAt,
+	}
+	require.NoError(t, store.UpsertMessage(ctx, &message))
+
+	sessions, err = store.ListAgentSessions(ctx, UserPrincipal{User: User{UserID: node.OwnerUserID}}, agent.AgentID)
+	require.NoError(t, err)
+	var found *AgentSession
+	for i := range sessions {
+		if sessions[i].SessionID == managerSessionID {
+			found = &sessions[i]
+			break
+		}
+	}
+	require.NotNil(t, found)
+	require.NotNil(t, found.LastUserMessageAt)
+	assert.Equal(t, promptAt, *found.LastUserMessageAt)
+}
+
+func TestPostgresUserPromptUpsertTouchesSessionInSameStatement(t *testing.T) {
+	now := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
+	script := &scriptedPostgresScript{queries: []scriptedRows{scriptedRow(scriptedMessageHistoryRow(1, "msg_prompt", now)...)}}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+	message := Message{
+		MessageID: "msg_prompt", ConversationID: "conv_1", AgentID: "agent_1", SessionID: "sess_1",
+		Source: domain.MessageSourceACPTunnel, Direction: domain.MessageDirectionUserToAgent,
+		Role: "user", CreatedAt: now,
+	}
+
+	require.NoError(t, store.UpsertMessage(context.Background(), &message))
+	require.Len(t, script.queryTexts, 1)
+	assert.Contains(t, script.queryTexts[0], "last_user_message_at")
+	assert.Contains(t, script.queryTexts[0], "UPDATE agent_sessions")
 }
 
 func TestMemoryMailboxWritesMessageHistory(t *testing.T) {

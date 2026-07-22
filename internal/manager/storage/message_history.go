@@ -24,6 +24,7 @@ func (s *PostgresStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	}
 	msg.UpdatedAt = now
 	row := s.db.QueryRowContext(ctx, `
+		WITH upserted AS (
 		INSERT INTO messages (
 			message_id, conversation_id, owner_user_id, node_id, agent_id, session_id, source, direction,
 			role, status, message_type, parent_message_id, turn_id, response_id,
@@ -47,7 +48,21 @@ func (s *PostgresStore) UpsertMessage(ctx context.Context, msg *Message) error {
 			response_id = COALESCE(EXCLUDED.response_id, messages.response_id),
 			raw_json = COALESCE(EXCLUDED.raw_json, messages.raw_json),
 			updated_at = EXCLUDED.updated_at
-		RETURNING `+messageReturningSQL+`
+		RETURNING *
+		), touched_session AS (
+			UPDATE agent_sessions
+			SET last_user_message_at = GREATEST(
+				agent_sessions.last_user_message_at,
+				upserted.created_at
+			)
+			FROM upserted
+			WHERE agent_sessions.agent_id = upserted.agent_id
+				AND agent_sessions.session_id = upserted.session_id
+				AND upserted.direction = $8
+				AND upserted.role = 'user'
+			RETURNING agent_sessions.id
+		)
+		SELECT `+messageReturningSQL+` FROM upserted
 	`, msg.MessageID, msg.ConversationID, msg.OwnerUserID, msg.NodeID, msg.AgentID, msg.SessionID, msg.Source,
 		msg.Direction, msg.Role, msg.Status, msg.MessageType, msg.ParentMessageID, msg.TurnID,
 		msg.ResponseID, msg.LogicalKey, nullRaw(msg.RawJSON), msg.CreatedAt, msg.UpdatedAt)
@@ -380,6 +395,13 @@ func (s *MemoryStore) UpsertMessage(ctx context.Context, msg *Message) error {
 		msg.CreatedAt = existing.CreatedAt
 	}
 	s.messages[msg.MessageID] = cloneMessage(*msg)
+	if msg.Direction == domain.MessageDirectionUserToAgent && msg.Role == "user" {
+		key := sessionKey(msg.AgentID, msg.SessionID)
+		if session, ok := s.sessions[key]; ok {
+			session.LastUserMessageAt = laterOptionalTime(session.LastUserMessageAt, &msg.CreatedAt)
+			s.sessions[key] = session
+		}
+	}
 	return nil
 }
 
