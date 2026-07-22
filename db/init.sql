@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS agents (
     api_endpoint TEXT NOT NULL DEFAULT 'http://localhost:8642',
     api_key_hash TEXT UNIQUE NOT NULL,
     status TEXT NOT NULL DEFAULT 'offline',
+    next_acp_request_id BIGINT NOT NULL DEFAULT 0,
     last_heartbeat TIMESTAMPTZ,
     registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     user_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -82,6 +83,7 @@ ALTER TABLE agents ADD COLUMN IF NOT EXISTS hermes_version TEXT NOT NULL DEFAULT
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS api_endpoint TEXT NOT NULL DEFAULT 'http://localhost:8642';
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS user_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS metadata JSONB;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS next_acp_request_id BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS deleted_by_user_id TEXT REFERENCES users(user_id);
 
@@ -274,6 +276,23 @@ CREATE INDEX IF NOT EXISTS idx_messages_agent_session_id ON messages(agent_id, s
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at, id)
     WHERE conversation_id IS NOT NULL AND conversation_id <> '';
 CREATE INDEX IF NOT EXISTS idx_message_parts_message ON message_parts(message_id, part_index);
+
+-- Existing agents may already have manager-generated ACP request IDs recorded
+-- in prompt history. Start above that high-water mark so the first request
+-- after deployment cannot overwrite an older prompt.
+UPDATE agents AS agent
+SET next_acp_request_id = prompt_ids.max_request_id
+FROM (
+    SELECT
+        agent_id,
+        MAX((raw_json ->> 'id')::BIGINT) AS max_request_id
+    FROM messages
+    WHERE message_type IN ('user_message', 'pax:user_message')
+      AND raw_json ->> 'id' ~ '^[0-9]+$'
+    GROUP BY agent_id
+) AS prompt_ids
+WHERE agent.agent_id = prompt_ids.agent_id
+  AND agent.next_acp_request_id < prompt_ids.max_request_id;
 
 CREATE TABLE IF NOT EXISTS message_offsets (
     agent_id TEXT PRIMARY KEY REFERENCES agents(agent_id) ON DELETE CASCADE,

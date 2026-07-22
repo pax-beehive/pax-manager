@@ -20,6 +20,7 @@ type MemoryStore struct {
 	nextSession                  int64
 	nodes                        map[string]Node
 	agents                       map[string]Agent
+	nextAgentACPRequestIDs       map[string]int64
 	apiKeys                      map[string]string
 	nodeAPIKeys                  map[string]string
 	users                        map[string]User
@@ -77,6 +78,7 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		now:                          now,
 		nodes:                        make(map[string]Node),
 		agents:                       make(map[string]Agent),
+		nextAgentACPRequestIDs:       make(map[string]int64),
 		apiKeys:                      make(map[string]string),
 		nodeAPIKeys:                  make(map[string]string),
 		users:                        make(map[string]User),
@@ -643,6 +645,19 @@ func (s *MemoryStore) RegisterAgent(
 	s.apiKeys[apiKeyHash] = agentID
 	s.nodeAPIKeys[apiKeyHash] = nodeID
 	return agent, nil
+}
+
+func (s *MemoryStore) NextAgentACPRequestID(
+	ctx context.Context,
+	agentID string,
+) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.agents[agentID]; !ok {
+		return 0, ErrNotFound
+	}
+	s.nextAgentACPRequestIDs[agentID]++
+	return s.nextAgentACPRequestIDs[agentID], nil
 }
 
 func (s *MemoryStore) RegisterNode(

@@ -58,7 +58,6 @@ type ACPTunnelAgent struct {
 	reliableEngine    *reliablemq.Engine
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
-	managerRequestSeq int64
 	internalRollout   bool
 	live              *acpTunnelLiveState
 }
@@ -73,7 +72,6 @@ type acpTunnelLiveState struct {
 	projectedHistoryMessages map[string]struct{}
 	historyTextBatcher       *acpHistoryTextBatcher
 	pendingSessionNew        acpPendingSessionNews
-	managerRequestSeq        int64
 }
 
 func (a *ACPTunnelAgent) liveState() *acpTunnelLiveState {
@@ -94,7 +92,6 @@ func (a *ACPTunnelAgent) liveState() *acpTunnelLiveState {
 			sessionMux:        mux,
 			historyGroups:     a.historyGroups,
 			pendingSessionNew: a.pendingSessionNew,
-			managerRequestSeq: a.managerRequestSeq,
 		}
 	}
 	return a.live
@@ -123,7 +120,6 @@ func (a *ACPTunnelAgent) setLiveState(state *acpTunnelLiveState) {
 	a.sessionMux = state.sessionMux
 	a.historyGroups = state.historyGroups
 	a.pendingSessionNew = state.pendingSessionNew
-	a.managerRequestSeq = state.managerRequestSeq
 	state.mu.Unlock()
 	a.mu.Unlock()
 }
@@ -714,14 +710,6 @@ func (a *ACPTunnelAgent) takeSessionNew(requestID string) (string, bool) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 	return state.pendingSessionNew.take(requestID)
-}
-
-func (a *ACPTunnelAgent) nextManagerRequestID() int64 {
-	state := a.liveState()
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	state.managerRequestSeq++
-	return state.managerRequestSeq
 }
 
 // Tunnel reliability is a small durable outbox/inbox layered over WebSocket:
