@@ -141,6 +141,27 @@ func TestPostgresStoreUpsertAgentSessions(t *testing.T) {
 			assert.Contains(t, script.execTexts[0], "GREATEST(agent_sessions.last_message_at, EXCLUDED.last_message_at)")
 		},
 	)
+
+	t.Run(
+		"Given user prompt activity is reported then the upsert keeps the newest timestamp",
+		func(t *testing.T) {
+			script := &scriptedPostgresScript{queries: []scriptedRows{
+				{columns: []string{"exists"}, values: [][]driver.Value{{true}}},
+				{columns: []string{"session_id"}},
+			}}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+			activity := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
+
+			err := store.UpsertAgentSessions(context.Background(), Node{NodeID: "node_1"}, "agent_1", []SessionStatusInput{{
+				SessionID: "codex:abc", LastUserMessageAt: &activity,
+			}})
+
+			require.NoError(t, err)
+			require.Len(t, script.execTexts, 1)
+			assert.Contains(t, script.execTexts[0], "GREATEST(agent_sessions.last_user_message_at, EXCLUDED.last_user_message_at)")
+		},
+	)
 }
 
 func TestPostgresStoreUpsertAgentStatus(t *testing.T) {

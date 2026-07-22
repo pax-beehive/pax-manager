@@ -193,6 +193,39 @@ func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 	)
 
 	t.Run(
+		"Given user prompt times are reported then ordering is stable by the latest prompt",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store, node, agent := sessionReportStoreFixture(t, ctx)
+			latestPrompt := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
+			olderPrompt := latestPrompt.Add(-time.Hour)
+			laterAssistantMessage := latestPrompt.Add(time.Hour)
+
+			require.NoError(t, store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{
+				{SessionID: "codex:latest-prompt", NativeID: "latest-prompt", LastUserMessageAt: &latestPrompt},
+				{SessionID: "codex:later-output", NativeID: "later-output", LastUserMessageAt: &olderPrompt, LastMessageAt: &laterAssistantMessage},
+			}))
+
+			sessions, err := store.ListAgentSessions(ctx, UserPrincipal{User: User{UserID: node.OwnerUserID}}, agent.AgentID)
+			require.NoError(t, err)
+			var latestIndex, outputIndex = -1, -1
+			for i := range sessions {
+				switch sessions[i].NativeID {
+				case "latest-prompt":
+					latestIndex = i
+					require.NotNil(t, sessions[i].LastUserMessageAt)
+					assert.Equal(t, latestPrompt, *sessions[i].LastUserMessageAt)
+				case "later-output":
+					outputIndex = i
+				}
+			}
+			require.NotEqual(t, -1, latestIndex)
+			require.NotEqual(t, -1, outputIndex)
+			assert.Less(t, latestIndex, outputIndex)
+		},
+	)
+
+	t.Run(
 		"Given older or empty activity is reported then the newest activity is preserved",
 		func(t *testing.T) {
 			ctx := context.Background()
@@ -218,6 +251,26 @@ func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 			require.Len(t, sessions, 1)
 			require.NotNil(t, sessions[0].LastMessageAt)
 			assert.Equal(t, newerActivity, *sessions[0].LastMessageAt)
+		},
+	)
+
+	t.Run(
+		"Given older user prompt time is reported then the newest prompt is preserved",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store, node, agent := sessionReportStoreFixture(t, ctx)
+			newer := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
+			older := newer.Add(-time.Hour)
+			for _, promptAt := range []*time.Time{&newer, &older, nil} {
+				require.NoError(t, store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+					SessionID: "codex:prompt", LastUserMessageAt: promptAt,
+				}}))
+			}
+			sessions, err := store.ListAgentSessions(ctx, UserPrincipal{User: User{UserID: node.OwnerUserID}}, agent.AgentID)
+			require.NoError(t, err)
+			require.Len(t, sessions, 1)
+			require.NotNil(t, sessions[0].LastUserMessageAt)
+			assert.Equal(t, newer, *sessions[0].LastUserMessageAt)
 		},
 	)
 

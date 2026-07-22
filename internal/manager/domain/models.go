@@ -87,6 +87,7 @@ type AgentSession struct {
 	Status                string               `json:"status"`
 	CurrentTask           string               `json:"current_task,omitempty"`
 	LastMessageAt         *time.Time           `json:"last_message_at,omitempty"`
+	LastUserMessageAt     *time.Time           `json:"last_user_message_at,omitempty"`
 	MessageCount          int                  `json:"message_count"`
 	TokenInput            int64                `json:"token_input"`
 	TokenOutput           int64                `json:"token_output"`
@@ -1437,22 +1438,23 @@ type AgentStatusInput struct {
 }
 
 type SessionStatusInput struct {
-	SessionID      string     `json:"session_id"`
-	AgentType      string     `json:"agent_type"`
-	NativeID       string     `json:"native_id"`
-	SessionName    string     `json:"name"`
-	ProjectID      string     `json:"project_id"`
-	Preview        string     `json:"preview"`
-	WorkspaceRoots []string   `json:"workspace_roots"`
-	Source         string     `json:"source"`
-	Status         string     `json:"status"`
-	CurrentTask    string     `json:"current_task"`
-	LastMessageAt  *time.Time `json:"last_message_at"`
-	MessageCount   int        `json:"message_count"`
-	TokenUsage     TokenUsage `json:"token_usage"`
-	Model          string     `json:"model"`
-	RunID          string     `json:"run_id"`
-	RunStatus      string     `json:"run_status"`
+	SessionID         string     `json:"session_id"`
+	AgentType         string     `json:"agent_type"`
+	NativeID          string     `json:"native_id"`
+	SessionName       string     `json:"name"`
+	ProjectID         string     `json:"project_id"`
+	Preview           string     `json:"preview"`
+	WorkspaceRoots    []string   `json:"workspace_roots"`
+	Source            string     `json:"source"`
+	Status            string     `json:"status"`
+	CurrentTask       string     `json:"current_task"`
+	LastMessageAt     *time.Time `json:"last_message_at"`
+	LastUserMessageAt *time.Time `json:"last_user_message_at"`
+	MessageCount      int        `json:"message_count"`
+	TokenUsage        TokenUsage `json:"token_usage"`
+	Model             string     `json:"model"`
+	RunID             string     `json:"run_id"`
+	RunStatus         string     `json:"run_status"`
 }
 
 type TokenUsage struct {

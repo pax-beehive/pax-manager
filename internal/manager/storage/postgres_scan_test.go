@@ -292,6 +292,7 @@ func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 		"running",
 		"test task",
 		&lastMessageAt,
+		nil,
 		3,
 		int64(10),
 		int64(20),
