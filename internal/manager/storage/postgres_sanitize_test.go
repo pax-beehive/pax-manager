@@ -151,7 +151,10 @@ func TestPostgresSaveInboundReturnsSanitizedStoredFrame(t *testing.T) {
 	)
 	script := &scriptedPostgresScript{
 		queries: []scriptedRows{
-			{columns: []string{"inbound_applied_through"}, values: [][]driver.Value{{int64(0)}}},
+			{
+				columns: []string{"inbound_acked_through", "inbound_applied_through"},
+				values:  [][]driver.Value{{int64(0), int64(0)}},
+			},
 			{
 				columns: reliableFrameTestColumns(),
 				values: [][]driver.Value{reliableFrameTestRow(
@@ -162,6 +165,7 @@ func TestPostgresSaveInboundReturnsSanitizedStoredFrame(t *testing.T) {
 					reliablemq.StatusReceived,
 				)},
 			},
+			{columns: []string{"seq"}, values: [][]driver.Value{{int64(1)}}},
 		},
 	}
 	store, cleanup := scriptedPostgresStore(t, script)
@@ -183,7 +187,7 @@ func TestPostgresSaveInboundReturnsSanitizedStoredFrame(t *testing.T) {
 	assert.True(t, inserted)
 	assert.JSONEq(t, string(sanitizedPayload), string(stored.Payload))
 	assert.Equal(t, "true", stored.Metadata[reliableMetadataPayloadSanitized])
-	require.Len(t, script.execArgs, 2)
+	require.Len(t, script.execArgs, 3)
 	assert.JSONEq(t, string(sanitizedPayload), string(script.execArgs[1][6].Value.([]byte)))
 }
 

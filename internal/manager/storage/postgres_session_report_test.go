@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,15 +24,16 @@ var (
 )
 
 type scriptedPostgresScript struct {
-	queries     []scriptedRows
-	queryTexts  []string
-	queryArgs   [][]driver.NamedValue
-	execResults []int64
-	execTexts   []string
-	execArgs    [][]driver.NamedValue
-	execCount   int
-	committed   bool
-	rolled      bool
+	queries                 []scriptedRows
+	queryTexts              []string
+	queryArgs               [][]driver.NamedValue
+	queueStateInsertResults []int64
+	execResults             []int64
+	execTexts               []string
+	execArgs                [][]driver.NamedValue
+	execCount               int
+	committed               bool
+	rolled                  bool
 }
 
 type scriptedRows struct {
@@ -277,6 +279,14 @@ func (c *scriptedPostgresConn) ExecContext(
 	c.script.execCount++
 	c.script.execTexts = append(c.script.execTexts, query)
 	c.script.execArgs = append(c.script.execArgs, append([]driver.NamedValue(nil), args...))
+	if strings.Contains(query, "INSERT INTO transport_queue_state") {
+		if len(c.script.queueStateInsertResults) == 0 {
+			return driver.RowsAffected(0), nil
+		}
+		affected := c.script.queueStateInsertResults[0]
+		c.script.queueStateInsertResults = c.script.queueStateInsertResults[1:]
+		return driver.RowsAffected(affected), nil
+	}
 	if len(c.script.execResults) == 0 {
 		return driver.RowsAffected(1), nil
 	}

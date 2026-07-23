@@ -73,6 +73,16 @@ func (s *MemoryStore) SaveInboundIfAbsent(
 	defer s.mu.Unlock()
 	applied := s.inboundAppliedThroughLocked(frame.Key.QueueID, frame.Key.Stream)
 	if frame.Key.Seq <= applied {
+		stateKey := transportQueueStateKey{
+			QueueID: frame.Key.QueueID,
+			Stream:  string(frame.Key.Stream),
+		}
+		state := s.transportQueueState[stateKey]
+		if frame.Key.Seq == state.InboundAckedThrough+1 {
+			state.InboundAckedThrough = frame.Key.Seq
+			s.transportQueueState[stateKey] = state
+			s.advanceInboundAckedThroughLocked(frame.Key.QueueID, frame.Key.Stream)
+		}
 		frame = frame.Clone()
 		frame.Status = reliablemq.StatusApplied
 		return false, frame, nil
@@ -91,6 +101,7 @@ func (s *MemoryStore) SaveInboundIfAbsent(
 	compat.ID = s.nextTransportID
 	compat.ReceivedAt = &now
 	s.transportJournal[key] = compat
+	s.advanceInboundAckedThroughLocked(frame.Key.QueueID, frame.Key.Stream)
 	return true, frame, nil
 }
 
@@ -146,6 +157,7 @@ func (s *MemoryStore) LoadQueueState(
 	}
 	return reliablemq.QueueState{
 		NextOutboundSeq:       state.NextOutboundSeq,
+		InboundAckedThrough:   state.InboundAckedThrough,
 		InboundAppliedThrough: state.InboundAppliedThrough,
 	}, nil
 }
@@ -158,22 +170,8 @@ func (s *MemoryStore) ConsumerAckedThrough(
 	_ = ctx
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var through int64
-	next := int64(1)
-	for {
-		frame, ok := s.transportJournal[transportFrameKey{
-			QueueID:   queueID,
-			Stream:    string(stream),
-			Seq:       next,
-			Direction: string(reliablemq.DirectionInbound),
-		}]
-		if !ok || !isReliableConsumerAckedStatus(frame.Status) {
-			break
-		}
-		through = next
-		next++
-	}
-	return through, nil
+	key := transportQueueStateKey{QueueID: queueID, Stream: string(stream)}
+	return s.transportQueueState[key].InboundAckedThrough, nil
 }
 
 func (s *MemoryStore) ApplyBatch(ctx context.Context, batch reliablemq.StoreBatch) error {
@@ -625,6 +623,10 @@ func (s *MemoryStore) applyReliableBatchFrame(frame reliablemq.Frame) error {
 	setTransportStatusTimestamp(&compat, compat.Status, frame.UpdatedAt)
 	s.transportJournal[key] = cloneTransportFrame(compat)
 	if frame.Key.Direction == reliablemq.DirectionInbound &&
+		isReliableConsumerAckedStatus(string(frame.Status)) {
+		s.advanceInboundAckedThroughLocked(frame.Key.QueueID, frame.Key.Stream)
+	}
+	if frame.Key.Direction == reliablemq.DirectionInbound &&
 		frame.Status == reliablemq.StatusApplied {
 		s.updateInboundAppliedThroughLocked(frame.Key.QueueID, frame.Key.Stream, frame.Key.Seq, now)
 	}
@@ -758,6 +760,33 @@ func (s *MemoryStore) updateInboundAppliedThroughLocked(
 	s.transportQueueState[key] = state
 }
 
+func (s *MemoryStore) advanceInboundAckedThroughLocked(
+	queueID string,
+	stream reliablemq.Stream,
+) {
+	key := transportQueueStateKey{QueueID: queueID, Stream: string(stream)}
+	state := s.transportQueueState[key]
+	if state.CreatedAt.IsZero() {
+		state.CreatedAt = s.now().UTC()
+	}
+	next := state.InboundAckedThrough + 1
+	for {
+		frame, ok := s.transportJournal[transportFrameKey{
+			QueueID:   queueID,
+			Stream:    string(stream),
+			Seq:       next,
+			Direction: string(reliablemq.DirectionInbound),
+		}]
+		if !ok || !isReliableConsumerAckedStatus(frame.Status) {
+			break
+		}
+		state.InboundAckedThrough = next
+		next++
+	}
+	state.UpdatedAt = s.now().UTC()
+	s.transportQueueState[key] = state
+}
+
 type transportQueueStateKey struct {
 	QueueID string
 	Stream  string
@@ -765,6 +794,7 @@ type transportQueueStateKey struct {
 
 type transportQueueState struct {
 	NextOutboundSeq       int64
+	InboundAckedThrough   int64
 	InboundAppliedThrough int64
 	CreatedAt             time.Time
 	UpdatedAt             time.Time

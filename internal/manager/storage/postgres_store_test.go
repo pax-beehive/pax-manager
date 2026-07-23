@@ -60,6 +60,19 @@ func TestPostgresSchemaGivenLegacyDuplicateActiveInvocationsThenExpiresOlderRows
 	assert.Contains(t, sql, "AND target_session_id <> ''")
 }
 
+func TestPostgresSchemaPersistsAndBackfillsInboundConsumerACKWatermark(t *testing.T) {
+	initSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "init.sql"))
+	require.NoError(t, err)
+
+	sql := string(initSQL)
+	assert.Contains(t, sql, "inbound_acked_through BIGINT NOT NULL DEFAULT 0")
+	assert.Contains(t, sql, "ADD COLUMN IF NOT EXISTS inbound_acked_through")
+	assert.Contains(t, sql, "ROW_NUMBER() OVER")
+	assert.Contains(t, sql, "WHERE seq = ordinal")
+	assert.NotContains(t, sql, "journal.seq > candidate.inbound_applied_through")
+	assert.Contains(t, sql, "idx_transport_journal_inbound_ack")
+}
+
 func TestSecretVersionLookup(t *testing.T) {
 	secret := Secret{SecretID: "secret_1", CurrentVersionID: "version_current"}
 	cases := []struct {
