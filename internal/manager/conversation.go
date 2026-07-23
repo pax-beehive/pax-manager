@@ -22,7 +22,7 @@ const (
 	conversationTunnelClaimTick    = 50 * time.Millisecond
 )
 
-var conversationRequestIdleTimeout = 30 * time.Second
+var conversationRequestIdleTimeout = 5 * time.Minute
 
 type conversationRequest struct {
 	SessionID    string          `json:"session_id,omitempty"`
