@@ -366,15 +366,89 @@ CREATE TABLE IF NOT EXISTS transport_queue_state (
     queue_id TEXT NOT NULL,
     stream TEXT NOT NULL,
     next_outbound_seq BIGINT NOT NULL DEFAULT 1,
+    inbound_acked_through BIGINT NOT NULL DEFAULT 0,
     inbound_applied_through BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (queue_id, stream)
 );
 
+ALTER TABLE transport_queue_state
+    ADD COLUMN IF NOT EXISTS inbound_acked_through BIGINT NOT NULL DEFAULT 0;
+
+INSERT INTO transport_queue_state (
+    queue_id,
+    stream,
+    next_outbound_seq,
+    inbound_acked_through,
+    inbound_applied_through,
+    created_at,
+    updated_at
+)
+SELECT
+    queue_id,
+    stream,
+    COALESCE(MAX(seq) FILTER (WHERE direction = 'outbound'), 0) + 1,
+    0,
+    0,
+    MIN(created_at),
+    NOW()
+FROM transport_journal
+GROUP BY queue_id, stream
+ON CONFLICT (queue_id, stream) DO NOTHING;
+
+WITH queue_candidates AS (
+    SELECT queue_id, stream
+    FROM transport_queue_state
+    WHERE inbound_acked_through = 0
+),
+ranked_inbound AS (
+    SELECT
+        candidate.queue_id,
+        candidate.stream,
+        journal.seq,
+        ROW_NUMBER() OVER (
+            PARTITION BY candidate.queue_id, candidate.stream
+            ORDER BY journal.seq
+        ) AS ordinal
+    FROM queue_candidates AS candidate
+    LEFT JOIN transport_journal AS journal
+        ON journal.queue_id = candidate.queue_id
+        AND journal.stream = candidate.stream
+        AND journal.direction = 'inbound'
+        AND journal.status IN ('received', 'applied', 'rejected')
+),
+inbound_watermarks AS (
+    SELECT
+        queue_id,
+        stream,
+        COALESCE(
+            MAX(seq) FILTER (
+                WHERE seq = ordinal
+            ),
+            0
+        ) AS acked_through
+    FROM ranked_inbound
+    GROUP BY queue_id, stream
+)
+UPDATE transport_queue_state AS state
+SET
+    inbound_acked_through = GREATEST(
+        state.inbound_acked_through,
+        inbound_watermarks.acked_through
+    ),
+    updated_at = NOW()
+FROM inbound_watermarks
+WHERE state.queue_id = inbound_watermarks.queue_id
+    AND state.stream = inbound_watermarks.stream;
+
 DROP INDEX IF EXISTS idx_transport_journal_pending;
 CREATE INDEX IF NOT EXISTS idx_transport_journal_pending
     ON transport_journal(queue_id, stream, direction, status, seq);
+CREATE INDEX IF NOT EXISTS idx_transport_journal_inbound_ack
+    ON transport_journal(queue_id, stream, seq)
+    WHERE direction = 'inbound'
+        AND status IN ('received', 'applied', 'rejected');
 CREATE INDEX IF NOT EXISTS idx_transport_journal_cleanup
     ON transport_journal(status, updated_at);
 

@@ -2,11 +2,14 @@ package storage
 
 import (
 	"context"
+	"database/sql/driver"
 	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/pax-beehive/paxkit/reliablemq"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -409,6 +412,409 @@ func TestMemoryReliableTransportJournalInboundLifecycle(t *testing.T) {
 	if len(inboundReplay) != 0 {
 		t.Fatalf("applied inbound replay = %+v, want none", inboundReplay)
 	}
+}
+
+func TestMemoryReliableTransportJournalConsumerACKWatermarkAdvancesAcrossGap(t *testing.T) {
+	// Given
+	store := NewMemoryStore(time.Now)
+	ctx := context.Background()
+	save := func(seq int64) {
+		t.Helper()
+		inserted, _, err := store.SaveInboundIfAbsent(ctx, reliablemq.Frame{
+			Key: reliablemq.FrameKey{
+				QueueID:   "queue_1",
+				Stream:    reliablemq.StreamACP,
+				Seq:       seq,
+				Direction: reliablemq.DirectionInbound,
+			},
+			Kind:     reliablemq.FrameKindData,
+			Payload:  json.RawMessage(`{}`),
+			Metadata: reliablemq.Metadata{"agent_id": "agent_1"},
+		})
+		require.NoError(t, err)
+		assert.True(t, inserted)
+	}
+	save(1)
+	save(3)
+
+	// When
+	through, err := store.ConsumerAckedThrough(ctx, "queue_1", reliablemq.StreamACP)
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), through)
+
+	// When
+	save(2)
+
+	// Then
+	through, err = store.ConsumerAckedThrough(ctx, "queue_1", reliablemq.StreamACP)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), through)
+	state, err := store.LoadQueueState(ctx, "queue_1", reliablemq.StreamACP)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), state.InboundAckedThrough)
+}
+
+func TestMemoryInboundAppliedCursorDoesNotReplaceConsumerACKWatermark(t *testing.T) {
+	// Given
+	store := NewMemoryStore(time.Now)
+	ctx := context.Background()
+	inserted, frame, err := store.SaveInboundIfAbsent(ctx, reliablemq.Frame{
+		Key: reliablemq.FrameKey{
+			QueueID:   "queue_1",
+			Stream:    reliablemq.StreamACP,
+			Seq:       2,
+			Direction: reliablemq.DirectionInbound,
+		},
+		Kind:     reliablemq.FrameKindData,
+		Payload:  json.RawMessage(`{}`),
+		Metadata: reliablemq.Metadata{"agent_id": "agent_1"},
+	})
+	require.NoError(t, err)
+	require.True(t, inserted)
+
+	// When
+	require.NoError(t, store.MarkApplied(ctx, frame.Key))
+
+	// Then
+	state, err := store.LoadQueueState(ctx, "queue_1", reliablemq.StreamACP)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), state.InboundAppliedThrough)
+	assert.Zero(t, state.InboundAckedThrough)
+	through, err := store.ConsumerAckedThrough(ctx, "queue_1", reliablemq.StreamACP)
+	require.NoError(t, err)
+	assert.Zero(t, through)
+}
+
+func TestMemoryAppliedSweptRetriesRebuildConsumerACKWithoutSkippingGap(t *testing.T) {
+	// Given
+	store := NewMemoryStore(time.Now)
+	ctx := context.Background()
+	stateKey := transportQueueStateKey{
+		QueueID: "queue_1",
+		Stream:  string(reliablemq.StreamACP),
+	}
+	store.transportQueueState[stateKey] = transportQueueState{
+		NextOutboundSeq:       1,
+		InboundAppliedThrough: 2,
+	}
+	retry := func(seq int64) {
+		t.Helper()
+		inserted, stored, err := store.SaveInboundIfAbsent(ctx, reliablemq.Frame{
+			Key: reliablemq.FrameKey{
+				QueueID:   "queue_1",
+				Stream:    reliablemq.StreamACP,
+				Seq:       seq,
+				Direction: reliablemq.DirectionInbound,
+			},
+			Kind:     reliablemq.FrameKindData,
+			Payload:  json.RawMessage(`{}`),
+			Metadata: reliablemq.Metadata{"agent_id": "agent_1"},
+		})
+		require.NoError(t, err)
+		assert.False(t, inserted)
+		assert.Equal(t, reliablemq.StatusApplied, stored.Status)
+	}
+
+	// When an applied frame above the ACK gap is retried.
+	retry(2)
+
+	// Then the consumer ACK does not skip the missing frame.
+	through, err := store.ConsumerAckedThrough(ctx, "queue_1", reliablemq.StreamACP)
+	require.NoError(t, err)
+	assert.Zero(t, through)
+
+	// When the missing frame and then the higher frame are retried.
+	retry(1)
+	through, err = store.ConsumerAckedThrough(ctx, "queue_1", reliablemq.StreamACP)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), through)
+	retry(2)
+
+	// Then the watermark is rebuilt contiguously without recreating swept rows.
+	through, err = store.ConsumerAckedThrough(ctx, "queue_1", reliablemq.StreamACP)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), through)
+	assert.Empty(t, store.transportJournal)
+}
+
+func TestPostgresAppliedSweptRetryDoesNotSkipConsumerACKGap(t *testing.T) {
+	// Given
+	script := &scriptedPostgresScript{
+		queries: []scriptedRows{{
+			columns: []string{"inbound_acked_through", "inbound_applied_through"},
+			values:  [][]driver.Value{{int64(0), int64(2)}},
+		}},
+	}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+
+	// When
+	inserted, stored, err := store.SaveInboundIfAbsent(
+		context.Background(),
+		reliablemq.Frame{
+			Key: reliablemq.FrameKey{
+				QueueID:   "queue_1",
+				Stream:    reliablemq.StreamACP,
+				Seq:       2,
+				Direction: reliablemq.DirectionInbound,
+			},
+			Kind:     reliablemq.FrameKindData,
+			Payload:  json.RawMessage(`{}`),
+			Metadata: reliablemq.Metadata{"agent_id": "agent_1"},
+		},
+	)
+
+	// Then
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	assert.Equal(t, reliablemq.StatusApplied, stored.Status)
+	assert.True(t, script.committed)
+	require.Len(t, script.queryTexts, 1)
+	assert.Contains(t, script.queryTexts[0], "FOR UPDATE")
+	assert.Equal(t, 1, script.execCount)
+}
+
+func TestPostgresAppliedSweptRetryAdvancesOnlyNextConsumerACK(t *testing.T) {
+	// Given
+	script := &scriptedPostgresScript{
+		queries: []scriptedRows{
+			{
+				columns: []string{"inbound_acked_through", "inbound_applied_through"},
+				values:  [][]driver.Value{{int64(0), int64(2)}},
+			},
+			{columns: []string{"seq"}},
+		},
+	}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+
+	// When
+	inserted, stored, err := store.SaveInboundIfAbsent(
+		context.Background(),
+		reliablemq.Frame{
+			Key: reliablemq.FrameKey{
+				QueueID:   "queue_1",
+				Stream:    reliablemq.StreamACP,
+				Seq:       1,
+				Direction: reliablemq.DirectionInbound,
+			},
+			Kind:     reliablemq.FrameKindData,
+			Payload:  json.RawMessage(`{}`),
+			Metadata: reliablemq.Metadata{"agent_id": "agent_1"},
+		},
+	)
+
+	// Then
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	assert.Equal(t, reliablemq.StatusApplied, stored.Status)
+	assert.True(t, script.committed)
+	require.Len(t, script.queryArgs, 2)
+	require.Len(t, script.queryArgs[1], 7)
+	assert.Equal(t, int64(1), script.queryArgs[1][6].Value)
+	require.Len(t, script.execArgs, 2)
+	assert.Equal(t, int64(1), script.execArgs[1][0].Value)
+}
+
+func TestPostgresConsumerACKReadsQueueWatermarkWithoutScanningJournal(t *testing.T) {
+	// Given
+	script := &scriptedPostgresScript{
+		queries: []scriptedRows{{
+			columns: []string{"inbound_acked_through"},
+			values:  [][]driver.Value{{int64(76_000)}},
+		}},
+	}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+
+	// When
+	through, err := store.ConsumerAckedThrough(
+		context.Background(),
+		"queue_1",
+		reliablemq.StreamACP,
+	)
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, int64(76_000), through)
+	require.Len(t, script.queryTexts, 1)
+	assert.Contains(t, script.queryTexts[0], "FROM transport_queue_state")
+	assert.NotContains(t, script.queryTexts[0], "FROM transport_journal")
+	assert.Zero(t, script.execCount)
+}
+
+func TestPostgresInboundACKAdvanceQueriesOnlyAfterPersistedWatermark(t *testing.T) {
+	// Given
+	script := &scriptedPostgresScript{
+		queries: []scriptedRows{{
+			columns: []string{"seq"},
+			values: [][]driver.Value{
+				{int64(76_001)},
+				{int64(76_002)},
+			},
+		}},
+	}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+	tx, err := store.db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+
+	// When
+	through, err := store.advanceInboundAckedThroughTx(
+		context.Background(),
+		tx,
+		"queue_1",
+		reliablemq.StreamACP,
+		76_000,
+	)
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, int64(76_002), through)
+	require.Len(t, script.queryTexts, 1)
+	assert.Contains(t, script.queryTexts[0], "AND seq > $7")
+	require.Len(t, script.queryArgs[0], 7)
+	assert.Equal(t, int64(76_000), script.queryArgs[0][6].Value)
+	require.Len(t, script.execArgs, 1)
+	assert.Equal(t, int64(76_002), script.execArgs[0][0].Value)
+}
+
+func TestTrackReliableInboundACKQueueOnlyTracksDurableInboundStatuses(t *testing.T) {
+	tests := []struct {
+		name   string
+		frame  reliablemq.Frame
+		tracks bool
+	}{
+		{
+			name: "received inbound",
+			frame: reliablemq.Frame{
+				Key: reliablemq.FrameKey{
+					QueueID:   "queue_1",
+					Stream:    reliablemq.StreamACP,
+					Seq:       1,
+					Direction: reliablemq.DirectionInbound,
+				},
+				Status: reliablemq.StatusReceived,
+			},
+			tracks: true,
+		},
+		{
+			name: "pending outbound",
+			frame: reliablemq.Frame{
+				Key: reliablemq.FrameKey{
+					QueueID:   "queue_1",
+					Stream:    reliablemq.StreamACP,
+					Seq:       1,
+					Direction: reliablemq.DirectionOutbound,
+				},
+				Status: reliablemq.StatusPending,
+			},
+		},
+		{
+			name: "invalid inbound status",
+			frame: reliablemq.Frame{
+				Key: reliablemq.FrameKey{
+					QueueID:   "queue_1",
+					Stream:    reliablemq.StreamACP,
+					Seq:       1,
+					Direction: reliablemq.DirectionInbound,
+				},
+				Status: reliablemq.StatusSent,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			queues := make(map[reliableInboundQueueKey]bool)
+
+			trackReliableInboundACKQueue(queues, tt.frame)
+
+			if tt.tracks {
+				assert.True(t, queues[reliableInboundQueueKey{
+					queueID: tt.frame.Key.QueueID,
+					stream:  tt.frame.Key.Stream,
+				}])
+			} else {
+				assert.Empty(t, queues)
+			}
+		})
+	}
+}
+
+func TestPostgresBatchInboundACKsAdvanceQueuesInStableOrder(t *testing.T) {
+	// Given
+	script := &scriptedPostgresScript{
+		queries: []scriptedRows{
+			{
+				columns: []string{"inbound_acked_through", "inbound_applied_through"},
+				values:  [][]driver.Value{{int64(0), int64(0)}},
+			},
+			{columns: []string{"seq"}, values: [][]driver.Value{{int64(1)}}},
+			{
+				columns: []string{"inbound_acked_through", "inbound_applied_through"},
+				values:  [][]driver.Value{{int64(5), int64(4)}},
+			},
+			{columns: []string{"seq"}, values: [][]driver.Value{{int64(6)}}},
+		},
+	}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+	tx, err := store.db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	queues := map[reliableInboundQueueKey]bool{
+		{queueID: "queue_b", stream: reliablemq.StreamACP}: true,
+		{queueID: "queue_a", stream: reliablemq.StreamACP}: true,
+	}
+
+	// When
+	err = store.advanceBatchInboundACKsTx(context.Background(), tx, queues)
+
+	// Then
+	require.NoError(t, err)
+	require.Len(t, script.queryArgs, 4)
+	assert.Equal(t, "queue_a", script.queryArgs[0][0].Value)
+	assert.Equal(t, "queue_a", script.queryArgs[1][0].Value)
+	assert.Equal(t, "queue_b", script.queryArgs[2][0].Value)
+	assert.Equal(t, "queue_b", script.queryArgs[3][0].Value)
+}
+
+func TestPostgresConsumerACKInitializesMissingQueueState(t *testing.T) {
+	// Given
+	script := &scriptedPostgresScript{
+		queueStateInsertResults: []int64{1},
+		queries: []scriptedRows{
+			{columns: []string{"inbound_acked_through"}},
+			{columns: []string{"seq"}},
+			{
+				columns: []string{
+					"next_outbound_seq",
+					"inbound_acked_through",
+					"inbound_applied_through",
+				},
+				values: [][]driver.Value{{int64(1), int64(0), int64(0)}},
+			},
+		},
+	}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+
+	// When
+	through, err := store.ConsumerAckedThrough(
+		context.Background(),
+		"queue_1",
+		reliablemq.StreamACP,
+	)
+
+	// Then
+	require.NoError(t, err)
+	assert.Zero(t, through)
+	assert.True(t, script.committed)
+	assert.Equal(t, 3, script.execCount)
 }
 
 func TestMemoryReliableTransportJournalAppliedInboundSurvivesSweptRow(t *testing.T) {

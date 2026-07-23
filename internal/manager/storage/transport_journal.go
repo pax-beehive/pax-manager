@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -86,12 +87,28 @@ func (s *PostgresStore) SaveInboundIfAbsent(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	applied, err := s.inboundAppliedThroughTx(ctx, tx, frame.Key.QueueID, frame.Key.Stream)
+	inboundState, err := s.loadInboundQueueStateForUpdateTx(
+		ctx,
+		tx,
+		frame.Key.QueueID,
+		frame.Key.Stream,
+	)
 	if err != nil {
 		return false, reliablemq.Frame{}, err
 	}
-	if frame.Key.Seq <= applied {
+	if frame.Key.Seq <= inboundState.appliedThrough {
 		frame.Status = reliablemq.StatusApplied
+		if frame.Key.Seq == inboundState.ackedThrough+1 {
+			if _, err := s.advanceInboundAckedThroughTx(
+				ctx,
+				tx,
+				frame.Key.QueueID,
+				frame.Key.Stream,
+				frame.Key.Seq,
+			); err != nil {
+				return false, reliablemq.Frame{}, err
+			}
+		}
 		if err := tx.Commit(); err != nil {
 			return false, reliablemq.Frame{}, err
 		}
@@ -105,6 +122,18 @@ func (s *PostgresStore) SaveInboundIfAbsent(
 	stored, err := getReliableFrameTx(ctx, tx, frame.Key)
 	if err != nil {
 		return false, reliablemq.Frame{}, err
+	}
+	if frame.Key.Seq == inboundState.ackedThrough+1 &&
+		isReliableConsumerAckedStatus(string(stored.Status)) {
+		if _, err := s.advanceInboundAckedThroughTx(
+			ctx,
+			tx,
+			frame.Key.QueueID,
+			frame.Key.Stream,
+			inboundState.ackedThrough,
+		); err != nil {
+			return false, reliablemq.Frame{}, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return false, reliablemq.Frame{}, err
@@ -164,10 +193,14 @@ func (s *PostgresStore) LoadQueueState(
 	}
 	var state reliablemq.QueueState
 	err = tx.QueryRowContext(ctx, `
-		SELECT next_outbound_seq, inbound_applied_through
+		SELECT next_outbound_seq, inbound_acked_through, inbound_applied_through
 		FROM transport_queue_state
 		WHERE queue_id = $1 AND stream = $2
-	`, queueID, string(stream)).Scan(&state.NextOutboundSeq, &state.InboundAppliedThrough)
+	`, queueID, string(stream)).Scan(
+		&state.NextOutboundSeq,
+		&state.InboundAckedThrough,
+		&state.InboundAppliedThrough,
+	)
 	if err != nil {
 		return reliablemq.QueueState{}, err
 	}
@@ -182,46 +215,20 @@ func (s *PostgresStore) ConsumerAckedThrough(
 	queueID string,
 	stream reliablemq.Stream,
 ) (int64, error) {
-	rows, err := s.db.QueryContext(
-		ctx,
-		`
-		SELECT seq
-		FROM transport_journal
-		WHERE queue_id = $1 AND stream = $2
-			AND direction = $3
-			AND status IN ($4, $5, $6)
-		ORDER BY seq ASC
-	`,
-		queueID,
-		string(stream),
-		string(reliablemq.DirectionInbound),
-		string(
-			reliablemq.StatusReceived,
-		),
-		string(reliablemq.StatusApplied),
-		string(reliablemq.StatusRejected),
-	)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = rows.Close() }()
 	var through int64
-	next := int64(1)
-	for rows.Next() {
-		var seq int64
-		if err := rows.Scan(&seq); err != nil {
-			return 0, err
+	err := s.db.QueryRowContext(ctx, `
+		SELECT inbound_acked_through
+		FROM transport_queue_state
+		WHERE queue_id = $1 AND stream = $2
+	`, queueID, string(stream)).Scan(&through)
+	if err == sql.ErrNoRows {
+		state, loadErr := s.LoadQueueState(ctx, queueID, stream)
+		if loadErr != nil {
+			return 0, loadErr
 		}
-		if seq < next {
-			continue
-		}
-		if seq != next {
-			break
-		}
-		through = seq
-		next++
+		return state.InboundAckedThrough, nil
 	}
-	if err := rows.Err(); err != nil {
+	if err != nil {
 		return 0, err
 	}
 	return through, nil
@@ -236,6 +243,7 @@ func (s *PostgresStore) ApplyBatch(ctx context.Context, batch reliablemq.StoreBa
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	inboundQueues := make(map[reliableInboundQueueKey]bool)
 	for _, frame := range batch.Frames {
 		if err := reliablemq.ValidateFrame(frame); err != nil {
 			return err
@@ -271,13 +279,69 @@ func (s *PostgresStore) ApplyBatch(ctx context.Context, batch reliablemq.StoreBa
 				return err
 			}
 		}
+		trackReliableInboundACKQueue(inboundQueues, frame)
 	}
 	for _, patch := range batch.Patches {
 		if err := s.applyReliablePatchTx(ctx, tx, patch); err != nil {
 			return err
 		}
 	}
+	if err := s.advanceBatchInboundACKsTx(ctx, tx, inboundQueues); err != nil {
+		return err
+	}
 	return tx.Commit()
+}
+
+func trackReliableInboundACKQueue(
+	queues map[reliableInboundQueueKey]bool,
+	frame reliablemq.Frame,
+) {
+	if frame.Key.Direction != reliablemq.DirectionInbound ||
+		!isReliableConsumerAckedStatus(string(frame.Status)) {
+		return
+	}
+	queues[reliableInboundQueueKey{
+		queueID: frame.Key.QueueID,
+		stream:  frame.Key.Stream,
+	}] = true
+}
+
+func (s *PostgresStore) advanceBatchInboundACKsTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	queues map[reliableInboundQueueKey]bool,
+) error {
+	queueKeys := make([]reliableInboundQueueKey, 0, len(queues))
+	for key := range queues {
+		queueKeys = append(queueKeys, key)
+	}
+	sort.Slice(queueKeys, func(i, j int) bool {
+		if queueKeys[i].queueID != queueKeys[j].queueID {
+			return queueKeys[i].queueID < queueKeys[j].queueID
+		}
+		return queueKeys[i].stream < queueKeys[j].stream
+	})
+	for _, key := range queueKeys {
+		state, err := s.loadInboundQueueStateForUpdateTx(
+			ctx,
+			tx,
+			key.queueID,
+			key.stream,
+		)
+		if err != nil {
+			return err
+		}
+		if _, err := s.advanceInboundAckedThroughTx(
+			ctx,
+			tx,
+			key.queueID,
+			key.stream,
+			state.ackedThrough,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *PostgresStore) MarkSent(ctx context.Context, key reliablemq.FrameKey) error {
@@ -691,34 +755,120 @@ func (s *PostgresStore) ensureQueueStateTx(
 	stream reliablemq.Stream,
 ) error {
 	now := s.now().UTC()
-	_, err := tx.ExecContext(ctx, `
+	result, err := tx.ExecContext(ctx, `
 		INSERT INTO transport_queue_state (
-			queue_id, stream, next_outbound_seq, inbound_applied_through, created_at, updated_at
+			queue_id, stream, next_outbound_seq, inbound_acked_through,
+			inbound_applied_through, created_at, updated_at
 		)
-		SELECT $1, $2, COALESCE(MAX(seq), 0) + 1, 0, $3, $4
-		FROM transport_journal
-		WHERE queue_id = $5 AND stream = $6 AND direction = $7
+		VALUES ($1, $2, 1, 0, 0, $3, $4)
 		ON CONFLICT (queue_id, stream) DO NOTHING
-	`, queueID, string(stream), now, now, queueID, string(stream), string(reliablemq.DirectionOutbound))
+	`, queueID, string(stream), now, now)
+	if err != nil {
+		return err
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil || inserted == 0 {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
+		UPDATE transport_queue_state
+		SET next_outbound_seq = (
+				SELECT COALESCE(MAX(seq), 0) + 1
+				FROM transport_journal
+				WHERE queue_id = $1 AND stream = $2 AND direction = $3
+			),
+			updated_at = $4
+		WHERE queue_id = $5 AND stream = $6
+	`, queueID, string(stream), string(reliablemq.DirectionOutbound), now,
+		queueID, string(stream))
+	if err != nil {
+		return err
+	}
+	_, err = s.advanceInboundAckedThroughTx(ctx, tx, queueID, stream, 0)
 	return err
 }
 
-func (s *PostgresStore) inboundAppliedThroughTx(
+type reliableInboundQueueKey struct {
+	queueID string
+	stream  reliablemq.Stream
+}
+
+type reliableInboundQueueState struct {
+	ackedThrough   int64
+	appliedThrough int64
+}
+
+func (s *PostgresStore) loadInboundQueueStateForUpdateTx(
 	ctx context.Context,
 	tx *sql.Tx,
 	queueID string,
 	stream reliablemq.Stream,
-) (int64, error) {
+) (reliableInboundQueueState, error) {
 	if err := s.ensureQueueStateTx(ctx, tx, queueID, stream); err != nil {
-		return 0, err
+		return reliableInboundQueueState{}, err
 	}
-	var applied int64
+	var state reliableInboundQueueState
 	err := tx.QueryRowContext(ctx, `
-		SELECT inbound_applied_through
+		SELECT inbound_acked_through, inbound_applied_through
 		FROM transport_queue_state
 		WHERE queue_id = $1 AND stream = $2
-	`, queueID, string(stream)).Scan(&applied)
-	return applied, err
+		FOR UPDATE
+	`, queueID, string(stream)).Scan(&state.ackedThrough, &state.appliedThrough)
+	return state, err
+}
+
+func (s *PostgresStore) advanceInboundAckedThroughTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	queueID string,
+	stream reliablemq.Stream,
+	oldThrough int64,
+) (int64, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT seq
+		FROM transport_journal
+		WHERE queue_id = $1 AND stream = $2
+			AND direction = $3
+			AND status IN ($4, $5, $6)
+			AND seq > $7
+		ORDER BY seq ASC
+	`, queueID, string(stream), string(reliablemq.DirectionInbound),
+		string(reliablemq.StatusReceived), string(reliablemq.StatusApplied),
+		string(reliablemq.StatusRejected), oldThrough)
+	if err != nil {
+		return 0, err
+	}
+	through := oldThrough
+	next := oldThrough + 1
+	for rows.Next() {
+		var seq int64
+		if err := rows.Scan(&seq); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		if seq != next {
+			break
+		}
+		through = seq
+		next++
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return 0, err
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	_, err = tx.ExecContext(ctx, `
+		UPDATE transport_queue_state
+		SET inbound_acked_through = GREATEST(inbound_acked_through, $1),
+			updated_at = $2
+		WHERE queue_id = $3 AND stream = $4
+	`, through, s.now().UTC(), queueID, string(stream))
+	if err != nil {
+		return 0, err
+	}
+	return through, nil
 }
 
 func (s *PostgresStore) updateInboundAppliedThroughTx(
