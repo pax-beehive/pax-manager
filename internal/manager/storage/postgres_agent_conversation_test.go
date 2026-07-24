@@ -467,6 +467,8 @@ func postgresSessionValues(
 		representativeAgentID,
 		"user_1",
 		"",
+		"",
+		false,
 		"codex",
 		"",
 		"",

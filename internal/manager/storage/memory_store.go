@@ -1386,7 +1386,24 @@ func (s *MemoryStore) UpdateNodeAgentSession(
 	if session.AgentID != req.AgentID || (session.NodeID != "" && session.NodeID != req.NodeID) {
 		return AgentSession{}, ErrNotFound
 	}
-	session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
+	if session.ReportedSessionName == "" && !session.NameIsCustom {
+		session.ReportedSessionName = session.SessionName
+	}
+	if req.SessionName != nil {
+		session.CustomSessionName = *req.SessionName
+	}
+	if req.UseReportedName {
+		session.CustomSessionName = ""
+	}
+	session.NameIsCustom = session.CustomSessionName != ""
+	if session.NameIsCustom {
+		session.SessionName = session.CustomSessionName
+	} else {
+		session.SessionName = session.ReportedSessionName
+	}
+	if req.PaxConfig.ApprovalMode != "" {
+		session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
+	}
 	session.Metadata = paxConfigMetadata(session.Metadata, session.PaxConfig)
 	session.UpdatedAt = s.now().UTC()
 	s.sessions[key] = session
@@ -2483,7 +2500,13 @@ func (s *MemoryStore) upsertSessionLocked(
 	}
 	existing.NodeID = nodeID
 	if input.SessionName != "" || !exists {
-		existing.SessionName = input.SessionName
+		existing.ReportedSessionName = input.SessionName
+	}
+	existing.NameIsCustom = existing.CustomSessionName != ""
+	if existing.NameIsCustom {
+		existing.SessionName = existing.CustomSessionName
+	} else {
+		existing.SessionName = existing.ReportedSessionName
 	}
 	existing.AgentType = input.AgentType
 	if input.NativeID != "" {

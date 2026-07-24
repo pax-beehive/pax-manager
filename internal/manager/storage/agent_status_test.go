@@ -101,6 +101,62 @@ func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 	)
 
 	t.Run(
+		"Given a custom session name when paxl reports again then it preserves the custom name",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store, node, agent := sessionReportStoreFixture(t, ctx)
+			principal := UserPrincipal{User: User{UserID: node.OwnerUserID}}
+
+			err := store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+				SessionID:   "codex:custom-name",
+				AgentType:   "codex",
+				SessionName: "Reported first",
+			}})
+			require.NoError(t, err)
+			sessions, err := store.ListAgentSessions(ctx, principal, agent.AgentID)
+			require.NoError(t, err)
+			require.Len(t, sessions, 1)
+			sessionID := sessions[0].SessionID
+			customName := "My custom name"
+
+			updated, err := store.UpdateNodeAgentSession(ctx, principal, UpdateSessionRequest{
+				NodeID:      node.NodeID,
+				AgentID:     agent.AgentID,
+				SessionID:   sessionID,
+				SessionName: &customName,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, customName, updated.SessionName)
+			assert.Equal(t, "Reported first", updated.ReportedSessionName)
+			assert.True(t, updated.NameIsCustom)
+
+			err = store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+				SessionID:   "codex:custom-name",
+				AgentType:   "codex",
+				SessionName: "Reported later",
+			}})
+			require.NoError(t, err)
+			sessions, err = store.ListAgentSessions(ctx, principal, agent.AgentID)
+			require.NoError(t, err)
+			require.Len(t, sessions, 1)
+			assert.Equal(t, customName, sessions[0].SessionName)
+			assert.Equal(t, "Reported later", sessions[0].ReportedSessionName)
+			assert.True(t, sessions[0].NameIsCustom)
+
+			updated, err = store.UpdateNodeAgentSession(ctx, principal, UpdateSessionRequest{
+				NodeID:          node.NodeID,
+				AgentID:         agent.AgentID,
+				SessionID:       sessionID,
+				UseReportedName: true,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, "Reported later", updated.SessionName)
+			assert.Equal(t, "Reported later", updated.ReportedSessionName)
+			assert.False(t, updated.NameIsCustom)
+		},
+	)
+
+	t.Run(
 		"Given an existing ACP tunnel session when paxl reports it then it preserves source",
 		func(t *testing.T) {
 			ctx := context.Background()

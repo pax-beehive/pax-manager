@@ -272,6 +272,8 @@ struct AgentSession {
   24: optional JSON metadata
   25: optional SessionPaxConfig pax_config
   26: optional string last_user_message_at
+  27: optional string reported_name
+  28: optional bool name_is_custom
 }
 
 struct SessionPaxConfig {
@@ -574,6 +576,8 @@ struct UpdateNodeAgentSessionRequest {
   3: optional string agent_id (api.path = "agent_id")
   4: optional string session_id (api.path = "session_id")
   5: optional SessionPaxConfig pax_config
+  6: optional string name
+  7: optional bool use_reported_name
 }
 
 struct ListNodeAgentSessionMessagesRequest {

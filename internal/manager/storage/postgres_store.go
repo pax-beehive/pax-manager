@@ -1714,17 +1714,37 @@ func (s *PostgresStore) UpdateNodeAgentSession(
 	if session.AgentID != req.AgentID || (session.NodeID != "" && session.NodeID != req.NodeID) {
 		return AgentSession{}, ErrNotFound
 	}
-	config := session.PaxConfig
-	config.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
-	if err := updateSessionPaxConfig(
-		ctx,
-		dbExecer{s.db},
-		req.AgentID,
-		req.SessionID,
-		config,
-		s.now().UTC(),
-	); err != nil {
-		return AgentSession{}, err
+	now := s.now().UTC()
+	if req.SessionName != nil || req.UseReportedName {
+		var customName any
+		if req.SessionName != nil {
+			customName = *req.SessionName
+		}
+		result, err := s.db.ExecContext(ctx, `
+			UPDATE agent_sessions
+			SET custom_session_name = $3, updated_at = $4
+			WHERE agent_id = $1 AND session_id = $2
+		`, req.AgentID, req.SessionID, customName, now)
+		if err != nil {
+			return AgentSession{}, err
+		}
+		if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+			return AgentSession{}, ErrNotFound
+		}
+	}
+	if req.PaxConfig.ApprovalMode != "" {
+		config := session.PaxConfig
+		config.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
+		if err := updateSessionPaxConfig(
+			ctx,
+			dbExecer{s.db},
+			req.AgentID,
+			req.SessionID,
+			config,
+			now,
+		); err != nil {
+			return AgentSession{}, err
+		}
 	}
 	return scanSession(s.db.QueryRowContext(ctx, sessionSelectSQL+`
 		WHERE agent_sessions.agent_id = $1 AND agent_sessions.session_id = $2
@@ -2764,7 +2784,8 @@ const sessionSelectSQL = `
 	SELECT agent_sessions.id, COALESCE(agent_sessions.node_id, ''), agent_sessions.agent_id, session_id,
 		COALESCE(conversation_id, ''), COALESCE(profile_id, ''),
 		COALESCE(representative_agent_id, ''), COALESCE(created_by_user_id, ''),
-		COALESCE(session_name, ''), COALESCE(agent_sessions.agent_type, ''),
+		COALESCE(custom_session_name, session_name, ''), COALESCE(session_name, ''),
+		custom_session_name IS NOT NULL, COALESCE(agent_sessions.agent_type, ''),
 		COALESCE(native_id, ''), COALESCE(project_id, ''), COALESCE(preview, ''),
 		COALESCE(workspace_roots, '[]'::jsonb), COALESCE(source, ''), agent_sessions.status,
 		COALESCE(current_task, ''), last_message_at, last_user_message_at, message_count, token_input,

@@ -63,6 +63,8 @@ func TestPostgresStoreUpsertAgentSessions(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, 1, script.execCount)
+			require.Len(t, script.execTexts, 1)
+			assert.NotContains(t, script.execTexts[0], "custom_session_name")
 			assert.True(t, script.committed)
 			assert.False(t, script.rolled)
 		},

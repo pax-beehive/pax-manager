@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
@@ -34,6 +35,7 @@ const (
 	maxSessionPageSize     = 200
 	defaultHistoryPageSize = 1000
 	maxHistoryPageSize     = 1000
+	maxSessionNameLength   = 120
 )
 
 type UserStore interface {
@@ -1718,20 +1720,56 @@ func (s *Service) UpdateNodeAgentSession(
 			Message: "node_id, agent_id, and session_id are required",
 		}
 	}
-	if req.PaxConfig.CWD != "" {
+	hasName := req.SessionName != nil
+	hasPaxConfig := req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != ""
+	if !hasName && !req.UseReportedName && !hasPaxConfig {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "name, use_reported_name, or pax_config is required",
+		}
+	}
+	if hasName && req.UseReportedName {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "name and use_reported_name cannot be combined",
+		}
+	}
+	if hasPaxConfig && (hasName || req.UseReportedName) {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "session name updates cannot be combined with pax_config",
+		}
+	}
+	if hasName {
+		name := strings.TrimSpace(*req.SessionName)
+		if name == "" {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "name must not be empty",
+			}
+		}
+		if utf8.RuneCountInString(name) > maxSessionNameLength {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "name must be at most 120 characters",
+			}
+		}
+		req.SessionName = &name
+	}
+	if hasPaxConfig && req.PaxConfig.CWD != "" {
 		return 0, nil, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "pax_config.cwd is create-only and cannot be changed",
 		}
 	}
 	mode := strings.TrimSpace(req.PaxConfig.ApprovalMode)
-	if mode == "" {
+	if hasPaxConfig && mode == "" {
 		return 0, nil, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "pax_config.approval_mode is required",
 		}
 	}
-	if !domain.IsSessionApprovalMode(mode) {
+	if hasPaxConfig && !domain.IsSessionApprovalMode(mode) {
 		return 0, nil, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "pax_config.approval_mode must be manual or auto_approve_all",
@@ -1740,7 +1778,9 @@ func (s *Service) UpdateNodeAgentSession(
 	if _, err := s.nodeSessionTarget(c, principal, req.NodeID, req.AgentID, req.SessionID); err != nil {
 		return 0, nil, err
 	}
-	req.PaxConfig.ApprovalMode = mode
+	if hasPaxConfig {
+		req.PaxConfig.ApprovalMode = mode
+	}
 	session, err := s.store.UpdateNodeAgentSession(c, principal, req)
 	if err != nil {
 		return 0, nil, err

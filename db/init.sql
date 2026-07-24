@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
     session_id TEXT NOT NULL,
     session_name TEXT,
+    custom_session_name TEXT,
     agent_type TEXT,
     native_id TEXT,
     project_id TEXT,
@@ -122,6 +123,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
 );
 
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS session_name TEXT;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS custom_session_name TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(node_id);
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS agent_type TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS native_id TEXT;
