@@ -206,6 +206,128 @@ func TestNodeDaemonQueries(t *testing.T) {
 	})
 }
 
+func TestUpdateNodeAgentSessionName(t *testing.T) {
+	t.Run("Given a valid name then it trims and updates the session", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		session := domain.AgentSession{
+			NodeID:    "node_1",
+			AgentID:   "agent_1",
+			SessionID: "sess_1",
+		}
+		name := "  Release planning  "
+		trimmedName := "Release planning"
+		req := domain.UpdateSessionRequest{
+			NodeID:      "node_1",
+			AgentID:     "agent_1",
+			SessionID:   "sess_1",
+			SessionName: &name,
+		}
+		expectedReq := req
+		expectedReq.SessionName = &trimmedName
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().
+			GetAgent(ctx, principal, "agent_1").
+			Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+			Once()
+		store.EXPECT().GetSession(ctx, principal, "sess_1").Return(session, nil).Once()
+		store.EXPECT().
+			UpdateNodeAgentSession(ctx, principal, expectedReq).
+			Return(domain.AgentSession{
+				NodeID:              "node_1",
+				AgentID:             "agent_1",
+				SessionID:           "sess_1",
+				SessionName:         trimmedName,
+				ReportedSessionName: "Reported name",
+				NameIsCustom:        true,
+			}, nil).
+			Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, data, err := svc.UpdateNodeAgentSession(
+			ctx,
+			auth.RequestMetadata{},
+			req,
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, trimmedName, data.(domain.AgentSession).SessionName)
+	})
+
+	for _, tc := range []struct {
+		name string
+		req  domain.UpdateSessionRequest
+	}{
+		{
+			name: "empty update",
+			req: domain.UpdateSessionRequest{
+				NodeID: "node_1", AgentID: "agent_1", SessionID: "sess_1",
+			},
+		},
+		{
+			name: "empty name",
+			req: func() domain.UpdateSessionRequest {
+				name := "   "
+				return domain.UpdateSessionRequest{
+					NodeID: "node_1", AgentID: "agent_1", SessionID: "sess_1", SessionName: &name,
+				}
+			}(),
+		},
+		{
+			name: "name and reset",
+			req: func() domain.UpdateSessionRequest {
+				name := "Custom"
+				return domain.UpdateSessionRequest{
+					NodeID:          "node_1",
+					AgentID:         "agent_1",
+					SessionID:       "sess_1",
+					SessionName:     &name,
+					UseReportedName: true,
+				}
+			}(),
+		},
+		{
+			name: "name over 120 characters",
+			req: func() domain.UpdateSessionRequest {
+				name := strings.Repeat("a", 121)
+				return domain.UpdateSessionRequest{
+					NodeID: "node_1", AgentID: "agent_1", SessionID: "sess_1", SessionName: &name,
+				}
+			}(),
+		},
+	} {
+		t.Run("Given "+tc.name+" then it rejects the request", func(t *testing.T) {
+			ctx := context.Background()
+			principal := userPrincipal("usr_self", false)
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+
+			_, _, err := svc.UpdateNodeAgentSession(ctx, auth.RequestMetadata{}, tc.req)
+
+			require.Error(t, err)
+			var appErr apperr.Error
+			require.ErrorAs(t, err, &appErr)
+			require.Equal(t, http.StatusBadRequest, appErr.Status)
+		})
+	}
+}
+
 func TestGetNodeDaemonCommand(t *testing.T) {
 	ctx := context.Background()
 	principal := userPrincipal("usr_self", false)

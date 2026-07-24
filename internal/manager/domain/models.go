@@ -78,6 +78,9 @@ type AgentSession struct {
 	RepresentativeAgentID string               `json:"representative_agent_id,omitempty"`
 	CreatedByUserID       string               `json:"created_by_user_id,omitempty"`
 	SessionName           string               `json:"name,omitempty"`
+	ReportedSessionName   string               `json:"reported_name,omitempty"`
+	CustomSessionName     string               `json:"-"`
+	NameIsCustom          bool                 `json:"name_is_custom"`
 	AgentType             string               `json:"agent_type,omitempty"`
 	NativeID              string               `json:"-"`
 	ProjectID             string               `json:"project_id,omitempty"`
@@ -1663,11 +1666,13 @@ type CreateSessionRequest struct {
 }
 
 type UpdateSessionRequest struct {
-	UserID    string           `json:"user_id"`
-	NodeID    string           `json:"node_id"`
-	AgentID   string           `json:"agent_id"`
-	SessionID string           `json:"session_id"`
-	PaxConfig SessionPaxConfig `json:"pax_config"`
+	UserID          string           `json:"user_id"`
+	NodeID          string           `json:"node_id"`
+	AgentID         string           `json:"agent_id"`
+	SessionID       string           `json:"session_id"`
+	SessionName     *string          `json:"name"`
+	UseReportedName bool             `json:"use_reported_name"`
+	PaxConfig       SessionPaxConfig `json:"pax_config"`
 }
 
 type OffsetRequest struct {

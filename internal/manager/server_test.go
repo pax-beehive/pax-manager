@@ -7402,6 +7402,247 @@ func TestAgentSessionHistoryRejectsInvalidBeforeID(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 }
 
+func TestUserCannotAccessOrModifyAnotherUsersSession(t *testing.T) {
+	const (
+		ownerEmail    = "alice@example.com"
+		attackerEmail = "bob@example.com"
+	)
+	srv, ownerKey := testServer(t, ownerEmail)
+	ownerAgentID := testAgentID(t, srv, ownerEmail)
+	ownerSessionID := reportTestSession(
+		t,
+		srv,
+		ownerKey,
+		ownerEmail,
+		ownerAgentID,
+		"alice-native-session",
+	)
+	ownerAgent := getTestAgent(t, srv, ownerEmail, ownerAgentID)
+	registerAdditionalTestAgent(t, srv, attackerEmail)
+
+	ownerMessageReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+ownerAgent.NodeID+"/agents/"+ownerAgentID+
+			"/sessions/"+ownerSessionID+"/messages",
+		strings.NewReader(`{"message":"alice private message","message_type":"chat"}`),
+	)
+	setJSON(ownerMessageReq)
+	ownerMessageReq.Header.Set("X-User-Email", ownerEmail)
+	ownerMessageRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(ownerMessageRec, ownerMessageReq)
+	require.Equal(t, http.StatusOK, ownerMessageRec.Code, ownerMessageRec.Body.String())
+
+	historyMessage := domain.Message{
+		MessageID:   "msg_alice_private_history",
+		OwnerUserID: ownerAgent.OwnerUserID,
+		NodeID:      ownerAgent.NodeID,
+		AgentID:     ownerAgentID,
+		SessionID:   ownerSessionID,
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionAgentToUser,
+		Role:        "assistant",
+		Status:      "received",
+		MessageType: "agent_message_chunk",
+	}
+	require.NoError(t, srv.store.UpsertMessage(t.Context(), &historyMessage))
+	require.NoError(t, srv.store.UpsertMessagePart(t.Context(), &domain.MessagePart{
+		MessageID: "msg_alice_private_history",
+		PartIndex: 0,
+		PartType:  domain.MessagePartText,
+		Text:      "alice private history",
+	}))
+
+	basePath := "/api/v1/user/" + ownerAgent.OwnerUserID + "/nodes/" +
+		ownerAgent.NodeID + "/agents/" + ownerAgentID + "/sessions/" + ownerSessionID
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{
+			name:   "get session",
+			method: http.MethodGet,
+			path:   basePath,
+		},
+		{
+			name:   "update session approval mode",
+			method: http.MethodPatch,
+			path:   basePath,
+			body:   `{"pax_config":{"approval_mode":"auto_approve_all"}}`,
+		},
+		{
+			name:   "list session messages",
+			method: http.MethodGet,
+			path:   basePath + "/messages",
+		},
+		{
+			name:   "create session message",
+			method: http.MethodPost,
+			path:   basePath + "/messages",
+			body:   `{"message":"attacker message","message_type":"chat"}`,
+		},
+		{
+			name:   "list session history",
+			method: http.MethodGet,
+			path: "/api/v1/user/" + ownerAgent.OwnerUserID + "/agents/" +
+				ownerAgentID + "/sessions/" + ownerSessionID + "/history",
+		},
+		{
+			name:   "list session artifacts",
+			method: http.MethodGet,
+			path: "/api/v1/user/" + ownerAgent.OwnerUserID + "/sessions/" +
+				ownerSessionID + "/artifacts",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var body io.Reader
+			if tc.body != "" {
+				body = strings.NewReader(tc.body)
+			}
+			req := httptest.NewRequest(tc.method, tc.path, body)
+			if tc.body != "" {
+				setJSON(req)
+			}
+			req.Header.Set("X-User-Email", attackerEmail)
+			rec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(rec, req)
+			require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+			require.NotContains(t, rec.Body.String(), "alice private")
+		})
+	}
+
+	ownerSessionReq := httptest.NewRequest(http.MethodGet, basePath, nil)
+	ownerSessionReq.Header.Set("X-User-Email", ownerEmail)
+	ownerSessionRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(ownerSessionRec, ownerSessionReq)
+	require.Equal(t, http.StatusOK, ownerSessionRec.Code, ownerSessionRec.Body.String())
+	session := decodeData[AgentSession](t, ownerSessionRec.Body.Bytes())
+	require.NotEqual(t, domain.SessionApprovalModeAutoApproveAll, session.PaxConfig.ApprovalMode)
+
+	ownerMessagesReq := httptest.NewRequest(http.MethodGet, basePath+"/messages", nil)
+	ownerMessagesReq.Header.Set("X-User-Email", ownerEmail)
+	ownerMessagesRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(ownerMessagesRec, ownerMessagesReq)
+	require.Equal(t, http.StatusOK, ownerMessagesRec.Code, ownerMessagesRec.Body.String())
+	messages := decodeData[struct {
+		Messages []MailboxMessage `json:"messages"`
+	}](t, ownerMessagesRec.Body.Bytes())
+	require.Len(t, messages.Messages, 1)
+	require.Equal(t, "alice private message", messages.Messages[0].Message)
+}
+
+func TestUserCannotOpenAnotherUsersAgentTunnel(t *testing.T) {
+	srv, _ := testServer(t, "alice@example.com")
+	ownerAgentID := testAgentID(t, srv, "alice@example.com")
+	registerAdditionalTestAgent(t, srv, "bob@example.com")
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/agents/"+ownerAgentID+"/tunnel",
+		nil,
+	)
+	req.Header.Set("X-User-Email", "bob@example.com")
+
+	_, err := srv.authorizeUserTunnel(req, ownerAgentID)
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestNodeMachineEndpointsRequirePaxKey(t *testing.T) {
+	srv, _ := testServer(t, "owner@example.com")
+	cases := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/v1/node/status"},
+		{http.MethodPost, "/api/v1/node/agents/agent_target/sessions"},
+		{http.MethodGet, "/api/v1/node/mailbox"},
+		{http.MethodGet, "/api/v1/node/agents/agent_target/mailbox"},
+		{
+			http.MethodGet,
+			"/api/v1/node/agents/agent_target/sessions/session_target/mailbox",
+		},
+		{http.MethodPost, "/api/v1/node/messages/offset"},
+		{http.MethodPost, "/api/v1/node/messages/message_target/result"},
+		{http.MethodPost, "/api/v1/node/messages/message_target/delivered"},
+		{http.MethodPost, "/api/v1/node/messages/outbound"},
+		{http.MethodPost, "/api/v1/node/secrets/resolve"},
+		{http.MethodPost, "/api/v1/node/secrets/secret_target/versions"},
+		{http.MethodPost, "/api/v1/node/agents/agent_target/approvals"},
+		{
+			http.MethodGet,
+			"/api/v1/node/agents/agent_target/approvals/approval_target",
+		},
+		{http.MethodPost, "/api/v1/node/conversation/deliver"},
+		{http.MethodPost, "/api/v1/node/agents/agent_target/conversations"},
+	}
+	for _, tc := range cases {
+		name := tc.method + " " + tc.path
+		t.Run(name+" without key", func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{}`))
+			setJSON(req)
+			rec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(rec, req)
+			require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+		})
+		t.Run(name+" with invalid key", func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{}`))
+			setJSON(req)
+			req.Header.Set("X-Pax-Key", "pax_invalid_node_key")
+			rec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(rec, req)
+			require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+		})
+	}
+}
+
+func TestAgentTunnelRequiresMatchingMachineKey(t *testing.T) {
+	srv, ownerKey := testServer(t, "owner@example.com")
+	ownerAgentID := testAgentID(t, srv, "owner@example.com")
+	otherKey := registerAdditionalTestAgent(t, srv, "other@example.com")
+
+	cases := []struct {
+		name  string
+		key   string
+		query string
+	}{
+		{
+			name:  "missing key",
+			query: "?agent_id=" + ownerAgentID,
+		},
+		{
+			name:  "invalid key",
+			key:   "pax_invalid_agent_key",
+			query: "?agent_id=" + ownerAgentID,
+		},
+		{
+			name:  "another agents key",
+			key:   otherKey,
+			query: "?agent_id=" + ownerAgentID,
+		},
+		{
+			name:  "valid key with mismatched agent id",
+			key:   ownerKey,
+			query: "?agent_id=agent_other",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(
+				http.MethodGet,
+				"/api/v1/agent/tunnel"+tc.query,
+				nil,
+			)
+			if tc.key != "" {
+				req.Header.Set("X-Pax-Key", tc.key)
+			}
+			_, _, err := srv.authenticateAgentACPTunnel(req)
+			require.Error(t, err)
+		})
+	}
+}
+
 func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 	t.Helper()
 	now := func() time.Time { return time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC) }
@@ -7450,6 +7691,51 @@ func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 		t.Fatalf("bad register response: %+v", registered)
 	}
 	return srv, registered.APIKey
+}
+
+func registerAdditionalTestAgent(t *testing.T, srv *Server, ownerEmail string) string {
+	t.Helper()
+	tokenReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/user/agent-registration-tokens",
+		bytes.NewReader([]byte(`{}`)),
+	)
+	setJSON(tokenReq)
+	tokenReq.Header.Set("X-User-Email", ownerEmail)
+	tokenRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(tokenRec, tokenReq)
+	require.Equal(t, http.StatusOK, tokenRec.Code, tokenRec.Body.String())
+	token := decodeData[CreateRegistrationTokenResponse](t, tokenRec.Body.Bytes())
+
+	registerReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/agent/register",
+		strings.NewReader(`{
+			"name":"additional workstation",
+			"hostname":"additional-workstation",
+			"agent_type":"hermes",
+			"os":"linux"
+		}`),
+	)
+	setJSON(registerReq)
+	registerReq.Header.Set("X-Registration-Token", token.Token)
+	registerRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(registerRec, registerReq)
+	require.Equal(t, http.StatusOK, registerRec.Code, registerRec.Body.String())
+	registered := decodeData[RegisterAgentResponse](t, registerRec.Body.Bytes())
+	require.NotEmpty(t, registered.AgentID)
+	require.NotEmpty(t, registered.APIKey)
+	return registered.APIKey
+}
+
+func getTestAgent(t *testing.T, srv *Server, userEmail string, agentID string) Agent {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/api/user/agents/"+agentID, nil)
+	req.Header.Set("X-User-Email", userEmail)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	return decodeData[Agent](t, rec.Body.Bytes())
 }
 
 type fakePaxdArtifactBackend struct {

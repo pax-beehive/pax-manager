@@ -24,6 +24,8 @@ func (r fakeRow) Scan(dest ...any) error {
 			*d = r[i].(int64)
 		case *float64:
 			*d = r[i].(float64)
+		case *bool:
+			*d = r[i].(bool)
 		case *string:
 			*d = r[i].(string)
 		case **time.Time:
@@ -283,6 +285,8 @@ func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 		"rep_1",
 		"usr_creator",
 		"Ship tests",
+		"Reported tests",
+		true,
 		"codex",
 		"native_1",
 		"project_1",
@@ -323,6 +327,11 @@ func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 			session.TokenOutput,
 			session.TokenTotal,
 		)
+	}
+	if session.SessionName != "Ship tests" ||
+		session.ReportedSessionName != "Reported tests" ||
+		!session.NameIsCustom {
+		t.Fatalf("session names = %+v", session)
 	}
 	if session.ConversationID != "conv_1" ||
 		session.ProfileID != "profile_1" ||
