@@ -349,6 +349,52 @@ func TestACPHistoryGivenRepeatedTextChunksThenEnsuresMessageOnce(t *testing.T) {
 	assert.Equal(t, "hi", parts[0].Text)
 }
 
+func TestACPHistoryGivenTerminalOutputDeltasThenAggregatesByToolAndTerminal(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 7, 24, 12, 0, 0, 0, time.UTC)
+	})
+	sink := &countingACPHistoryTextSink{store: store}
+	frames := []json.RawMessage{
+		json.RawMessage(
+			`{"method":"session/update","params":{"update":{"_meta":{"terminal_output_delta":{"data":" M first.go\n","terminal_id":"call_1"}},"toolCallId":"call_1","sessionUpdate":"tool_call_update"},"sessionId":"sess_terminal"},"jsonrpc":"2.0"}`,
+		),
+		json.RawMessage(
+			`{"method":"session/update","params":{"update":{"_meta":{"terminal_output_delta":{"data":" M second.go\n","terminal_id":"call_1"}},"toolCallId":"call_1","sessionUpdate":"tool_call_update"},"sessionId":"sess_terminal"},"jsonrpc":"2.0"}`,
+		),
+	}
+
+	for i, frame := range frames {
+		require.NoError(t, projectACPTransportMessageWithTextSink(
+			ctx,
+			store,
+			sink,
+			"agent_terminal",
+			"user_terminal",
+			"node_terminal",
+			domain.TransportStreamPaxdToManager,
+			int64(i+1),
+			"",
+			"",
+			frame,
+		))
+	}
+
+	assert.Equal(t, 1, sink.ensureCalls)
+	assert.Equal(t, 2, sink.appendCalls)
+	messages, err := store.ListMessages(ctx, "agent_terminal", "sess_terminal", 10)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	assert.Equal(t, "tool_call_update", messages[0].MessageType)
+	assert.Contains(t, messages[0].LogicalKey, ":call_1:call_1:tool_call_update")
+	assert.Contains(t, string(messages[0].RawJSON), `"data":" M first.go\n"`)
+
+	parts, err := store.ListMessageParts(ctx, messages[0].MessageID)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, " M first.go\n M second.go\n", parts[0].Text)
+}
+
 func TestACPHistoryGivenUserFrameBetweenAgentChunksThenStartsNewAgentMessage(t *testing.T) {
 	ctx := context.Background()
 	store := storage.NewMemoryStore(func() time.Time {

@@ -22,6 +22,8 @@ type acpHistoryFields struct {
 	SessionID     string
 	TurnID        string
 	ResponseID    string
+	ToolCallID    string
+	TerminalID    string
 	EntityType    string
 	EventType     string
 	SessionUpdate string
@@ -175,6 +177,9 @@ func projectACPTransportMessageWithTextSink(
 		msg.RawJSON = append(json.RawMessage(nil), payload...)
 	}
 	if textProjection {
+		if fields.ToolCallID != "" && fields.TerminalID != "" {
+			msg.RawJSON = append(json.RawMessage(nil), payload...)
+		}
 		if err := textSink.EnsureMessage(ctx, &msg); err != nil {
 			return err
 		}
@@ -625,6 +630,17 @@ func acpHistoryLogicalKey(
 	historyGroupID string,
 	fields acpHistoryFields,
 ) string {
+	if fields.SessionID != "" && fields.ToolCallID != "" && fields.TerminalID != "" {
+		return fmt.Sprintf(
+			"acp:%s:%s:%s:%s:%s:%s",
+			agentID,
+			stream,
+			fields.SessionID,
+			fields.ToolCallID,
+			fields.TerminalID,
+			firstNonEmpty(fields.SessionUpdate, "terminal_output_delta"),
+		)
+	}
 	if fields.SessionID != "" && fields.TurnID != "" {
 		return fmt.Sprintf(
 			"acp:%s:%s:%s:%s:%s:%s",
@@ -692,6 +708,8 @@ func extractACPHistoryFields(payload json.RawMessage, rpc acpHistoryRPC) acpHist
 		fields.SessionID = firstNonEmpty(fields.SessionID, nested.SessionID)
 		fields.TurnID = firstNonEmpty(fields.TurnID, nested.TurnID)
 		fields.ResponseID = firstNonEmpty(fields.ResponseID, nested.ResponseID)
+		fields.ToolCallID = firstNonEmpty(fields.ToolCallID, nested.ToolCallID)
+		fields.TerminalID = firstNonEmpty(fields.TerminalID, nested.TerminalID)
 		fields.EntityType = firstNonEmpty(fields.EntityType, nested.EntityType)
 		fields.EventType = firstNonEmpty(fields.EventType, nested.EventType)
 		fields.SessionUpdate = firstNonEmpty(fields.SessionUpdate, nested.SessionUpdate)
@@ -711,17 +729,42 @@ func fieldsFromRaw(raw json.RawMessage) acpHistoryFields {
 		return acpHistoryFields{}
 	}
 	obj, _ := v.(map[string]any)
+	terminalID, terminalData := terminalOutputDeltaFromValue(obj)
 	return acpHistoryFields{
 		SessionID:     findString(obj, "sessionId", "session_id"),
 		TurnID:        findString(obj, "turnId", "turn_id"),
 		ResponseID:    findString(obj, "responseId", "response_id"),
+		ToolCallID:    findString(obj, "toolCallId", "tool_call_id"),
+		TerminalID:    terminalID,
 		EntityType:    findString(obj, "entityType", "entity_type"),
 		EventType:     findString(obj, "eventType", "event_type"),
 		SessionUpdate: findString(obj, "sessionUpdate", "session_update"),
 		StopReason:    findString(obj, "stopReason", "stop_reason"),
 		Role:          findString(obj, "role"),
-		Content:       findString(obj, "content", "text", "delta"),
+		Content:       firstNonEmpty(terminalData, findString(obj, "content", "text", "delta")),
 	}
+}
+
+func terminalOutputDeltaFromValue(v any) (string, string) {
+	switch typed := v.(type) {
+	case map[string]any:
+		if delta, ok := typed["terminal_output_delta"].(map[string]any); ok {
+			data, _ := delta["data"].(string)
+			return stringMapField(delta, "terminal_id"), data
+		}
+		for _, value := range typed {
+			if terminalID, data := terminalOutputDeltaFromValue(value); terminalID != "" || data != "" {
+				return terminalID, data
+			}
+		}
+	case []any:
+		for _, value := range typed {
+			if terminalID, data := terminalOutputDeltaFromValue(value); terminalID != "" || data != "" {
+				return terminalID, data
+			}
+		}
+	}
+	return "", ""
 }
 
 func findString(v any, keys ...string) string {
@@ -765,6 +808,11 @@ func normalizeACPTextUpdate(rpc acpHistoryRPC, fields acpHistoryFields) (acpHist
 	}
 	if rpc.Method != "session/update" {
 		return fields, false
+	}
+	if fields.SessionUpdate == "tool_call_update" &&
+		fields.ToolCallID != "" &&
+		fields.TerminalID != "" {
+		return fields, true
 	}
 	switch fields.SessionUpdate {
 	case "agent_message_chunk", "agent_thought_chunk", "message_delta":
