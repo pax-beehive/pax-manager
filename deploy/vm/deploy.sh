@@ -23,7 +23,7 @@ docker run -d \
   -p 9879:9879 \
   "$IMAGE"
 
-for _ in $(seq 1 30); do
+for _ in $(seq 1 90); do
   if curl -fsS http://127.0.0.1:9879/health >/dev/null; then
     docker image prune -f
     exit 0
