@@ -125,8 +125,11 @@ func TestNodeDaemonQueries(t *testing.T) {
 					)
 				},
 				want: map[string]any{
-					"type":                   "agent_connections.list",
-					"list_agent_connections": map[string]any{"include_disabled": true},
+					"type": "agent_connections.list",
+					"list_agent_connections": map[string]any{
+						"remote_id":        "remote_prod",
+						"include_disabled": true,
+					},
 				},
 			},
 		}
@@ -138,7 +141,10 @@ func TestNodeDaemonQueries(t *testing.T) {
 				store := userapimocks.NewMockStore(t)
 				principals := userapimocks.NewMockPrincipalResolver(t)
 				secrets := userapimocks.NewMockSecretIssuer(t)
-				client := &fakeNodeControlClient{result: json.RawMessage(`{"type":"ok"}`)}
+				client := &fakeNodeControlClient{
+					remoteID: "remote_prod",
+					result:   json.RawMessage(`{"type":"ok"}`),
+				}
 
 				principals.EXPECT().
 					Principal(ctx, auth.RequestMetadata{}).
@@ -180,6 +186,137 @@ func TestNodeDaemonQueries(t *testing.T) {
 
 		require.ErrorIs(t, err, forbidden)
 		require.Zero(t, client.calls)
+	})
+
+	t.Run("agent connection list includes only unbound and owner-owned agents", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		secrets := userapimocks.NewMockSecretIssuer(t)
+		client := &fakeNodeControlClient{
+			remoteID: "remote_prod",
+			result: json.RawMessage(`{
+				"type":"agent_connections.list",
+				"agent_connections":{"items":[
+					{"id":"conn_unbound","remote_id":"remote_prod"},
+					{"id":"conn_owned","remote_id":"remote_prod","cloud_agent_id":"agent_owned"},
+					{"id":"conn_shared","remote_id":"remote_prod","cloud_agent_id":"agent_shared"},
+					{"id":"conn_stale","remote_id":"remote_prod","cloud_agent_id":"agent_missing"}
+				]}
+			}`),
+		}
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+		store.EXPECT().ListNodeAgents(ctx, principal, "node_1").Return([]domain.Agent{
+			{AgentID: "agent_owned", NodeID: "node_1", OwnerUserID: "usr_self"},
+			{AgentID: "agent_shared", NodeID: "node_1", OwnerUserID: "usr_other"},
+		}, nil).Once()
+		secrets.EXPECT().New("ctlq").Return("ctlq_owned_1", nil).Once()
+
+		svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+		svc.SetNodeControlClient(client)
+		status, data, err := svc.ListNodeDaemonAgentConnections(
+			ctx,
+			auth.RequestMetadata{},
+			"node_1",
+			true,
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+		require.JSONEq(t, `{
+			"type":"agent_connections.list",
+			"agent_connections":{"items":[
+				{"id":"conn_unbound","remote_id":"remote_prod"},
+				{"id":"conn_owned","remote_id":"remote_prod","cloud_agent_id":"agent_owned"}
+			]}
+		}`, string(data.(json.RawMessage)))
+	})
+
+	t.Run("agent connection list rejects a missing node id", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+
+		svc := userapi.NewService(
+			userapimocks.NewMockStore(t),
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		_, _, err := svc.ListNodeDaemonAgentConnections(
+			ctx,
+			auth.RequestMetadata{},
+			"",
+			true,
+		)
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+	})
+
+	t.Run("agent connection list requires the tunnel remote identity", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		client := &fakeNodeControlClient{remoteIDErr: errors.New("remote identity unavailable")}
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		svc.SetNodeControlClient(client)
+		_, _, err := svc.ListNodeDaemonAgentConnections(
+			ctx,
+			auth.RequestMetadata{},
+			"node_1",
+			true,
+		)
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusServiceUnavailable, appErr.Status)
+		require.Zero(t, client.calls)
+	})
+
+	t.Run("agent connection list requires a control tunnel", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		_, _, err := svc.ListNodeDaemonAgentConnections(
+			ctx,
+			auth.RequestMetadata{},
+			"node_1",
+			true,
+		)
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusServiceUnavailable, appErr.Status)
 	})
 
 	t.Run("missing control tunnel returns service unavailable", func(t *testing.T) {

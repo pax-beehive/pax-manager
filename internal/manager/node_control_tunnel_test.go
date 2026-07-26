@@ -108,6 +108,18 @@ func TestNodeDaemonReadAPIsForwardQueriesOverControlTunnel(t *testing.T) {
 	defer closeServer()
 	defer func() { _ = ws.Close() }()
 	waitNodeControlConnection(t, srv.nodeControls, registered.NodeID)
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{
+		"kind":"report",
+		"version":1,
+		"report_id":"rpt_read_api_identity",
+		"report":{
+			"type":"heartbeat",
+			"remote_id":"remote_prod",
+			"node_id":"`+registered.NodeID+`",
+			"heartbeat":{}
+		}
+	}`)))
+	waitNodeControlRemoteID(t, srv.nodeControls, registered.NodeID, "remote_prod")
 
 	tests := []struct {
 		path        string
@@ -126,7 +138,7 @@ func TestNodeDaemonReadAPIsForwardQueriesOverControlTunnel(t *testing.T) {
 		},
 		{
 			path:        "daemon/agent-connections?include_disabled=true",
-			wantQuery:   `{"type":"agent_connections.list","list_agent_connections":{"include_disabled":true}}`,
+			wantQuery:   `{"type":"agent_connections.list","list_agent_connections":{"remote_id":"remote_prod","include_disabled":true}}`,
 			queryResult: `{"type":"agent_connections.list","agent_connections":{"items":[]}}`,
 		},
 	}
