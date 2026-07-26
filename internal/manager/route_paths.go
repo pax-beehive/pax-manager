@@ -79,6 +79,8 @@ const (
 	routeArtifactContent        = "/api/v1/user/:user_id/artifacts/:artifact_id/content/:content_ref"
 	routeAttachSessionArtifact  = "/api/v1/user/:user_id/artifacts/:artifact_id/attachments"
 	routeListSessionArtifacts   = "/api/v1/user/:user_id/sessions/:session_id/artifacts"
+	routePutArtifactPublication = "/api/v1/node/artifact-publications/:publication_id"
+	routeGetArtifactPublication = "/api/v1/user/:user_id/artifact-publications/:publication_id"
 
 	routeOpenAPI     = "/openapi"
 	routeOpenAPIJSON = "/openapi.json"
@@ -130,4 +132,6 @@ const (
 	openAPIUserSessionTurnSteerPath = "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/steer"
 	openAPIUserSessionEventsPath    = "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events"
 	openAPINodeConversationDeliver  = "/api/v1/node/conversation/deliver"
+	openAPINodeArtifactPublication  = "/api/v1/node/artifact-publications/{publication_id}"
+	openAPIUserArtifactPublication  = "/api/v1/user/{user_id}/artifact-publications/{publication_id}"
 )

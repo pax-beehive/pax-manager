@@ -121,6 +121,15 @@ type Store interface {
 		attachmentID string,
 		attrs ArtifactContent,
 	) (UserAttachment, error)
+	PutArtifactPublication(
+		ctx context.Context,
+		publication ArtifactPublication,
+	) (ArtifactPublication, error)
+	GetArtifactPublication(
+		ctx context.Context,
+		principal UserPrincipal,
+		publicationID string,
+	) (ArtifactPublication, error)
 	CreateArtifactUpload(
 		ctx context.Context,
 		principal UserPrincipal,

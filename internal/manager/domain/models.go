@@ -1182,6 +1182,39 @@ const (
 	ArtifactUploadStatusCompleted = "completed"
 )
 
+const ArtifactPublicationStatusQueued = "queued"
+
+type ArtifactPublication struct {
+	PublicationID string    `json:"publication_id"`
+	OwnerUserID   string    `json:"owner_user_id,omitempty"`
+	NodeID        string    `json:"node_id"`
+	AgentID       string    `json:"agent_id"`
+	SessionID     string    `json:"session_id"`
+	Filename      string    `json:"filename"`
+	Title         string    `json:"title,omitempty"`
+	Status        string    `json:"status"`
+	ArtifactID    string    `json:"artifact_id,omitempty"`
+	ErrorCode     string    `json:"error_code,omitempty"`
+	ErrorMessage  string    `json:"error_message,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type ArtifactPublicationSource struct {
+	AgentID   string `json:"agent_id"`
+	SessionID string `json:"session_id"`
+}
+
+type RegisterArtifactPublicationRequest struct {
+	Source   ArtifactPublicationSource `json:"source"`
+	Filename string                    `json:"filename"`
+	Title    string                    `json:"title"`
+}
+
+type ArtifactPublicationData struct {
+	Publication ArtifactPublication `json:"publication"`
+}
+
 const (
 	UserAttachmentUploadPending   = "pending"
 	UserAttachmentUploadCompleted = "completed"

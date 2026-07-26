@@ -43,6 +43,7 @@ type CreatePaxdArtifactRequest = domain.CreatePaxdArtifactRequest
 type FindPaxdArtifactRequest = domain.FindPaxdArtifactRequest
 type UserAttachment = domain.UserAttachment
 type CreateUserAttachmentRequest = domain.CreateUserAttachmentRequest
+type ArtifactPublication = domain.ArtifactPublication
 type ArtifactUpload = domain.ArtifactUpload
 type CreateArtifactUploadRequest = domain.CreateArtifactUploadRequest
 type CompleteArtifactUploadRequest = domain.CompleteArtifactUploadRequest

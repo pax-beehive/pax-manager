@@ -371,6 +371,8 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.GET(routeListAgentConversationMessages, ListAgentConversationMessages)
 	h.POST(routeCreateUserAttachment, s.handleCreateUserAttachment)
 	h.POST(routeCompleteUserAttachment, s.handleCompleteUserAttachment)
+	h.PUT(routePutArtifactPublication, NodeAuth(), s.handlePutArtifactPublication)
+	h.GET(routeGetArtifactPublication, s.handleGetArtifactPublication)
 	h.POST(routeCreateArtifactUpload, s.handleCreateArtifactUpload)
 	h.POST(routeCompleteArtifactUpload, s.handleCompleteArtifactUpload)
 	h.POST(routeCreateSessionArtifact, s.handleCreateSessionArtifact)
