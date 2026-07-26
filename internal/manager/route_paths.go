@@ -84,6 +84,7 @@ const (
 	routeFailArtifactPublication    = "/api/v1/node/artifact-publications/:publication_id/failed"
 	routeCompleteNodeArtifactUpload = "/api/v1/node/artifact-uploads/:upload_id/complete"
 	routeGetArtifactPublication     = "/api/v1/user/:user_id/artifact-publications/:publication_id"
+	routeArtifactPublicationContent = "/api/v1/user/:user_id/artifact-publications/:publication_id/content/:content_ref"
 
 	routeOpenAPI     = "/openapi"
 	routeOpenAPIJSON = "/openapi.json"
@@ -138,4 +139,5 @@ const (
 	openAPINodeArtifactPublication    = "/api/v1/node/artifact-publications/{publication_id}"
 	openAPINodeArtifactUploadComplete = "/api/v1/node/artifact-uploads/{upload_id}/complete"
 	openAPIUserArtifactPublication    = "/api/v1/user/{user_id}/artifact-publications/{publication_id}"
+	openAPIUserArtifactContent        = "/api/v1/user/{user_id}/artifact-publications/{publication_id}/content/{content_ref}"
 )

@@ -118,6 +118,7 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/v1/node/artifact-uploads/{upload_id}/complete",
 		"/api/v1/node/artifact-publications/{publication_id}/failed",
 		"/api/v1/user/{user_id}/artifact-publications/{publication_id}",
+		"/api/v1/user/{user_id}/artifact-publications/{publication_id}/content/{content_ref}",
 		"/api/v1/public/artifacts/download",
 		"/api/v1/public/paxd/download",
 		"/api/v1/public/paxl/download",
@@ -7747,6 +7748,7 @@ type fakePaxdArtifactBackend struct {
 	attrs          paxdArtifactObjectAttrs
 	signedArtifact PaxdArtifact
 	expiresAt      time.Time
+	signedQuery    map[string]string
 }
 
 func (b *fakePaxdArtifactBackend) SignDownloadURL(
@@ -7773,6 +7775,10 @@ func (b *fakePaxdArtifactBackend) SignObjectDownloadURL(
 		Generation: generation,
 	}
 	b.expiresAt = expiresAt
+	b.signedQuery = make(map[string]string, len(query))
+	for key, value := range query {
+		b.signedQuery[key] = value
+	}
 	return "https://signed.example/" + object, nil
 }
 

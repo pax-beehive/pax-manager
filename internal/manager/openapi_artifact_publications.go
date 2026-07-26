@@ -109,4 +109,42 @@ func addArtifactPublicationPaths(doc map[string]any) {
 			},
 		},
 	}
+	paths[openAPIUserArtifactContent] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "Preview or download published artifact content",
+			"description": "Resolves publication state and signs generation-pinned content using the safe inline preview policy.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters": []map[string]any{
+				{
+					"name": "user_id", "in": "path", "required": true,
+					"schema": map[string]string{"type": "string"},
+				},
+				publicationPathParam,
+				{
+					"name": "content_ref", "in": "path", "required": true,
+					"schema": map[string]string{"type": "string"},
+				},
+				{
+					"name": "disposition", "in": "query",
+					"schema": map[string]any{"type": "string", "enum": []string{"inline", "attachment"}},
+				},
+				{
+					"name": "redirect", "in": "query",
+					"schema": map[string]string{"type": "boolean"},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Signed immutable artifact content."},
+				"202": map[string]string{
+					"description": "Publication is not available yet and may be retried.",
+				},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Publication or content not found."},
+				"409": map[string]string{
+					"description": "Publication failed or content is not finalized.",
+				},
+			},
+		},
+	}
 }

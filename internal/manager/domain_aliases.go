@@ -101,6 +101,7 @@ type ArtifactPublicationSource = domain.ArtifactPublicationSource
 type RegisterArtifactPublicationRequest = domain.RegisterArtifactPublicationRequest
 type FailArtifactPublicationRequest = domain.FailArtifactPublicationRequest
 type ArtifactPublicationData = domain.ArtifactPublicationData
+type ArtifactPublicationContentData = domain.ArtifactPublicationContentData
 type PrepareArtifactPublicationRequest = domain.PrepareArtifactPublicationRequest
 type NodeArtifactUploadTicket = domain.NodeArtifactUploadTicket
 type PrepareArtifactPublicationData = domain.PrepareArtifactPublicationData

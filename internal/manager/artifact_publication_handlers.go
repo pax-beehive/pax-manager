@@ -99,7 +99,17 @@ func (s *Service) handleGetArtifactPublication(
 		writeEndpointError(ctx, err)
 		return
 	}
-	writeData(ctx, http.StatusOK, ArtifactPublicationData{Publication: publication})
+	data := ArtifactPublicationData{Publication: publication}
+	if publication.Status == domain.ArtifactPublicationStatusAvailable &&
+		publication.ArtifactID != "" {
+		artifact, err := s.store.GetSessionArtifact(c, principal, publication.ArtifactID)
+		if err != nil {
+			writeEndpointError(ctx, err)
+			return
+		}
+		data.Artifact = &artifact
+	}
+	writeData(ctx, http.StatusOK, data)
 }
 
 func normalizeRegisterArtifactPublicationRequest(

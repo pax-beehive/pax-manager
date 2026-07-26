@@ -1224,6 +1224,19 @@ type FailArtifactPublicationRequest struct {
 
 type ArtifactPublicationData struct {
 	Publication ArtifactPublication `json:"publication"`
+	Artifact    *SessionArtifact    `json:"artifact,omitempty"`
+}
+
+type ArtifactPublicationContentData struct {
+	Status      string              `json:"status"`
+	Retryable   bool                `json:"retryable"`
+	Publication ArtifactPublication `json:"publication"`
+	Artifact    *SessionArtifact    `json:"artifact,omitempty"`
+	Content     *ArtifactContent    `json:"content,omitempty"`
+	URL         string              `json:"url,omitempty"`
+	ExpiresAt   *time.Time          `json:"expires_at,omitempty"`
+	PreviewKind string              `json:"preview_kind,omitempty"`
+	Disposition string              `json:"disposition,omitempty"`
 }
 
 const (
