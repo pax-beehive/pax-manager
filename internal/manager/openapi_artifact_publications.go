@@ -68,6 +68,24 @@ func addArtifactPublicationPaths(doc map[string]any) {
 			},
 		},
 	}
+	paths[openAPINodeArtifactFailure] = map[string]any{
+		"post": map[string]any{
+			"tags":        []string{"node"},
+			"summary":     "Report a permanent agent artifact failure",
+			"description": "Marks a non-finalized publication failed without downgrading an available artifact.",
+			"security":    []map[string][]string{{"nodeBearer": {}}},
+			"parameters":  []map[string]any{publicationPathParam},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Failed or already-available publication."},
+				"400": map[string]string{"description": "Invalid permanent failure."},
+				"401": map[string]string{"description": "Node authentication failed."},
+				"404": map[string]string{"description": "Publication not found on this node."},
+				"409": map[string]string{
+					"description": "A different permanent failure was already recorded.",
+				},
+			},
+		},
+	}
 	paths[openAPIUserArtifactPublication] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"user"},

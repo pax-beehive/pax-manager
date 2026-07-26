@@ -130,6 +130,13 @@ type Store interface {
 		principal UserPrincipal,
 		publicationID string,
 	) (ArtifactPublication, error)
+	FailArtifactPublication(
+		ctx context.Context,
+		node Node,
+		publicationID string,
+		code string,
+		message string,
+	) (ArtifactPublication, error)
 	PrepareArtifactPublication(
 		ctx context.Context,
 		node Node,

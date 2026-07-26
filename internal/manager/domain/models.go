@@ -1187,6 +1187,7 @@ const (
 	ArtifactPublicationStatusQueued    = "queued"
 	ArtifactPublicationStatusUploading = "uploading"
 	ArtifactPublicationStatusAvailable = "available"
+	ArtifactPublicationStatusFailed    = "failed"
 )
 
 type ArtifactPublication struct {
@@ -1214,6 +1215,11 @@ type RegisterArtifactPublicationRequest struct {
 	Source   ArtifactPublicationSource `json:"source"`
 	Filename string                    `json:"filename"`
 	Title    string                    `json:"title"`
+}
+
+type FailArtifactPublicationRequest struct {
+	ErrorCode string `json:"error_code"`
+	Message   string `json:"message"`
 }
 
 type ArtifactPublicationData struct {

@@ -130,6 +130,8 @@ type artifactPublicationTestView struct {
 	Filename      string `json:"filename"`
 	Title         string `json:"title"`
 	Status        string `json:"status"`
+	ErrorCode     string `json:"error_code"`
+	ErrorMessage  string `json:"error_message"`
 }
 
 func createArtifactPublicationSession(

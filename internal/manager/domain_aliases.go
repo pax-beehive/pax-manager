@@ -99,6 +99,7 @@ type CompleteUserAttachmentData = domain.CompleteUserAttachmentData
 type ArtifactPublication = domain.ArtifactPublication
 type ArtifactPublicationSource = domain.ArtifactPublicationSource
 type RegisterArtifactPublicationRequest = domain.RegisterArtifactPublicationRequest
+type FailArtifactPublicationRequest = domain.FailArtifactPublicationRequest
 type ArtifactPublicationData = domain.ArtifactPublicationData
 type PrepareArtifactPublicationRequest = domain.PrepareArtifactPublicationRequest
 type NodeArtifactUploadTicket = domain.NodeArtifactUploadTicket
