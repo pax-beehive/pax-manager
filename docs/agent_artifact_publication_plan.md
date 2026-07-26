@@ -2,7 +2,23 @@
 
 ## Status
 
-Planning only. This document does not authorize implementation or deployment.
+Implemented through the first-version preview/download slice. Deployment and
+production migration remain separate operational actions.
+
+The implementation was delivered in independently verifiable commits:
+
+- `7e407ad`: node publication registration and owner-scoped reads.
+- `c2e0615`: natural-identity deduplication, upload tickets, and completion.
+- `b02631f`: durable ACP history reconciliation and `pax:artifact` cards.
+- `f03ed54`: monotonic permanent-failure reporting.
+- `491c1e4`: generation-pinned preview and download resolution.
+
+The corresponding paxd commits are:
+
+- `beede44`: daemon-owned snapshot acceptance and MCP marker.
+- `5a444b8`: background hashing, manager coordination, resumable GCS upload,
+  restart recovery, and permanent-failure reporting.
+- `e74f758`: executable BDD behavior contract.
 
 ## Summary
 
