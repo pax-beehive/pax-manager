@@ -136,6 +136,15 @@ func newServer(cfg Config, store Store) *Service {
 		secrets,
 	)
 	s.userapi.SetNodeControlClient(s.nodeControls)
+	s.userapi.SetHistoryReconciler(func(
+		ctx context.Context,
+		agentID string,
+		sessionID string,
+	) error {
+		return reconcileArtifactPublicationDisplaysForSession(
+			ctx, s.store, agentID, sessionID,
+		)
+	})
 	s.configureTeamMemexExecutor()
 	s.paxdArtifacts = newGCPPaxdArtifactBackend(cfg)
 	return s

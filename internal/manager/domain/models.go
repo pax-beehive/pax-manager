@@ -440,6 +440,7 @@ const (
 
 	MessageTypePaxInvocation        = "pax:invocation"
 	MessageTypePaxInvocationPending = "pax:invocation_pending"
+	MessageTypePaxArtifact          = "pax:artifact"
 	MessageTypePaxUser              = "pax:user_message"
 	MessageTypeUser                 = "user_message"
 

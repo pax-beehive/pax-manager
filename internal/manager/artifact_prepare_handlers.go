@@ -63,7 +63,7 @@ func (s *Service) handlePrepareArtifactPublication(
 	}
 	object := sessionArtifactObjectName(node.OwnerUserID, objectID, req.Filename)
 	expiresAt := s.clock().UTC().Add(s.sessionArtifactUploadTTL())
-	_, upload, err := s.store.PrepareArtifactPublication(
+	publication, upload, err := s.store.PrepareArtifactPublication(
 		c,
 		node,
 		publicationID,
@@ -73,6 +73,12 @@ func (s *Service) handlePrepareArtifactPublication(
 		expiresAt,
 	)
 	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	if err := reconcileArtifactPublicationDisplaysForSession(
+		c, s.store, publication.AgentID, publication.SessionID,
+	); err != nil {
 		writeEndpointError(ctx, err)
 		return
 	}
@@ -129,12 +135,17 @@ func (s *Service) handleCompleteNodeArtifactUpload(
 		return
 	}
 	if upload.Status == domain.ArtifactUploadStatusCompleted {
-		_, artifact, err := s.store.CompleteNodeArtifactUpload(
+		completedUpload, artifact, err := s.store.CompleteNodeArtifactUpload(
 			c,
 			node,
 			upload.UploadID,
 			ArtifactContent{},
 		)
+		if err == nil {
+			err = reconcileArtifactPublicationDisplaysForSession(
+				c, s.store, completedUpload.AgentID, completedUpload.SessionID,
+			)
+		}
 		writeNodeArtifactCompletion(ctx, artifact, err)
 		return
 	}
@@ -171,7 +182,7 @@ func (s *Service) handleCompleteNodeArtifactUpload(
 	if attrs.ContentType == "" || attrs.ContentType == "application/octet-stream" {
 		attrs.ContentType = upload.ContentType
 	}
-	_, artifact, err := s.store.CompleteNodeArtifactUpload(
+	completedUpload, artifact, err := s.store.CompleteNodeArtifactUpload(
 		c,
 		node,
 		upload.UploadID,
@@ -182,6 +193,11 @@ func (s *Service) handleCompleteNodeArtifactUpload(
 			Generation:  attrs.Generation,
 		},
 	)
+	if err == nil {
+		err = reconcileArtifactPublicationDisplaysForSession(
+			c, s.store, completedUpload.AgentID, completedUpload.SessionID,
+		)
+	}
 	writeNodeArtifactCompletion(ctx, artifact, err)
 }
 

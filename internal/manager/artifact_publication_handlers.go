@@ -69,6 +69,15 @@ func (s *Service) handlePutArtifactPublication(
 		writeEndpointError(ctx, err)
 		return
 	}
+	if err := reconcileArtifactPublicationDisplaysForSession(
+		c,
+		s.store,
+		publication.AgentID,
+		publication.SessionID,
+	); err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
 	writeData(ctx, http.StatusOK, ArtifactPublicationData{Publication: publication})
 }
 

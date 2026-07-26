@@ -72,7 +72,9 @@ func NormalTranscriptMessages(messages []MessageWithParts) []MessageWithParts {
 }
 
 func isInvocationDisplayMessage(messageType string) bool {
-	return messageType == MessageTypePaxInvocation || messageType == MessageTypePaxInvocationPending
+	return messageType == MessageTypePaxInvocation ||
+		messageType == MessageTypePaxInvocationPending ||
+		messageType == MessageTypePaxArtifact
 }
 
 func invocationReplacedMessageIDs(message MessageWithParts) []string {

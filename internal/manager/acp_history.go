@@ -196,7 +196,10 @@ func projectACPTransportMessageWithTextSink(
 	}); err != nil {
 		return err
 	}
-	return projectACPPaxInvocationPendingDisplay(ctx, store, msg)
+	if err := projectACPPaxInvocationPendingDisplay(ctx, store, msg); err != nil {
+		return err
+	}
+	return reconcileArtifactPublicationDisplayForTerminal(ctx, store, msg)
 }
 
 func projectACPUserPrompt(

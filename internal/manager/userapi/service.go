@@ -1915,6 +1915,11 @@ func (s *Service) listSessionHistory(
 			Message: "before_id must be non-negative",
 		}
 	}
+	if s.historyReconciler != nil {
+		if err := s.historyReconciler(c, agentID, sessionID); err != nil {
+			return 0, nil, err
+		}
+	}
 	page, err := s.store.ListMessageHistoryPage(c, agentID, sessionID, beforeID, limit)
 	if err != nil {
 		return 0, nil, err
