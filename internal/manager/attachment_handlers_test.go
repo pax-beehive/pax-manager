@@ -31,7 +31,8 @@ func TestUserAttachmentGivenNoAgentWhenUploadCompletesThenItIsReusable(t *testin
 		strings.NewReader(`{
 			"filename":"notes.txt",
 			"content_type":"text/plain",
-			"size_bytes":12
+			"size_bytes":12,
+			"sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 		}`),
 	)
 	createReq.Header.Set("X-User-Email", "attachment@example.com")
@@ -45,6 +46,7 @@ func TestUserAttachmentGivenNoAgentWhenUploadCompletesThenItIsReusable(t *testin
 	assert.Equal(t, "gcs_resumable", ticket.Upload.Protocol)
 	assert.Equal(t, http.MethodPost, ticket.Upload.Method)
 	assert.Equal(t, "start", ticket.Upload.Headers["x-goog-resumable"])
+	assert.Equal(t, ticket.Attachment.SHA256, ticket.Upload.Headers["x-goog-meta-sha256"])
 	assert.NotContains(t, createRec.Body.String(), "agent_id")
 	assert.NotContains(t, createRec.Body.String(), "node_id")
 

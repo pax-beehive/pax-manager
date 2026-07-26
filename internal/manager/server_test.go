@@ -115,6 +115,7 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events",
 		"/api/v1/node/conversation/deliver",
 		"/api/v1/node/artifact-publications/{publication_id}",
+		"/api/v1/node/artifact-uploads/{upload_id}/complete",
 		"/api/v1/user/{user_id}/artifact-publications/{publication_id}",
 		"/api/v1/public/artifacts/download",
 		"/api/v1/public/paxd/download",
@@ -7790,6 +7791,7 @@ func (b *fakePaxdArtifactBackend) SignResumableUploadURL(
 	bucket string,
 	object string,
 	contentType string,
+	sha256 string,
 	expiresAt time.Time,
 ) (string, error) {
 	b.expiresAt = expiresAt

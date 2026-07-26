@@ -136,9 +136,13 @@ func (s *MemoryStore) createSessionArtifactLocked(
 	principal UserPrincipal,
 	req CreateSessionArtifactRequest,
 ) (SessionArtifact, error) {
-	artifactID, err := newSecret("art")
-	if err != nil {
-		return SessionArtifact{}, err
+	artifactID := strings.TrimSpace(req.ArtifactID)
+	if artifactID == "" {
+		generated, err := newSecret("art")
+		if err != nil {
+			return SessionArtifact{}, err
+		}
+		artifactID = generated
 	}
 	now := s.now().UTC()
 	artifact := SessionArtifact{

@@ -67,6 +67,7 @@ func (b mockPaxdArtifactBackend) SignResumableUploadURL(
 	bucket string,
 	object string,
 	contentType string,
+	sha256 string,
 	expiresAt time.Time,
 ) (string, error) {
 	values := url.Values{}

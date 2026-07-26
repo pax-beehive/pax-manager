@@ -693,6 +693,9 @@ CREATE INDEX IF NOT EXISTS idx_artifact_publications_session_created
 
 CREATE TABLE IF NOT EXISTS artifact_uploads (
     upload_id TEXT PRIMARY KEY,
+    artifact_id TEXT NOT NULL DEFAULT '',
+    node_id TEXT NOT NULL DEFAULT '',
+    agent_id TEXT NOT NULL DEFAULT '',
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     session_id TEXT NOT NULL DEFAULT '',
     kind TEXT NOT NULL DEFAULT '',
@@ -712,8 +715,15 @@ CREATE TABLE IF NOT EXISTS artifact_uploads (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE artifact_uploads ADD COLUMN IF NOT EXISTS artifact_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE artifact_uploads ADD COLUMN IF NOT EXISTS node_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE artifact_uploads ADD COLUMN IF NOT EXISTS agent_id TEXT NOT NULL DEFAULT '';
+
 CREATE INDEX IF NOT EXISTS idx_artifact_uploads_owner_created
     ON artifact_uploads(owner_user_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_uploads_node_identity
+    ON artifact_uploads(owner_user_id, session_id, filename, sha256)
+    WHERE node_id <> '' AND sha256 <> '';
 
 CREATE TABLE IF NOT EXISTS session_artifacts (
     artifact_id TEXT PRIMARY KEY,

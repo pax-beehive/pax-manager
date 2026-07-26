@@ -130,6 +130,26 @@ type Store interface {
 		principal UserPrincipal,
 		publicationID string,
 	) (ArtifactPublication, error)
+	PrepareArtifactPublication(
+		ctx context.Context,
+		node Node,
+		publicationID string,
+		req PrepareArtifactPublicationRequest,
+		bucket string,
+		object string,
+		expiresAt time.Time,
+	) (ArtifactPublication, ArtifactUpload, error)
+	GetNodeArtifactUpload(
+		ctx context.Context,
+		node Node,
+		uploadID string,
+	) (ArtifactUpload, error)
+	CompleteNodeArtifactUpload(
+		ctx context.Context,
+		node Node,
+		uploadID string,
+		attrs ArtifactContent,
+	) (ArtifactUpload, SessionArtifact, error)
 	CreateArtifactUpload(
 		ctx context.Context,
 		principal UserPrincipal,

@@ -1182,7 +1182,11 @@ const (
 	ArtifactUploadStatusCompleted = "completed"
 )
 
-const ArtifactPublicationStatusQueued = "queued"
+const (
+	ArtifactPublicationStatusQueued    = "queued"
+	ArtifactPublicationStatusUploading = "uploading"
+	ArtifactPublicationStatusAvailable = "available"
+)
 
 type ArtifactPublication struct {
 	PublicationID string    `json:"publication_id"`
@@ -1274,7 +1278,10 @@ const (
 
 type ArtifactUpload struct {
 	UploadID    string     `json:"upload_id"`
+	ArtifactID  string     `json:"artifact_id,omitempty"`
 	OwnerUserID string     `json:"owner_user_id,omitempty"`
+	NodeID      string     `json:"node_id,omitempty"`
+	AgentID     string     `json:"agent_id,omitempty"`
 	SessionID   string     `json:"session_id,omitempty"`
 	Kind        string     `json:"kind,omitempty"`
 	Title       string     `json:"title,omitempty"`
@@ -1291,6 +1298,34 @@ type ArtifactUpload struct {
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+type PrepareArtifactPublicationRequest struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	SizeBytes   int64  `json:"size_bytes"`
+	SHA256      string `json:"sha256"`
+}
+
+type NodeArtifactUploadTicket struct {
+	UploadID       string            `json:"upload_id"`
+	Protocol       string            `json:"protocol"`
+	Method         string            `json:"method"`
+	URL            string            `json:"url"`
+	Headers        map[string]string `json:"headers,omitempty"`
+	ChunkAlignment int64             `json:"chunk_alignment"`
+	ExpiresAt      time.Time         `json:"expires_at"`
+}
+
+type PrepareArtifactPublicationData struct {
+	Status     string                    `json:"status"`
+	ArtifactID string                    `json:"artifact_id"`
+	Upload     *NodeArtifactUploadTicket `json:"upload,omitempty"`
+}
+
+type CompleteNodeArtifactUploadData struct {
+	Status     string `json:"status"`
+	ArtifactID string `json:"artifact_id"`
 }
 
 type CreateArtifactUploadRequest struct {
@@ -1372,6 +1407,7 @@ type ArtifactContent struct {
 }
 
 type CreateSessionArtifactRequest struct {
+	ArtifactID    string            `json:"-"`
 	Kind          string            `json:"kind"`
 	SchemaVersion int               `json:"schema_version"`
 	Title         string            `json:"title"`

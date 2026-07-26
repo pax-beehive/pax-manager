@@ -54,22 +54,27 @@ func (s *Service) handleCreateUserAttachment(c context.Context, ctx *app.Request
 		attachment.Bucket,
 		attachment.Object,
 		attachment.ContentType,
+		attachment.SHA256,
 		expiresAt,
 	)
 	if err != nil {
 		writeEndpointError(ctx, err)
 		return
 	}
+	headers := map[string]string{
+		"Content-Type":     attachment.ContentType,
+		"x-goog-resumable": "start",
+	}
+	if attachment.SHA256 != "" {
+		headers["x-goog-meta-sha256"] = attachment.SHA256
+	}
 	writeData(ctx, http.StatusOK, UserAttachmentUploadTicket{
 		Attachment: attachment,
 		Upload: UserAttachmentUpload{
-			Protocol: "gcs_resumable",
-			Method:   http.MethodPost,
-			URL:      url,
-			Headers: map[string]string{
-				"Content-Type":     attachment.ContentType,
-				"x-goog-resumable": "start",
-			},
+			Protocol:       "gcs_resumable",
+			Method:         http.MethodPost,
+			URL:            url,
+			Headers:        headers,
 			ChunkAlignment: gcsResumableChunkAlignment,
 			ExpiresAt:      expiresAt,
 		},
