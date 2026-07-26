@@ -138,6 +138,7 @@ const (
 	openAPINodeConversationDeliver    = "/api/v1/node/conversation/deliver"
 	openAPINodeArtifactPublication    = "/api/v1/node/artifact-publications/{publication_id}"
 	openAPINodeArtifactUploadComplete = "/api/v1/node/artifact-uploads/{upload_id}/complete"
+	openAPINodeArtifactFailure        = "/api/v1/node/artifact-publications/{publication_id}/failed"
 	openAPIUserArtifactPublication    = "/api/v1/user/{user_id}/artifact-publications/{publication_id}"
 	openAPIUserArtifactContent        = "/api/v1/user/{user_id}/artifact-publications/{publication_id}/content/{content_ref}"
 )

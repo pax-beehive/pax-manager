@@ -465,14 +465,15 @@ type NodeControlClient interface {
 }
 
 type Service struct {
-	store            Store
-	clock            func() time.Time
-	principal        PrincipalResolver
-	secrets          SecretIssuer
-	vault            *vaultsecrets.Cipher
-	backgroundRunner func(context.Context, func(context.Context))
-	memexExecutor    TeamMemexExecutor
-	nodeControl      NodeControlClient
+	store             Store
+	clock             func() time.Time
+	principal         PrincipalResolver
+	secrets           SecretIssuer
+	vault             *vaultsecrets.Cipher
+	backgroundRunner  func(context.Context, func(context.Context))
+	memexExecutor     TeamMemexExecutor
+	nodeControl       NodeControlClient
+	historyReconciler func(context.Context, string, string) error
 }
 
 func NewService(
@@ -529,6 +530,12 @@ func (s *Service) SetTeamMemexExecutor(executor TeamMemexExecutor) {
 
 func (s *Service) SetNodeControlClient(client NodeControlClient) {
 	s.nodeControl = client
+}
+
+func (s *Service) SetHistoryReconciler(
+	reconciler func(context.Context, string, string) error,
+) {
+	s.historyReconciler = reconciler
 }
 
 func firstVaultCipher(values []*vaultsecrets.Cipher) *vaultsecrets.Cipher {

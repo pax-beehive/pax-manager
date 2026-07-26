@@ -368,16 +368,19 @@ func (s *Service) promptConversation(
 	sub := runner.agentConn.subscribeSSE(session.managerID)
 	defer runner.agentConn.unsubscribeSSE(sub)
 
-	nextInput := input
+	nextPrompt := prompt
 	for {
-		if err := s.promptConversationOnce(ctx, w, flusher, runner, session, sub, nextInput); err != nil {
+		if err := s.promptConversationOnce(ctx, w, flusher, runner, session, sub, nextPrompt); err != nil {
 			return err
 		}
 		queued, ok := s.conversationTurns.take(runner.agentConn.agentID, session.managerID)
 		if !ok {
 			break
 		}
-		nextInput = queued.Input
+		nextPrompt = []map[string]any{{
+			"type": "text",
+			"text": queued.Input,
+		}}
 	}
 	return s.writeConversationEvent(w, flusher, conversationEvent{
 		Type:      "done",
@@ -394,7 +397,7 @@ func (s *Service) promptConversationOnce(
 	runner *conversationRunner,
 	session conversationSession,
 	sub *acpSSESubscriber,
-	input string,
+	prompt []map[string]any,
 ) error {
 	params := map[string]any{
 		"sessionId": session.managerID,
