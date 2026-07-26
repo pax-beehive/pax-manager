@@ -731,12 +731,39 @@ func (s *Service) ListNodeDaemonAgentConnections(
 	nodeID string,
 	includeDisabled bool,
 ) (int, any, error) {
-	return s.queryNodeDaemon(c, meta, nodeID, map[string]any{
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	if nodeID == "" {
+		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "node_id is required"}
+	}
+	node, err := s.store.GetNode(c, principal, nodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if s.nodeControl == nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	result, err := s.queryNodeControl(c, node.NodeID, map[string]any{
 		"type": "agent_connections.list",
 		"list_agent_connections": map[string]any{
+			"remote_id":        remoteID,
 			"include_disabled": includeDisabled,
 		},
 	})
+	if err != nil {
+		return 0, nil, err
+	}
+	result, err = s.filterOwnedNodeDaemonAgentConnections(c, principal, node.NodeID, result)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, result, nil
 }
 
 func (s *Service) GetNodeDaemonCommand(
@@ -782,6 +809,71 @@ func (s *Service) queryNodeDaemon(
 		return 0, nil, err
 	}
 	return http.StatusOK, result, nil
+}
+
+func (s *Service) filterOwnedNodeDaemonAgentConnections(
+	c context.Context,
+	principal domain.UserPrincipal,
+	nodeID string,
+	raw json.RawMessage,
+) (json.RawMessage, error) {
+	var result nodeDaemonAgentConnectionsQueryResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, apperr.Error{
+			Status:  http.StatusBadGateway,
+			Message: "paxd returned an invalid agent connection result",
+		}
+	}
+	if result.Error != nil || result.AgentConnections == nil || len(result.AgentConnections.Items) == 0 {
+		return raw, nil
+	}
+
+	identities := make([]nodeDaemonAgentConnectionIdentity, len(result.AgentConnections.Items))
+	hasBoundAgent := false
+	for i, item := range result.AgentConnections.Items {
+		if err := json.Unmarshal(item, &identities[i]); err != nil {
+			return nil, apperr.Error{
+				Status:  http.StatusBadGateway,
+				Message: "paxd returned an invalid agent connection",
+			}
+		}
+		hasBoundAgent = hasBoundAgent || strings.TrimSpace(identities[i].CloudAgentID) != ""
+	}
+	if !hasBoundAgent {
+		return raw, nil
+	}
+
+	agents, err := s.store.ListNodeAgents(c, principal, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	ownedAgentIDs := make(map[string]struct{}, len(agents))
+	for _, agent := range agents {
+		if agent.OwnerUserID == principal.User.UserID {
+			ownedAgentIDs[agent.AgentID] = struct{}{}
+		}
+	}
+
+	filtered := make([]json.RawMessage, 0, len(result.AgentConnections.Items))
+	for i, item := range result.AgentConnections.Items {
+		agentID := strings.TrimSpace(identities[i].CloudAgentID)
+		if agentID == "" {
+			filtered = append(filtered, item)
+			continue
+		}
+		if _, ok := ownedAgentIDs[agentID]; ok {
+			filtered = append(filtered, item)
+		}
+	}
+	result.AgentConnections.Items = filtered
+	filteredRaw, err := json.Marshal(result)
+	if err != nil {
+		return nil, apperr.Error{
+			Status:  http.StatusInternalServerError,
+			Message: "failed to encode filtered agent connections",
+		}
+	}
+	return filteredRaw, nil
 }
 
 func (s *Service) queryNodeControl(
@@ -907,6 +999,20 @@ type nodeDaemonHarness struct {
 	Command     []string `json:"command"`
 	InstallHint string   `json:"install_hint"`
 	LastError   string   `json:"last_error"`
+}
+
+type nodeDaemonAgentConnectionsQueryResult struct {
+	Type             string                          `json:"type"`
+	Error            *nodeDaemonControlError         `json:"error,omitempty"`
+	AgentConnections *nodeDaemonAgentConnectionItems `json:"agent_connections,omitempty"`
+}
+
+type nodeDaemonAgentConnectionItems struct {
+	Items []json.RawMessage `json:"items"`
+}
+
+type nodeDaemonAgentConnectionIdentity struct {
+	CloudAgentID string `json:"cloud_agent_id"`
 }
 
 type nodeDaemonCommandAck struct {
