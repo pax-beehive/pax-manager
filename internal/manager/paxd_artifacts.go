@@ -44,6 +44,13 @@ type paxdArtifactBackend interface {
 		contentType string,
 		expiresAt time.Time,
 	) (string, error)
+	SignResumableUploadURL(
+		ctx context.Context,
+		bucket string,
+		object string,
+		contentType string,
+		expiresAt time.Time,
+	) (string, error)
 	VerifyUploader(ctx context.Context, token string, audience string) (string, error)
 	ObjectAttrs(
 		ctx context.Context,

@@ -647,6 +647,31 @@ CREATE INDEX IF NOT EXISTS idx_paxd_artifacts_tags
     ON paxd_artifacts USING GIN(tags)
     WHERE deleted_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS user_attachments (
+    attachment_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    conversation_id TEXT,
+    filename TEXT NOT NULL,
+    content_type TEXT NOT NULL DEFAULT '',
+    size_bytes BIGINT NOT NULL DEFAULT 0,
+    sha256 TEXT NOT NULL DEFAULT '',
+    bucket TEXT NOT NULL,
+    object TEXT NOT NULL,
+    generation BIGINT NOT NULL DEFAULT 0,
+    upload_status TEXT NOT NULL DEFAULT 'pending',
+    upload_expires_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(bucket, object)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_attachments_owner_created
+    ON user_attachments(owner_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_attachments_conversation_created
+    ON user_attachments(conversation_id, created_at)
+    WHERE conversation_id IS NOT NULL AND conversation_id <> '';
+
 CREATE TABLE IF NOT EXISTS artifact_uploads (
     upload_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

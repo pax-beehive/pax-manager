@@ -1183,6 +1183,57 @@ const (
 )
 
 const (
+	UserAttachmentUploadPending   = "pending"
+	UserAttachmentUploadCompleted = "completed"
+	UserAttachmentUploadFailed    = "failed"
+)
+
+type UserAttachment struct {
+	AttachmentID    string     `json:"attachment_id"`
+	OwnerUserID     string     `json:"owner_user_id,omitempty"`
+	ConversationID  string     `json:"conversation_id,omitempty"`
+	Filename        string     `json:"filename"`
+	ContentType     string     `json:"content_type,omitempty"`
+	SizeBytes       int64      `json:"size_bytes,omitempty"`
+	SHA256          string     `json:"sha256,omitempty"`
+	Bucket          string     `json:"-"`
+	Object          string     `json:"-"`
+	Generation      int64      `json:"generation,omitempty"`
+	UploadStatus    string     `json:"upload_status"`
+	UploadExpiresAt time.Time  `json:"upload_expires_at"`
+	CompletedAt     *time.Time `json:"completed_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+type CreateUserAttachmentRequest struct {
+	ConversationID string `json:"conversation_id"`
+	Filename       string `json:"filename"`
+	ContentType    string `json:"content_type"`
+	SizeBytes      int64  `json:"size_bytes"`
+	SHA256         string `json:"sha256"`
+}
+
+type UserAttachmentUpload struct {
+	Protocol       string            `json:"protocol"`
+	Method         string            `json:"method"`
+	URL            string            `json:"url"`
+	Headers        map[string]string `json:"headers,omitempty"`
+	ChunkAlignment int64             `json:"chunk_alignment,omitempty"`
+	ExpiresAt      time.Time         `json:"expires_at"`
+}
+
+type UserAttachmentUploadTicket struct {
+	Attachment  UserAttachment       `json:"attachment"`
+	Upload      UserAttachmentUpload `json:"upload"`
+	CompleteURL string               `json:"complete_url"`
+}
+
+type CompleteUserAttachmentData struct {
+	Attachment UserAttachment `json:"attachment"`
+}
+
+const (
 	SessionArtifactStatusAvailable = "available"
 	SessionArtifactStatusProposed  = "proposed"
 	SessionArtifactStatusFailed    = "failed"

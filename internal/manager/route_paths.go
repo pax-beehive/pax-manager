@@ -72,6 +72,8 @@ const (
 
 	routeCreateArtifactUpload   = "/api/v1/user/:user_id/artifact-uploads"
 	routeCompleteArtifactUpload = "/api/v1/user/:user_id/artifact-uploads/:upload_id/complete"
+	routeCreateUserAttachment   = "/api/v1/user/:user_id/attachments"
+	routeCompleteUserAttachment = "/api/v1/user/:user_id/attachments/:attachment_id/complete"
 	routeCreateSessionArtifact  = "/api/v1/user/:user_id/artifacts"
 	routeGetSessionArtifact     = "/api/v1/user/:user_id/artifacts/:artifact_id"
 	routeArtifactContent        = "/api/v1/user/:user_id/artifacts/:artifact_id/content/:content_ref"

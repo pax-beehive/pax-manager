@@ -102,6 +102,25 @@ type Store interface {
 		createdBy string,
 	) (PaxdArtifact, error)
 	FindPaxdArtifact(ctx context.Context, req FindPaxdArtifactRequest) (PaxdArtifact, error)
+	CreateUserAttachment(
+		ctx context.Context,
+		principal UserPrincipal,
+		req CreateUserAttachmentRequest,
+		bucket string,
+		object string,
+		expiresAt time.Time,
+	) (UserAttachment, error)
+	GetUserAttachment(
+		ctx context.Context,
+		principal UserPrincipal,
+		attachmentID string,
+	) (UserAttachment, error)
+	CompleteUserAttachment(
+		ctx context.Context,
+		principal UserPrincipal,
+		attachmentID string,
+		attrs ArtifactContent,
+	) (UserAttachment, error)
 	CreateArtifactUpload(
 		ctx context.Context,
 		principal UserPrincipal,

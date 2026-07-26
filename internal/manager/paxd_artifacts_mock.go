@@ -62,6 +62,21 @@ func (b mockPaxdArtifactBackend) SignUploadURL(
 	return "https://mock-gcs.local/paxd/upload?" + values.Encode(), nil
 }
 
+func (b mockPaxdArtifactBackend) SignResumableUploadURL(
+	ctx context.Context,
+	bucket string,
+	object string,
+	contentType string,
+	expiresAt time.Time,
+) (string, error) {
+	values := url.Values{}
+	values.Set("bucket", bucket)
+	values.Set("object", object)
+	values.Set("content_type", contentType)
+	values.Set("expires", expiresAt.UTC().Format(time.RFC3339))
+	return "https://mock-gcs.local/paxd/resumable-upload?" + values.Encode(), nil
+}
+
 func (b mockPaxdArtifactBackend) VerifyUploader(
 	ctx context.Context,
 	token string,

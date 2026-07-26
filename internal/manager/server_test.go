@@ -7783,6 +7783,17 @@ func (b *fakePaxdArtifactBackend) SignUploadURL(
 	return "https://upload.example/" + object, nil
 }
 
+func (b *fakePaxdArtifactBackend) SignResumableUploadURL(
+	ctx context.Context,
+	bucket string,
+	object string,
+	contentType string,
+	expiresAt time.Time,
+) (string, error) {
+	b.expiresAt = expiresAt
+	return "https://upload.example/resumable/" + object, nil
+}
+
 func (b *fakePaxdArtifactBackend) VerifyUploader(
 	ctx context.Context,
 	token string,
