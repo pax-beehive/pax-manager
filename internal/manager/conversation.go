@@ -25,11 +25,12 @@ const (
 var conversationRequestIdleTimeout = 5 * time.Minute
 
 type conversationRequest struct {
-	SessionID    string          `json:"session_id,omitempty"`
-	Input        string          `json:"input"`
-	Resume       json.RawMessage `json:"resume,omitempty"`
-	CWD          string          `json:"cwd,omitempty"`
-	ApprovalMode string          `json:"approval_mode,omitempty"`
+	SessionID    string                     `json:"session_id,omitempty"`
+	Input        string                     `json:"input"`
+	Content      []conversationContentBlock `json:"content,omitempty"`
+	Resume       json.RawMessage            `json:"resume,omitempty"`
+	CWD          string                     `json:"cwd,omitempty"`
+	ApprovalMode string                     `json:"approval_mode,omitempty"`
 }
 
 type conversationEvent struct {
@@ -103,6 +104,19 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	var prompt []map[string]any
+	if !resumeReq.Requested {
+		prompt, err = s.resolveConversationPrompt(
+			r.Context(),
+			principal,
+			nodeID,
+			req,
+		)
+		if err != nil {
+			writeHTTPEndpointError(w, err)
+			return
+		}
+	}
 
 	session, err := s.resolveConversationSession(
 		r.Context(),
@@ -175,7 +189,7 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 	if resumeReq.Requested {
 		err = s.resumeConversation(r.Context(), w, flusher, &runner, session, principal, resumeReq)
 	} else {
-		err = s.promptConversation(r.Context(), w, flusher, &runner, session, req.Input)
+		err = s.promptConversation(r.Context(), w, flusher, &runner, session, prompt)
 	}
 	if err != nil {
 		_ = s.writeConversationEvent(w, flusher, conversationEvent{
@@ -202,13 +216,17 @@ func (s *Service) readConversationRequest(
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	req.Input = strings.TrimSpace(req.Input)
+	if err := normalizeConversationContentBlocks(req.Content); err != nil {
+		writeHTTPError(w, http.StatusBadRequest, err.Error())
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
 	resumeReq, err := parseConversationResume(req.Resume)
 	if err != nil {
 		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
-	if resumeReq.Requested && req.Input != "" {
-		writeHTTPError(w, http.StatusBadRequest, "input and resume are mutually exclusive")
+	if resumeReq.Requested && (req.Input != "" || len(req.Content) > 0) {
+		writeHTTPError(w, http.StatusBadRequest, "content and resume are mutually exclusive")
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	req.CWD = strings.TrimSpace(req.CWD)
@@ -237,8 +255,8 @@ func (s *Service) readConversationRequest(
 		writeHTTPError(w, http.StatusBadRequest, "session_id is required for resume")
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
-	if !resumeReq.Requested && req.Input == "" {
-		writeHTTPError(w, http.StatusBadRequest, "input is required")
+	if !resumeReq.Requested && req.Input == "" && len(req.Content) == 0 {
+		writeHTTPError(w, http.StatusBadRequest, "input or content is required")
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	return req, resumeReq, true
@@ -345,21 +363,24 @@ func (s *Service) promptConversation(
 	flusher http.Flusher,
 	runner *conversationRunner,
 	session conversationSession,
-	input string,
+	prompt []map[string]any,
 ) error {
 	sub := runner.agentConn.subscribeSSE(session.managerID)
 	defer runner.agentConn.unsubscribeSSE(sub)
 
-	nextInput := input
+	nextPrompt := prompt
 	for {
-		if err := s.promptConversationOnce(ctx, w, flusher, runner, session, sub, nextInput); err != nil {
+		if err := s.promptConversationOnce(ctx, w, flusher, runner, session, sub, nextPrompt); err != nil {
 			return err
 		}
 		queued, ok := s.conversationTurns.take(runner.agentConn.agentID, session.managerID)
 		if !ok {
 			break
 		}
-		nextInput = queued.Input
+		nextPrompt = []map[string]any{{
+			"type": "text",
+			"text": queued.Input,
+		}}
 	}
 	return s.writeConversationEvent(w, flusher, conversationEvent{
 		Type:      "done",
@@ -376,14 +397,11 @@ func (s *Service) promptConversationOnce(
 	runner *conversationRunner,
 	session conversationSession,
 	sub *acpSSESubscriber,
-	input string,
+	prompt []map[string]any,
 ) error {
 	params := map[string]any{
 		"sessionId": session.managerID,
-		"prompt": []map[string]string{{
-			"type": "text",
-			"text": input,
-		}},
+		"prompt":    prompt,
 	}
 	for attempt := 0; attempt < 2; attempt++ {
 		requestID, waiter, cancel, err := runner.send(ctx, "session/prompt", params)

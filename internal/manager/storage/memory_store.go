@@ -68,6 +68,8 @@ type MemoryStore struct {
 	secretAccess                 []SecretAccessEvent
 	paxdArtifacts                map[string]PaxdArtifact
 	paxdArtifactKeys             map[string]string
+	userAttachments              map[string]UserAttachment
+	artifactPublications         map[string]ArtifactPublication
 	artifactUploads              map[string]ArtifactUpload
 	sessionArtifacts             map[string]SessionArtifact
 	sessionArtifactContents      map[artifactContentKey]ArtifactContent
@@ -122,6 +124,8 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		secretVersionIDs:             make(map[string][]string),
 		paxdArtifacts:                make(map[string]PaxdArtifact),
 		paxdArtifactKeys:             make(map[string]string),
+		userAttachments:              make(map[string]UserAttachment),
+		artifactPublications:         make(map[string]ArtifactPublication),
 		artifactUploads:              make(map[string]ArtifactUpload),
 		sessionArtifacts:             make(map[string]SessionArtifact),
 		sessionArtifactContents:      make(map[artifactContentKey]ArtifactContent),

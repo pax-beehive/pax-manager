@@ -316,12 +316,16 @@ func (c *nodeControlConnection) Err() error {
 }
 
 type NodeControlHub struct {
-	mu          sync.RWMutex
-	connections map[string]*nodeControlConnection
+	mu               sync.RWMutex
+	connections      map[string]*nodeControlConnection
+	attachmentStates map[nodeAttachmentKey]nodeControlAttachmentLocalState
 }
 
 func NewNodeControlHub() *NodeControlHub {
-	return &NodeControlHub{connections: make(map[string]*nodeControlConnection)}
+	return &NodeControlHub{
+		connections:      make(map[string]*nodeControlConnection),
+		attachmentStates: make(map[nodeAttachmentKey]nodeControlAttachmentLocalState),
+	}
 }
 
 func (h *NodeControlHub) Add(nodeID string, conn *nodeControlConnection) {
@@ -334,6 +338,7 @@ func (h *NodeControlHub) Add(nodeID string, conn *nodeControlConnection) {
 	}
 	previous := h.connections[nodeID]
 	h.connections[nodeID] = conn
+	h.clearAttachmentStatesLocked(nodeID)
 	h.mu.Unlock()
 	if previous != nil && previous != conn {
 		previous.Fail(ErrNodeControlReplaced)
@@ -350,6 +355,7 @@ func (h *NodeControlHub) Remove(nodeID string, conn *nodeControlConnection) {
 	h.mu.Lock()
 	if h.connections[nodeID] == conn {
 		delete(h.connections, nodeID)
+		h.clearAttachmentStatesLocked(nodeID)
 	}
 	h.mu.Unlock()
 }

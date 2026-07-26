@@ -44,6 +44,14 @@ type paxdArtifactBackend interface {
 		contentType string,
 		expiresAt time.Time,
 	) (string, error)
+	SignResumableUploadURL(
+		ctx context.Context,
+		bucket string,
+		object string,
+		contentType string,
+		sha256 string,
+		expiresAt time.Time,
+	) (string, error)
 	VerifyUploader(ctx context.Context, token string, audience string) (string, error)
 	ObjectAttrs(
 		ctx context.Context,
@@ -57,6 +65,7 @@ type paxdArtifactObjectAttrs struct {
 	Generation  int64
 	SizeBytes   int64
 	ContentType string
+	SHA256      string
 }
 
 func (s *Service) handleDownloadPaxdArtifact(c context.Context, ctx *app.RequestContext) {

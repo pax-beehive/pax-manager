@@ -102,6 +102,61 @@ type Store interface {
 		createdBy string,
 	) (PaxdArtifact, error)
 	FindPaxdArtifact(ctx context.Context, req FindPaxdArtifactRequest) (PaxdArtifact, error)
+	CreateUserAttachment(
+		ctx context.Context,
+		principal UserPrincipal,
+		req CreateUserAttachmentRequest,
+		bucket string,
+		object string,
+		expiresAt time.Time,
+	) (UserAttachment, error)
+	GetUserAttachment(
+		ctx context.Context,
+		principal UserPrincipal,
+		attachmentID string,
+	) (UserAttachment, error)
+	CompleteUserAttachment(
+		ctx context.Context,
+		principal UserPrincipal,
+		attachmentID string,
+		attrs ArtifactContent,
+	) (UserAttachment, error)
+	PutArtifactPublication(
+		ctx context.Context,
+		publication ArtifactPublication,
+	) (ArtifactPublication, error)
+	GetArtifactPublication(
+		ctx context.Context,
+		principal UserPrincipal,
+		publicationID string,
+	) (ArtifactPublication, error)
+	FailArtifactPublication(
+		ctx context.Context,
+		node Node,
+		publicationID string,
+		code string,
+		message string,
+	) (ArtifactPublication, error)
+	PrepareArtifactPublication(
+		ctx context.Context,
+		node Node,
+		publicationID string,
+		req PrepareArtifactPublicationRequest,
+		bucket string,
+		object string,
+		expiresAt time.Time,
+	) (ArtifactPublication, ArtifactUpload, error)
+	GetNodeArtifactUpload(
+		ctx context.Context,
+		node Node,
+		uploadID string,
+	) (ArtifactUpload, error)
+	CompleteNodeArtifactUpload(
+		ctx context.Context,
+		node Node,
+		uploadID string,
+		attrs ArtifactContent,
+	) (ArtifactUpload, SessionArtifact, error)
 	CreateArtifactUpload(
 		ctx context.Context,
 		principal UserPrincipal,

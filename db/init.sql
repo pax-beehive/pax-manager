@@ -647,8 +647,55 @@ CREATE INDEX IF NOT EXISTS idx_paxd_artifacts_tags
     ON paxd_artifacts USING GIN(tags)
     WHERE deleted_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS user_attachments (
+    attachment_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    conversation_id TEXT,
+    filename TEXT NOT NULL,
+    content_type TEXT NOT NULL DEFAULT '',
+    size_bytes BIGINT NOT NULL DEFAULT 0,
+    sha256 TEXT NOT NULL DEFAULT '',
+    bucket TEXT NOT NULL,
+    object TEXT NOT NULL,
+    generation BIGINT NOT NULL DEFAULT 0,
+    upload_status TEXT NOT NULL DEFAULT 'pending',
+    upload_expires_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(bucket, object)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_attachments_owner_created
+    ON user_attachments(owner_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_attachments_conversation_created
+    ON user_attachments(conversation_id, created_at)
+    WHERE conversation_id IS NOT NULL AND conversation_id <> '';
+
+CREATE TABLE IF NOT EXISTS artifact_publications (
+    publication_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'queued',
+    artifact_id TEXT,
+    error_code TEXT NOT NULL DEFAULT '',
+    error_message TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_artifact_publications_session_created
+    ON artifact_publications(owner_user_id, session_id, created_at);
+
 CREATE TABLE IF NOT EXISTS artifact_uploads (
     upload_id TEXT PRIMARY KEY,
+    artifact_id TEXT NOT NULL DEFAULT '',
+    node_id TEXT NOT NULL DEFAULT '',
+    agent_id TEXT NOT NULL DEFAULT '',
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     session_id TEXT NOT NULL DEFAULT '',
     kind TEXT NOT NULL DEFAULT '',
@@ -668,8 +715,15 @@ CREATE TABLE IF NOT EXISTS artifact_uploads (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE artifact_uploads ADD COLUMN IF NOT EXISTS artifact_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE artifact_uploads ADD COLUMN IF NOT EXISTS node_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE artifact_uploads ADD COLUMN IF NOT EXISTS agent_id TEXT NOT NULL DEFAULT '';
+
 CREATE INDEX IF NOT EXISTS idx_artifact_uploads_owner_created
     ON artifact_uploads(owner_user_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_uploads_node_identity
+    ON artifact_uploads(owner_user_id, session_id, filename, sha256)
+    WHERE node_id <> '' AND sha256 <> '';
 
 CREATE TABLE IF NOT EXISTS session_artifacts (
     artifact_id TEXT PRIMARY KEY,

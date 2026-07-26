@@ -129,6 +129,50 @@ func (b *gcpPaxdArtifactBackend) SignUploadURL(
 	})
 }
 
+func (b *gcpPaxdArtifactBackend) SignResumableUploadURL(
+	ctx context.Context,
+	bucket string,
+	object string,
+	contentType string,
+	sha256 string,
+	expiresAt time.Time,
+) (string, error) {
+	if b.signingServiceAccount == "" {
+		return "", apperr.Error{
+			Status:  http.StatusInternalServerError,
+			Message: "paxd artifact signing service account is not configured",
+		}
+	}
+	headers := []string{"x-goog-resumable:start"}
+	if sha256 != "" {
+		headers = append(headers, "x-goog-meta-sha256:"+sha256)
+	}
+	return storage.SignedURL(bucket, object, &storage.SignedURLOptions{
+		Scheme:         storage.SigningSchemeV4,
+		Method:         http.MethodPost,
+		Expires:        expiresAt,
+		GoogleAccessID: b.signingServiceAccount,
+		ContentType:    contentType,
+		Headers:        headers,
+		SignBytes: func(payload []byte) ([]byte, error) {
+			svc, err := iamcredentials.NewService(ctx)
+			if err != nil {
+				return nil, err
+			}
+			resp, err := svc.Projects.ServiceAccounts.SignBlob(
+				"projects/-/serviceAccounts/"+b.signingServiceAccount,
+				&iamcredentials.SignBlobRequest{
+					Payload: base64.StdEncoding.EncodeToString(payload),
+				},
+			).Context(ctx).Do()
+			if err != nil {
+				return nil, err
+			}
+			return base64.StdEncoding.DecodeString(resp.SignedBlob)
+		},
+	})
+}
+
 func (b *gcpPaxdArtifactBackend) VerifyUploader(
 	ctx context.Context,
 	token string,
@@ -176,5 +220,6 @@ func (b *gcpPaxdArtifactBackend) ObjectAttrs(
 		Generation:  attrs.Generation,
 		SizeBytes:   attrs.Size,
 		ContentType: attrs.ContentType,
+		SHA256:      attrs.Metadata["sha256"],
 	}, nil
 }

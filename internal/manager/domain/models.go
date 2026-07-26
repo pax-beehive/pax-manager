@@ -440,6 +440,7 @@ const (
 
 	MessageTypePaxInvocation        = "pax:invocation"
 	MessageTypePaxInvocationPending = "pax:invocation_pending"
+	MessageTypePaxArtifact          = "pax:artifact"
 	MessageTypePaxUser              = "pax:user_message"
 	MessageTypeUser                 = "user_message"
 
@@ -1183,6 +1184,113 @@ const (
 )
 
 const (
+	ArtifactPublicationStatusQueued    = "queued"
+	ArtifactPublicationStatusUploading = "uploading"
+	ArtifactPublicationStatusAvailable = "available"
+	ArtifactPublicationStatusFailed    = "failed"
+)
+
+type ArtifactPublication struct {
+	PublicationID string    `json:"publication_id"`
+	OwnerUserID   string    `json:"owner_user_id,omitempty"`
+	NodeID        string    `json:"node_id"`
+	AgentID       string    `json:"agent_id"`
+	SessionID     string    `json:"session_id"`
+	Filename      string    `json:"filename"`
+	Title         string    `json:"title,omitempty"`
+	Status        string    `json:"status"`
+	ArtifactID    string    `json:"artifact_id,omitempty"`
+	ErrorCode     string    `json:"error_code,omitempty"`
+	ErrorMessage  string    `json:"error_message,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type ArtifactPublicationSource struct {
+	AgentID   string `json:"agent_id"`
+	SessionID string `json:"session_id"`
+}
+
+type RegisterArtifactPublicationRequest struct {
+	Source   ArtifactPublicationSource `json:"source"`
+	Filename string                    `json:"filename"`
+	Title    string                    `json:"title"`
+}
+
+type FailArtifactPublicationRequest struct {
+	ErrorCode string `json:"error_code"`
+	Message   string `json:"message"`
+}
+
+type ArtifactPublicationData struct {
+	Publication ArtifactPublication `json:"publication"`
+	Artifact    *SessionArtifact    `json:"artifact,omitempty"`
+}
+
+type ArtifactPublicationContentData struct {
+	Status      string              `json:"status"`
+	Retryable   bool                `json:"retryable"`
+	Publication ArtifactPublication `json:"publication"`
+	Artifact    *SessionArtifact    `json:"artifact,omitempty"`
+	Content     *ArtifactContent    `json:"content,omitempty"`
+	URL         string              `json:"url,omitempty"`
+	ExpiresAt   *time.Time          `json:"expires_at,omitempty"`
+	PreviewKind string              `json:"preview_kind,omitempty"`
+	Disposition string              `json:"disposition,omitempty"`
+}
+
+const (
+	UserAttachmentUploadPending   = "pending"
+	UserAttachmentUploadCompleted = "completed"
+	UserAttachmentUploadFailed    = "failed"
+)
+
+type UserAttachment struct {
+	AttachmentID    string     `json:"attachment_id"`
+	OwnerUserID     string     `json:"owner_user_id,omitempty"`
+	ConversationID  string     `json:"conversation_id,omitempty"`
+	Filename        string     `json:"filename"`
+	ContentType     string     `json:"content_type,omitempty"`
+	SizeBytes       int64      `json:"size_bytes,omitempty"`
+	SHA256          string     `json:"sha256,omitempty"`
+	Bucket          string     `json:"-"`
+	Object          string     `json:"-"`
+	Generation      int64      `json:"generation,omitempty"`
+	UploadStatus    string     `json:"upload_status"`
+	UploadExpiresAt time.Time  `json:"upload_expires_at"`
+	CompletedAt     *time.Time `json:"completed_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+type CreateUserAttachmentRequest struct {
+	ConversationID string `json:"conversation_id"`
+	Filename       string `json:"filename"`
+	ContentType    string `json:"content_type"`
+	SizeBytes      int64  `json:"size_bytes"`
+	SHA256         string `json:"sha256"`
+}
+
+type UserAttachmentUpload struct {
+	Protocol       string            `json:"protocol"`
+	Method         string            `json:"method"`
+	URL            string            `json:"url"`
+	Headers        map[string]string `json:"headers,omitempty"`
+	ChunkAlignment int64             `json:"chunk_alignment,omitempty"`
+	ExpiresAt      time.Time         `json:"expires_at"`
+}
+
+type UserAttachmentUploadTicket struct {
+	Attachment  UserAttachment       `json:"attachment"`
+	Upload      UserAttachmentUpload `json:"upload"`
+	CompleteURL string               `json:"complete_url"`
+}
+
+type CompleteUserAttachmentData struct {
+	Attachment UserAttachment `json:"attachment"`
+}
+
+const (
 	SessionArtifactStatusAvailable = "available"
 	SessionArtifactStatusProposed  = "proposed"
 	SessionArtifactStatusFailed    = "failed"
@@ -1190,7 +1298,10 @@ const (
 
 type ArtifactUpload struct {
 	UploadID    string     `json:"upload_id"`
+	ArtifactID  string     `json:"artifact_id,omitempty"`
 	OwnerUserID string     `json:"owner_user_id,omitempty"`
+	NodeID      string     `json:"node_id,omitempty"`
+	AgentID     string     `json:"agent_id,omitempty"`
 	SessionID   string     `json:"session_id,omitempty"`
 	Kind        string     `json:"kind,omitempty"`
 	Title       string     `json:"title,omitempty"`
@@ -1207,6 +1318,34 @@ type ArtifactUpload struct {
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+type PrepareArtifactPublicationRequest struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	SizeBytes   int64  `json:"size_bytes"`
+	SHA256      string `json:"sha256"`
+}
+
+type NodeArtifactUploadTicket struct {
+	UploadID       string            `json:"upload_id"`
+	Protocol       string            `json:"protocol"`
+	Method         string            `json:"method"`
+	URL            string            `json:"url"`
+	Headers        map[string]string `json:"headers,omitempty"`
+	ChunkAlignment int64             `json:"chunk_alignment"`
+	ExpiresAt      time.Time         `json:"expires_at"`
+}
+
+type PrepareArtifactPublicationData struct {
+	Status     string                    `json:"status"`
+	ArtifactID string                    `json:"artifact_id"`
+	Upload     *NodeArtifactUploadTicket `json:"upload,omitempty"`
+}
+
+type CompleteNodeArtifactUploadData struct {
+	Status     string `json:"status"`
+	ArtifactID string `json:"artifact_id"`
 }
 
 type CreateArtifactUploadRequest struct {
@@ -1288,6 +1427,7 @@ type ArtifactContent struct {
 }
 
 type CreateSessionArtifactRequest struct {
+	ArtifactID    string            `json:"-"`
 	Kind          string            `json:"kind"`
 	SchemaVersion int               `json:"schema_version"`
 	Title         string            `json:"title"`

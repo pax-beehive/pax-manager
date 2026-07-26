@@ -31,7 +31,7 @@ func (s *PostgresStore) CreateArtifactUpload(
 			size_bytes, sha256, bucket, object, status, expires_at, created_at, updated_at
 		)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
-		RETURNING upload_id, owner_user_id, session_id, kind, title, summary, filename,
+		RETURNING upload_id, artifact_id, owner_user_id, node_id, agent_id, session_id, kind, title, summary, filename,
 			content_type, size_bytes, sha256, bucket, object, generation, status, expires_at,
 			completed_at, created_at, updated_at
 	`,
@@ -64,7 +64,7 @@ func (s *PostgresStore) GetArtifactUpload(
 	uploadID string,
 ) (ArtifactUpload, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT upload_id, owner_user_id, session_id, kind, title, summary, filename, content_type,
+		SELECT upload_id, artifact_id, owner_user_id, node_id, agent_id, session_id, kind, title, summary, filename, content_type,
 			size_bytes, sha256, bucket, object, generation, status, expires_at, completed_at,
 			created_at, updated_at
 		FROM artifact_uploads
@@ -87,7 +87,7 @@ func (s *PostgresStore) CompleteArtifactUpload(
 	defer func() { _ = tx.Rollback() }()
 
 	upload, err := scanArtifactUpload(tx.QueryRowContext(ctx, `
-		SELECT upload_id, owner_user_id, session_id, kind, title, summary, filename, content_type,
+		SELECT upload_id, artifact_id, owner_user_id, node_id, agent_id, session_id, kind, title, summary, filename, content_type,
 			size_bytes, sha256, bucket, object, generation, status, expires_at, completed_at,
 			created_at, updated_at
 		FROM artifact_uploads
@@ -137,7 +137,7 @@ func (s *PostgresStore) CompleteArtifactUpload(
 		UPDATE artifact_uploads
 		SET status = $1, generation = $2, completed_at = $3, updated_at = $3
 		WHERE upload_id = $4
-		RETURNING upload_id, owner_user_id, session_id, kind, title, summary, filename,
+		RETURNING upload_id, artifact_id, owner_user_id, node_id, agent_id, session_id, kind, title, summary, filename,
 			content_type, size_bytes, sha256, bucket, object, generation, status, expires_at,
 			completed_at, created_at, updated_at
 	`, domain.ArtifactUploadStatusCompleted, content.Generation, now, upload.UploadID))
@@ -176,9 +176,13 @@ func (s *PostgresStore) createSessionArtifactTx(
 	principal UserPrincipal,
 	req CreateSessionArtifactRequest,
 ) (SessionArtifact, error) {
-	artifactID, err := newSecret("art")
-	if err != nil {
-		return SessionArtifact{}, err
+	artifactID := strings.TrimSpace(req.ArtifactID)
+	if artifactID == "" {
+		generated, err := newSecret("art")
+		if err != nil {
+			return SessionArtifact{}, err
+		}
+		artifactID = generated
 	}
 	now := s.now().UTC()
 	schemaVersion := req.SchemaVersion
@@ -411,7 +415,10 @@ func scanArtifactUpload(row interface {
 	var upload ArtifactUpload
 	if err := row.Scan(
 		&upload.UploadID,
+		&upload.ArtifactID,
 		&upload.OwnerUserID,
+		&upload.NodeID,
+		&upload.AgentID,
 		&upload.SessionID,
 		&upload.Kind,
 		&upload.Title,

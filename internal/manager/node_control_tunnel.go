@@ -119,12 +119,13 @@ type nodeControlFrame struct {
 }
 
 type nodeControlReport struct {
-	Type            string                      `json:"type"`
-	RemoteID        string                      `json:"remote_id"`
-	NodeID          string                      `json:"node_id"`
-	SentAt          time.Time                   `json:"sent_at"`
-	Heartbeat       json.RawMessage             `json:"heartbeat,omitempty"`
-	RuntimeSnapshot *nodeControlRuntimeSnapshot `json:"runtime_snapshot,omitempty"`
+	Type                 string                           `json:"type"`
+	RemoteID             string                           `json:"remote_id"`
+	NodeID               string                           `json:"node_id"`
+	SentAt               time.Time                        `json:"sent_at"`
+	Heartbeat            json.RawMessage                  `json:"heartbeat,omitempty"`
+	RuntimeSnapshot      *nodeControlRuntimeSnapshot      `json:"runtime_snapshot,omitempty"`
+	AttachmentLocalState *nodeControlAttachmentLocalState `json:"attachment_local_state,omitempty"`
 }
 
 type nodeControlRuntimeSnapshot struct {
@@ -184,6 +185,15 @@ func (s *Server) handleNodeControlTunnelFrame(
 		})
 	case "runtime.snapshot":
 		return s.upsertRuntimeSnapshotReport(ctx, node, frame.Report)
+	case "attachment.local_state":
+		if frame.Report.AttachmentLocalState == nil {
+			return errors.New("attachment.local_state report missing attachment_local_state")
+		}
+		if strings.TrimSpace(frame.Report.AttachmentLocalState.AttachmentID) == "" {
+			return errors.New("attachment.local_state report missing attachment_id")
+		}
+		s.nodeControls.ObserveAttachmentState(node.NodeID, *frame.Report.AttachmentLocalState)
+		return nil
 	default:
 		return fmt.Errorf("unsupported node control report type %q", frame.Report.Type)
 	}

@@ -136,6 +136,15 @@ func newServer(cfg Config, store Store) *Service {
 		secrets,
 	)
 	s.userapi.SetNodeControlClient(s.nodeControls)
+	s.userapi.SetHistoryReconciler(func(
+		ctx context.Context,
+		agentID string,
+		sessionID string,
+	) error {
+		return reconcileArtifactPublicationDisplaysForSession(
+			ctx, s.store, agentID, sessionID,
+		)
+	})
 	s.configureTeamMemexExecutor()
 	s.paxdArtifacts = newGCPPaxdArtifactBackend(cfg)
 	return s
@@ -369,6 +378,14 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.POST(routeUpsertRepresentativeAgent, UpsertRepresentativeAgent)
 	h.POST(routeStartUserAgentInquiry, StartUserAgentInquiry)
 	h.GET(routeListAgentConversationMessages, ListAgentConversationMessages)
+	h.POST(routeCreateUserAttachment, s.handleCreateUserAttachment)
+	h.POST(routeCompleteUserAttachment, s.handleCompleteUserAttachment)
+	h.PUT(routePutArtifactPublication, NodeAuth(), s.handlePutArtifactPublication)
+	h.POST(routePrepareArtifactPublication, NodeAuth(), s.handlePrepareArtifactPublication)
+	h.POST(routeFailArtifactPublication, NodeAuth(), s.handleFailArtifactPublication)
+	h.POST(routeCompleteNodeArtifactUpload, NodeAuth(), s.handleCompleteNodeArtifactUpload)
+	h.GET(routeGetArtifactPublication, s.handleGetArtifactPublication)
+	h.GET(routeArtifactPublicationContent, s.handleGetArtifactPublicationContent)
 	h.POST(routeCreateArtifactUpload, s.handleCreateArtifactUpload)
 	h.POST(routeCompleteArtifactUpload, s.handleCompleteArtifactUpload)
 	h.POST(routeCreateSessionArtifact, s.handleCreateSessionArtifact)
