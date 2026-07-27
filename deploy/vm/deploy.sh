@@ -4,6 +4,8 @@ set -euo pipefail
 IMAGE="${1:?image is required}"
 DB_SECRET="${2:-pax-manager-database-url}"
 DEEPSEEK_SECRET="${3:-deepseek_api_key}"
+SESSION_ARTIFACT_GCS_BUCKET="${4:?session artifact GCS bucket is required}"
+PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT="${5:?artifact signing service account is required}"
 REGION="${REGION:-us-west1}"
 
 gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
@@ -19,6 +21,8 @@ docker run -d \
   -e DATABASE_URL="${DATABASE_URL}" \
   -e TEAM_MEMEX_EXECUTOR=deepseek \
   -e DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" \
+  -e SESSION_ARTIFACT_GCS_BUCKET="${SESSION_ARTIFACT_GCS_BUCKET}" \
+  -e PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT="${PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT}" \
   -v /cloudsql:/cloudsql \
   -p 9879:9879 \
   "$IMAGE"
