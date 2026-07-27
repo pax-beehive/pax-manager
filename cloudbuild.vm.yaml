@@ -7,6 +7,7 @@ substitutions:
   _CLOUD_SQL_INSTANCE: pax-tech-499219:us-west1:pax-manager-postgres
   _DB_SECRET: pax-manager-database-url
   _DEPLOY_SCRIPT: /opt/pax-manager/deploy.sh
+  _SSH_KEY_FILE: /workspace/.ssh/pax-manager-cloud-build
   _SSH_KEY_TTL: 30m
 
 steps:
@@ -30,12 +31,10 @@ steps:
       - push
       - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
 
-  # Every gcloud compute ssh/scp step below runs in a fresh container, so each
-  # one adds a brand-new key to the build service account's OS Login profile.
-  # Without cleanup the profile eventually exceeds the 32 KiB limit and ssh
-  # fails with FAILED_PRECONDITION. Trim the profile up front and let new keys
-  # expire on their own.
-  - id: trim-os-login-keys
+  # Reuse one key across all VM steps. Fresh step containers otherwise create
+  # separate OS Login keys, eventually exceed the profile limit, and can race
+  # OS Login propagation on their first connection.
+  - id: prepare-os-login-key
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
@@ -44,20 +43,30 @@ steps:
         for fp in $$(gcloud compute os-login ssh-keys list --format='value(value.fingerprint)' 2>/dev/null); do
           gcloud compute os-login ssh-keys remove --key "$$fp" || true
         done
+        mkdir -p /workspace/.ssh
+        chmod 0700 /workspace/.ssh
+        rm -f "${_SSH_KEY_FILE}" "${_SSH_KEY_FILE}.pub"
+        ssh-keygen -q -t rsa -b 3072 -N '' -f "${_SSH_KEY_FILE}"
 
   - id: prepare-vm
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: gcloud
+    entrypoint: bash
     args:
-      - compute
-      - ssh
-      - ${_VM_NAME}
-      - --zone
-      - ${_VM_ZONE}
-      - --ssh-key-expire-after
-      - ${_SSH_KEY_TTL}
-      - --command
-      - mkdir -p /tmp/pax-manager-vm
+      - -c
+      - |
+        for attempt in $$(seq 1 6); do
+          if gcloud compute ssh "${_VM_NAME}" \
+            --zone "${_VM_ZONE}" \
+            --ssh-key-file "${_SSH_KEY_FILE}" \
+            --ssh-key-expire-after "${_SSH_KEY_TTL}" \
+            --command "mkdir -p /tmp/pax-manager-vm"; then
+            exit 0
+          fi
+          if [ "$$attempt" -lt 6 ]; then
+            sleep 5
+          fi
+        done
+        exit 1
 
   - id: copy-vm-scripts
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -70,6 +79,8 @@ steps:
       - ${_VM_NAME}:/tmp/pax-manager-vm/
       - --zone
       - ${_VM_ZONE}
+      - --ssh-key-file
+      - ${_SSH_KEY_FILE}
       - --ssh-key-expire-after
       - ${_SSH_KEY_TTL}
 
@@ -82,6 +93,8 @@ steps:
       - ${_VM_NAME}
       - --zone
       - ${_VM_ZONE}
+      - --ssh-key-file
+      - ${_SSH_KEY_FILE}
       - --ssh-key-expire-after
       - ${_SSH_KEY_TTL}
       - --command
@@ -100,6 +113,8 @@ steps:
       - ${_VM_NAME}
       - --zone
       - ${_VM_ZONE}
+      - --ssh-key-file
+      - ${_SSH_KEY_FILE}
       - --ssh-key-expire-after
       - ${_SSH_KEY_TTL}
       - --command
