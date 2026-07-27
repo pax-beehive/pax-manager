@@ -7,6 +7,8 @@ substitutions:
   _CLOUD_SQL_INSTANCE: pax-tech-499219:us-west1:pax-manager-postgres
   _DB_SECRET: pax-manager-database-url
   _DEPLOY_SCRIPT: /opt/pax-manager/deploy.sh
+  _PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT: 548727007198-compute@developer.gserviceaccount.com
+  _SESSION_ARTIFACT_GCS_BUCKET: pax-tech-bucket
   _SSH_KEY_FILE: /workspace/.ssh/pax-manager-cloud-build
   _SSH_KEY_TTL: 30m
 
@@ -118,7 +120,13 @@ steps:
       - --ssh-key-expire-after
       - ${_SSH_KEY_TTL}
       - --command
-      - sudo ${_DEPLOY_SCRIPT} ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA} ${_DB_SECRET}
+      - >
+        sudo ${_DEPLOY_SCRIPT}
+        ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
+        ${_DB_SECRET}
+        deepseek_api_key
+        ${_SESSION_ARTIFACT_GCS_BUCKET}
+        ${_PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT}
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}

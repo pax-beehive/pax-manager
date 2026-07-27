@@ -48,6 +48,8 @@ connection to a machine running paxd.
 | `API_RATE_LIMIT_BURST` | `60` | Per-client burst size for `/api/*` routes. |
 | `REGISTER_RATE_LIMIT_PER_MINUTE` | `30` | Per-client request rate for `/api/agent/register`. |
 | `REGISTER_RATE_LIMIT_BURST` | `10` | Per-client burst size for `/api/agent/register`. |
+| `SESSION_ARTIFACT_GCS_BUCKET` | empty | GCS bucket used for session attachment uploads. Required when attachment APIs are enabled. |
+| `PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT` | empty | Service account used to sign attachment upload and download URLs. |
 
 Built-in admin emails:
 
