@@ -5143,7 +5143,7 @@ func TestConversationDeliveryGivenInvalidTargetWhenPostedThenReturnsBadRequest(t
 	srv.routes().ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "target.kind must be representative or active_invocation")
+	assert.Contains(t, rec.Body.String(), "target.kind must be representative, agent, or active_invocation")
 }
 
 func listNodeAgentSessions(

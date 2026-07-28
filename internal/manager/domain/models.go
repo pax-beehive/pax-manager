@@ -351,6 +351,11 @@ type AgentConversationStart struct {
 const (
 	ConversationDeliveryTargetRepresentative   = "representative"
 	ConversationDeliveryTargetActiveInvocation = "active_invocation"
+	// ConversationDeliveryTargetAgent addresses a target runtime agent directly
+	// by agent_id. The server maps the agent to its canonical representative and
+	// reuses the representative delivery core, so the caller does not need to
+	// know about representative agents.
+	ConversationDeliveryTargetAgent = "agent"
 )
 
 type DeliverConversationRequest struct {
@@ -384,6 +389,7 @@ type ConversationDeliverySource struct {
 type ConversationDeliveryTarget struct {
 	Kind                  string `json:"kind"`
 	RepresentativeAgentID string `json:"representative_agent_id,omitempty"`
+	AgentID               string `json:"agent_id,omitempty"`
 	SessionID             string `json:"session_id,omitempty"`
 	InvocationID          string `json:"invocation_id,omitempty"`
 }

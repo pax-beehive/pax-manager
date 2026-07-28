@@ -262,6 +262,7 @@ func normalizeDeliverConversationRequest(req *domain.DeliverConversationRequest)
 	req.Source.SessionID = strings.TrimSpace(req.Source.SessionID)
 	req.Target.Kind = strings.TrimSpace(req.Target.Kind)
 	req.Target.RepresentativeAgentID = strings.TrimSpace(req.Target.RepresentativeAgentID)
+	req.Target.AgentID = strings.TrimSpace(req.Target.AgentID)
 	req.Target.SessionID = strings.TrimSpace(req.Target.SessionID)
 	req.Target.InvocationID = strings.TrimSpace(req.Target.InvocationID)
 	req.Instruction = strings.TrimSpace(req.Instruction)
@@ -282,6 +283,18 @@ func validateDeliverConversationRequest(req domain.DeliverConversationRequest) e
 			)
 		}
 		return nil
+	case domain.ConversationDeliveryTargetAgent:
+		if req.Source.AgentID == "" || req.Source.SessionID == "" {
+			return errBadConversationDelivery(
+				"source.agent_id and source.session_id are required for agent delivery",
+			)
+		}
+		if req.Target.AgentID == "" {
+			return errBadConversationDelivery(
+				"target.agent_id is required for agent delivery",
+			)
+		}
+		return nil
 	case domain.ConversationDeliveryTargetActiveInvocation:
 		if req.Source.AgentID == "" || req.Source.SessionID == "" {
 			return errBadConversationDelivery(
@@ -290,7 +303,9 @@ func validateDeliverConversationRequest(req domain.DeliverConversationRequest) e
 		}
 		return nil
 	default:
-		return errBadConversationDelivery("target.kind must be representative or active_invocation")
+		return errBadConversationDelivery(
+			"target.kind must be representative, agent, or active_invocation",
+		)
 	}
 }
 

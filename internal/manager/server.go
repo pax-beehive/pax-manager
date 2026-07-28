@@ -373,6 +373,7 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	)
 	h.POST(routeDeliverAgentConversation, NodeAuth(), DeliverAgentConversation)
 	h.POST(routeStartAgentConversation, NodeAuth(), StartAgentConversation)
+	h.GET(routeNodeOwnerAgents, NodeAuth(), ListNodeOwnerAgents)
 	h.GET(routeGetAgentOwnerInfo, GetAgentOwnerInfo)
 	h.GET(routeListRepresentativeAgents, ListRepresentativeAgents)
 	h.POST(routeUpsertRepresentativeAgent, UpsertRepresentativeAgent)
