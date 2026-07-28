@@ -111,6 +111,7 @@ const (
 	routeUserConversation              = "/api/v1/user/:userID/nodes/:nodeID/agents/:agentID/conversation"
 	routeDeliverAgentConversation      = "/api/v1/node/conversation/deliver"
 	routeStartAgentConversation        = "/api/v1/node/agents/:agent_id/conversations"
+	routeNodeOwnerAgents               = "/api/v1/node/agents"
 	routeGetAgentOwnerInfo             = "/api/v1/user/:user_id/agent-owner-info"
 	routeListRepresentativeAgents      = "/api/v1/user/:user_id/representative-agents"
 	routeUpsertRepresentativeAgent     = "/api/v1/user/:user_id/representative-agents"

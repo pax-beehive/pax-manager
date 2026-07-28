@@ -204,6 +204,132 @@ func TestMemoryAgentConversationGivenSameOwnerAgentsWhenStartedThenCreatesBindin
 	)
 }
 
+func TestMemoryAgentConversationGivenAgentTargetWhenDeliveredThenEnsuresRepresentativesIdempotently(
+	t *testing.T,
+) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{NodeID: node.NodeID, Name: "reviewer", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+
+	req := domain.DeliverConversationRequest{
+		Source: domain.ConversationDeliverySource{
+			AgentID:   sourceAgent.AgentID,
+			SessionID: "sess_src",
+		},
+		Target: domain.ConversationDeliveryTarget{
+			Kind:    domain.ConversationDeliveryTargetAgent,
+			AgentID: targetAgent.AgentID,
+		},
+		Instruction: "Please review this plan.",
+	}
+	delivery, err := store.DeliverAgentConversation(ctx, node, req)
+	require.NoError(t, err)
+
+	sourceProfile := deterministicAgentProfileID(sourceAgent.AgentID, owner.UserID)
+	wantSourceRep := deterministicRepresentativeAgentID(sourceAgent.AgentID, sourceProfile, "user", owner.UserID)
+	targetProfile := deterministicAgentProfileID(targetAgent.AgentID, owner.UserID)
+	wantTargetRep := deterministicRepresentativeAgentID(targetAgent.AgentID, targetProfile, "user", owner.UserID)
+
+	require.Equal(t, wantSourceRep, delivery.Invocation.SourceRepresentativeAgentID)
+	require.Equal(t, wantTargetRep, delivery.Invocation.TargetRepresentativeAgentID)
+	require.Equal(t, sourceAgent.AgentID, delivery.Invocation.SourceRuntimeAgentID)
+	require.Equal(t, targetAgent.AgentID, delivery.Invocation.TargetRuntimeAgentID)
+	require.NotEmpty(t, delivery.ReceiptToken)
+	require.Contains(t, store.representativeAgents, wantSourceRep)
+	require.Contains(t, store.representativeAgents, wantTargetRep)
+
+	// The canonical representative uses no approval policy, so self/same-owner
+	// delivery is friction-free.
+	require.Empty(t, store.representativeAgents[wantTargetRep].ApprovalPolicyID)
+
+	// A second delivery reuses the same representatives and profiles.
+	repCount := len(store.representativeAgents)
+	profileCount := len(store.agentProfiles)
+	_, err = store.DeliverAgentConversation(ctx, node, req)
+	require.NoError(t, err)
+	require.Equal(t, repCount, len(store.representativeAgents))
+	require.Equal(t, profileCount, len(store.agentProfiles))
+}
+
+func TestMemoryAgentConversationGivenAgentTargetWithSessionThenUsesThatSession(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{NodeID: node.NodeID, Name: "reviewer", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+
+	delivery, err := store.DeliverAgentConversation(ctx, node, domain.DeliverConversationRequest{
+		Source: domain.ConversationDeliverySource{AgentID: sourceAgent.AgentID, SessionID: "sess_src"},
+		Target: domain.ConversationDeliveryTarget{
+			Kind:      domain.ConversationDeliveryTargetAgent,
+			AgentID:   targetAgent.AgentID,
+			SessionID: "sess_target_explicit",
+		},
+		Instruction: "Continue in this session.",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "sess_target_explicit", delivery.TargetSession.SessionID)
+}
+
+func TestMemoryAgentConversationGivenSelfAgentTargetWhenDeliveredThenSucceeds(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	_, node, agent := seedMemoryNodeAgent(t, ctx, store, now)
+
+	delivery, err := store.DeliverAgentConversation(ctx, node, domain.DeliverConversationRequest{
+		Source: domain.ConversationDeliverySource{AgentID: agent.AgentID, SessionID: "sess_src"},
+		Target: domain.ConversationDeliveryTarget{
+			Kind:    domain.ConversationDeliveryTargetAgent,
+			AgentID: agent.AgentID,
+		},
+		Instruction: "Handing off to a fresh session.",
+	})
+	require.NoError(t, err)
+	require.Equal(t, agent.AgentID, delivery.Invocation.SourceRuntimeAgentID)
+	require.Equal(t, agent.AgentID, delivery.Invocation.TargetRuntimeAgentID)
+	require.NotEmpty(t, delivery.ReceiptToken)
+}
+
+func TestMemoryAgentConversationGivenAgentTargetOfAnotherOwnerThenReturnsUnauthorized(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	_, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	other, err := store.EnsureUser(ctx, "other@example.com", "Other", "user")
+	require.NoError(t, err)
+	otherNode, err := store.RegisterNode(
+		ctx, other,
+		domain.RegisterNodeRequest{Name: "other-node", Hostname: "other", OS: "linux"}, "hash_o")
+	require.NoError(t, err)
+	foreignAgent, _, err := store.CreateNodeAgent(
+		ctx, UserPrincipal{User: other},
+		CreateAgentRequest{NodeID: otherNode.NodeID, Name: "foreign", AgentType: "codex"})
+	require.NoError(t, err)
+
+	_, err = store.DeliverAgentConversation(ctx, node, domain.DeliverConversationRequest{
+		Source: domain.ConversationDeliverySource{AgentID: sourceAgent.AgentID, SessionID: "sess_src"},
+		Target: domain.ConversationDeliveryTarget{
+			Kind:    domain.ConversationDeliveryTargetAgent,
+			AgentID: foreignAgent.AgentID,
+		},
+		Instruction: "hi",
+	})
+	require.ErrorIs(t, err, ErrUnauthorized)
+}
+
 func TestMemoryAgentConversationDisplayGivenToolCallThenCreatesPendingInvocation(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)

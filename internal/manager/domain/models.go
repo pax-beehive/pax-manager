@@ -48,6 +48,24 @@ type Agent struct {
 	Metadata      json.RawMessage `json:"metadata,omitempty"`
 }
 
+// OwnerAgentFilter narrows an owner-scoped agent inventory. All fields are
+// optional; the zero value returns every agent the owner owns. Filter
+// semantics beyond owner scoping are applied by Store.ListOwnerAgents.
+type OwnerAgentFilter struct {
+	// Query is a free-text term matched against name, alias, and description.
+	Query string
+	// Status filters by effective reachability: "online" or "offline". Empty
+	// (or "any") does not filter by status; the "online" product default is
+	// applied at the service layer, not the store.
+	Status string
+	// OrderBy is "relevance", "last_active", or "name". Empty resolves to
+	// "relevance" when Query is set and "last_active" otherwise.
+	OrderBy string
+	// Limit caps the number of returned agents. Zero means no cap at the store
+	// layer; the service applies the product default and hard cap.
+	Limit int
+}
+
 type Node struct {
 	NodeID        string          `json:"node_id"`
 	OwnerUserID   string          `json:"owner_user_id"`
@@ -333,6 +351,11 @@ type AgentConversationStart struct {
 const (
 	ConversationDeliveryTargetRepresentative   = "representative"
 	ConversationDeliveryTargetActiveInvocation = "active_invocation"
+	// ConversationDeliveryTargetAgent addresses a target runtime agent directly
+	// by agent_id. The server maps the agent to its canonical representative and
+	// reuses the representative delivery core, so the caller does not need to
+	// know about representative agents.
+	ConversationDeliveryTargetAgent = "agent"
 )
 
 type DeliverConversationRequest struct {
@@ -366,6 +389,7 @@ type ConversationDeliverySource struct {
 type ConversationDeliveryTarget struct {
 	Kind                  string `json:"kind"`
 	RepresentativeAgentID string `json:"representative_agent_id,omitempty"`
+	AgentID               string `json:"agent_id,omitempty"`
 	SessionID             string `json:"session_id,omitempty"`
 	InvocationID          string `json:"invocation_id,omitempty"`
 }

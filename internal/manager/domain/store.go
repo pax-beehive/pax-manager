@@ -298,6 +298,11 @@ type Store interface {
 	UpsertAgentStatus(ctx context.Context, report AgentStatusReport) error
 	NextAgentACPRequestID(ctx context.Context, agentID string) (int64, error)
 	ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error)
+	ListOwnerAgents(
+		ctx context.Context,
+		ownerUserID string,
+		filter OwnerAgentFilter,
+	) ([]Agent, error)
 	GetAgent(ctx context.Context, principal UserPrincipal, agentID string) (Agent, error)
 	DeleteAgent(ctx context.Context, principal UserPrincipal, req DeleteAgentRequest) (Agent, error)
 	ListAgentSessions(

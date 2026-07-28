@@ -499,11 +499,163 @@ func (s *PostgresStore) DeliverAgentConversation(
 	switch req.Target.Kind {
 	case domain.ConversationDeliveryTargetRepresentative:
 		return s.deliverAgentConversationToRepresentative(ctx, node, req)
+	case domain.ConversationDeliveryTargetAgent:
+		return s.deliverAgentConversationToAgent(ctx, node, req)
 	case domain.ConversationDeliveryTargetActiveInvocation:
 		return s.deliverAgentConversationActiveInvocationReply(ctx, node, req)
 	default:
 		return domain.ConversationDelivery{}, ErrNotFound
 	}
+}
+
+// deliverAgentConversationToAgent handles a direct agent_id target. It resolves
+// the target agent, requires source and target to be able to interact (same
+// owner or shared team), ensures both agents' canonical representatives exist
+// (idempotently, without clobbering an explicitly configured profile or
+// approval policy), and then runs the same delivery core as the representative
+// path.
+func (s *PostgresStore) deliverAgentConversationToAgent(
+	ctx context.Context,
+	node Node,
+	req domain.DeliverConversationRequest,
+) (domain.ConversationDelivery, error) {
+	sourceAgent, err := s.GetNodeAgent(ctx, node.NodeID, req.Source.AgentID)
+	if err != nil {
+		logging.Warn(ctx, "conversation delivery source agent lookup failed", logging.Err(err))
+		return domain.ConversationDelivery{}, err
+	}
+	ctx = logging.With(ctx, slog.String("source_owner_user_id", sourceAgent.OwnerUserID))
+	targetAgent, err := s.getAgentByID(ctx, req.Target.AgentID)
+	if err != nil {
+		logging.Warn(ctx, "conversation delivery target agent lookup failed", logging.Err(err))
+		return domain.ConversationDelivery{}, err
+	}
+	ctx = logging.With(ctx,
+		slog.String("target_runtime_agent_id", targetAgent.AgentID),
+		slog.String("target_owner_user_id", targetAgent.OwnerUserID),
+	)
+	if !s.agentConversationUsersCanInteract(ctx, sourceAgent.OwnerUserID, targetAgent.OwnerUserID) {
+		logging.Warn(ctx, "conversation delivery rejected because users cannot interact")
+		return domain.ConversationDelivery{}, ErrUnauthorized
+	}
+
+	now := s.now().UTC()
+	sourceRep, err := s.ensureCanonicalRepresentativeAgent(ctx, sourceAgent, now)
+	if err != nil {
+		logging.Warn(ctx, "conversation delivery source representative ensure failed", logging.Err(err))
+		return domain.ConversationDelivery{}, err
+	}
+	ctx = logging.With(
+		ctx,
+		slog.String("resolved_source_representative_agent_id", sourceRep.RepresentativeAgentID),
+	)
+	targetRep, err := s.ensureCanonicalRepresentativeAgent(ctx, targetAgent, now)
+	if err != nil {
+		logging.Warn(ctx, "conversation delivery target representative ensure failed", logging.Err(err))
+		return domain.ConversationDelivery{}, err
+	}
+
+	conversationID, err := newSecret("conv")
+	if err != nil {
+		logging.Warn(ctx, "conversation delivery conversation id generation failed", logging.Err(err))
+		return domain.ConversationDelivery{}, err
+	}
+	receiptToken, err := newSecret("rcpt")
+	if err != nil {
+		logging.Warn(ctx, "conversation delivery receipt token generation failed", logging.Err(err))
+		return domain.ConversationDelivery{}, err
+	}
+	delivery, err := s.createConversationDelivery(
+		ctx,
+		conversationDeliverySpec{
+			conversationID:   conversationID,
+			parentInvocation: nil,
+			sourceAgent:      sourceAgent,
+			sourceRep:        sourceRep,
+			sourceSessionID:  req.Source.SessionID,
+			targetAgent:      targetAgent,
+			targetRep:        targetRep,
+			targetSessionID:  req.Target.SessionID,
+			context:          req.Context.Effective(),
+			instruction:      req.Instruction,
+			reason:           req.Reason,
+			receiptToken:     receiptToken,
+			receiptTokenHash: hashConversationReceiptToken(receiptToken),
+			now:              now,
+		},
+	)
+	if err != nil {
+		logging.Warn(ctx, "conversation delivery store failed", logging.Err(err))
+		return domain.ConversationDelivery{}, err
+	}
+	logging.Info(
+		ctx,
+		"conversation delivery stored",
+		slog.String("conversation_id", delivery.Conversation.ConversationID),
+		slog.String("invocation_id", delivery.Invocation.InvocationID),
+		slog.String("source_session_id", delivery.SourceSession.SessionID),
+		slog.String("target_session_id", delivery.TargetSession.SessionID),
+		slog.String("delivery_status", delivery.DeliveryStatus),
+	)
+	return delivery, nil
+}
+
+// getAgentByID looks up an agent by id with no owner scoping. Callers MUST
+// enforce authorization (agentConversationUsersCanInteract) before acting on
+// the result; this is only the resolution step.
+func (s *PostgresStore) getAgentByID(ctx context.Context, agentID string) (Agent, error) {
+	agentID = strings.TrimSpace(agentID)
+	if agentID == "" {
+		return Agent{}, ErrNotFound
+	}
+	return scanAgent(s.db.QueryRowContext(ctx, `
+		SELECT `+agentSelectColumns+`
+		FROM agents
+		WHERE agent_id = $1 AND deleted_at IS NULL
+	`, agentID))
+}
+
+// ensureCanonicalRepresentativeAgent returns the deterministic self-represents
+// representative for an agent, creating it and its profile if absent. It never
+// clobbers an existing explicitly configured profile or approval policy: the
+// profile insert is ON CONFLICT DO NOTHING and the representative insert is a
+// no-op update on conflict purely to return the existing row.
+func (s *PostgresStore) ensureCanonicalRepresentativeAgent(
+	ctx context.Context,
+	agent Agent,
+	now time.Time,
+) (domain.RepresentativeAgent, error) {
+	profileID := deterministicAgentProfileID(agent.AgentID, agent.OwnerUserID)
+	representsType := "user"
+	representsID := agent.OwnerUserID
+	repID := deterministicRepresentativeAgentID(agent.AgentID, profileID, representsType, representsID)
+
+	if _, err := s.db.ExecContext(ctx, `
+		INSERT INTO agent_profiles (
+			profile_id, owner_type, owner_id, display_name, description,
+			status, created_by_user_id, created_at, updated_at
+		)
+		VALUES ($1,'user',$2,$3,$4,$5,$2,$6,$6)
+		ON CONFLICT (profile_id) DO NOTHING
+	`, profileID, agent.OwnerUserID, firstNonEmpty(agent.Name, agent.AgentID),
+		agent.Description, domain.ConversationStatusActive, now); err != nil {
+		return domain.RepresentativeAgent{}, err
+	}
+
+	row := s.db.QueryRowContext(ctx, `
+		INSERT INTO representative_agents (
+			representative_agent_id, profile_id, runtime_agent_id, represents_type,
+			represents_id, approval_policy_id, status, created_by_user_id, created_at, updated_at
+		)
+		VALUES ($1,$2,$3,$4,$5,'',$6,$7,$8,$8)
+		ON CONFLICT (representative_agent_id) DO UPDATE SET
+			updated_at = representative_agents.updated_at
+		RETURNING representative_agent_id, profile_id, runtime_agent_id, represents_type,
+			represents_id, approval_policy_id, status, created_by_user_id, created_at,
+			updated_at, archived_at
+	`, repID, profileID, agent.AgentID, representsType, representsID,
+		domain.ConversationStatusActive, agent.OwnerUserID, now)
+	return scanRepresentativeAgent(row)
 }
 
 func (s *PostgresStore) deliverAgentConversationToRepresentative(
@@ -2343,6 +2495,8 @@ func (s *MemoryStore) DeliverAgentConversation(
 	switch req.Target.Kind {
 	case domain.ConversationDeliveryTargetRepresentative:
 		return s.deliverAgentConversationToRepresentativeLocked(node, req)
+	case domain.ConversationDeliveryTargetAgent:
+		return s.deliverAgentConversationToAgentLocked(node, req)
 	case domain.ConversationDeliveryTargetActiveInvocation:
 		return s.deliverAgentConversationActiveInvocationReplyLocked(node, req)
 	default:
@@ -2402,6 +2556,99 @@ func (s *MemoryStore) deliverAgentConversationToRepresentativeLocked(
 		receiptTokenHash: hashConversationReceiptToken(receiptToken),
 		now:              s.now().UTC(),
 	})
+}
+
+func (s *MemoryStore) deliverAgentConversationToAgentLocked(
+	node Node,
+	req domain.DeliverConversationRequest,
+) (domain.ConversationDelivery, error) {
+	sourceAgent, ok := s.agents[req.Source.AgentID]
+	if !ok || sourceAgent.NodeID != node.NodeID {
+		return domain.ConversationDelivery{}, ErrNotFound
+	}
+	targetAgent, ok := s.agents[strings.TrimSpace(req.Target.AgentID)]
+	if !ok {
+		return domain.ConversationDelivery{}, ErrNotFound
+	}
+	if !s.agentConversationUsersCanInteractLocked(
+		sourceAgent.OwnerUserID,
+		targetAgent.OwnerUserID,
+	) {
+		return domain.ConversationDelivery{}, ErrUnauthorized
+	}
+	now := s.now().UTC()
+	sourceRep := s.ensureCanonicalRepresentativeAgentLocked(sourceAgent, now)
+	targetRep := s.ensureCanonicalRepresentativeAgentLocked(targetAgent, now)
+	conversationID, err := newSecret("conv")
+	if err != nil {
+		return domain.ConversationDelivery{}, err
+	}
+	receiptToken, err := newSecret("rcpt")
+	if err != nil {
+		return domain.ConversationDelivery{}, err
+	}
+	return s.createConversationDeliveryLocked(conversationDeliverySpec{
+		conversationID:   conversationID,
+		sourceAgent:      sourceAgent,
+		sourceRep:        sourceRep,
+		sourceSessionID:  req.Source.SessionID,
+		targetAgent:      targetAgent,
+		targetRep:        targetRep,
+		targetSessionID:  req.Target.SessionID,
+		context:          req.Context.Effective(),
+		instruction:      req.Instruction,
+		reason:           req.Reason,
+		receiptToken:     receiptToken,
+		receiptTokenHash: hashConversationReceiptToken(receiptToken),
+		now:              now,
+	})
+}
+
+// ensureCanonicalRepresentativeAgentLocked mirrors the Postgres helper: it
+// returns the deterministic self-represents representative for an agent,
+// creating it and its profile if absent, and preserving an existing one.
+func (s *MemoryStore) ensureCanonicalRepresentativeAgentLocked(
+	agent Agent,
+	now time.Time,
+) domain.RepresentativeAgent {
+	profileID := deterministicAgentProfileID(agent.AgentID, agent.OwnerUserID)
+	representsType := "user"
+	representsID := agent.OwnerUserID
+	repID := deterministicRepresentativeAgentID(agent.AgentID, profileID, representsType, representsID)
+
+	if profile, ok := s.agentProfiles[profileID]; !ok || profile.ProfileID == "" {
+		s.agentProfiles[profileID] = domain.AgentProfile{
+			ProfileID:       profileID,
+			OwnerType:       "user",
+			OwnerID:         agent.OwnerUserID,
+			DisplayName:     firstNonEmpty(agent.Name, agent.AgentID),
+			Description:     strings.TrimSpace(agent.Description),
+			Card:            json.RawMessage(`{}`),
+			Metadata:        json.RawMessage(`{}`),
+			ToolPolicy:      json.RawMessage(`{}`),
+			Status:          domain.ConversationStatusActive,
+			CreatedByUserID: agent.OwnerUserID,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+	}
+
+	rep, ok := s.representativeAgents[repID]
+	if !ok || rep.RepresentativeAgentID == "" {
+		rep = domain.RepresentativeAgent{
+			RepresentativeAgentID: repID,
+			ProfileID:             profileID,
+			RuntimeAgentID:        agent.AgentID,
+			RepresentsType:        representsType,
+			RepresentsID:          representsID,
+			Status:                domain.ConversationStatusActive,
+			CreatedByUserID:       agent.OwnerUserID,
+			CreatedAt:             now,
+			UpdatedAt:             now,
+		}
+		s.representativeAgents[repID] = rep
+	}
+	return rep
 }
 
 func (s *MemoryStore) deliverAgentConversationActiveInvocationReplyLocked(
