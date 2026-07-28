@@ -258,6 +258,31 @@ func TestMemoryAgentConversationGivenAgentTargetWhenDeliveredThenEnsuresRepresen
 	require.Equal(t, profileCount, len(store.agentProfiles))
 }
 
+func TestMemoryAgentConversationGivenAgentTargetWithSessionThenUsesThatSession(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, node, sourceAgent := seedMemoryNodeAgent(t, ctx, store, now)
+	targetAgent, _, err := store.CreateNodeAgent(
+		ctx,
+		UserPrincipal{User: owner},
+		CreateAgentRequest{NodeID: node.NodeID, Name: "reviewer", AgentType: "codex"},
+	)
+	require.NoError(t, err)
+
+	delivery, err := store.DeliverAgentConversation(ctx, node, domain.DeliverConversationRequest{
+		Source: domain.ConversationDeliverySource{AgentID: sourceAgent.AgentID, SessionID: "sess_src"},
+		Target: domain.ConversationDeliveryTarget{
+			Kind:      domain.ConversationDeliveryTargetAgent,
+			AgentID:   targetAgent.AgentID,
+			SessionID: "sess_target_explicit",
+		},
+		Instruction: "Continue in this session.",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "sess_target_explicit", delivery.TargetSession.SessionID)
+}
+
 func TestMemoryAgentConversationGivenSelfAgentTargetWhenDeliveredThenSucceeds(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
