@@ -19,6 +19,7 @@ type User = domain.User
 type UserPrincipal = domain.UserPrincipal
 type Node = domain.Node
 type Agent = domain.Agent
+type OwnerAgentFilter = domain.OwnerAgentFilter
 type AgentSession = domain.AgentSession
 type SessionPaxConfig = domain.SessionPaxConfig
 type SessionRuntimeState = domain.SessionRuntimeState
