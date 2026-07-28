@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -150,6 +151,31 @@ func TestMemoryStoreListOwnerAgentsFilters(t *testing.T) {
 		require.NoError(t, err)
 
 		got, err := store.ListOwnerAgents(ctx, owner.UserID, OwnerAgentFilter{Query: "payments", Status: "any"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{match.AgentID}, ownerAgentIDs(got))
+	})
+
+	t.Run("query matches alias in user_metadata", func(t *testing.T) {
+		clk := base
+		store := NewMemoryStore(func() time.Time { return clk })
+		owner, err := store.EnsureUser(ctx, "owner@example.com", "Owner", "user")
+		require.NoError(t, err)
+		node, err := store.RegisterNode(ctx, owner,
+			RegisterNodeRequest{Name: "n", Hostname: "n", OS: "linux"}, "h")
+		require.NoError(t, err)
+		match, _, err := store.CreateNodeAgent(ctx, UserPrincipal{User: owner},
+			CreateAgentRequest{
+				NodeID:       node.NodeID,
+				Name:         "alpha",
+				AgentType:    "codex",
+				UserMetadata: json.RawMessage(`{"alias":"reviewer"}`),
+			})
+		require.NoError(t, err)
+		_, _, err = store.CreateNodeAgent(ctx, UserPrincipal{User: owner},
+			CreateAgentRequest{NodeID: node.NodeID, Name: "beta", AgentType: "codex"})
+		require.NoError(t, err)
+
+		got, err := store.ListOwnerAgents(ctx, owner.UserID, OwnerAgentFilter{Query: "reviewer", Status: "any"})
 		require.NoError(t, err)
 		assert.Equal(t, []string{match.AgentID}, ownerAgentIDs(got))
 	})

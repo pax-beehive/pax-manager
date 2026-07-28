@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -101,8 +102,8 @@ func agentIsOnline(agent Agent) bool {
 }
 
 // ownerAgentRelevance scores an agent against a lowercased query term. Zero
-// means no match. Name matches outrank description matches, and exact/prefix
-// matches outrank substring matches.
+// means no match. Name matches outrank alias matches, which outrank description
+// matches, and exact/prefix matches outrank substring matches.
 func ownerAgentRelevance(agent Agent, query string) int {
 	name := strings.ToLower(strings.TrimSpace(agent.Name))
 	switch {
@@ -113,10 +114,34 @@ func ownerAgentRelevance(agent Agent, query string) int {
 	case strings.Contains(name, query):
 		return 60
 	}
+	alias := strings.ToLower(ownerAgentAlias(agent))
+	switch {
+	case alias == query:
+		return 55
+	case strings.HasPrefix(alias, query):
+		return 45
+	case strings.Contains(alias, query):
+		return 35
+	}
 	if strings.Contains(strings.ToLower(agent.Description), query) {
 		return 20
 	}
 	return 0
+}
+
+// ownerAgentAlias reads the owner-editable display alias stored under the
+// agent's user_metadata "alias" key.
+func ownerAgentAlias(agent Agent) string {
+	if len(agent.UserMetadata) == 0 {
+		return ""
+	}
+	var meta struct {
+		Alias string `json:"alias"`
+	}
+	if err := json.Unmarshal(agent.UserMetadata, &meta); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(meta.Alias)
 }
 
 func ownerAgentLastActive(agent Agent) time.Time {
