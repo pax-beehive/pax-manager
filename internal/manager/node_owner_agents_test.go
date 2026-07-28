@@ -70,4 +70,26 @@ func TestListNodeOwnerAgents(t *testing.T) {
 		_, err = listNodeOwnerAgents(ctx, store, nodeA, victimAgent.AgentID, domain.OwnerAgentFilter{})
 		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
+
+	t.Run("view carries node id, name, and hostname", func(t *testing.T) {
+		store, nodeA, caller, _ := newStore()
+
+		got, err := listNodeOwnerAgents(ctx, store, nodeA, caller.AgentID, domain.OwnerAgentFilter{})
+		require.NoError(t, err)
+		nodes := ownerNodeIndex(ctx, store, got)
+
+		var view ownerAgentView
+		found := false
+		for _, ag := range got {
+			if ag.AgentID == caller.AgentID {
+				view = newOwnerAgentView(ag, caller.AgentID, nodes)
+				found = true
+			}
+		}
+		require.True(t, found)
+		assert.Equal(t, nodeA.NodeID, view.NodeID)
+		assert.Equal(t, nodeA.Name, view.NodeName)
+		assert.Equal(t, nodeA.Hostname, view.NodeHostname)
+		assert.True(t, view.IsSelf)
+	})
 }

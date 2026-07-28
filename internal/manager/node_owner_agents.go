@@ -34,6 +34,8 @@ type ownerAgentView struct {
 	Type         string     `json:"type,omitempty"`
 	Status       string     `json:"status"`
 	NodeID       string     `json:"node_id,omitempty"`
+	NodeName     string     `json:"node_name,omitempty"`
+	NodeHostname string     `json:"node_hostname,omitempty"`
 	Description  string     `json:"description,omitempty"`
 	LastActiveAt *time.Time `json:"last_active_at,omitempty"`
 	IsSelf       bool       `json:"is_self"`
@@ -56,18 +58,44 @@ func ListNodeOwnerAgents(c context.Context, ctx *app.RequestContext) {
 		}
 	}
 
-	agents, err := listNodeOwnerAgents(
-		c, serviceFromContext(ctx).store, node, fromAgentID, normalizeOwnerAgentFilter(filter))
+	store := serviceFromContext(ctx).store
+	agents, err := listNodeOwnerAgents(c, store, node, fromAgentID, normalizeOwnerAgentFilter(filter))
 	if err != nil {
 		writeEndpointError(ctx, err)
 		return
 	}
 
+	nodes := ownerNodeIndex(c, store, agents)
 	views := make([]ownerAgentView, 0, len(agents))
 	for i := range agents {
-		views = append(views, newOwnerAgentView(agents[i], fromAgentID))
+		views = append(views, newOwnerAgentView(agents[i], fromAgentID, nodes))
 	}
 	writeData(ctx, http.StatusOK, map[string]any{"agents": views})
+}
+
+// ownerNodeIndex resolves the placement nodes for a set of owner agents into a
+// node_id -> Node map so the discovery view can carry node name and hostname.
+// All agents share one owner, so it reuses ListNodes with that owner. Node
+// naming is enrichment: on error it returns an empty map rather than failing
+// discovery.
+func ownerNodeIndex(
+	ctx context.Context,
+	store domain.Store,
+	agents []domain.Agent,
+) map[string]domain.Node {
+	index := make(map[string]domain.Node)
+	if len(agents) == 0 {
+		return index
+	}
+	principal := domain.UserPrincipal{User: domain.User{UserID: agents[0].OwnerUserID}}
+	nodes, err := store.ListNodes(ctx, principal)
+	if err != nil {
+		return index
+	}
+	for i := range nodes {
+		index[nodes[i].NodeID] = nodes[i]
+	}
+	return index
 }
 
 // listNodeOwnerAgents resolves the owner of the calling agent on the
@@ -130,11 +158,16 @@ func agentAlias(agent domain.Agent) string {
 	return strings.TrimSpace(meta.Alias)
 }
 
-func newOwnerAgentView(agent domain.Agent, fromAgentID string) ownerAgentView {
+func newOwnerAgentView(
+	agent domain.Agent,
+	fromAgentID string,
+	nodes map[string]domain.Node,
+) ownerAgentView {
 	lastActive := agent.RegisteredAt
 	if agent.LastHeartbeat != nil {
 		lastActive = *agent.LastHeartbeat
 	}
+	node := nodes[agent.NodeID]
 	return ownerAgentView{
 		AgentID:      agent.AgentID,
 		Name:         agent.Name,
@@ -142,6 +175,8 @@ func newOwnerAgentView(agent domain.Agent, fromAgentID string) ownerAgentView {
 		Type:         agent.AgentType,
 		Status:       agent.Status,
 		NodeID:       agent.NodeID,
+		NodeName:     node.Name,
+		NodeHostname: node.Hostname,
 		Description:  agent.Description,
 		LastActiveAt: &lastActive,
 		IsSelf:       agent.AgentID == fromAgentID,
