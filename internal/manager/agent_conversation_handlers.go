@@ -10,6 +10,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 
+	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
@@ -679,7 +680,10 @@ func (s *Service) initializeAgentConversationSession(
 	if strings.TrimSpace(session.NativeID) != "" {
 		return nil
 	}
-	if _, err := runner.request(
+	// Mirror createConversationSession (the console path): create the ACP
+	// session and require a native session id back. Capturing it here also
+	// validates that session/new actually succeeded before we prompt.
+	resp, err := runner.request(
 		ctx,
 		"session/new",
 		map[string]any{
@@ -687,10 +691,21 @@ func (s *Service) initializeAgentConversationSession(
 			"mcpServers": agentConversationMCPServers(session),
 		},
 		nil,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
-	_, err := runner.request(
+	if findStringFromRaw(resp.Result, "sessionId", "session_id") == "" {
+		return apperr.Error{
+			Status:  http.StatusBadGateway,
+			Message: "ACP session/new did not return a sessionId",
+		}
+	}
+	// session/set_mode is best-effort: some ACP runtimes (for example codex) do
+	// not implement session/set_mode or the full-access mode and reject it with
+	// Invalid params. The console path never issues it, so a rejection here must
+	// not fail delivery; log and continue.
+	if _, err := runner.request(
 		ctx,
 		"session/set_mode",
 		map[string]any{
@@ -698,8 +713,16 @@ func (s *Service) initializeAgentConversationSession(
 			"modeId":    "full-access",
 		},
 		nil,
-	)
-	return err
+	); err != nil {
+		logging.Warn(
+			ctx,
+			"conversation delivery set_mode skipped",
+			slog.String("agent_id", session.AgentID),
+			slog.String("session_id", sessionID),
+			logging.Err(err),
+		)
+	}
+	return nil
 }
 
 func agentConversationMCPServers(session domain.AgentSession) []any {
