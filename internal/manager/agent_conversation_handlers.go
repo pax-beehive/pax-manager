@@ -695,11 +695,26 @@ func (s *Service) initializeAgentConversationSession(
 	if err != nil {
 		return err
 	}
-	if findStringFromRaw(resp.Result, "sessionId", "session_id") == "" {
+	nativeID := findStringFromRaw(resp.Result, "sessionId", "session_id")
+	if nativeID == "" {
 		return apperr.Error{
 			Status:  http.StatusBadGateway,
 			Message: "ACP session/new did not return a sessionId",
 		}
+	}
+	// Record the native id on the session row so session_id <-> native_id
+	// translation resolves and a later paxd status report updates this row
+	// instead of creating a duplicate. Without it, a reply routed back to this
+	// session cannot reach the real ACP session. Non-fatal: the current turn
+	// still uses this claimed runner.
+	if err := s.store.LinkAgentSessionNativeID(ctx, session.AgentID, sessionID, nativeID); err != nil {
+		logging.Warn(
+			ctx,
+			"conversation delivery link native session id failed",
+			slog.String("agent_id", session.AgentID),
+			slog.String("session_id", sessionID),
+			logging.Err(err),
+		)
 	}
 	// session/set_mode is best-effort: some ACP runtimes (for example codex) do
 	// not implement session/set_mode or the full-access mode and reject it with
