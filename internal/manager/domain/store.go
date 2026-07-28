@@ -301,6 +301,10 @@ type Store interface {
 	// translation fails and paxd status reports create a duplicate row instead
 	// of updating this one.
 	LinkAgentSessionNativeID(ctx context.Context, agentID, sessionID, nativeID string) error
+	// SetSessionApprovalMode overwrites a session's approval mode. Used to make
+	// a direct A2A inquiry target session auto-approve so the answering agent
+	// does not stall on an approval no human is watching.
+	SetSessionApprovalMode(ctx context.Context, agentID, sessionID, mode string) error
 	UpsertAgentStatus(ctx context.Context, report AgentStatusReport) error
 	NextAgentACPRequestID(ctx context.Context, agentID string) (int64, error)
 	ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error)

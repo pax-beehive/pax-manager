@@ -82,6 +82,26 @@ func DeliverAgentConversation(c context.Context, ctx *app.RequestContext) {
 	deliveryError := ""
 	if err == nil {
 		service := serviceFromContext(ctx)
+		if req.Target.Kind == domain.ConversationDeliveryTargetAgent {
+			// A direct agent_id inquiry expects the target to answer
+			// autonomously, so auto-approve its session before prompting;
+			// otherwise the answering agent stalls on an approval no human is
+			// watching. Same-owner interaction is enforced in the store.
+			if aerr := service.store.SetSessionApprovalMode(
+				c,
+				delivery.TargetSession.AgentID,
+				delivery.TargetSession.SessionID,
+				domain.SessionApprovalModeAutoApproveAll,
+			); aerr != nil {
+				logging.Warn(
+					c,
+					"conversation delivery target auto-approve failed",
+					slog.String("target_agent_id", delivery.TargetSession.AgentID),
+					slog.String("target_session_id", delivery.TargetSession.SessionID),
+					logging.Err(aerr),
+				)
+			}
+		}
 		if deliveryErr := service.deliverConversationDelivery(c, delivery); deliveryErr != nil {
 			if isAgentTunnelAlreadyInUse(deliveryErr) {
 				delivery.DeliveryStatus = conversationDeliveryQueuedStatus

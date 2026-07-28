@@ -1775,6 +1775,30 @@ func (s *PostgresStore) LinkAgentSessionNativeID(
 	return err
 }
 
+// SetSessionApprovalMode overwrites the session's pax_config approval mode.
+// A2A inquiry target sessions carry no meaningful cwd, so replacing pax_config
+// is acceptable here.
+func (s *PostgresStore) SetSessionApprovalMode(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	mode string,
+) error {
+	agentID = strings.TrimSpace(agentID)
+	sessionID = strings.TrimSpace(sessionID)
+	if agentID == "" || sessionID == "" {
+		return nil
+	}
+	return updateSessionPaxConfig(
+		ctx,
+		dbExecer{s.db},
+		agentID,
+		sessionID,
+		SessionPaxConfig{ApprovalMode: normalizeSessionApprovalMode(mode)},
+		s.now().UTC(),
+	)
+}
+
 func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error) {
 	query := `
 		SELECT ` + agentSelectColumns + `
