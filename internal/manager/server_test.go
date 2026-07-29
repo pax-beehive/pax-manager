@@ -4672,8 +4672,8 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenValidatesCon
 	assert.Equal(t, "conversation_delivery.v1", got.Contract)
 	assert.NotEmpty(t, got.Receipt)
 	assert.Equal(t, got.Receipt, got.Delivery.ReceiptToken)
-	assert.Equal(t, "pending", got.Delivery.DeliveryStatus)
-	assert.NotEmpty(t, got.DeliveryError)
+	assert.Equal(t, conversationDeliveryQueuedStatus, got.Delivery.DeliveryStatus)
+	assert.Empty(t, got.DeliveryError)
 	assert.Equal(t, domain.ConversationAgentInvocationStatusActive, got.Delivery.Invocation.Status)
 	assert.Equal(
 		t,
@@ -4868,6 +4868,20 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 		targetRep.RepresentativeAgentID,
 	)
 	targetManagerSessionID := assertACPMCPEnvPrefix(t, sessionNew.Params, "PAX_SESSION_ID", "sess_")
+
+	var rec *httptest.ResponseRecorder
+	select {
+	case rec = <-recCh:
+	case <-time.After(3 * time.Second):
+		t.Fatal("delivery response waited for target session initialization")
+	}
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		Delivery domain.ConversationDelivery `json:"delivery"`
+	}](t, rec.Body.Bytes())
+	assert.Equal(t, conversationDeliveryQueuedStatus, got.Delivery.DeliveryStatus)
+	require.Equal(t, targetManagerSessionID, got.Delivery.TargetSession.SessionID)
+
 	writeMockACPResponse(
 		t,
 		targetWS,
@@ -4875,17 +4889,6 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 		1,
 		sessionNew.ID,
 		json.RawMessage(`{"sessionId":"native-target"}`),
-	)
-	setModeEnv, setMode := readMockACPRequest(t, targetWS, "session/set_mode")
-	require.Equal(t, "native-target", findStringFromRaw(setMode.Params, "sessionId", "session_id"))
-	require.Equal(t, "full-access", findStringFromRaw(setMode.Params, "modeId", "mode_id"))
-	writeMockACPResponse(
-		t,
-		targetWS,
-		setModeEnv.QueueID,
-		2,
-		setMode.ID,
-		json.RawMessage(`{}`),
 	)
 	targetPromptEnv, targetPrompt := readMockACPRequest(t, targetWS, "session/prompt")
 	targetPromptText := acpPromptText(targetPrompt.Params)
@@ -4902,37 +4905,140 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 	require.Contains(t, targetPromptText, "Please answer this.")
 	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-target", targetNativeSessionID)
-	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 3, targetNativeSessionID, "working")
+	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 2, targetNativeSessionID, "working")
 	writeMockACPResponse(
 		t,
 		targetWS,
 		targetPromptEnv.QueueID,
-		4,
+		3,
 		targetPrompt.ID,
 		json.RawMessage(`{"stopReason":"end_turn"}`),
 	)
 
-	var rec *httptest.ResponseRecorder
-	select {
-	case rec = <-recCh:
-	case <-time.After(3 * time.Second):
-		t.Fatal("timed out waiting for conversation delivery response")
-	}
-	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
-	got := decodeData[struct {
-		Delivery domain.ConversationDelivery `json:"delivery"`
-	}](t, rec.Body.Bytes())
-	assert.Equal(t, "delivered", got.Delivery.DeliveryStatus)
-	require.Equal(t, targetManagerSessionID, got.Delivery.TargetSession.SessionID)
-	messages, err := srv.store.ListMessages(
-		t.Context(),
-		targetAgent.AgentID,
-		got.Delivery.TargetSession.SessionID,
-		10,
+	waitAgentToUserMessage(t, srv, targetAgent.AgentID, got.Delivery.TargetSession.SessionID)
+}
+
+func TestConversationDeliveryGivenAgentTargetWhenPostedThenPromptsFreshTargetSession(
+	t *testing.T,
+) {
+	srv, _ := testServer(t, "native@example.com")
+	fixture := testNodeAgent(t, srv, "native@example.com")
+	targetAgent := createNodeAgentForFixture(t, srv, fixture, "native-reviewer")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	targetWS := dialMockAgentTunnel(t, baseWS, fixture.nodeAPIKey, targetAgent.AgentID)
+	defer func() { _ = targetWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, targetAgent.AgentID, "")
+
+	recCh := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/node/conversation/deliver",
+			bytes.NewReader([]byte(`{
+				"source":{"agent_id":"`+fixture.agentID+`","session_id":"sess_source"},
+				"target":{"kind":"agent","agent_id":"`+targetAgent.AgentID+`"},
+				"instruction":"Review the native agent path."
+			}`)),
+		)
+		req.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+		setJSON(req)
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		recCh <- rec
+	}()
+
+	sessionNewEnv, sessionNew := readMockACPRequest(t, targetWS, "session/new")
+	assertACPMCPEnv(t, sessionNew.Params, "PAX_AGENT_ID", targetAgent.AgentID)
+	targetManagerSessionID := assertACPMCPEnvPrefix(
+		t,
+		sessionNew.Params,
+		"PAX_SESSION_ID",
+		"sess_",
 	)
-	require.NoError(t, err)
-	require.NotEmpty(t, messages)
-	assert.Equal(t, domain.MessageDirectionAgentToUser, messages[len(messages)-1].Direction)
+	writeMockACPResponse(
+		t,
+		targetWS,
+		sessionNewEnv.QueueID,
+		1,
+		sessionNew.ID,
+		json.RawMessage(`{"sessionId":"native-agent-target"}`),
+	)
+	targetPromptEnv, targetPrompt := readMockACPRequest(t, targetWS, "session/prompt")
+	targetPromptText := acpPromptText(targetPrompt.Params)
+	require.Contains(t, targetPromptText, "Review the native agent path.")
+	require.Equal(
+		t,
+		"native-agent-target",
+		findStringFromRaw(targetPrompt.Params, "sessionId", "session_id"),
+	)
+	writeMockACPResponse(
+		t,
+		targetWS,
+		targetPromptEnv.QueueID,
+		2,
+		targetPrompt.ID,
+		json.RawMessage(`{"stopReason":"end_turn"}`),
+	)
+
+	select {
+	case rec := <-recCh:
+		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+		got := decodeData[struct {
+			Delivery domain.ConversationDelivery `json:"delivery"`
+		}](t, rec.Body.Bytes())
+		assert.Equal(t, conversationDeliveryQueuedStatus, got.Delivery.DeliveryStatus)
+		assert.Equal(t, targetManagerSessionID, got.Delivery.TargetSession.SessionID)
+		sourceMessages, err := srv.store.ListMessages(
+			t.Context(),
+			fixture.agentID,
+			"sess_source",
+			100,
+		)
+		require.NoError(t, err)
+		require.Len(t, sourceMessages, 2)
+		assert.Equal(t, domain.MessageTypePaxUser, sourceMessages[0].MessageType)
+		assert.Equal(t, domain.MessageTypePaxInvocation, sourceMessages[1].MessageType)
+		var sourceDisplay paxInvocationPromptDisplayRaw
+		require.NoError(t, json.Unmarshal(sourceMessages[1].RawJSON, &sourceDisplay))
+		assert.Equal(t, []string{sourceMessages[0].MessageID}, sourceDisplay.ReplacesMessageID)
+
+		targetMessages, err := srv.store.ListMessages(
+			t.Context(),
+			targetAgent.AgentID,
+			targetManagerSessionID,
+			100,
+		)
+		require.NoError(t, err)
+		var targetPromptMessage domain.Message
+		var targetDisplayMessage domain.Message
+		for _, message := range targetMessages {
+			switch message.MessageType {
+			case domain.MessageTypePaxUser:
+				targetPromptMessage = message
+			case domain.MessageTypePaxInvocation:
+				targetDisplayMessage = message
+			}
+		}
+		require.NotEmpty(t, targetPromptMessage.MessageID)
+		require.NotEmpty(t, targetDisplayMessage.MessageID)
+		var targetDisplay paxInvocationPromptDisplayRaw
+		require.NoError(t, json.Unmarshal(targetDisplayMessage.RawJSON, &targetDisplay))
+		assert.Equal(
+			t,
+			[]string{targetPromptMessage.MessageID},
+			targetDisplay.ReplacesMessageID,
+		)
+		assert.Equal(t, "sess_source", targetDisplay.Sender.SessionID)
+		assert.Equal(t, targetManagerSessionID, targetDisplay.Receiver.SessionID)
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for direct agent conversation delivery response")
+	}
 }
 
 func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOriginalSourceTunnel(
@@ -4962,7 +5068,7 @@ func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOrig
 	parent := decodeData[struct {
 		Delivery domain.ConversationDelivery `json:"delivery"`
 	}](t, parentRec.Body.Bytes())
-	require.Equal(t, "pending", parent.Delivery.DeliveryStatus)
+	require.Equal(t, conversationDeliveryQueuedStatus, parent.Delivery.DeliveryStatus)
 	targetSessionID := parent.Delivery.TargetSession.SessionID
 	require.NotEmpty(t, targetSessionID)
 
@@ -5022,13 +5128,14 @@ func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOrig
 	got := decodeData[struct {
 		Delivery domain.ConversationDelivery `json:"delivery"`
 	}](t, rec.Body.Bytes())
-	assert.Equal(t, "delivered", got.Delivery.DeliveryStatus)
+	assert.Equal(t, conversationDeliveryQueuedStatus, got.Delivery.DeliveryStatus)
 	assert.Equal(
 		t,
 		domain.ConversationAgentInvocationStatusCompleted,
 		got.Delivery.Invocation.Status,
 	)
 	assert.Equal(t, "sess_source", got.Delivery.TargetSession.SessionID)
+	waitAgentToUserMessage(t, srv, fixture.agentID, "sess_source")
 	messages, err := srv.store.ListMessages(t.Context(), fixture.agentID, "sess_source", 10)
 	require.NoError(t, err)
 	require.NotEmpty(t, messages)
@@ -5062,7 +5169,7 @@ func TestConversationDeliveryGivenBusyOriginalSourceTunnelWhenReplyPostedThenQue
 	parent := decodeData[struct {
 		Delivery domain.ConversationDelivery `json:"delivery"`
 	}](t, parentRec.Body.Bytes())
-	require.Equal(t, "pending", parent.Delivery.DeliveryStatus)
+	require.Equal(t, conversationDeliveryQueuedStatus, parent.Delivery.DeliveryStatus)
 	targetSessionID := parent.Delivery.TargetSession.SessionID
 	require.NotEmpty(t, targetSessionID)
 
@@ -5126,6 +5233,133 @@ func TestConversationDeliveryGivenBusyOriginalSourceTunnelWhenReplyPostedThenQue
 	)
 
 	waitAgentToUserMessage(t, srv, fixture.agentID, "sess_source")
+}
+
+func TestConversationDeliveryGivenRetryableNativeSessionBusyWhenReplyPostedThenRetriesOnceAvailable(
+	t *testing.T,
+) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess_source", "native-source")
+	targetAgent := createNodeAgentForFixture(t, srv, fixture, "reviewer")
+	sourceRep := upsertRepresentativeAgentForTest(t, srv, fixture.agentID, "source")
+	targetRep := upsertRepresentativeAgentForTest(t, srv, targetAgent.AgentID, "reviewer")
+
+	parentReq := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/node/conversation/deliver",
+		bytes.NewReader([]byte(`{
+			"source":{"agent_id":"`+fixture.agentID+`","representative_agent_id":"`+sourceRep.RepresentativeAgentID+`","session_id":"sess_source"},
+			"target":{"kind":"representative","representative_agent_id":"`+targetRep.RepresentativeAgentID+`"},
+			"instruction":"Please answer this."
+		}`)),
+	)
+	parentReq.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+	setJSON(parentReq)
+	parentRec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(parentRec, parentReq)
+	require.Equal(t, http.StatusAccepted, parentRec.Code, parentRec.Body.String())
+	parent := decodeData[struct {
+		Delivery domain.ConversationDelivery `json:"delivery"`
+	}](t, parentRec.Body.Bytes())
+	require.Equal(t, conversationDeliveryQueuedStatus, parent.Delivery.DeliveryStatus)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	sourceWS := dialMockAgentTunnel(t, baseWS, fixture.nodeAPIKey, fixture.agentID)
+	defer func() { _ = sourceWS.Close() }()
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	recCh := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/node/conversation/deliver",
+			bytes.NewReader([]byte(`{
+				"source":{"agent_id":"`+targetAgent.AgentID+`","representative_agent_id":"`+targetRep.RepresentativeAgentID+`","session_id":"`+parent.Delivery.TargetSession.SessionID+`"},
+				"target":{"kind":"active_invocation"},
+				"instruction":"Here is the delayed answer."
+			}`)),
+		)
+		req.Header.Set("X-Pax-Key", fixture.nodeAPIKey)
+		setJSON(req)
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		recCh <- rec
+	}()
+
+	firstEnv, firstPrompt := readMockACPRequest(t, sourceWS, "session/prompt")
+	require.Contains(t, acpPromptText(firstPrompt.Params), "Here is the delayed answer.")
+	writeMockACPError(
+		t,
+		sourceWS,
+		firstEnv.QueueID,
+		1,
+		firstPrompt.ID,
+		-32001,
+		"native session already has an active prompt",
+		"session_busy",
+		true,
+	)
+
+	var rec *httptest.ResponseRecorder
+	select {
+	case rec = <-recCh:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for busy reply delivery response")
+	}
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	got := decodeData[struct {
+		Delivery      domain.ConversationDelivery `json:"delivery"`
+		DeliveryError string                      `json:"delivery_error,omitempty"`
+	}](t, rec.Body.Bytes())
+	assert.Equal(t, conversationDeliveryQueuedStatus, got.Delivery.DeliveryStatus)
+	assert.Empty(t, got.DeliveryError)
+
+	retryEnv, retryPrompt := readMockACPRequest(t, sourceWS, "session/prompt")
+	require.NotEqual(t, string(firstPrompt.ID), string(retryPrompt.ID))
+	require.Equal(t, acpPromptText(firstPrompt.Params), acpPromptText(retryPrompt.Params))
+	nativeSessionID := findStringFromRaw(retryPrompt.Params, "sessionId", "session_id")
+	require.Equal(t, "native-source", nativeSessionID)
+	writeMockACPChunk(t, sourceWS, retryEnv.QueueID, 2, nativeSessionID, "received delayed")
+	writeMockACPResponse(
+		t,
+		sourceWS,
+		retryEnv.QueueID,
+		3,
+		retryPrompt.ID,
+		json.RawMessage(`{"stopReason":"end_turn"}`),
+	)
+
+	waitAgentToUserMessage(t, srv, fixture.agentID, "sess_source")
+	messages, err := srv.store.ListMessages(t.Context(), fixture.agentID, "sess_source", 100)
+	require.NoError(t, err)
+	var replyPrompts []domain.Message
+	var replyDisplays []domain.Message
+	for _, message := range messages {
+		switch message.MessageType {
+		case domain.MessageTypePaxUser:
+			var rpc acpHistoryRPC
+			require.NoError(t, json.Unmarshal(message.RawJSON, &rpc))
+			meta, ok := paxInvocationPromptMetadataFromRaw(rpc.Params)
+			if ok && meta.Phase == "reply" {
+				replyPrompts = append(replyPrompts, message)
+			}
+		case domain.MessageTypePaxInvocation:
+			var display paxInvocationPromptDisplayRaw
+			require.NoError(t, json.Unmarshal(message.RawJSON, &display))
+			if display.Phase == "reply" {
+				replyDisplays = append(replyDisplays, message)
+			}
+		}
+	}
+	require.Len(t, replyPrompts, 1)
+	require.Len(t, replyDisplays, 1)
+	assert.Equal(t, replyPrompts[0].MessageID, replyDisplays[0].ParentMessageID)
 }
 
 func TestConversationDeliveryGivenInvalidTargetWhenPostedThenReturnsBadRequest(t *testing.T) {
@@ -5773,6 +6007,34 @@ func writeMockACPResponse(
 	writeAgentDataFrame(t, agentWS, queueID, seq, payload)
 }
 
+func writeMockACPError(
+	t *testing.T,
+	agentWS *websocket.Conn,
+	queueID string,
+	seq int64,
+	id json.RawMessage,
+	code int,
+	message string,
+	kind string,
+	retryable bool,
+) {
+	t.Helper()
+	payload, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"error": map[string]any{
+			"code":    code,
+			"message": message,
+			"data": map[string]any{
+				"kind":      kind,
+				"retryable": retryable,
+			},
+		},
+	})
+	require.NoError(t, err)
+	writeAgentDataFrame(t, agentWS, queueID, seq, payload)
+}
+
 func writeMockACPChunk(
 	t *testing.T,
 	agentWS *websocket.Conn,
@@ -5883,7 +6145,8 @@ func acpMCPEnvValue(t *testing.T, params json.RawMessage, name string) string {
 	}
 	require.NoError(t, json.Unmarshal(params, &body))
 	for _, server := range body.MCPServers {
-		if server.Name != "pax-conversation" {
+		if server.Name != paxConversationMCPServerName &&
+			!strings.HasPrefix(server.Name, paxConversationMCPServerName+"-") {
 			continue
 		}
 		for _, env := range server.Env {
@@ -6792,7 +7055,6 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 		"session/new",
 		json.RawMessage(`{"sessionId":"native-source"}`),
 	)
-	respondMockACPRequest(t, sourceWS, 2, "session/set_mode", json.RawMessage(`{}`))
 	respondMockACPRequest(
 		t,
 		targetWS,
@@ -6800,18 +7062,17 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 		"session/new",
 		json.RawMessage(`{"sessionId":"native-target"}`),
 	)
-	respondMockACPRequest(t, targetWS, 2, "session/set_mode", json.RawMessage(`{}`))
 
 	targetPromptEnv, targetPrompt := readMockACPRequest(t, targetWS, "session/prompt")
 	require.Equal(t, "count from 1 to 2", acpPromptText(targetPrompt.Params))
 	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-target", targetNativeSessionID)
-	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 3, targetNativeSessionID, "1")
+	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 2, targetNativeSessionID, "1")
 	writeMockACPResponse(
 		t,
 		targetWS,
 		targetPromptEnv.QueueID,
-		4,
+		3,
 		targetPrompt.ID,
 		json.RawMessage(`{"stopReason":"end_turn"}`),
 	)
@@ -6820,12 +7081,12 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 	require.Equal(t, "1", acpPromptText(sourcePrompt.Params))
 	sourceNativeSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
 	require.Equal(t, "native-source", sourceNativeSessionID)
-	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 3, sourceNativeSessionID, "2")
+	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 2, sourceNativeSessionID, "2")
 	writeMockACPResponse(
 		t,
 		sourceWS,
 		sourcePromptEnv.QueueID,
-		4,
+		3,
 		sourcePrompt.ID,
 		json.RawMessage(`{"stopReason":"end_turn"}`),
 	)

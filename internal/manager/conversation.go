@@ -65,8 +65,9 @@ type conversationResponse struct {
 }
 
 type conversationACPError struct {
-	message string
-	kind    string
+	message   string
+	kind      string
+	retryable bool
 }
 
 func (e conversationACPError) Error() string {
@@ -1473,16 +1474,26 @@ func decodeConversationACPError(raw json.RawMessage) error {
 	var value struct {
 		Message string `json:"message"`
 		Data    struct {
-			Kind string `json:"kind"`
+			Kind      string `json:"kind"`
+			Retryable bool   `json:"retryable"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return apperr.Error{Status: http.StatusBadGateway, Message: "ACP request failed"}
 	}
-	return conversationACPError{message: value.Message, kind: value.Data.Kind}
+	return conversationACPError{
+		message:   value.Message,
+		kind:      value.Data.Kind,
+		retryable: value.Data.Retryable,
+	}
 }
 
 func isConversationACPErrorKind(err error, kind string) bool {
 	var acpErr conversationACPError
 	return errors.As(err, &acpErr) && acpErr.kind == kind
+}
+
+func isConversationACPRetryable(err error) bool {
+	var acpErr conversationACPError
+	return errors.As(err, &acpErr) && acpErr.retryable
 }

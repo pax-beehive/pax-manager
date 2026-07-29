@@ -355,6 +355,46 @@ func TestACPSessionIDMiddlewareUsesPayloadSessionWhenAgentContextEmpty(t *testin
 	}
 }
 
+func TestRewriteACPFrameSessionIDGivenPaxInvocationThenPreservesEndpointSessions(
+	t *testing.T,
+) {
+	payload := []byte(`{
+		"jsonrpc":"2.0",
+		"id":8,
+		"method":"session/prompt",
+		"params":{
+			"sessionId":"sess_target",
+			"prompt":[{"type":"text","text":"review this"}],
+			"pax_invocation":{
+				"sender":{"agent_id":"agent_source","session_id":"sess_source"},
+				"receiver":{"agent_id":"agent_target","session_id":"sess_target"}
+			}
+		}
+	}`)
+
+	rewritten, changed, err := rewriteACPFrameSessionID(payload, "native-target")
+
+	require.NoError(t, err)
+	require.True(t, changed)
+	var got struct {
+		Params struct {
+			SessionID     string `json:"sessionId"`
+			PaxInvocation struct {
+				Sender struct {
+					SessionID string `json:"session_id"`
+				} `json:"sender"`
+				Receiver struct {
+					SessionID string `json:"session_id"`
+				} `json:"receiver"`
+			} `json:"pax_invocation"`
+		} `json:"params"`
+	}
+	require.NoError(t, json.Unmarshal(rewritten, &got))
+	assert.Equal(t, "native-target", got.Params.SessionID)
+	assert.Equal(t, "sess_source", got.Params.PaxInvocation.Sender.SessionID)
+	assert.Equal(t, "sess_target", got.Params.PaxInvocation.Receiver.SessionID)
+}
+
 func TestACPSessionIDMiddlewareTranslatesAgentFrameWhenTunnelUsesNativeID(t *testing.T) {
 	ctx := context.Background()
 	store := storage.NewMemoryStore(func() time.Time {

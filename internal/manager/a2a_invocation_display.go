@@ -23,6 +23,7 @@ type paxInvocationPromptContent struct {
 type paxInvocationPromptMetadata struct {
 	InvocationID   string                      `json:"invocation_id"`
 	InvocationType string                      `json:"invocation_type"`
+	TurnID         string                      `json:"turn_id,omitempty"`
 	Phase          string                      `json:"phase"`
 	Side           string                      `json:"side"`
 	Sender         paxInvocationPromptEndpoint `json:"sender"`
@@ -33,6 +34,7 @@ type paxInvocationPromptMetadata struct {
 type paxInvocationPromptDisplayRaw struct {
 	InvocationID      string                      `json:"invocation_id"`
 	InvocationType    string                      `json:"invocation_type"`
+	TurnID            string                      `json:"turn_id,omitempty"`
 	Phase             string                      `json:"phase"`
 	Side              string                      `json:"side"`
 	ReplacesMessageID []string                    `json:"replaces_message_ids"`
@@ -112,6 +114,7 @@ func paxInvocationDisplayRawForPrompt(
 	raw, _ := json.Marshal(paxInvocationPromptDisplayRaw{
 		InvocationID:      meta.InvocationID,
 		InvocationType:    firstNonEmpty(meta.InvocationType, "agent_conversation"),
+		TurnID:            meta.TurnID,
 		Phase:             meta.Phase,
 		Side:              meta.Side,
 		ReplacesMessageID: []string{parentMessageID},

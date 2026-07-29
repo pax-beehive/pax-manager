@@ -82,6 +82,7 @@ Example:
   "parent_message_id": "msg_tool_call_update_completed",
   "raw_json": {
     "invocation_id": "inv_123",
+    "turn_id": "msg_real_inquiry_target",
     "invocation_type": "agent_conversation",
     "phase": "inquiry",
     "side": "source",
@@ -163,8 +164,14 @@ session, store the real injected prompt as `pax:user_message` and add a
   `message_id`.
 - `logical_key` may be deterministic for idempotency, but it is not a user
   display contract.
+- `turn_id` uniquely identifies one injected turn within an invocation.
+  Delivery retries keep the same `turn_id` even when the JSON-RPC request id
+  changes.
+- Prompt and display projections use `turn_id` for idempotency, so retrying a
+  retryable ACP busy response does not create duplicate transcript rows.
 - `raw_json` should contain invocation metadata such as:
   - `invocation_id`
+  - `turn_id`
   - `invocation_type`
   - `phase`
   - `side`
@@ -176,4 +183,3 @@ session, store the real injected prompt as `pax:user_message` and add a
 - `parent_message_id` is the display position and causal parent for
   `pax:invocation`.
 - `raw_json.replaces_message_ids` controls what normal transcript view hides.
-

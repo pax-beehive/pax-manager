@@ -2,7 +2,10 @@ package manager
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base32"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -17,8 +20,10 @@ import (
 
 const (
 	conversationDeliveryQueuedStatus = "queued"
-	conversationDeliveryRetryEvery   = 100 * time.Millisecond
+	conversationDeliveryRetryInitial = 100 * time.Millisecond
+	conversationDeliveryRetryMax     = time.Second
 	conversationDeliveryRetryFor     = 30 * time.Second
+	paxConversationMCPServerName     = "pax-conversation"
 )
 
 type agentConversationDelivery struct {
@@ -79,7 +84,6 @@ func DeliverAgentConversation(c context.Context, ctx *app.RequestContext) {
 	}
 	node := nodeFromContext(ctx)
 	delivery, err := serviceFromContext(ctx).store.DeliverAgentConversation(c, node, req)
-	deliveryError := ""
 	if err == nil {
 		service := serviceFromContext(ctx)
 		if req.Target.Kind == domain.ConversationDeliveryTargetAgent {
@@ -102,50 +106,18 @@ func DeliverAgentConversation(c context.Context, ctx *app.RequestContext) {
 				)
 			}
 		}
-		if deliveryErr := service.deliverConversationDelivery(c, delivery); deliveryErr != nil {
-			if isAgentTunnelAlreadyInUse(deliveryErr) {
-				delivery.DeliveryStatus = conversationDeliveryQueuedStatus
-				service.enqueueConversationDelivery(c, delivery)
-				logging.Info(
-					c,
-					"conversation delivery queued",
-					slog.String("target_kind", req.Target.Kind),
-					slog.String("conversation_id", delivery.Conversation.ConversationID),
-					slog.String("invocation_id", delivery.Invocation.InvocationID),
-					slog.String("target_agent_id", delivery.TargetSession.AgentID),
-					slog.String("target_session_id", delivery.TargetSession.SessionID),
-					slog.String("target_native_session_id", delivery.TargetSession.NativeID),
-					logging.Err(deliveryErr),
-				)
-			} else {
-				delivery.DeliveryStatus = "pending"
-				deliveryError = deliveryErr.Error()
-				logging.Warn(
-					c,
-					"conversation delivery prompt failed",
-					slog.String("target_kind", req.Target.Kind),
-					slog.String("conversation_id", delivery.Conversation.ConversationID),
-					slog.String("invocation_id", delivery.Invocation.InvocationID),
-					slog.String("target_agent_id", delivery.TargetSession.AgentID),
-					slog.String("target_session_id", delivery.TargetSession.SessionID),
-					slog.String("target_native_session_id", delivery.TargetSession.NativeID),
-					logging.Err(deliveryErr),
-				)
-			}
-			err = nil
-		} else {
-			delivery.DeliveryStatus = "delivered"
-			logging.Info(
-				c,
-				"conversation delivery prompt delivered",
-				slog.String("target_kind", req.Target.Kind),
-				slog.String("conversation_id", delivery.Conversation.ConversationID),
-				slog.String("invocation_id", delivery.Invocation.InvocationID),
-				slog.String("target_agent_id", delivery.TargetSession.AgentID),
-				slog.String("target_session_id", delivery.TargetSession.SessionID),
-				slog.String("target_native_session_id", delivery.TargetSession.NativeID),
-			)
-		}
+		delivery.DeliveryStatus = conversationDeliveryQueuedStatus
+		service.enqueueConversationDelivery(c, delivery)
+		logging.Info(
+			c,
+			"conversation delivery queued",
+			slog.String("target_kind", req.Target.Kind),
+			slog.String("conversation_id", delivery.Conversation.ConversationID),
+			slog.String("invocation_id", delivery.Invocation.InvocationID),
+			slog.String("target_agent_id", delivery.TargetSession.AgentID),
+			slog.String("target_session_id", delivery.TargetSession.SessionID),
+			slog.String("target_native_session_id", delivery.TargetSession.NativeID),
+		)
 	}
 	data := map[string]any{
 		"contract_version":  "conversation_delivery.v1",
@@ -154,9 +126,6 @@ func DeliverAgentConversation(c context.Context, ctx *app.RequestContext) {
 	}
 	if delivery.ReceiptToken != "" {
 		data["receipt_token"] = delivery.ReceiptToken
-	}
-	if deliveryError != "" {
-		data["delivery_error"] = deliveryError
 	}
 	writeEndpointResult(ctx, http.StatusAccepted, data, err)
 }
@@ -181,8 +150,9 @@ func (s *Service) retryQueuedConversationDelivery(
 ) {
 	deadline := time.NewTimer(conversationDeliveryRetryFor)
 	defer deadline.Stop()
-	ticker := time.NewTicker(conversationDeliveryRetryEvery)
-	defer ticker.Stop()
+	retryDelay := conversationDeliveryRetryInitial
+	retry := time.NewTimer(retryDelay)
+	defer retry.Stop()
 
 	for {
 		select {
@@ -200,7 +170,7 @@ func (s *Service) retryQueuedConversationDelivery(
 				conversationDeliveryAttrs(delivery)...,
 			)
 			return
-		case <-ticker.C:
+		case <-retry.C:
 			err := s.deliverConversationDelivery(ctx, delivery)
 			if err == nil {
 				logging.Info(
@@ -210,7 +180,9 @@ func (s *Service) retryQueuedConversationDelivery(
 				)
 				return
 			}
-			if isAgentTunnelAlreadyInUse(err) {
+			if isConversationDeliveryRetryable(err) {
+				retryDelay = min(retryDelay*2, conversationDeliveryRetryMax)
+				retry.Reset(retryDelay)
 				continue
 			}
 			logging.Warn(
@@ -221,6 +193,10 @@ func (s *Service) retryQueuedConversationDelivery(
 			return
 		}
 	}
+}
+
+func isConversationDeliveryRetryable(err error) bool {
+	return isAgentTunnelAlreadyInUse(err) || isConversationACPRetryable(err)
 }
 
 func conversationDeliveryAttrs(delivery domain.ConversationDelivery) []slog.Attr {
@@ -736,27 +712,6 @@ func (s *Service) initializeAgentConversationSession(
 			logging.Err(err),
 		)
 	}
-	// session/set_mode is best-effort: some ACP runtimes (for example codex) do
-	// not implement session/set_mode or the full-access mode and reject it with
-	// Invalid params. The console path never issues it, so a rejection here must
-	// not fail delivery; log and continue.
-	if _, err := runner.request(
-		ctx,
-		"session/set_mode",
-		map[string]any{
-			"sessionId": sessionID,
-			"modeId":    "full-access",
-		},
-		nil,
-	); err != nil {
-		logging.Warn(
-			ctx,
-			"conversation delivery set_mode skipped",
-			slog.String("agent_id", session.AgentID),
-			slog.String("session_id", sessionID),
-			logging.Err(err),
-		)
-	}
 	return nil
 }
 
@@ -773,12 +728,18 @@ func agentConversationMCPServers(session domain.AgentSession) []any {
 	}
 	return []any{
 		map[string]any{
-			"name":    "pax-conversation",
+			"name":    agentConversationMCPServerName(session.SessionID),
 			"command": "paxd",
 			"args":    []string{"mcp", "conversation", "serve"},
 			"env":     env,
 		},
 	}
+}
+
+func agentConversationMCPServerName(sessionID string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(sessionID)))
+	suffix := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(sum[:5])
+	return paxConversationMCPServerName + "-" + strings.ToLower(suffix)
 }
 
 func startAgentConversationTurnMetadata(
@@ -802,7 +763,7 @@ func startAgentConversationTurnMetadata(
 		AgentID:               current.agentID,
 		SessionID:             current.sessionID,
 	}
-	return conversationTurnInvocationMetadata(
+	meta := conversationTurnInvocationMetadata(
 		start.Invocation,
 		phase,
 		"target",
@@ -811,6 +772,8 @@ func startAgentConversationTurnMetadata(
 		strings.TrimSpace(prompt),
 		prompt,
 	)
+	meta.TurnID = fmt.Sprintf("%s:%d", start.Invocation.InvocationID, turnIndex)
+	return meta
 }
 
 func deliveryConversationTurnMetadata(
@@ -836,7 +799,7 @@ func deliveryConversationTurnMetadata(
 		sender.RepresentativeAgentID = delivery.Invocation.TargetRepresentativeAgentID
 		receiver.RepresentativeAgentID = delivery.Invocation.SourceRepresentativeAgentID
 	}
-	return conversationTurnInvocationMetadata(
+	meta := conversationTurnInvocationMetadata(
 		delivery.Invocation,
 		phase,
 		"target",
@@ -845,6 +808,8 @@ func deliveryConversationTurnMetadata(
 		strings.TrimSpace(displayText),
 		originalText,
 	)
+	meta.TurnID = delivery.PromptMessage.MessageID
+	return meta
 }
 
 func representativeIDForTurn(
