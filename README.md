@@ -372,10 +372,12 @@ bind a Project to an Agent and working-directory intent:
 | `POST` | `/api/v1/user/{user_id}/projects/{project_id}/archive` | Soft-archive a Project. |
 | `POST` / `GET` | `/api/v1/user/{user_id}/projects/{project_id}/targets` | Create or list reusable workspace Targets. |
 | `GET` / `PATCH` | `/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}` | Read or update a Target. |
-| `POST` | `/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}/sessions` | Start a Session with the Target's Agent and workspace. |
 
 `agent_sessions.primary_project_id` is optional and immutable after creation.
-The flat Session list accepts a `primary_project_id` filter. See
+The flat Session list accepts a `primary_project_id` filter. New project
+Sessions use the existing node/agent Conversation endpoint with
+`primary_project_id` and optional `project_target_id`; the Manager creates the
+native ACP session before persisting the PAX Session. See
 [`docs/logical_projects.md`](docs/logical_projects.md) for persistence,
 ownership, and launch semantics.
 

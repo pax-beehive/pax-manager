@@ -29,7 +29,3 @@ type UpdateProjectTargetRequest struct {
 	IsDefault   *bool   `json:"is_default,omitempty"`
 	Enabled     *bool   `json:"enabled,omitempty"`
 }
-
-type CreateProjectTargetSessionRequest struct {
-	SessionName string `json:"name,omitempty"`
-}

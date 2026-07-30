@@ -647,13 +647,6 @@ struct UpdateProjectTargetRequest {
   8: optional bool enabled
 }
 
-struct CreateProjectTargetSessionRequest {
-  1: optional string user_id (api.path = "user_id")
-  2: optional string project_id (api.path = "project_id")
-  3: optional string target_id (api.path = "target_id")
-  4: optional string name
-}
-
 struct CreateNodeAgentSessionRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
@@ -1549,20 +1542,6 @@ service PaxManagerAPI {
     openapi.tag = "project",
     openapi.summary = "Update project target",
     openapi.description = "Edits, enables, disables, or makes a project target the sole enabled default.",
-    openapi.security = "cloudflareAccess",
-    openapi.path.user_id = "User identifier.",
-    openapi.path.project_id = "Project identifier.",
-    openapi.path.target_id = "Project target identifier."
-  )
-
-  AgentSessionResponse CreateProjectTargetSession(
-    1: optional CreateProjectTargetSessionRequest request
-  ) (
-    api.post = "/api/v1/user/:user_id/projects/:project_id/targets/:target_id/sessions",
-    openapi.tag = "project",
-    openapi.summary = "Create session from project target",
-    openapi.description = "Creates a session by snapshotting the target Agent, configured cwd, and logical project.",
-    openapi.status = "201",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.project_id = "Project identifier.",

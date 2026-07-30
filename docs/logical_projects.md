@@ -64,11 +64,13 @@ selected Agent's machine.
 
 `primary_project_id` is optional, so projectless Sessions remain valid.
 
-When PAX Manager creates a Session through a Target, it copies the Target's
-`agent_id`, derived node identity, and `cwd`, and sets the requested Project as
-`primary_project_id`. After creation, the primary Project is immutable.
-Periodic Agent reports may update runtime/session projection fields but cannot
-overwrite it.
+When the existing Conversation endpoint receives `primary_project_id` and
+`project_target_id` on a new conversation, it validates the owner, active
+Project, enabled Target, and route Agent. It derives `cwd` from the Target,
+executes ACP `session/new`, and only then persists the PAX Session with the
+requested Project as `primary_project_id`. After creation, the primary Project
+is immutable. Periodic Agent reports may update runtime/session projection
+fields but cannot overwrite it.
 
 This field is intentionally singular. Future multi-Project classification,
 including secretary-agent labels, belongs in a separate many-to-many
@@ -90,11 +92,25 @@ All routes are owner-scoped by the authenticated `{user_id}` (normally
 | `GET` | `/api/v1/user/{user_id}/projects/{project_id}/targets` | List Project Targets. |
 | `GET` | `/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}` | Get one Target. |
 | `PATCH` | `/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}` | Edit, enable/disable, or make a Target default. |
-| `POST` | `/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}/sessions` | Create a Session from an enabled Target. |
 
 The flat Session list accepts
 `primary_project_id={project_id}` to return the recent Sessions whose primary
 context is that Project.
+
+Session creation does not have a Project-specific REST endpoint. The existing
+`POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation`
+request accepts these optional creation-only fields:
+
+```json
+{
+  "primary_project_id": "proj_...",
+  "project_target_id": "ptgt_..."
+}
+```
+
+`project_target_id` requires `primary_project_id`. When both are present the
+Target's `cwd` is authoritative. Project context cannot be changed on prompts
+that identify an existing `session_id`.
 
 The Thrift source of truth is `api/pax_manager.thrift`; generated Hertz models,
 routes, and OpenAPI artifacts must change with it.
@@ -109,4 +125,3 @@ routes, and OpenAPI artifacts must change with it.
 - At most one enabled Target is default within a Project.
 - Archiving and Project/Target mutations are owner-scoped.
 - No handler trusts a caller-supplied owner identity.
-

@@ -115,67 +115,6 @@ func (s *Service) UpdateProjectTarget(
 	return http.StatusOK, map[string]any{"target": target}, nil
 }
 
-func (s *Service) CreateProjectTargetSession(
-	ctx context.Context,
-	meta auth.RequestMetadata,
-	projectID string,
-	targetID string,
-	req domain.CreateProjectTargetSessionRequest,
-) (int, any, error) {
-	principal, err := s.principal.Principal(ctx, meta)
-	if err != nil {
-		return 0, nil, err
-	}
-	projectID, err = requireProjectID(projectID)
-	if err != nil {
-		return 0, nil, err
-	}
-	targetID, err = requireProjectTargetID(targetID)
-	if err != nil {
-		return 0, nil, err
-	}
-	target, err := s.store.GetProjectTarget(ctx, principal, projectID, targetID)
-	if err != nil {
-		return 0, nil, err
-	}
-	if !target.Enabled {
-		return 0, nil, apperr.Error{
-			Status:  http.StatusConflict,
-			Message: "project target is disabled",
-		}
-	}
-	agent, err := s.store.GetAgent(ctx, principal, target.AgentID)
-	if err != nil {
-		return 0, nil, err
-	}
-	sessionName := strings.TrimSpace(req.SessionName)
-	if sessionName == "" {
-		sessionName = target.DisplayName
-	}
-	if len(sessionName) > maxSessionNameLength {
-		return 0, nil, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "name is too long",
-		}
-	}
-	session, err := s.store.CreateNodeAgentSession(ctx, principal, domain.CreateSessionRequest{
-		UserID:           principal.User.UserID,
-		NodeID:           agent.NodeID,
-		AgentID:          target.AgentID,
-		SessionName:      sessionName,
-		AgentType:        agent.AgentType,
-		PrimaryProjectID: target.ProjectID,
-		Source:           "project_target",
-		PaxConfig: domain.SessionPaxConfig{
-			CWD: target.Cwd,
-		},
-	})
-	if err != nil {
-		return 0, nil, err
-	}
-	return http.StatusCreated, session, nil
-}
-
 func normalizeCreateProjectTargetRequest(
 	req domain.CreateProjectTargetRequest,
 ) (domain.CreateProjectTargetRequest, error) {

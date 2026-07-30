@@ -144,7 +144,6 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"CreateNodeRegistrationToken":   CreateNodeRegistrationToken,
 	"CreateProject":                 CreateProject,
 	"CreateProjectTarget":           CreateProjectTarget,
-	"CreateProjectTargetSession":    CreateProjectTargetSession,
 	"CreateUserSecret":              CreateUserSecret,
 	"DecideUserApproval":            DecideUserApproval,
 	"DeleteNode":                    DeleteNode,
