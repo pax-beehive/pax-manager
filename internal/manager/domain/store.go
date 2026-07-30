@@ -315,6 +315,28 @@ type Store interface {
 	) ([]Agent, error)
 	GetAgent(ctx context.Context, principal UserPrincipal, agentID string) (Agent, error)
 	DeleteAgent(ctx context.Context, principal UserPrincipal, req DeleteAgentRequest) (Agent, error)
+	CreateProject(
+		ctx context.Context,
+		principal UserPrincipal,
+		req CreateProjectRequest,
+	) (Project, error)
+	ListProjects(
+		ctx context.Context,
+		principal UserPrincipal,
+		filter ListProjectsFilter,
+	) ([]Project, error)
+	GetProject(ctx context.Context, principal UserPrincipal, projectID string) (Project, error)
+	UpdateProject(
+		ctx context.Context,
+		principal UserPrincipal,
+		projectID string,
+		req UpdateProjectRequest,
+	) (Project, error)
+	ArchiveProject(
+		ctx context.Context,
+		principal UserPrincipal,
+		projectID string,
+	) (Project, error)
 	ListAgentSessions(
 		ctx context.Context,
 		principal UserPrincipal,

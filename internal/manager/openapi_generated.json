@@ -535,6 +535,17 @@
         },
         "type": "object"
       },
+      "ArchiveProjectRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AuditEventListData": {
         "properties": {
           "events": {
@@ -978,6 +989,20 @@
         },
         "type": "object"
       },
+      "CreateProjectRequest": {
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "parent_project_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateRegistrationTokenRequest": {
         "properties": {
           "expires_in_seconds": {
@@ -1341,6 +1366,17 @@
         },
         "type": "object"
       },
+      "GetProjectRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "GetUserApprovalRequest": {
         "properties": {
           "approval_id": {
@@ -1519,6 +1555,17 @@
       },
       "ListNodesRequest": {
         "properties": {
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListProjectsRequest": {
+        "properties": {
+          "include_archived": {
+            "type": "boolean"
+          },
           "user_id": {
             "type": "string"
           }
@@ -2079,6 +2126,81 @@
           "total_pages": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Project": {
+        "properties": {
+          "archived_at": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "owner_user_id": {
+            "type": "string"
+          },
+          "parent_project_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectData": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectListData": {
+        "properties": {
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectListResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProjectListData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProjectData"
+          },
+          "message": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -2836,6 +2958,23 @@
           },
           "user_metadata": {
             "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateProjectRequest": {
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "parent_project_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -8772,6 +8911,523 @@
         "summary": "Get node daemon status",
         "tags": [
           "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/projects": {
+      "get": {
+        "description": "Lists the current user's logical projects. Archived projects are excluded by default.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include archived projects.",
+            "in": "query",
+            "name": "include_archived",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListProjectsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List projects",
+        "tags": [
+          "project"
+        ]
+      },
+      "post": {
+        "description": "Creates a user-owned logical project, optionally nested under another active project.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Create project",
+        "tags": [
+          "project"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/projects/{project_id}": {
+      "get": {
+        "description": "Returns one logical project owned by the current user.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get project",
+        "tags": [
+          "project"
+        ]
+      },
+      "patch": {
+        "description": "Renames or moves an active logical project. An empty parent_project_id moves it to the root.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update project",
+        "tags": [
+          "project"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/projects/{project_id}/archive": {
+      "post": {
+        "description": "Archives a logical project without cascading to its children.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Archive project",
+        "tags": [
+          "project"
         ]
       }
     },

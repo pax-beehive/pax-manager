@@ -275,6 +275,16 @@ struct AgentSession {
   28: optional bool name_is_custom
 }
 
+struct Project {
+  1: optional string project_id
+  2: optional string owner_user_id
+  3: optional string display_name
+  4: optional string parent_project_id
+  5: optional string archived_at
+  6: optional string created_at
+  7: optional string updated_at
+}
+
 struct SessionPaxConfig {
   1: optional string cwd
   2: optional string approval_mode
@@ -325,6 +335,14 @@ struct Pagination {
 struct SessionListData {
   1: optional list<AgentSession> sessions
   2: optional Pagination pagination
+}
+
+struct ProjectListData {
+  1: optional list<Project> projects
+}
+
+struct ProjectData {
+  1: optional Project project
 }
 
 struct CurrentUserData {
@@ -546,6 +564,34 @@ struct ListUserSessionsRequest {
   3: optional string agent_id (api.query = "agent_id")
   4: optional i32 page_size (api.query = "page_size")
   5: optional i32 page_num (api.query = "page_num")
+}
+
+struct CreateProjectRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string display_name
+  3: optional string parent_project_id
+}
+
+struct ListProjectsRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional bool include_archived (api.query = "include_archived")
+}
+
+struct GetProjectRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
+}
+
+struct UpdateProjectRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
+  3: optional string display_name
+  4: optional string parent_project_id
+}
+
+struct ArchiveProjectRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
 }
 
 struct CreateNodeAgentSessionRequest {
@@ -943,6 +989,18 @@ struct AgentSessionResponse {
   3: optional string message
 }
 
+struct ProjectResponse {
+  1: optional ProjectData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct ProjectListResponse {
+  1: optional ProjectListData data
+  2: optional i32 code
+  3: optional string message
+}
+
 struct MailboxMessageResponse {
   1: optional MailboxMessage data
   2: optional i32 code
@@ -1322,6 +1380,56 @@ service PaxManagerAPI {
     openapi.description = "Returns the authenticated user profile and authorization flags.",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier."
+  )
+
+  ProjectResponse CreateProject(1: optional CreateProjectRequest request) (
+    api.post = "/api/v1/user/:user_id/projects",
+    openapi.tag = "project",
+    openapi.summary = "Create project",
+    openapi.description = "Creates a user-owned logical project, optionally nested under another active project.",
+    openapi.status = "201",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier."
+  )
+
+  ProjectListResponse ListProjects(1: optional ListProjectsRequest request) (
+    api.get = "/api/v1/user/:user_id/projects",
+    openapi.tag = "project",
+    openapi.summary = "List projects",
+    openapi.description = "Lists the current user's logical projects. Archived projects are excluded by default.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.query.include_archived = "Include archived projects."
+  )
+
+  ProjectResponse GetProject(1: optional GetProjectRequest request) (
+    api.get = "/api/v1/user/:user_id/projects/:project_id",
+    openapi.tag = "project",
+    openapi.summary = "Get project",
+    openapi.description = "Returns one logical project owned by the current user.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier."
+  )
+
+  ProjectResponse UpdateProject(1: optional UpdateProjectRequest request) (
+    api.patch = "/api/v1/user/:user_id/projects/:project_id",
+    openapi.tag = "project",
+    openapi.summary = "Update project",
+    openapi.description = "Renames or moves an active logical project. An empty parent_project_id moves it to the root.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier."
+  )
+
+  ProjectResponse ArchiveProject(1: optional ArchiveProjectRequest request) (
+    api.post = "/api/v1/user/:user_id/projects/:project_id/archive",
+    openapi.tag = "project",
+    openapi.summary = "Archive project",
+    openapi.description = "Archives a logical project without cascading to its children.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier."
   )
 
   NodeListResponse ListNodes(1: optional ListNodesRequest request) (

@@ -79,6 +79,8 @@ func Register(r *server.Hertz) {
 					_user_id.GET("/me", append(_getcurrentuserMw(), handler.GetCurrentUser)...)
 					_user_id.POST("/node-registration-tokens", append(_createnoderegistrationtokenMw(), handler.CreateNodeRegistrationToken)...)
 					_user_id.GET("/nodes", append(_listnodesMw(), handler.ListNodes)...)
+					_user_id.GET("/projects", append(_listprojectsMw(), handler.ListProjects)...)
+					_user_id.POST("/projects", append(_createprojectMw(), handler.CreateProject)...)
 					_user_id.GET("/secrets", append(_listusersecretsMw(), handler.ListUserSecrets)...)
 					_user_id.POST("/secrets", append(_createusersecretMw(), handler.CreateUserSecret)...)
 					_user_id.GET("/sessions", append(_listusersessionsMw(), handler.ListUserSessions)...)
@@ -158,6 +160,15 @@ func Register(r *server.Hertz) {
 									_harnesses.POST("/discover", append(_discovernodedaemonharnessesMw(), handler.DiscoverNodeDaemonHarnesses)...)
 								}
 							}
+						}
+					}
+					{
+						_projects := _user_id.Group("/projects", _projectsMw()...)
+						_projects.GET("/:project_id", append(_getprojectMw(), handler.GetProject)...)
+						_projects.PATCH("/:project_id", append(_updateprojectMw(), handler.UpdateProject)...)
+						{
+							_project_id := _projects.Group("/:project_id", _project_idMw()...)
+							_project_id.POST("/archive", append(_archiveprojectMw(), handler.ArchiveProject)...)
 						}
 					}
 					{

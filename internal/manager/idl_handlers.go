@@ -134,6 +134,7 @@ func CreateAgentRegistrationToken(c context.Context, ctx *app.RequestContext) {
 type generatedHandlerFunc func(context.Context, *app.RequestContext)
 
 var generatedHandlerBridge = map[string]generatedHandlerFunc{
+	"ArchiveProject":                ArchiveProject,
 	"CreateNodeAgent":               CreateNodeAgent,
 	"CreateNodeAgentApproval":       CreateNodeAgentApproval,
 	"CreateNodeAgentMessage":        CreateNodeAgentMessage,
@@ -141,6 +142,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"CreateNodeAgentSessionMessage": CreateNodeAgentSessionMessage,
 	"CreateNodeOutboundMessage":     CreateNodeOutboundMessage,
 	"CreateNodeRegistrationToken":   CreateNodeRegistrationToken,
+	"CreateProject":                 CreateProject,
 	"CreateUserSecret":              CreateUserSecret,
 	"DecideUserApproval":            DecideUserApproval,
 	"DeleteNode":                    DeleteNode,
@@ -150,6 +152,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"GetNodeAgent":                  GetNodeAgent,
 	"GetNodeAgentApproval":          GetNodeAgentApproval,
 	"GetNodeAgentSession":           GetNodeAgentSession,
+	"GetProject":                    GetProject,
 	"GetUserApproval":               GetUserApproval,
 	"GetUserSecret":                 GetUserSecret,
 	"ListNodeAgentMessages":         ListNodeAgentMessages,
@@ -157,6 +160,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"ListNodeAgentSessions":         ListNodeAgentSessions,
 	"ListNodeAgents":                ListNodeAgents,
 	"ListNodes":                     ListNodes,
+	"ListProjects":                  ListProjects,
 	"ListUserApprovalGrants":        ListUserApprovalGrants,
 	"ListUserApprovals":             ListUserApprovals,
 	"ListUserSecrets":               ListUserSecrets,
@@ -175,6 +179,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"UpdateNodeAgent":               UpdateNodeAgent,
 	"UpdateNodeAgentSession":        UpdateNodeAgentSession,
 	"UpdateNodeMailboxOffset":       UpdateNodeMailboxOffset,
+	"UpdateProject":                 UpdateProject,
 	"WriteNodeSecretVersion":        WriteNodeSecretVersion,
 }
 

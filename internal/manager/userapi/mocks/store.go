@@ -379,6 +379,64 @@ func (_c *MockStore_ArchiveKnowledgeCapsule_Call) RunAndReturn(run func(context.
 	return _c
 }
 
+// ArchiveProject provides a mock function with given fields: ctx, principal, projectID
+func (_m *MockStore) ArchiveProject(ctx context.Context, principal domain.UserPrincipal, projectID string) (domain.Project, error) {
+	ret := _m.Called(ctx, principal, projectID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ArchiveProject")
+	}
+
+	var r0 domain.Project
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) (domain.Project, error)); ok {
+		return rf(ctx, principal, projectID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) domain.Project); ok {
+		r0 = rf(ctx, principal, projectID)
+	} else {
+		r0 = ret.Get(0).(domain.Project)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, projectID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ArchiveProject_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ArchiveProject'
+type MockStore_ArchiveProject_Call struct {
+	*mock.Call
+}
+
+// ArchiveProject is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - projectID string
+func (_e *MockStore_Expecter) ArchiveProject(ctx interface{}, principal interface{}, projectID interface{}) *MockStore_ArchiveProject_Call {
+	return &MockStore_ArchiveProject_Call{Call: _e.mock.On("ArchiveProject", ctx, principal, projectID)}
+}
+
+func (_c *MockStore_ArchiveProject_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, projectID string)) *MockStore_ArchiveProject_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_ArchiveProject_Call) Return(_a0 domain.Project, _a1 error) *MockStore_ArchiveProject_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ArchiveProject_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Project, error)) *MockStore_ArchiveProject_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ArchiveTeam provides a mock function with given fields: ctx, principal, teamID, archivedAt
 func (_m *MockStore) ArchiveTeam(ctx context.Context, principal domain.UserPrincipal, teamID string, archivedAt time.Time) (domain.Team, error) {
 	ret := _m.Called(ctx, principal, teamID, archivedAt)
@@ -1010,6 +1068,64 @@ func (_c *MockStore_CreateNodeAgentSession_Call) Return(_a0 domain.AgentSession,
 }
 
 func (_c *MockStore_CreateNodeAgentSession_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.CreateSessionRequest) (domain.AgentSession, error)) *MockStore_CreateNodeAgentSession_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateProject provides a mock function with given fields: ctx, principal, req
+func (_m *MockStore) CreateProject(ctx context.Context, principal domain.UserPrincipal, req domain.CreateProjectRequest) (domain.Project, error) {
+	ret := _m.Called(ctx, principal, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateProject")
+	}
+
+	var r0 domain.Project
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.CreateProjectRequest) (domain.Project, error)); ok {
+		return rf(ctx, principal, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.CreateProjectRequest) domain.Project); ok {
+		r0 = rf(ctx, principal, req)
+	} else {
+		r0 = ret.Get(0).(domain.Project)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.CreateProjectRequest) error); ok {
+		r1 = rf(ctx, principal, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_CreateProject_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateProject'
+type MockStore_CreateProject_Call struct {
+	*mock.Call
+}
+
+// CreateProject is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - req domain.CreateProjectRequest
+func (_e *MockStore_Expecter) CreateProject(ctx interface{}, principal interface{}, req interface{}) *MockStore_CreateProject_Call {
+	return &MockStore_CreateProject_Call{Call: _e.mock.On("CreateProject", ctx, principal, req)}
+}
+
+func (_c *MockStore_CreateProject_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, req domain.CreateProjectRequest)) *MockStore_CreateProject_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.CreateProjectRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateProject_Call) Return(_a0 domain.Project, _a1 error) *MockStore_CreateProject_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_CreateProject_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.CreateProjectRequest) (domain.Project, error)) *MockStore_CreateProject_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -2047,6 +2163,64 @@ func (_c *MockStore_GetNode_Call) Return(_a0 domain.Node, _a1 error) *MockStore_
 }
 
 func (_c *MockStore_GetNode_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Node, error)) *MockStore_GetNode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetProject provides a mock function with given fields: ctx, principal, projectID
+func (_m *MockStore) GetProject(ctx context.Context, principal domain.UserPrincipal, projectID string) (domain.Project, error) {
+	ret := _m.Called(ctx, principal, projectID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProject")
+	}
+
+	var r0 domain.Project
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) (domain.Project, error)); ok {
+		return rf(ctx, principal, projectID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string) domain.Project); ok {
+		r0 = rf(ctx, principal, projectID)
+	} else {
+		r0 = ret.Get(0).(domain.Project)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string) error); ok {
+		r1 = rf(ctx, principal, projectID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetProject_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProject'
+type MockStore_GetProject_Call struct {
+	*mock.Call
+}
+
+// GetProject is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - projectID string
+func (_e *MockStore_Expecter) GetProject(ctx interface{}, principal interface{}, projectID interface{}) *MockStore_GetProject_Call {
+	return &MockStore_GetProject_Call{Call: _e.mock.On("GetProject", ctx, principal, projectID)}
+}
+
+func (_c *MockStore_GetProject_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, projectID string)) *MockStore_GetProject_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetProject_Call) Return(_a0 domain.Project, _a1 error) *MockStore_GetProject_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetProject_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) (domain.Project, error)) *MockStore_GetProject_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -3289,6 +3463,66 @@ func (_c *MockStore_ListNodes_Call) RunAndReturn(run func(context.Context, domai
 	return _c
 }
 
+// ListProjects provides a mock function with given fields: ctx, principal, filter
+func (_m *MockStore) ListProjects(ctx context.Context, principal domain.UserPrincipal, filter domain.ListProjectsFilter) ([]domain.Project, error) {
+	ret := _m.Called(ctx, principal, filter)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListProjects")
+	}
+
+	var r0 []domain.Project
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.ListProjectsFilter) ([]domain.Project, error)); ok {
+		return rf(ctx, principal, filter)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, domain.ListProjectsFilter) []domain.Project); ok {
+		r0 = rf(ctx, principal, filter)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.Project)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, domain.ListProjectsFilter) error); ok {
+		r1 = rf(ctx, principal, filter)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListProjects_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListProjects'
+type MockStore_ListProjects_Call struct {
+	*mock.Call
+}
+
+// ListProjects is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - filter domain.ListProjectsFilter
+func (_e *MockStore_Expecter) ListProjects(ctx interface{}, principal interface{}, filter interface{}) *MockStore_ListProjects_Call {
+	return &MockStore_ListProjects_Call{Call: _e.mock.On("ListProjects", ctx, principal, filter)}
+}
+
+func (_c *MockStore_ListProjects_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, filter domain.ListProjectsFilter)) *MockStore_ListProjects_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(domain.ListProjectsFilter))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListProjects_Call) Return(_a0 []domain.Project, _a1 error) *MockStore_ListProjects_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListProjects_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.ListProjectsFilter) ([]domain.Project, error)) *MockStore_ListProjects_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListSecrets provides a mock function with given fields: ctx, principal
 func (_m *MockStore) ListSecrets(ctx context.Context, principal domain.UserPrincipal) ([]domain.Secret, error) {
 	ret := _m.Called(ctx, principal)
@@ -4520,6 +4754,65 @@ func (_c *MockStore_UpdateNodeAgentSession_Call) Return(_a0 domain.AgentSession,
 }
 
 func (_c *MockStore_UpdateNodeAgentSession_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, domain.UpdateSessionRequest) (domain.AgentSession, error)) *MockStore_UpdateNodeAgentSession_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateProject provides a mock function with given fields: ctx, principal, projectID, req
+func (_m *MockStore) UpdateProject(ctx context.Context, principal domain.UserPrincipal, projectID string, req domain.UpdateProjectRequest) (domain.Project, error) {
+	ret := _m.Called(ctx, principal, projectID, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateProject")
+	}
+
+	var r0 domain.Project
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, domain.UpdateProjectRequest) (domain.Project, error)); ok {
+		return rf(ctx, principal, projectID, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.UserPrincipal, string, domain.UpdateProjectRequest) domain.Project); ok {
+		r0 = rf(ctx, principal, projectID, req)
+	} else {
+		r0 = ret.Get(0).(domain.Project)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.UserPrincipal, string, domain.UpdateProjectRequest) error); ok {
+		r1 = rf(ctx, principal, projectID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_UpdateProject_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateProject'
+type MockStore_UpdateProject_Call struct {
+	*mock.Call
+}
+
+// UpdateProject is a helper method to define mock.On call
+//   - ctx context.Context
+//   - principal domain.UserPrincipal
+//   - projectID string
+//   - req domain.UpdateProjectRequest
+func (_e *MockStore_Expecter) UpdateProject(ctx interface{}, principal interface{}, projectID interface{}, req interface{}) *MockStore_UpdateProject_Call {
+	return &MockStore_UpdateProject_Call{Call: _e.mock.On("UpdateProject", ctx, principal, projectID, req)}
+}
+
+func (_c *MockStore_UpdateProject_Call) Run(run func(ctx context.Context, principal domain.UserPrincipal, projectID string, req domain.UpdateProjectRequest)) *MockStore_UpdateProject_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.UserPrincipal), args[2].(string), args[3].(domain.UpdateProjectRequest))
+	})
+	return _c
+}
+
+func (_c *MockStore_UpdateProject_Call) Return(_a0 domain.Project, _a1 error) *MockStore_UpdateProject_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_UpdateProject_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string, domain.UpdateProjectRequest) (domain.Project, error)) *MockStore_UpdateProject_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -25,6 +25,7 @@ type Store interface {
 	KnowledgeStore
 	EnvelopeStore
 	FriendStore
+	ProjectStore
 	TeamStore
 	TeamMemexStore
 	MailboxStore
@@ -385,6 +386,35 @@ type TeamStore interface {
 		teamID string,
 		archivedAt time.Time,
 	) (domain.Team, error)
+}
+
+type ProjectStore interface {
+	CreateProject(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.CreateProjectRequest,
+	) (domain.Project, error)
+	ListProjects(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		filter domain.ListProjectsFilter,
+	) ([]domain.Project, error)
+	GetProject(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		projectID string,
+	) (domain.Project, error)
+	UpdateProject(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		projectID string,
+		req domain.UpdateProjectRequest,
+	) (domain.Project, error)
+	ArchiveProject(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		projectID string,
+	) (domain.Project, error)
 }
 
 type TeamMemexStore interface {

@@ -101,6 +101,9 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	}
 	requireOpenAPIPaths(t, doc.Paths, []string{
 		"/api/v1/user/{user_id}/api-keys",
+		"/api/v1/user/{user_id}/projects",
+		"/api/v1/user/{user_id}/projects/{project_id}",
+		"/api/v1/user/{user_id}/projects/{project_id}/archive",
 		"/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages",
 		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history",
 		"/api/v1/user/{user_id}/sessions/{session_id}/history",
@@ -132,6 +135,134 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/user/sessions/{sessionId}/messages",
 		"/api/user/message",
 		"/api/user/mailbox",
+	})
+}
+
+func TestProjectCRUDHTTPBDD(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+
+	request := func(method string, path string, body string, email string) *httptest.ResponseRecorder {
+		t.Helper()
+		var reader io.Reader
+		if body != "" {
+			reader = strings.NewReader(body)
+		}
+		req := httptest.NewRequest(method, path, reader)
+		req.Header.Set("X-User-Email", email)
+		if body != "" {
+			setJSON(req)
+		}
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		return rec
+	}
+
+	t.Run("given an owner when using the REST contract then project CRUD is available", func(t *testing.T) {
+		createRec := request(
+			http.MethodPost,
+			"/api/v1/user/self/projects",
+			`{"display_name":"Core"}`,
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusCreated, createRec.Code, createRec.Body.String())
+		created := decodeData[struct {
+			Project domain.Project `json:"project"`
+		}](t, createRec.Body.Bytes()).Project
+		require.NotEmpty(t, created.ProjectID)
+
+		getRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects/"+created.ProjectID,
+			"",
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, getRec.Code, getRec.Body.String())
+
+		updateRec := request(
+			http.MethodPatch,
+			"/api/v1/user/self/projects/"+created.ProjectID,
+			`{"display_name":"Core Platform"}`,
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, updateRec.Code, updateRec.Body.String())
+		updated := decodeData[struct {
+			Project domain.Project `json:"project"`
+		}](t, updateRec.Body.Bytes()).Project
+		assert.Equal(t, "Core Platform", updated.DisplayName)
+
+		listRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects",
+			"",
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, listRec.Code, listRec.Body.String())
+		listed := decodeData[struct {
+			Projects []domain.Project `json:"projects"`
+		}](t, listRec.Body.Bytes())
+		require.Len(t, listed.Projects, 1)
+
+		archiveRec := request(
+			http.MethodPost,
+			"/api/v1/user/self/projects/"+created.ProjectID+"/archive",
+			"",
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, archiveRec.Code, archiveRec.Body.String())
+
+		activeRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects",
+			"",
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, activeRec.Code, activeRec.Body.String())
+		active := decodeData[struct {
+			Projects []domain.Project `json:"projects"`
+		}](t, activeRec.Body.Bytes())
+		assert.Empty(t, active.Projects)
+
+		allRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects?include_archived=true",
+			"",
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, allRec.Code, allRec.Body.String())
+		all := decodeData[struct {
+			Projects []domain.Project `json:"projects"`
+		}](t, allRec.Body.Bytes())
+		require.Len(t, all.Projects, 1)
+		assert.NotNil(t, all.Projects[0].ArchivedAt)
+	})
+
+	t.Run("given another user or invalid query then the API hides ownership and validates input", func(t *testing.T) {
+		createRec := request(
+			http.MethodPost,
+			"/api/v1/user/self/projects",
+			`{"display_name":"Private"}`,
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusCreated, createRec.Code, createRec.Body.String())
+		created := decodeData[struct {
+			Project domain.Project `json:"project"`
+		}](t, createRec.Body.Bytes()).Project
+
+		foreignRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects/"+created.ProjectID,
+			"",
+			"mallory@example.com",
+		)
+		assert.Equal(t, http.StatusNotFound, foreignRec.Code, foreignRec.Body.String())
+
+		invalidRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects?include_archived=perhaps",
+			"",
+			"todd@example.com",
+		)
+		assert.Equal(t, http.StatusBadRequest, invalidRec.Code, invalidRec.Body.String())
 	})
 }
 

@@ -14,15 +14,15 @@ type Project struct {
 }
 
 type CreateProjectRequest struct {
-	DisplayName     string
-	ParentProjectID string
+	DisplayName     string `json:"display_name"`
+	ParentProjectID string `json:"parent_project_id,omitempty"`
 }
 
 type UpdateProjectRequest struct {
-	DisplayName     *string
-	ParentProjectID *string
+	DisplayName     *string `json:"display_name,omitempty"`
+	ParentProjectID *string `json:"parent_project_id,omitempty"`
 }
 
 type ListProjectsFilter struct {
-	IncludeArchived bool
+	IncludeArchived bool `json:"include_archived,omitempty"`
 }
