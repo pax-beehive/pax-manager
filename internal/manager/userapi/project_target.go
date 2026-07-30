@@ -3,7 +3,9 @@ package userapi
 import (
 	"context"
 	"net/http"
+	"path"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
@@ -123,6 +125,9 @@ func normalizeCreateProjectTargetRequest(
 	if err != nil {
 		return domain.CreateProjectTargetRequest{}, err
 	}
+	if strings.TrimSpace(req.DisplayName) == "" {
+		req.DisplayName = defaultProjectTargetDisplayName(req.Cwd)
+	}
 	req.DisplayName, err = normalizeRequiredProjectTargetField(
 		"display_name",
 		req.DisplayName,
@@ -142,6 +147,24 @@ func normalizeCreateProjectTargetRequest(
 		}
 	}
 	return req, nil
+}
+
+func defaultProjectTargetDisplayName(cwd string) string {
+	cwd = strings.TrimSpace(cwd)
+	var displayName string
+	switch cwd {
+	case "~":
+		displayName = "Home"
+	case "/":
+		displayName = "Root"
+	default:
+		displayName = path.Base(strings.TrimRight(cwd, "/"))
+	}
+	for len(displayName) > projectTargetDisplayNameLimit {
+		_, size := utf8.DecodeLastRuneInString(displayName)
+		displayName = displayName[:len(displayName)-size]
+	}
+	return displayName
 }
 
 func normalizeUpdateProjectTargetRequest(

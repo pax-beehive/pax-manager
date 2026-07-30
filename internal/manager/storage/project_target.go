@@ -83,6 +83,11 @@ func (s *MemoryStore) CreateProjectTarget(
 	if req.IsDefault && !enabled {
 		return ProjectTarget{}, ErrConflict
 	}
+	for _, target := range s.projectTargets {
+		if target.ProjectID == projectID && target.AgentID == agentID && target.Cwd == cwd {
+			return target, nil
+		}
+	}
 	targetID, err := newSecret("ptgt")
 	if err != nil {
 		return ProjectTarget{}, err
@@ -284,6 +289,23 @@ func (s *PostgresStore) CreateProjectTarget(
 			target.AgentID,
 		); err != nil {
 			return err
+		}
+		var existing projectTargetRow
+		result := tx.
+			Where(
+				"project_id = ? AND agent_id = ? AND cwd = ?",
+				projectID,
+				target.AgentID,
+				target.Cwd,
+			).
+			Limit(1).
+			Find(&existing)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected > 0 {
+			target = projectTargetFromModel(existing)
+			return nil
 		}
 		if target.IsDefault {
 			if err := clearPostgresProjectTargetDefault(tx, projectID, now); err != nil {

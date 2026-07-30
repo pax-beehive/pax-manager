@@ -71,6 +71,38 @@ func TestMemoryProjectTargetLifecycleBDD(t *testing.T) {
 		assert.NotEqual(t, first.Cwd, second.Cwd)
 	})
 
+	t.Run("given the same project agent and cwd when creating twice then the existing target is reused", func(t *testing.T) {
+		before, listErr := store.ListProjectTargets(ctx, owner, project.ProjectID)
+		require.NoError(t, listErr)
+		first, createErr := store.CreateProjectTarget(
+			ctx,
+			owner,
+			project.ProjectID,
+			CreateProjectTargetRequest{
+				AgentID:     "agent_owner",
+				DisplayName: "Original",
+				Cwd:         " ~/dedupe ",
+			},
+		)
+		require.NoError(t, createErr)
+		second, createErr := store.CreateProjectTarget(
+			ctx,
+			owner,
+			project.ProjectID,
+			CreateProjectTargetRequest{
+				AgentID:     " agent_owner ",
+				DisplayName: "Ignored replacement",
+				Cwd:         "~/dedupe",
+			},
+		)
+		require.NoError(t, createErr)
+
+		assert.Equal(t, first, second)
+		after, listErr := store.ListProjectTargets(ctx, owner, project.ProjectID)
+		require.NoError(t, listErr)
+		assert.Len(t, after, len(before)+1)
+	})
+
 	t.Run("given a new default when updating then the previous default is cleared", func(t *testing.T) {
 		first, createErr := store.CreateProjectTarget(
 			ctx,

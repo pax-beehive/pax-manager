@@ -76,6 +76,38 @@ func TestPostgresProjectTargetLifecycleBDD(t *testing.T) {
 		assert.Equal(t, "~/feature", got.Cwd)
 	})
 
+	t.Run("given the same project agent and cwd when creating twice then the existing target is reused", func(t *testing.T) {
+		before, listErr := store.ListProjectTargets(ctx, owner, project.ProjectID)
+		require.NoError(t, listErr)
+		first, createErr := store.CreateProjectTarget(
+			ctx,
+			owner,
+			project.ProjectID,
+			CreateProjectTargetRequest{
+				AgentID:     "agent_owner",
+				DisplayName: "Original",
+				Cwd:         " ~/dedupe ",
+			},
+		)
+		require.NoError(t, createErr)
+		second, createErr := store.CreateProjectTarget(
+			ctx,
+			owner,
+			project.ProjectID,
+			CreateProjectTargetRequest{
+				AgentID:     " agent_owner ",
+				DisplayName: "Ignored replacement",
+				Cwd:         "~/dedupe",
+			},
+		)
+		require.NoError(t, createErr)
+
+		assert.Equal(t, first, second)
+		after, listErr := store.ListProjectTargets(ctx, owner, project.ProjectID)
+		require.NoError(t, listErr)
+		assert.Len(t, after, len(before)+1)
+	})
+
 	t.Run("given a replacement default then exactly one enabled target remains default", func(t *testing.T) {
 		first, createErr := store.CreateProjectTarget(
 			ctx,

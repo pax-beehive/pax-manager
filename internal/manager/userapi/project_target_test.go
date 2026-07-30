@@ -120,6 +120,69 @@ func TestProjectTargetCRUDServiceBDD(t *testing.T) {
 	})
 }
 
+func TestCreateProjectTargetDefaultNameBDD(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	meta := auth.RequestMetadata{}
+	principal := userPrincipal("usr_owner", false)
+
+	tests := []struct {
+		name        string
+		cwd         string
+		displayName string
+	}{
+		{name: "repository path", cwd: "/Users/kai/pax-manager", displayName: "pax-manager"},
+		{name: "worktree path", cwd: "~/worktrees/kev-8", displayName: "kev-8"},
+		{name: "home path", cwd: "~", displayName: "Home"},
+		{name: "root path", cwd: "/", displayName: "Root"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store := userapimocks.NewMockStore(t)
+			principals := userapimocks.NewMockPrincipalResolver(t)
+			principals.EXPECT().Principal(ctx, meta).Return(principal, nil).Once()
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
+			expected := domain.CreateProjectTargetRequest{
+				AgentID:     "agent_1",
+				DisplayName: tc.displayName,
+				Cwd:         tc.cwd,
+			}
+			target := domain.ProjectTarget{
+				TargetID:    "ptgt_1",
+				ProjectID:   "proj_1",
+				AgentID:     "agent_1",
+				DisplayName: tc.displayName,
+				Cwd:         tc.cwd,
+			}
+			store.EXPECT().
+				CreateProjectTarget(ctx, principal, "proj_1", expected).
+				Return(target, nil).
+				Once()
+
+			status, data, err := svc.CreateProjectTarget(
+				ctx,
+				meta,
+				"proj_1",
+				domain.CreateProjectTargetRequest{
+					AgentID: "agent_1",
+					Cwd:     tc.cwd,
+				},
+			)
+
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusCreated, status)
+			assert.Equal(t, target, data.(map[string]any)["target"])
+		})
+	}
+}
+
 func TestProjectTargetServiceValidationBDD(t *testing.T) {
 	t.Parallel()
 
@@ -148,13 +211,6 @@ func TestProjectTargetServiceValidationBDD(t *testing.T) {
 			req: domain.CreateProjectTargetRequest{
 				DisplayName: "Target",
 				Cwd:         "~/repo",
-			},
-		},
-		{
-			name: "missing display name",
-			req: domain.CreateProjectTargetRequest{
-				AgentID: "agent_1",
-				Cwd:     "~/repo",
 			},
 		},
 		{
