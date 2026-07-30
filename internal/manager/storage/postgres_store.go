@@ -1751,6 +1751,54 @@ func (s *PostgresStore) UpdateNodeAgentSession(
 	`, req.AgentID, req.SessionID))
 }
 
+// LinkAgentSessionNativeID sets native_id on a session row only when it is not
+// already populated, so it never clobbers a native id learned from a paxd
+// status report. See the domain.Store interface for why A2A delivery needs it.
+func (s *PostgresStore) LinkAgentSessionNativeID(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	nativeID string,
+) error {
+	agentID = strings.TrimSpace(agentID)
+	sessionID = strings.TrimSpace(sessionID)
+	nativeID = strings.TrimSpace(nativeID)
+	if agentID == "" || sessionID == "" || nativeID == "" {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE agent_sessions
+		SET native_id = $3, updated_at = $4
+		WHERE agent_id = $1 AND session_id = $2
+			AND (native_id IS NULL OR native_id = '')
+	`, agentID, sessionID, nativeID, s.now().UTC())
+	return err
+}
+
+// SetSessionApprovalMode overwrites the session's pax_config approval mode.
+// A2A inquiry target sessions carry no meaningful cwd, so replacing pax_config
+// is acceptable here.
+func (s *PostgresStore) SetSessionApprovalMode(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	mode string,
+) error {
+	agentID = strings.TrimSpace(agentID)
+	sessionID = strings.TrimSpace(sessionID)
+	if agentID == "" || sessionID == "" {
+		return nil
+	}
+	return updateSessionPaxConfig(
+		ctx,
+		dbExecer{s.db},
+		agentID,
+		sessionID,
+		SessionPaxConfig{ApprovalMode: normalizeSessionApprovalMode(mode)},
+		s.now().UTC(),
+	)
+}
+
 func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error) {
 	query := `
 		SELECT ` + agentSelectColumns + `

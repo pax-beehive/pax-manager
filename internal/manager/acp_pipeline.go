@@ -389,46 +389,32 @@ func rewriteACPFrameSessionID(payload []byte, sessionID string) ([]byte, bool, e
 	if sessionID == "" || !json.Valid(payload) {
 		return payload, false, nil
 	}
-	var value any
+	var value map[string]any
 	if err := json.Unmarshal(payload, &value); err != nil {
 		return nil, false, err
 	}
-	changed := rewriteSessionIDValue(value, sessionID)
+	changed := false
+	// Only the ACP envelope owns the transport session ID. Nested session IDs
+	// belong to application metadata such as Pax invocation endpoints.
+	for _, field := range []string{"params", "result"} {
+		container, ok := value[field].(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, key := range []string{"sessionId", "session_id"} {
+			current, ok := container[key]
+			if !ok || current == sessionID {
+				continue
+			}
+			container[key] = sessionID
+			changed = true
+		}
+	}
 	if !changed {
 		return payload, false, nil
 	}
 	rewritten, err := json.Marshal(value)
 	return rewritten, true, err
-}
-
-func rewriteSessionIDValue(value any, sessionID string) bool {
-	switch typed := value.(type) {
-	case map[string]any:
-		changed := false
-		for key, nested := range typed {
-			if key == "sessionId" || key == "session_id" {
-				if typed[key] != sessionID {
-					typed[key] = sessionID
-					changed = true
-				}
-				continue
-			}
-			if rewriteSessionIDValue(nested, sessionID) {
-				changed = true
-			}
-		}
-		return changed
-	case []any:
-		changed := false
-		for _, nested := range typed {
-			if rewriteSessionIDValue(nested, sessionID) {
-				changed = true
-			}
-		}
-		return changed
-	default:
-		return false
-	}
 }
 
 type acpApprovalMiddleware struct {

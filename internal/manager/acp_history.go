@@ -252,12 +252,16 @@ func projectACPUserPromptForSession(
 		return nil
 	}
 	paxMeta, hasPaxMeta := paxInvocationPromptMetadataFromRaw(rpc.Params)
+	projectionID := firstNonEmpty(acpHistoryRPCID(rpc.ID), acpHistoryContentHash(content))
+	if hasPaxMeta && strings.TrimSpace(paxMeta.TurnID) != "" {
+		projectionID = paxMeta.TurnID
+	}
 	logicalKey := fmt.Sprintf(
 		"acp:%s:%s:%s:%s:user_prompt",
 		agent.agentID,
 		domain.TransportStreamManagerToPaxd,
 		sessionID,
-		firstNonEmpty(acpHistoryRPCID(rpc.ID), acpHistoryContentHash(content)),
+		projectionID,
 	)
 	msg := domain.Message{
 		MessageID:   acpHistoryMessageID(logicalKey),
@@ -302,6 +306,9 @@ func projectACPPaxInvocationDisplay(
 ) error {
 	logicalKey := "acp:" + agent.agentID + ":" + domain.TransportStreamManagerToPaxd + ":" +
 		parent.SessionID + ":" + meta.InvocationID + ":" + meta.Phase + ":" + meta.Side + ":display"
+	if strings.TrimSpace(meta.TurnID) != "" {
+		logicalKey += ":" + meta.TurnID
+	}
 	msg := domain.Message{
 		MessageID:       acpHistoryMessageID(logicalKey),
 		ConversationID:  parent.ConversationID,

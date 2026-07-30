@@ -50,7 +50,19 @@ func TestAgentConversationMCPServersUsePortablePaxdCommand(t *testing.T) {
 	require.Len(t, servers, 1)
 	server, ok := servers[0].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "pax-conversation", server["name"])
+	assert.Equal(t, agentConversationMCPServerName("sess_1"), server["name"])
 	assert.Equal(t, "paxd", server["command"])
 	assert.Equal(t, []string{"mcp", "conversation", "serve"}, server["args"])
+	assert.Equal(t, []map[string]string{
+		{"name": "PAX_AGENT_ID", "value": "agent_1"},
+		{"name": "PAX_SESSION_ID", "value": "sess_1"},
+	}, server["env"])
+}
+
+func TestAgentConversationMCPServerNameIsStableAndSessionScoped(t *testing.T) {
+	name := agentConversationMCPServerName("sess_1")
+
+	assert.Equal(t, name, agentConversationMCPServerName("sess_1"))
+	assert.NotEqual(t, name, agentConversationMCPServerName("sess_2"))
+	assert.Regexp(t, `^pax-conversation-[a-z2-7]{8}$`, name)
 }

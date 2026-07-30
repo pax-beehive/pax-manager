@@ -2487,6 +2487,55 @@ func (s *MemoryStore) createNodeAgentLocked(
 	return agent, nil
 }
 
+func (s *MemoryStore) LinkAgentSessionNativeID(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	nativeID string,
+) error {
+	agentID = strings.TrimSpace(agentID)
+	sessionID = strings.TrimSpace(sessionID)
+	nativeID = strings.TrimSpace(nativeID)
+	if agentID == "" || sessionID == "" || nativeID == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := sessionKey(agentID, sessionID)
+	session, ok := s.sessions[key]
+	if !ok {
+		return nil
+	}
+	if strings.TrimSpace(session.NativeID) == "" {
+		session.NativeID = nativeID
+		s.sessions[key] = session
+	}
+	return nil
+}
+
+func (s *MemoryStore) SetSessionApprovalMode(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	mode string,
+) error {
+	agentID = strings.TrimSpace(agentID)
+	sessionID = strings.TrimSpace(sessionID)
+	if agentID == "" || sessionID == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := sessionKey(agentID, sessionID)
+	session, ok := s.sessions[key]
+	if !ok {
+		return nil
+	}
+	session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(mode)
+	s.sessions[key] = session
+	return nil
+}
+
 func (s *MemoryStore) upsertSessionLocked(
 	nodeID string,
 	agentID string,
