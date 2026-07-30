@@ -23,6 +23,21 @@ CREATE TABLE IF NOT EXISTS users (
     last_seen_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS projects (
+    project_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    parent_project_id TEXT,
+    archived_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_projects_owner
+    ON projects(owner_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_projects_parent
+    ON projects(parent_project_id);
+
 CREATE TABLE IF NOT EXISTS agents (
     agent_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id),

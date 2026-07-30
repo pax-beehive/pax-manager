@@ -1016,15 +1016,15 @@ type RegisterNodeAgentResponse struct {
 }
 
 type RegisterAgentRequest struct {
-	Name          string          `json:"name"`
-	AgentType     string          `json:"agent_type"`
-	Hostname      string          `json:"hostname"`
-	MachineType   string          `json:"machine_type"`
-	OS            string          `json:"os"`
-	HermesVersion string          `json:"hermes_version"`
-	APIEndpoint   string          `json:"api_endpoint"`
-	Projects      []Project       `json:"projects,omitempty"`
-	Metadata      json.RawMessage `json:"metadata"`
+	Name          string                 `json:"name"`
+	AgentType     string                 `json:"agent_type"`
+	Hostname      string                 `json:"hostname"`
+	MachineType   string                 `json:"machine_type"`
+	OS            string                 `json:"os"`
+	HermesVersion string                 `json:"hermes_version"`
+	APIEndpoint   string                 `json:"api_endpoint"`
+	Projects      []AgentReportedProject `json:"projects,omitempty"`
+	Metadata      json.RawMessage        `json:"metadata"`
 }
 
 type RegisterAgentResponse struct {
@@ -1842,7 +1842,7 @@ type OffsetRequest struct {
 	Offset int64 `json:"offset"`
 }
 
-type Project struct {
+type AgentReportedProject struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	RootPath string `json:"root_path"`

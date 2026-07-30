@@ -145,6 +145,7 @@ type CreateSessionRequest = domain.CreateSessionRequest
 type UpdateSessionRequest = domain.UpdateSessionRequest
 type OffsetRequest = domain.OffsetRequest
 type Project = domain.Project
+type AgentReportedProject = domain.AgentReportedProject
 type MailboxPull = domain.MailboxPull
 type MailboxFilter = domain.MailboxFilter
 type Store = domain.Store
