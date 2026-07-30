@@ -2542,14 +2542,14 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 		t,
 		httpServer.URL,
 		fixture,
-		`{"input":"hello","cwd":"/Users/todd/work","approval_mode":"auto_approve_all"}`,
+		`{"input":"hello","cwd":"~/work","approval_mode":"auto_approve_all"}`,
 		respCh,
 		errCh,
 	)
 
 	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
-	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "/Users/todd/work")
+	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "~/work")
 	writeAgentDataFrame(
 		t,
 		agentWS,
@@ -2579,7 +2579,7 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 		sessionEvent.SessionID,
 	)
 	require.NoError(t, err)
-	assert.Equal(t, "/Users/todd/work", storedSession.PaxConfig.CWD)
+	assert.Equal(t, "~/work", storedSession.PaxConfig.CWD)
 	assert.Equal(t, domain.SessionApprovalModeAutoApproveAll, storedSession.PaxConfig.ApprovalMode)
 }
 
