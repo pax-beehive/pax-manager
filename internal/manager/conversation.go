@@ -238,50 +238,67 @@ func (s *Service) readConversationRequest(
 		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
-	if resumeReq.Requested && (req.Input != "" || len(req.Content) > 0) {
-		writeHTTPError(w, http.StatusBadRequest, "content and resume are mutually exclusive")
+	if err := validateConversationResumeContent(req, resumeReq); err != nil {
+		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	req.CWD = strings.TrimSpace(req.CWD)
 	req.ApprovalMode = strings.TrimSpace(req.ApprovalMode)
-	if !isSupportedSessionWorkspace(req.CWD) {
-		writeHTTPError(w, http.StatusBadRequest, "cwd must be an absolute path, ~, or start with ~/")
+	if err := validateConversationSessionOptions(req); err != nil {
+		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
-	if req.SessionID != "" && req.CWD != "" {
-		writeHTTPError(w, http.StatusBadRequest, "cwd can only be set when creating a session")
-		return conversationRequest{}, conversationResumeRequest{}, false
-	}
-	if req.SessionID != "" && req.ApprovalMode != "" {
-		writeHTTPError(
-			w,
-			http.StatusBadRequest,
-			"approval_mode can only be set when creating a session; use session PATCH to change it",
-		)
-		return conversationRequest{}, conversationResumeRequest{}, false
-	}
-	if req.SessionID != "" &&
-		(req.PrimaryProjectID != "" || req.ProjectTargetID != "") {
-		writeHTTPError(
-			w,
-			http.StatusBadRequest,
-			"project context can only be set when creating a session",
-		)
-		return conversationRequest{}, conversationResumeRequest{}, false
-	}
-	if req.ApprovalMode != "" && !domain.IsSessionApprovalMode(req.ApprovalMode) {
-		writeHTTPError(w, http.StatusBadRequest, "approval_mode must be manual or auto_approve_all")
-		return conversationRequest{}, conversationResumeRequest{}, false
-	}
-	if resumeReq.Requested && req.SessionID == "" {
-		writeHTTPError(w, http.StatusBadRequest, "session_id is required for resume")
-		return conversationRequest{}, conversationResumeRequest{}, false
-	}
-	if !resumeReq.Requested && req.Input == "" && len(req.Content) == 0 {
-		writeHTTPError(w, http.StatusBadRequest, "input or content is required")
+	if err := validateConversationPromptState(req, resumeReq); err != nil {
+		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	return req, resumeReq, true
+}
+
+func validateConversationResumeContent(
+	req conversationRequest,
+	resumeReq conversationResumeRequest,
+) error {
+	if resumeReq.Requested && (req.Input != "" || len(req.Content) > 0) {
+		return errors.New("content and resume are mutually exclusive")
+	}
+	return nil
+}
+
+func validateConversationSessionOptions(req conversationRequest) error {
+	if !isSupportedSessionWorkspace(req.CWD) {
+		return errors.New("cwd must be an absolute path, ~, or start with ~/")
+	}
+	if req.SessionID != "" && req.CWD != "" {
+		return errors.New("cwd can only be set when creating a session")
+	}
+	if req.SessionID != "" && req.ApprovalMode != "" {
+		return errors.New(
+			"approval_mode can only be set when creating a session; " +
+				"use session PATCH to change it",
+		)
+	}
+	if req.SessionID != "" &&
+		(req.PrimaryProjectID != "" || req.ProjectTargetID != "") {
+		return errors.New("project context can only be set when creating a session")
+	}
+	if req.ApprovalMode != "" && !domain.IsSessionApprovalMode(req.ApprovalMode) {
+		return errors.New("approval_mode must be manual or auto_approve_all")
+	}
+	return nil
+}
+
+func validateConversationPromptState(
+	req conversationRequest,
+	resumeReq conversationResumeRequest,
+) error {
+	if resumeReq.Requested && req.SessionID == "" {
+		return errors.New("session_id is required for resume")
+	}
+	if !resumeReq.Requested && req.Input == "" && len(req.Content) == 0 {
+		return errors.New("input or content is required")
+	}
+	return nil
 }
 
 func (s *Service) resolveConversationProjectContext(
