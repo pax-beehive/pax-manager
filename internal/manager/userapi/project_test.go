@@ -62,6 +62,7 @@ func TestProjectCRUDServiceBDD(t *testing.T) {
 
 		status, data, err = svc.GetProject(ctx, auth.RequestMetadata{}, child.ProjectID)
 		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, status)
 		assert.Equal(t, child.ProjectID, data.(map[string]any)["project"].(domain.Project).ProjectID)
 
 		name := " Renamed "
