@@ -581,3 +581,73 @@ func _discovernodedaemonharnessesMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _listprojectsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createprojectMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _projectsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getprojectMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updateprojectMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _project_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _archiveprojectMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listprojecttargetsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createprojecttargetMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _targetsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getprojecttargetMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updateprojecttargetMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _target_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createprojecttargetsessionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

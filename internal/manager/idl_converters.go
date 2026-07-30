@@ -53,7 +53,6 @@ func sessionStatusInputs(inputs []*hzapi.SessionStatusInput) []SessionStatusInpu
 			AgentType:         input.GetAgentType(),
 			NativeID:          input.GetNativeID(),
 			SessionName:       input.GetName(),
-			ProjectID:         input.GetProjectID(),
 			Preview:           input.GetPreview(),
 			WorkspaceRoots:    input.GetWorkspaceRoots(),
 			Source:            input.GetSource(),

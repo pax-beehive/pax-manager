@@ -3035,7 +3035,7 @@ func (s *MemoryStore) createConversationSessionLocked(
 		AgentType: agent.AgentType,
 		Source:    domain.MessageSourceACPTunnel,
 		Status:    "idle",
-	}, now)
+	}, "", now)
 	session.ConversationID = conversationID
 	session.ProfileID = rep.ProfileID
 	session.RepresentativeAgentID = rep.RepresentativeAgentID
@@ -3060,7 +3060,7 @@ func (s *MemoryStore) ensureConversationSessionLocked(
 		AgentType: agent.AgentType,
 		Source:    domain.MessageSourceACPTunnel,
 		Status:    "idle",
-	}, now)
+	}, "", now)
 	session.ConversationID = conversationID
 	session.ProfileID = rep.ProfileID
 	session.RepresentativeAgentID = rep.RepresentativeAgentID

@@ -717,7 +717,6 @@ func statusReport(agentID string, sessionID string) map[string]any {
 				"agent_type":      "hermes",
 				"native_id":       "native-" + sessionID,
 				"name":            "integration session",
-				"project_id":      "pax-manager",
 				"preview":         "integration flow",
 				"workspace_roots": []string{"/workspace/pax-manager"},
 				"status":          "running",

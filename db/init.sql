@@ -23,6 +23,41 @@ CREATE TABLE IF NOT EXISTS users (
     last_seen_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS projects (
+    project_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    parent_project_id TEXT,
+    archived_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_projects_owner
+    ON projects(owner_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_projects_parent
+    ON projects(parent_project_id);
+
+CREATE TABLE IF NOT EXISTS project_targets (
+    target_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    cwd TEXT NOT NULL,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_targets_project
+    ON project_targets(project_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_project_targets_agent
+    ON project_targets(agent_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_project_targets_one_default
+    ON project_targets(project_id)
+    WHERE is_default = TRUE AND enabled = TRUE;
+
 CREATE TABLE IF NOT EXISTS agents (
     agent_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id),
@@ -102,7 +137,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     custom_session_name TEXT,
     agent_type TEXT,
     native_id TEXT,
-    project_id TEXT,
+    primary_project_id TEXT,
     preview TEXT,
     workspace_roots JSONB NOT NULL DEFAULT '[]'::jsonb,
     source TEXT,
@@ -127,7 +162,8 @@ ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS custom_session_name TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(node_id);
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS agent_type TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS native_id TEXT;
-ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS project_id TEXT;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS primary_project_id TEXT;
+ALTER TABLE agent_sessions DROP COLUMN IF EXISTS project_id;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS preview TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS workspace_roots JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS source TEXT;
@@ -156,6 +192,9 @@ CREATE INDEX IF NOT EXISTS idx_sessions_agent ON agent_sessions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_native ON agent_sessions(agent_id, native_id)
     WHERE native_id IS NOT NULL AND native_id <> '';
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON agent_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_sessions_primary_project
+    ON agent_sessions(primary_project_id)
+    WHERE primary_project_id IS NOT NULL AND primary_project_id <> '';
 
 CREATE TABLE IF NOT EXISTS mailbox (
     id BIGSERIAL PRIMARY KEY,

@@ -84,6 +84,9 @@ pax-manager is multi-tenant at the application and schema level.
 - `agents.owner_user_id` is the tenant boundary for each agent.
 - `mailbox.owner_user_id` stores the agent owner for direct filtering.
 - `agent_sessions` inherits ownership through `agent_id`.
+- `projects` is scoped directly by `owner_user_id`; `project_targets` inherits
+  ownership through its Project and is also validated against the target
+  Agent's owner.
 - Normal user APIs filter by the caller's `user_id`.
 - Built-in admin users and users listed in the current `ADMIN_EMAILS` setting
   bypass tenant filters. Persisted `users.role` is not used as the source of

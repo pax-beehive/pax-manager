@@ -12,37 +12,43 @@ const TableNameAgentSession = "agent_sessions"
 
 // AgentSession mapped from table <agent_sessions>
 type AgentSession struct {
-	ID                  int64      `gorm:"column:id;type:bigint;primaryKey;autoIncrement:true" json:"id"`
-	AgentID             string     `gorm:"column:agent_id;type:text;not null;index:idx_sessions_agent,priority:1;index:idx_sessions_agent_native,priority:1" json:"agent_id"`
-	SessionID           string     `gorm:"column:session_id;type:text;not null" json:"session_id"`
-	SessionName         *string    `gorm:"column:session_name;type:text" json:"session_name"`
-	AgentType           *string    `gorm:"column:agent_type;type:text" json:"agent_type"`
-	NativeID            *string    `gorm:"column:native_id;type:text;index:idx_sessions_agent_native,priority:2" json:"native_id"`
-	ProjectID           *string    `gorm:"column:project_id;type:text" json:"project_id"`
-	Preview             *string    `gorm:"column:preview;type:text" json:"preview"`
-	WorkspaceRoots      *string    `gorm:"column:workspace_roots;type:jsonb;not null;default:[]" json:"workspace_roots"`
-	Source              *string    `gorm:"column:source;type:text" json:"source"`
-	Status              *string    `gorm:"column:status;type:text;not null;index:idx_sessions_status,priority:1;default:idle" json:"status"`
-	CurrentTask         *string    `gorm:"column:current_task;type:text" json:"current_task"`
-	LastMessageAt       *time.Time `gorm:"column:last_message_at;type:timestamp with time zone" json:"last_message_at"`
-	MessageCount        int32      `gorm:"column:message_count;type:integer;not null" json:"message_count"`
-	TokenInput          int64      `gorm:"column:token_input;type:bigint;not null" json:"token_input"`
-	TokenOutput         int64      `gorm:"column:token_output;type:bigint;not null" json:"token_output"`
-	TokenTotal          int64      `gorm:"column:token_total;type:bigint;not null" json:"token_total"`
-	Model               *string    `gorm:"column:model;type:text" json:"model"`
-	RunID               *string    `gorm:"column:run_id;type:text" json:"run_id"`
-	RunStatus           *string    `gorm:"column:run_status;type:text" json:"run_status"`
-	CreatedAt           *time.Time `gorm:"column:created_at;type:timestamp with time zone;not null;default:now()" json:"created_at"`
-	UpdatedAt           *time.Time `gorm:"column:updated_at;type:timestamp with time zone;not null;default:now()" json:"updated_at"`
-	NodeID              *string    `gorm:"column:node_id;type:text" json:"node_id"`
-	CacheReadTokens     int64      `gorm:"column:cache_read_tokens;type:bigint;not null" json:"cache_read_tokens"`
-	CacheWriteTokens    int64      `gorm:"column:cache_write_tokens;type:bigint;not null" json:"cache_write_tokens"`
-	CacheCreationTokens int64      `gorm:"column:cache_creation_tokens;type:bigint;not null" json:"cache_creation_tokens"`
-	ReasoningTokens     int64      `gorm:"column:reasoning_tokens;type:bigint;not null" json:"reasoning_tokens"`
-	EstimatedCostUsd    float64    `gorm:"column:estimated_cost_usd;type:double precision;not null" json:"estimated_cost_usd"`
-	ActualCostUsd       float64    `gorm:"column:actual_cost_usd;type:double precision;not null" json:"actual_cost_usd"`
-	CostUsd             float64    `gorm:"column:cost_usd;type:double precision;not null" json:"cost_usd"`
-	Metadata            *string    `gorm:"column:metadata;type:jsonb" json:"metadata"`
+	ID                    int64      `gorm:"column:id;type:bigint;primaryKey;autoIncrement:true" json:"id"`
+	AgentID               string     `gorm:"column:agent_id;type:text;not null;index:idx_sessions_agent,priority:1;index:idx_sessions_agent_native,priority:1" json:"agent_id"`
+	SessionID             string     `gorm:"column:session_id;type:text;not null" json:"session_id"`
+	SessionName           *string    `gorm:"column:session_name;type:text" json:"session_name"`
+	CustomSessionName     *string    `gorm:"column:custom_session_name;type:text" json:"custom_session_name"`
+	AgentType             *string    `gorm:"column:agent_type;type:text" json:"agent_type"`
+	NativeID              *string    `gorm:"column:native_id;type:text;index:idx_sessions_agent_native,priority:2" json:"native_id"`
+	PrimaryProjectID      *string    `gorm:"column:primary_project_id;type:text" json:"primary_project_id"`
+	Preview               *string    `gorm:"column:preview;type:text" json:"preview"`
+	WorkspaceRoots        *string    `gorm:"column:workspace_roots;type:jsonb;not null;default:[]" json:"workspace_roots"`
+	Source                *string    `gorm:"column:source;type:text" json:"source"`
+	Status                *string    `gorm:"column:status;type:text;not null;index:idx_sessions_status,priority:1;default:idle" json:"status"`
+	CurrentTask           *string    `gorm:"column:current_task;type:text" json:"current_task"`
+	LastMessageAt         *time.Time `gorm:"column:last_message_at;type:timestamp with time zone" json:"last_message_at"`
+	LastUserMessageAt     *time.Time `gorm:"column:last_user_message_at;type:timestamp with time zone" json:"last_user_message_at"`
+	MessageCount          int32      `gorm:"column:message_count;type:integer;not null" json:"message_count"`
+	TokenInput            int64      `gorm:"column:token_input;type:bigint;not null" json:"token_input"`
+	TokenOutput           int64      `gorm:"column:token_output;type:bigint;not null" json:"token_output"`
+	TokenTotal            int64      `gorm:"column:token_total;type:bigint;not null" json:"token_total"`
+	Model                 *string    `gorm:"column:model;type:text" json:"model"`
+	RunID                 *string    `gorm:"column:run_id;type:text" json:"run_id"`
+	RunStatus             *string    `gorm:"column:run_status;type:text" json:"run_status"`
+	CreatedAt             *time.Time `gorm:"column:created_at;type:timestamp with time zone;not null;index:idx_sessions_conversation,priority:1;index:idx_sessions_profile,priority:1;index:idx_sessions_representative,priority:1;default:now()" json:"created_at"`
+	UpdatedAt             *time.Time `gorm:"column:updated_at;type:timestamp with time zone;not null;default:now()" json:"updated_at"`
+	NodeID                *string    `gorm:"column:node_id;type:text" json:"node_id"`
+	CacheReadTokens       int64      `gorm:"column:cache_read_tokens;type:bigint;not null" json:"cache_read_tokens"`
+	CacheWriteTokens      int64      `gorm:"column:cache_write_tokens;type:bigint;not null" json:"cache_write_tokens"`
+	CacheCreationTokens   int64      `gorm:"column:cache_creation_tokens;type:bigint;not null" json:"cache_creation_tokens"`
+	ReasoningTokens       int64      `gorm:"column:reasoning_tokens;type:bigint;not null" json:"reasoning_tokens"`
+	EstimatedCostUsd      float64    `gorm:"column:estimated_cost_usd;type:double precision;not null" json:"estimated_cost_usd"`
+	ActualCostUsd         float64    `gorm:"column:actual_cost_usd;type:double precision;not null" json:"actual_cost_usd"`
+	CostUsd               float64    `gorm:"column:cost_usd;type:double precision;not null" json:"cost_usd"`
+	Metadata              *string    `gorm:"column:metadata;type:jsonb" json:"metadata"`
+	ConversationID        *string    `gorm:"column:conversation_id;type:text;index:idx_sessions_conversation,priority:2" json:"conversation_id"`
+	ProfileID             *string    `gorm:"column:profile_id;type:text;index:idx_sessions_profile,priority:2" json:"profile_id"`
+	RepresentativeAgentID *string    `gorm:"column:representative_agent_id;type:text;index:idx_sessions_representative,priority:2" json:"representative_agent_id"`
+	CreatedByUserID       *string    `gorm:"column:created_by_user_id;type:text" json:"created_by_user_id"`
 }
 
 // TableName AgentSession's table name

@@ -32,15 +32,17 @@ func newAgentSession(db *gorm.DB, opts ...gen.DOOption) agentSession {
 	_agentSession.AgentID = field.NewString(tableName, "agent_id")
 	_agentSession.SessionID = field.NewString(tableName, "session_id")
 	_agentSession.SessionName = field.NewString(tableName, "session_name")
+	_agentSession.CustomSessionName = field.NewString(tableName, "custom_session_name")
 	_agentSession.AgentType = field.NewString(tableName, "agent_type")
 	_agentSession.NativeID = field.NewString(tableName, "native_id")
-	_agentSession.ProjectID = field.NewString(tableName, "project_id")
+	_agentSession.PrimaryProjectID = field.NewString(tableName, "primary_project_id")
 	_agentSession.Preview = field.NewString(tableName, "preview")
 	_agentSession.WorkspaceRoots = field.NewString(tableName, "workspace_roots")
 	_agentSession.Source = field.NewString(tableName, "source")
 	_agentSession.Status = field.NewString(tableName, "status")
 	_agentSession.CurrentTask = field.NewString(tableName, "current_task")
 	_agentSession.LastMessageAt = field.NewTime(tableName, "last_message_at")
+	_agentSession.LastUserMessageAt = field.NewTime(tableName, "last_user_message_at")
 	_agentSession.MessageCount = field.NewInt32(tableName, "message_count")
 	_agentSession.TokenInput = field.NewInt64(tableName, "token_input")
 	_agentSession.TokenOutput = field.NewInt64(tableName, "token_output")
@@ -59,6 +61,10 @@ func newAgentSession(db *gorm.DB, opts ...gen.DOOption) agentSession {
 	_agentSession.ActualCostUsd = field.NewFloat64(tableName, "actual_cost_usd")
 	_agentSession.CostUsd = field.NewFloat64(tableName, "cost_usd")
 	_agentSession.Metadata = field.NewString(tableName, "metadata")
+	_agentSession.ConversationID = field.NewString(tableName, "conversation_id")
+	_agentSession.ProfileID = field.NewString(tableName, "profile_id")
+	_agentSession.RepresentativeAgentID = field.NewString(tableName, "representative_agent_id")
+	_agentSession.CreatedByUserID = field.NewString(tableName, "created_by_user_id")
 
 	_agentSession.fillFieldMap()
 
@@ -68,38 +74,44 @@ func newAgentSession(db *gorm.DB, opts ...gen.DOOption) agentSession {
 type agentSession struct {
 	agentSessionDo agentSessionDo
 
-	ALL                 field.Asterisk
-	ID                  field.Int64
-	AgentID             field.String
-	SessionID           field.String
-	SessionName         field.String
-	AgentType           field.String
-	NativeID            field.String
-	ProjectID           field.String
-	Preview             field.String
-	WorkspaceRoots      field.String
-	Source              field.String
-	Status              field.String
-	CurrentTask         field.String
-	LastMessageAt       field.Time
-	MessageCount        field.Int32
-	TokenInput          field.Int64
-	TokenOutput         field.Int64
-	TokenTotal          field.Int64
-	Model               field.String
-	RunID               field.String
-	RunStatus           field.String
-	CreatedAt           field.Time
-	UpdatedAt           field.Time
-	NodeID              field.String
-	CacheReadTokens     field.Int64
-	CacheWriteTokens    field.Int64
-	CacheCreationTokens field.Int64
-	ReasoningTokens     field.Int64
-	EstimatedCostUsd    field.Float64
-	ActualCostUsd       field.Float64
-	CostUsd             field.Float64
-	Metadata            field.String
+	ALL                   field.Asterisk
+	ID                    field.Int64
+	AgentID               field.String
+	SessionID             field.String
+	SessionName           field.String
+	CustomSessionName     field.String
+	AgentType             field.String
+	NativeID              field.String
+	PrimaryProjectID      field.String
+	Preview               field.String
+	WorkspaceRoots        field.String
+	Source                field.String
+	Status                field.String
+	CurrentTask           field.String
+	LastMessageAt         field.Time
+	LastUserMessageAt     field.Time
+	MessageCount          field.Int32
+	TokenInput            field.Int64
+	TokenOutput           field.Int64
+	TokenTotal            field.Int64
+	Model                 field.String
+	RunID                 field.String
+	RunStatus             field.String
+	CreatedAt             field.Time
+	UpdatedAt             field.Time
+	NodeID                field.String
+	CacheReadTokens       field.Int64
+	CacheWriteTokens      field.Int64
+	CacheCreationTokens   field.Int64
+	ReasoningTokens       field.Int64
+	EstimatedCostUsd      field.Float64
+	ActualCostUsd         field.Float64
+	CostUsd               field.Float64
+	Metadata              field.String
+	ConversationID        field.String
+	ProfileID             field.String
+	RepresentativeAgentID field.String
+	CreatedByUserID       field.String
 
 	fieldMap map[string]field.Expr
 }
@@ -120,15 +132,17 @@ func (a *agentSession) updateTableName(table string) *agentSession {
 	a.AgentID = field.NewString(table, "agent_id")
 	a.SessionID = field.NewString(table, "session_id")
 	a.SessionName = field.NewString(table, "session_name")
+	a.CustomSessionName = field.NewString(table, "custom_session_name")
 	a.AgentType = field.NewString(table, "agent_type")
 	a.NativeID = field.NewString(table, "native_id")
-	a.ProjectID = field.NewString(table, "project_id")
+	a.PrimaryProjectID = field.NewString(table, "primary_project_id")
 	a.Preview = field.NewString(table, "preview")
 	a.WorkspaceRoots = field.NewString(table, "workspace_roots")
 	a.Source = field.NewString(table, "source")
 	a.Status = field.NewString(table, "status")
 	a.CurrentTask = field.NewString(table, "current_task")
 	a.LastMessageAt = field.NewTime(table, "last_message_at")
+	a.LastUserMessageAt = field.NewTime(table, "last_user_message_at")
 	a.MessageCount = field.NewInt32(table, "message_count")
 	a.TokenInput = field.NewInt64(table, "token_input")
 	a.TokenOutput = field.NewInt64(table, "token_output")
@@ -147,6 +161,10 @@ func (a *agentSession) updateTableName(table string) *agentSession {
 	a.ActualCostUsd = field.NewFloat64(table, "actual_cost_usd")
 	a.CostUsd = field.NewFloat64(table, "cost_usd")
 	a.Metadata = field.NewString(table, "metadata")
+	a.ConversationID = field.NewString(table, "conversation_id")
+	a.ProfileID = field.NewString(table, "profile_id")
+	a.RepresentativeAgentID = field.NewString(table, "representative_agent_id")
+	a.CreatedByUserID = field.NewString(table, "created_by_user_id")
 
 	a.fillFieldMap()
 
@@ -175,20 +193,22 @@ func (a *agentSession) GetFieldByName(fieldName string) (field.OrderExpr, bool) 
 }
 
 func (a *agentSession) fillFieldMap() {
-	a.fieldMap = make(map[string]field.Expr, 31)
+	a.fieldMap = make(map[string]field.Expr, 37)
 	a.fieldMap["id"] = a.ID
 	a.fieldMap["agent_id"] = a.AgentID
 	a.fieldMap["session_id"] = a.SessionID
 	a.fieldMap["session_name"] = a.SessionName
+	a.fieldMap["custom_session_name"] = a.CustomSessionName
 	a.fieldMap["agent_type"] = a.AgentType
 	a.fieldMap["native_id"] = a.NativeID
-	a.fieldMap["project_id"] = a.ProjectID
+	a.fieldMap["primary_project_id"] = a.PrimaryProjectID
 	a.fieldMap["preview"] = a.Preview
 	a.fieldMap["workspace_roots"] = a.WorkspaceRoots
 	a.fieldMap["source"] = a.Source
 	a.fieldMap["status"] = a.Status
 	a.fieldMap["current_task"] = a.CurrentTask
 	a.fieldMap["last_message_at"] = a.LastMessageAt
+	a.fieldMap["last_user_message_at"] = a.LastUserMessageAt
 	a.fieldMap["message_count"] = a.MessageCount
 	a.fieldMap["token_input"] = a.TokenInput
 	a.fieldMap["token_output"] = a.TokenOutput
@@ -207,6 +227,10 @@ func (a *agentSession) fillFieldMap() {
 	a.fieldMap["actual_cost_usd"] = a.ActualCostUsd
 	a.fieldMap["cost_usd"] = a.CostUsd
 	a.fieldMap["metadata"] = a.Metadata
+	a.fieldMap["conversation_id"] = a.ConversationID
+	a.fieldMap["profile_id"] = a.ProfileID
+	a.fieldMap["representative_agent_id"] = a.RepresentativeAgentID
+	a.fieldMap["created_by_user_id"] = a.CreatedByUserID
 }
 
 func (a agentSession) clone(db *gorm.DB) agentSession {

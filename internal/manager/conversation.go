@@ -25,12 +25,14 @@ const (
 var conversationRequestIdleTimeout = 5 * time.Minute
 
 type conversationRequest struct {
-	SessionID    string                     `json:"session_id,omitempty"`
-	Input        string                     `json:"input"`
-	Content      []conversationContentBlock `json:"content,omitempty"`
-	Resume       json.RawMessage            `json:"resume,omitempty"`
-	CWD          string                     `json:"cwd,omitempty"`
-	ApprovalMode string                     `json:"approval_mode,omitempty"`
+	SessionID        string                     `json:"session_id,omitempty"`
+	Input            string                     `json:"input"`
+	Content          []conversationContentBlock `json:"content,omitempty"`
+	Resume           json.RawMessage            `json:"resume,omitempty"`
+	CWD              string                     `json:"cwd,omitempty"`
+	ApprovalMode     string                     `json:"approval_mode,omitempty"`
+	PrimaryProjectID string                     `json:"primary_project_id,omitempty"`
+	ProjectTargetID  string                     `json:"project_target_id,omitempty"`
 }
 
 type conversationEvent struct {
@@ -103,6 +105,16 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 	}
 	req, resumeReq, ok := s.readConversationRequest(w, r)
 	if !ok {
+		return
+	}
+	req, err = s.resolveConversationProjectContext(
+		r.Context(),
+		principal,
+		agentID,
+		req,
+	)
+	if err != nil {
+		writeHTTPEndpointError(w, err)
 		return
 	}
 	var prompt []map[string]any
@@ -226,41 +238,119 @@ func (s *Service) readConversationRequest(
 		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
-	if resumeReq.Requested && (req.Input != "" || len(req.Content) > 0) {
-		writeHTTPError(w, http.StatusBadRequest, "content and resume are mutually exclusive")
+	if err := validateConversationResumeContent(req, resumeReq); err != nil {
+		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	req.CWD = strings.TrimSpace(req.CWD)
 	req.ApprovalMode = strings.TrimSpace(req.ApprovalMode)
-	if !isSupportedSessionWorkspace(req.CWD) {
-		writeHTTPError(w, http.StatusBadRequest, "cwd must be an absolute path, ~, or start with ~/")
+	if err := validateConversationSessionOptions(req); err != nil {
+		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
-	if req.SessionID != "" && req.CWD != "" {
-		writeHTTPError(w, http.StatusBadRequest, "cwd can only be set when creating a session")
-		return conversationRequest{}, conversationResumeRequest{}, false
-	}
-	if req.SessionID != "" && req.ApprovalMode != "" {
-		writeHTTPError(
-			w,
-			http.StatusBadRequest,
-			"approval_mode can only be set when creating a session; use session PATCH to change it",
-		)
-		return conversationRequest{}, conversationResumeRequest{}, false
-	}
-	if req.ApprovalMode != "" && !domain.IsSessionApprovalMode(req.ApprovalMode) {
-		writeHTTPError(w, http.StatusBadRequest, "approval_mode must be manual or auto_approve_all")
-		return conversationRequest{}, conversationResumeRequest{}, false
-	}
-	if resumeReq.Requested && req.SessionID == "" {
-		writeHTTPError(w, http.StatusBadRequest, "session_id is required for resume")
-		return conversationRequest{}, conversationResumeRequest{}, false
-	}
-	if !resumeReq.Requested && req.Input == "" && len(req.Content) == 0 {
-		writeHTTPError(w, http.StatusBadRequest, "input or content is required")
+	if err := validateConversationPromptState(req, resumeReq); err != nil {
+		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	return req, resumeReq, true
+}
+
+func validateConversationResumeContent(
+	req conversationRequest,
+	resumeReq conversationResumeRequest,
+) error {
+	if resumeReq.Requested && (req.Input != "" || len(req.Content) > 0) {
+		return errors.New("content and resume are mutually exclusive")
+	}
+	return nil
+}
+
+func validateConversationSessionOptions(req conversationRequest) error {
+	if !isSupportedSessionWorkspace(req.CWD) {
+		return errors.New("cwd must be an absolute path, ~, or start with ~/")
+	}
+	if req.SessionID != "" && req.CWD != "" {
+		return errors.New("cwd can only be set when creating a session")
+	}
+	if req.SessionID != "" && req.ApprovalMode != "" {
+		return errors.New(
+			"approval_mode can only be set when creating a session; " +
+				"use session PATCH to change it",
+		)
+	}
+	if req.SessionID != "" &&
+		(req.PrimaryProjectID != "" || req.ProjectTargetID != "") {
+		return errors.New("project context can only be set when creating a session")
+	}
+	if req.ApprovalMode != "" && !domain.IsSessionApprovalMode(req.ApprovalMode) {
+		return errors.New("approval_mode must be manual or auto_approve_all")
+	}
+	return nil
+}
+
+func validateConversationPromptState(
+	req conversationRequest,
+	resumeReq conversationResumeRequest,
+) error {
+	if resumeReq.Requested && req.SessionID == "" {
+		return errors.New("session_id is required for resume")
+	}
+	if !resumeReq.Requested && req.Input == "" && len(req.Content) == 0 {
+		return errors.New("input or content is required")
+	}
+	return nil
+}
+
+func (s *Service) resolveConversationProjectContext(
+	ctx context.Context,
+	principal UserPrincipal,
+	agentID string,
+	req conversationRequest,
+) (conversationRequest, error) {
+	req.PrimaryProjectID = strings.TrimSpace(req.PrimaryProjectID)
+	req.ProjectTargetID = strings.TrimSpace(req.ProjectTargetID)
+	if req.PrimaryProjectID == "" {
+		if req.ProjectTargetID != "" {
+			return conversationRequest{}, apperr.Error{
+				Status:  http.StatusBadRequest,
+				Message: "primary_project_id is required with project_target_id",
+			}
+		}
+		return req, nil
+	}
+	project, err := s.store.GetProject(ctx, principal, req.PrimaryProjectID)
+	if err != nil {
+		return conversationRequest{}, err
+	}
+	if project.ArchivedAt != nil {
+		return conversationRequest{}, apperr.Error{
+			Status:  http.StatusConflict,
+			Message: "project is archived",
+		}
+	}
+	if req.ProjectTargetID == "" {
+		return req, nil
+	}
+	target, err := s.store.GetProjectTarget(
+		ctx,
+		principal,
+		req.PrimaryProjectID,
+		req.ProjectTargetID,
+	)
+	if err != nil {
+		return conversationRequest{}, err
+	}
+	if !target.Enabled {
+		return conversationRequest{}, apperr.Error{
+			Status:  http.StatusConflict,
+			Message: "project target is disabled",
+		}
+	}
+	if target.AgentID != agentID {
+		return conversationRequest{}, ErrNotFound
+	}
+	req.CWD = target.Cwd
+	return req, nil
 }
 
 func isSupportedSessionWorkspace(value string) bool {
@@ -351,10 +441,11 @@ func (s *Service) createConversationSession(
 		}
 	}
 	if _, err := s.store.CreateNodeAgentSession(ctx, principal, domain.CreateSessionRequest{
-		NodeID:    runner.agentConn.nodeID,
-		AgentID:   runner.agentConn.agentID,
-		SessionID: managerSessionID,
-		Source:    domain.MessageSourceACPTunnel,
+		NodeID:           runner.agentConn.nodeID,
+		AgentID:          runner.agentConn.agentID,
+		SessionID:        managerSessionID,
+		Source:           domain.MessageSourceACPTunnel,
+		PrimaryProjectID: req.PrimaryProjectID,
 		PaxConfig: domain.SessionPaxConfig{
 			CWD:          cwd,
 			ApprovalMode: approvalMode,

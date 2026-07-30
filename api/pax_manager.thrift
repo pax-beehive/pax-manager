@@ -74,7 +74,6 @@ struct SessionStatusInput {
   2: optional string agent_type
   3: optional string native_id
   4: optional string name
-  5: optional string project_id
   6: optional string preview
   7: optional list<string> workspace_roots
   8: optional string source
@@ -255,7 +254,7 @@ struct AgentSession {
   4: optional string session_id
   5: optional string name
   6: optional string agent_type
-  8: optional string project_id
+  8: optional string primary_project_id
   9: optional string preview
   10: optional list<string> workspace_roots
   11: optional string source
@@ -274,6 +273,28 @@ struct AgentSession {
   26: optional string last_user_message_at
   27: optional string reported_name
   28: optional bool name_is_custom
+}
+
+struct Project {
+  1: optional string project_id
+  2: optional string owner_user_id
+  3: optional string display_name
+  4: optional string parent_project_id
+  5: optional string archived_at
+  6: optional string created_at
+  7: optional string updated_at
+}
+
+struct ProjectTarget {
+  1: optional string target_id
+  2: optional string project_id
+  3: optional string agent_id
+  4: optional string display_name
+  5: optional string cwd
+  6: optional bool is_default
+  7: optional bool enabled
+  8: optional string created_at
+  9: optional string updated_at
 }
 
 struct SessionPaxConfig {
@@ -326,6 +347,22 @@ struct Pagination {
 struct SessionListData {
   1: optional list<AgentSession> sessions
   2: optional Pagination pagination
+}
+
+struct ProjectListData {
+  1: optional list<Project> projects
+}
+
+struct ProjectData {
+  1: optional Project project
+}
+
+struct ProjectTargetData {
+  1: optional ProjectTarget target
+}
+
+struct ProjectTargetListData {
+  1: optional list<ProjectTarget> targets
 }
 
 struct CurrentUserData {
@@ -547,6 +584,67 @@ struct ListUserSessionsRequest {
   3: optional string agent_id (api.query = "agent_id")
   4: optional i32 page_size (api.query = "page_size")
   5: optional i32 page_num (api.query = "page_num")
+  6: optional string primary_project_id (api.query = "primary_project_id")
+}
+
+struct CreateProjectRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string display_name
+  3: optional string parent_project_id
+}
+
+struct ListProjectsRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional bool include_archived (api.query = "include_archived")
+}
+
+struct GetProjectRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
+}
+
+struct UpdateProjectRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
+  3: optional string display_name
+  4: optional string parent_project_id
+}
+
+struct ArchiveProjectRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
+}
+
+struct CreateProjectTargetRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
+  3: optional string agent_id
+  4: optional string display_name
+  5: optional string cwd
+  6: optional bool is_default
+  7: optional bool enabled
+}
+
+struct ListProjectTargetsRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
+}
+
+struct GetProjectTargetRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
+  3: optional string target_id (api.path = "target_id")
+}
+
+struct UpdateProjectTargetRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
+  3: optional string target_id (api.path = "target_id")
+  4: optional string agent_id
+  5: optional string display_name
+  6: optional string cwd
+  7: optional bool is_default
+  8: optional bool enabled
 }
 
 struct CreateNodeAgentSessionRequest {
@@ -557,7 +655,7 @@ struct CreateNodeAgentSessionRequest {
   5: optional string name
   6: optional string agent_type
   7: optional string native_id
-  8: optional string project_id
+  8: optional string primary_project_id
   9: optional list<string> workspace_roots
   10: optional string source
   11: optional JSON metadata
@@ -944,6 +1042,30 @@ struct AgentSessionResponse {
   3: optional string message
 }
 
+struct ProjectResponse {
+  1: optional ProjectData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct ProjectListResponse {
+  1: optional ProjectListData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct ProjectTargetResponse {
+  1: optional ProjectTargetData data
+  2: optional i32 code
+  3: optional string message
+}
+
+struct ProjectTargetListResponse {
+  1: optional ProjectTargetListData data
+  2: optional i32 code
+  3: optional string message
+}
+
 struct MailboxMessageResponse {
   1: optional MailboxMessage data
   2: optional i32 code
@@ -1325,6 +1447,107 @@ service PaxManagerAPI {
     openapi.path.user_id = "User identifier."
   )
 
+  ProjectResponse CreateProject(1: optional CreateProjectRequest request) (
+    api.post = "/api/v1/user/:user_id/projects",
+    openapi.tag = "project",
+    openapi.summary = "Create project",
+    openapi.description = "Creates a user-owned logical project, optionally nested under another active project.",
+    openapi.status = "201",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier."
+  )
+
+  ProjectListResponse ListProjects(1: optional ListProjectsRequest request) (
+    api.get = "/api/v1/user/:user_id/projects",
+    openapi.tag = "project",
+    openapi.summary = "List projects",
+    openapi.description = "Lists the current user's logical projects. Archived projects are excluded by default.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.query.include_archived = "Include archived projects."
+  )
+
+  ProjectResponse GetProject(1: optional GetProjectRequest request) (
+    api.get = "/api/v1/user/:user_id/projects/:project_id",
+    openapi.tag = "project",
+    openapi.summary = "Get project",
+    openapi.description = "Returns one logical project owned by the current user.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier."
+  )
+
+  ProjectResponse UpdateProject(1: optional UpdateProjectRequest request) (
+    api.patch = "/api/v1/user/:user_id/projects/:project_id",
+    openapi.tag = "project",
+    openapi.summary = "Update project",
+    openapi.description = "Renames or moves an active logical project. An empty parent_project_id moves it to the root.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier."
+  )
+
+  ProjectResponse ArchiveProject(1: optional ArchiveProjectRequest request) (
+    api.post = "/api/v1/user/:user_id/projects/:project_id/archive",
+    openapi.tag = "project",
+    openapi.summary = "Archive project",
+    openapi.description = "Archives a logical project without cascading to its children.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier."
+  )
+
+  ProjectTargetResponse CreateProjectTarget(
+    1: optional CreateProjectTargetRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/projects/:project_id/targets",
+    openapi.tag = "project",
+    openapi.summary = "Create project target",
+    openapi.description = "Adds an explicit Agent and configured cwd template to a logical project.",
+    openapi.status = "201",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier."
+  )
+
+  ProjectTargetListResponse ListProjectTargets(
+    1: optional ListProjectTargetsRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/projects/:project_id/targets",
+    openapi.tag = "project",
+    openapi.summary = "List project targets",
+    openapi.description = "Lists every explicitly configured target for a project, including disabled targets.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier."
+  )
+
+  ProjectTargetResponse GetProjectTarget(
+    1: optional GetProjectTargetRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/projects/:project_id/targets/:target_id",
+    openapi.tag = "project",
+    openapi.summary = "Get project target",
+    openapi.description = "Returns one explicitly configured project target.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier.",
+    openapi.path.target_id = "Project target identifier."
+  )
+
+  ProjectTargetResponse UpdateProjectTarget(
+    1: optional UpdateProjectTargetRequest request
+  ) (
+    api.patch = "/api/v1/user/:user_id/projects/:project_id/targets/:target_id",
+    openapi.tag = "project",
+    openapi.summary = "Update project target",
+    openapi.description = "Edits, enables, disables, or makes a project target the sole enabled default.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier.",
+    openapi.path.target_id = "Project target identifier."
+  )
+
   NodeListResponse ListNodes(1: optional ListNodesRequest request) (
     api.get = "/api/v1/user/:user_id/nodes",
     openapi.tag = "user",
@@ -1610,6 +1833,7 @@ service PaxManagerAPI {
     openapi.path.user_id = "User identifier or self.",
     openapi.query.node_id = "Optional node identifier filter. Use comma-separated IDs for multiple nodes.",
     openapi.query.agent_id = "Optional agent identifier filter. Use comma-separated IDs for multiple agents.",
+    openapi.query.primary_project_id = "Optional primary logical project identifier filter.",
     openapi.query.page_size = "Maximum number of sessions per page.",
     openapi.query.page_num = "One-based page number."
   )

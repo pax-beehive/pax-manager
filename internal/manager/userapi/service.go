@@ -25,6 +25,8 @@ type Store interface {
 	KnowledgeStore
 	EnvelopeStore
 	FriendStore
+	ProjectStore
+	ProjectTargetStore
 	TeamStore
 	TeamMemexStore
 	MailboxStore
@@ -385,6 +387,62 @@ type TeamStore interface {
 		teamID string,
 		archivedAt time.Time,
 	) (domain.Team, error)
+}
+
+type ProjectStore interface {
+	CreateProject(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		req domain.CreateProjectRequest,
+	) (domain.Project, error)
+	ListProjects(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		filter domain.ListProjectsFilter,
+	) ([]domain.Project, error)
+	GetProject(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		projectID string,
+	) (domain.Project, error)
+	UpdateProject(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		projectID string,
+		req domain.UpdateProjectRequest,
+	) (domain.Project, error)
+	ArchiveProject(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		projectID string,
+	) (domain.Project, error)
+}
+
+type ProjectTargetStore interface {
+	CreateProjectTarget(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		projectID string,
+		req domain.CreateProjectTargetRequest,
+	) (domain.ProjectTarget, error)
+	ListProjectTargets(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		projectID string,
+	) ([]domain.ProjectTarget, error)
+	GetProjectTarget(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		projectID string,
+		targetID string,
+	) (domain.ProjectTarget, error)
+	UpdateProjectTarget(
+		ctx context.Context,
+		principal domain.UserPrincipal,
+		projectID string,
+		targetID string,
+		req domain.UpdateProjectTargetRequest,
+	) (domain.ProjectTarget, error)
 }
 
 type TeamMemexStore interface {
@@ -1683,6 +1741,7 @@ func (s *Service) ListSessions(
 	ownerUserID string,
 	nodeID string,
 	agentID string,
+	primaryProjectID string,
 	pageSize int,
 	pageNum int,
 ) (int, any, error) {
@@ -1699,11 +1758,12 @@ func (s *Service) ListSessions(
 	}
 	pageSize, pageNum = normalizeSessionPagination(pageSize, pageNum)
 	result, err := s.store.ListSessions(c, principal, domain.ListSessionsFilter{
-		OwnerUserID: ownerUserID,
-		NodeIDs:     splitCommaSeparatedIDs(nodeID),
-		AgentIDs:    splitCommaSeparatedIDs(agentID),
-		PageSize:    pageSize,
-		PageNum:     pageNum,
+		OwnerUserID:      ownerUserID,
+		NodeIDs:          splitCommaSeparatedIDs(nodeID),
+		AgentIDs:         splitCommaSeparatedIDs(agentID),
+		PrimaryProjectID: strings.TrimSpace(primaryProjectID),
+		PageSize:         pageSize,
+		PageNum:          pageNum,
 	})
 	if err != nil {
 		return 0, nil, err
@@ -1833,22 +1893,39 @@ func (s *Service) UpdateNodeAgentSession(
 			Message: "node_id, agent_id, and session_id are required",
 		}
 	}
+	req, err = normalizeUpdateNodeAgentSessionRequest(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	if _, err := s.nodeSessionTarget(c, principal, req.NodeID, req.AgentID, req.SessionID); err != nil {
+		return 0, nil, err
+	}
+	session, err := s.store.UpdateNodeAgentSession(c, principal, req)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, session, nil
+}
+
+func normalizeUpdateNodeAgentSessionRequest(
+	req domain.UpdateSessionRequest,
+) (domain.UpdateSessionRequest, error) {
 	hasName := req.SessionName != nil
 	hasPaxConfig := req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != ""
 	if !hasName && !req.UseReportedName && !hasPaxConfig {
-		return 0, nil, apperr.Error{
+		return domain.UpdateSessionRequest{}, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "name, use_reported_name, or pax_config is required",
 		}
 	}
 	if hasName && req.UseReportedName {
-		return 0, nil, apperr.Error{
+		return domain.UpdateSessionRequest{}, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "name and use_reported_name cannot be combined",
 		}
 	}
 	if hasPaxConfig && (hasName || req.UseReportedName) {
-		return 0, nil, apperr.Error{
+		return domain.UpdateSessionRequest{}, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "session name updates cannot be combined with pax_config",
 		}
@@ -1856,13 +1933,13 @@ func (s *Service) UpdateNodeAgentSession(
 	if hasName {
 		name := strings.TrimSpace(*req.SessionName)
 		if name == "" {
-			return 0, nil, apperr.Error{
+			return domain.UpdateSessionRequest{}, apperr.Error{
 				Status:  http.StatusBadRequest,
 				Message: "name must not be empty",
 			}
 		}
 		if utf8.RuneCountInString(name) > maxSessionNameLength {
-			return 0, nil, apperr.Error{
+			return domain.UpdateSessionRequest{}, apperr.Error{
 				Status:  http.StatusBadRequest,
 				Message: "name must be at most 120 characters",
 			}
@@ -1870,35 +1947,28 @@ func (s *Service) UpdateNodeAgentSession(
 		req.SessionName = &name
 	}
 	if hasPaxConfig && req.PaxConfig.CWD != "" {
-		return 0, nil, apperr.Error{
+		return domain.UpdateSessionRequest{}, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "pax_config.cwd is create-only and cannot be changed",
 		}
 	}
 	mode := strings.TrimSpace(req.PaxConfig.ApprovalMode)
 	if hasPaxConfig && mode == "" {
-		return 0, nil, apperr.Error{
+		return domain.UpdateSessionRequest{}, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "pax_config.approval_mode is required",
 		}
 	}
 	if hasPaxConfig && !domain.IsSessionApprovalMode(mode) {
-		return 0, nil, apperr.Error{
+		return domain.UpdateSessionRequest{}, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "pax_config.approval_mode must be manual or auto_approve_all",
 		}
 	}
-	if _, err := s.nodeSessionTarget(c, principal, req.NodeID, req.AgentID, req.SessionID); err != nil {
-		return 0, nil, err
-	}
 	if hasPaxConfig {
 		req.PaxConfig.ApprovalMode = mode
 	}
-	session, err := s.store.UpdateNodeAgentSession(c, principal, req)
-	if err != nil {
-		return 0, nil, err
-	}
-	return http.StatusOK, session, nil
+	return req, nil
 }
 
 func (s *Service) ListAgentSessionMessages(

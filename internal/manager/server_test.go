@@ -101,6 +101,11 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 	}
 	requireOpenAPIPaths(t, doc.Paths, []string{
 		"/api/v1/user/{user_id}/api-keys",
+		"/api/v1/user/{user_id}/projects",
+		"/api/v1/user/{user_id}/projects/{project_id}",
+		"/api/v1/user/{user_id}/projects/{project_id}/archive",
+		"/api/v1/user/{user_id}/projects/{project_id}/targets",
+		"/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}",
 		"/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages",
 		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history",
 		"/api/v1/user/{user_id}/sessions/{session_id}/history",
@@ -132,6 +137,264 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/user/sessions/{sessionId}/messages",
 		"/api/user/message",
 		"/api/user/mailbox",
+	})
+}
+
+func TestProjectCRUDHTTPBDD(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+
+	request := func(method string, path string, body string, email string) *httptest.ResponseRecorder {
+		t.Helper()
+		var reader io.Reader
+		if body != "" {
+			reader = strings.NewReader(body)
+		}
+		req := httptest.NewRequest(method, path, reader)
+		req.Header.Set("X-User-Email", email)
+		if body != "" {
+			setJSON(req)
+		}
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		return rec
+	}
+
+	t.Run("given an owner when using the REST contract then project CRUD is available", func(t *testing.T) {
+		createRec := request(
+			http.MethodPost,
+			"/api/v1/user/self/projects",
+			`{"display_name":"Core"}`,
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusCreated, createRec.Code, createRec.Body.String())
+		created := decodeData[struct {
+			Project domain.Project `json:"project"`
+		}](t, createRec.Body.Bytes()).Project
+		require.NotEmpty(t, created.ProjectID)
+
+		getRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects/"+created.ProjectID,
+			"",
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, getRec.Code, getRec.Body.String())
+
+		updateRec := request(
+			http.MethodPatch,
+			"/api/v1/user/self/projects/"+created.ProjectID,
+			`{"display_name":"Core Platform"}`,
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, updateRec.Code, updateRec.Body.String())
+		updated := decodeData[struct {
+			Project domain.Project `json:"project"`
+		}](t, updateRec.Body.Bytes()).Project
+		assert.Equal(t, "Core Platform", updated.DisplayName)
+
+		listRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects",
+			"",
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, listRec.Code, listRec.Body.String())
+		listed := decodeData[struct {
+			Projects []domain.Project `json:"projects"`
+		}](t, listRec.Body.Bytes())
+		require.Len(t, listed.Projects, 1)
+
+		archiveRec := request(
+			http.MethodPost,
+			"/api/v1/user/self/projects/"+created.ProjectID+"/archive",
+			"",
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, archiveRec.Code, archiveRec.Body.String())
+
+		activeRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects",
+			"",
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, activeRec.Code, activeRec.Body.String())
+		active := decodeData[struct {
+			Projects []domain.Project `json:"projects"`
+		}](t, activeRec.Body.Bytes())
+		assert.Empty(t, active.Projects)
+
+		allRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects?include_archived=true",
+			"",
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusOK, allRec.Code, allRec.Body.String())
+		all := decodeData[struct {
+			Projects []domain.Project `json:"projects"`
+		}](t, allRec.Body.Bytes())
+		require.Len(t, all.Projects, 1)
+		assert.NotNil(t, all.Projects[0].ArchivedAt)
+	})
+
+	t.Run("given another user or invalid query then the API hides ownership and validates input", func(t *testing.T) {
+		createRec := request(
+			http.MethodPost,
+			"/api/v1/user/self/projects",
+			`{"display_name":"Private"}`,
+			"todd@example.com",
+		)
+		require.Equal(t, http.StatusCreated, createRec.Code, createRec.Body.String())
+		created := decodeData[struct {
+			Project domain.Project `json:"project"`
+		}](t, createRec.Body.Bytes()).Project
+
+		foreignRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects/"+created.ProjectID,
+			"",
+			"mallory@example.com",
+		)
+		assert.Equal(t, http.StatusNotFound, foreignRec.Code, foreignRec.Body.String())
+
+		invalidRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/projects?include_archived=perhaps",
+			"",
+			"todd@example.com",
+		)
+		assert.Equal(t, http.StatusBadRequest, invalidRec.Code, invalidRec.Body.String())
+	})
+}
+
+func TestProjectTargetCRUDHTTPBDD(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	ownerAgentID := testAgentID(t, srv, "todd@example.com")
+
+	request := func(method string, path string, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		var reader io.Reader
+		if body != "" {
+			reader = strings.NewReader(body)
+		}
+		req := httptest.NewRequest(method, path, reader)
+		req.Header.Set("X-User-Email", "todd@example.com")
+		if body != "" {
+			setJSON(req)
+		}
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		return rec
+	}
+
+	createProjectRec := request(
+		http.MethodPost,
+		"/api/v1/user/self/projects",
+		`{"display_name":"Manager"}`,
+	)
+	require.Equal(t, http.StatusCreated, createProjectRec.Code, createProjectRec.Body.String())
+	project := decodeData[struct {
+		Project domain.Project `json:"project"`
+	}](t, createProjectRec.Body.Bytes()).Project
+	targetsPath := "/api/v1/user/self/projects/" + project.ProjectID + "/targets"
+
+	t.Run("given one agent when configuring multiple paths then CRUD and default selection work", func(t *testing.T) {
+		firstRec := request(
+			http.MethodPost,
+			targetsPath,
+			`{
+				"agent_id":"`+ownerAgentID+`",
+				"display_name":"Mac main",
+				"cwd":"~/pax_workspace/pax-manager",
+				"is_default":true
+			}`,
+		)
+		require.Equal(t, http.StatusCreated, firstRec.Code, firstRec.Body.String())
+		first := decodeData[struct {
+			Target domain.ProjectTarget `json:"target"`
+		}](t, firstRec.Body.Bytes()).Target
+		assert.True(t, first.IsDefault)
+
+		secondRec := request(
+			http.MethodPost,
+			targetsPath,
+			`{
+				"agent_id":"`+ownerAgentID+`",
+				"display_name":"Mac feature",
+				"cwd":"~/worktrees/pax-manager-feature"
+			}`,
+		)
+		require.Equal(t, http.StatusCreated, secondRec.Code, secondRec.Body.String())
+		second := decodeData[struct {
+			Target domain.ProjectTarget `json:"target"`
+		}](t, secondRec.Body.Bytes()).Target
+		assert.NotEqual(t, first.Cwd, second.Cwd)
+
+		getRec := request(http.MethodGet, targetsPath+"/"+second.TargetID, "")
+		require.Equal(t, http.StatusOK, getRec.Code, getRec.Body.String())
+
+		defaultRec := request(
+			http.MethodPatch,
+			targetsPath+"/"+second.TargetID,
+			`{"is_default":true}`,
+		)
+		require.Equal(t, http.StatusOK, defaultRec.Code, defaultRec.Body.String())
+
+		listRec := request(http.MethodGet, targetsPath, "")
+		require.Equal(t, http.StatusOK, listRec.Code, listRec.Body.String())
+		listed := decodeData[struct {
+			Targets []domain.ProjectTarget `json:"targets"`
+		}](t, listRec.Body.Bytes()).Targets
+		require.Len(t, listed, 2)
+		defaults := 0
+		for _, target := range listed {
+			if target.IsDefault {
+				defaults++
+				assert.Equal(t, second.TargetID, target.TargetID)
+			}
+		}
+		assert.Equal(t, 1, defaults)
+
+		removedSessionEndpointRec := request(
+			http.MethodPost,
+			targetsPath+"/"+second.TargetID+"/sessions",
+			`{"name":"Target session"}`,
+		)
+		assert.Equal(
+			t,
+			http.StatusNotFound,
+			removedSessionEndpointRec.Code,
+			removedSessionEndpointRec.Body.String(),
+		)
+
+		disableRec := request(
+			http.MethodPatch,
+			targetsPath+"/"+second.TargetID,
+			`{"enabled":false}`,
+		)
+		require.Equal(t, http.StatusOK, disableRec.Code, disableRec.Body.String())
+		disabled := decodeData[struct {
+			Target domain.ProjectTarget `json:"target"`
+		}](t, disableRec.Body.Bytes()).Target
+		assert.False(t, disabled.Enabled)
+		assert.False(t, disabled.IsDefault)
+
+	})
+
+	t.Run("given another users agent then target creation hides it", func(t *testing.T) {
+		_ = registerAdditionalTestAgent(t, srv, "mallory@example.com")
+		foreignAgentID := testAgentID(t, srv, "mallory@example.com")
+		rec := request(
+			http.MethodPost,
+			targetsPath,
+			`{
+				"agent_id":"`+foreignAgentID+`",
+				"display_name":"Foreign",
+				"cwd":"~/repo"
+			}`,
+		)
+		assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	})
 }
 
@@ -1096,7 +1359,6 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 			"agent_type":"hermes",
 			"native_id":"resp-1",
 			"name":"repo task",
-			"project_id":"repo",
 			"preview":"fix tests",
 			"workspace_roots":["/workspace/repo"],
 			"status":"running",
@@ -2581,6 +2843,237 @@ func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "~/work", storedSession.PaxConfig.CWD)
 	assert.Equal(t, domain.SessionApprovalModeAutoApproveAll, storedSession.PaxConfig.ApprovalMode)
+}
+
+func TestConversationGivenProjectTargetWhenFirstPromptThenCreatesNativeBackedProjectSession(
+	t *testing.T,
+) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	project, err := srv.store.CreateProject(t.Context(), principal, domain.CreateProjectRequest{
+		DisplayName: "Pax Manager",
+	})
+	require.NoError(t, err)
+	target, err := srv.store.CreateProjectTarget(
+		t.Context(),
+		principal,
+		project.ProjectID,
+		domain.CreateProjectTargetRequest{
+			AgentID:     fixture.agentID,
+			DisplayName: "Manager workspace",
+			Cwd:         "~/pax-manager",
+		},
+	)
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		fmt.Sprintf(
+			`{"input":"implement the issue","primary_project_id":%q,"project_target_id":%q}`,
+			project.ProjectID,
+			target.TargetID,
+		),
+		respCh,
+		errCh,
+	)
+
+	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
+	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "~/pax-manager")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		sessionNewEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"sessionId":"native-project-session"}}`),
+	)
+
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, promptEnv.Payload, "session/prompt")
+	assertFrameSessionID(t, promptEnv.Payload, "native-project-session")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		promptEnv.QueueID,
+		2,
+		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	sessionEvent := requireConversationEvent(t, events, "session")
+	requireConversationEvent(t, events, "done")
+
+	storedSession, err := srv.store.GetSession(t.Context(), principal, sessionEvent.SessionID)
+	require.NoError(t, err)
+	assert.Equal(t, project.ProjectID, storedSession.PrimaryProjectID)
+	assert.Equal(t, "~/pax-manager", storedSession.PaxConfig.CWD)
+	assert.Equal(t, "native-project-session", storedSession.NativeID)
+}
+
+func TestConversationGivenDisabledProjectTargetWhenPromptedThenRejectsBeforeSessionCreation(
+	t *testing.T,
+) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	project, err := srv.store.CreateProject(t.Context(), principal, domain.CreateProjectRequest{
+		DisplayName: "Pax Manager",
+	})
+	require.NoError(t, err)
+	disabled := false
+	target, err := srv.store.CreateProjectTarget(
+		t.Context(),
+		principal,
+		project.ProjectID,
+		domain.CreateProjectTargetRequest{
+			AgentID:     fixture.agentID,
+			DisplayName: "Disabled workspace",
+			Cwd:         "~/pax-manager",
+			Enabled:     &disabled,
+		},
+	)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+fixture.nodeID+"/agents/"+fixture.agentID+"/conversation",
+		bytes.NewReader(
+			[]byte(fmt.Sprintf(
+				`{"input":"hello","primary_project_id":%q,"project_target_id":%q}`,
+				project.ProjectID,
+				target.TargetID,
+			)),
+		),
+	)
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	setJSON(req)
+	rec := httptest.NewRecorder()
+
+	srv.handleConversation(rec, req)
+
+	assert.Equal(t, http.StatusConflict, rec.Code)
+	assert.Contains(t, rec.Body.String(), "project target is disabled")
+}
+
+func TestResolveConversationProjectContextBDD(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	project, err := srv.store.CreateProject(t.Context(), principal, domain.CreateProjectRequest{
+		DisplayName: "Pax Manager",
+	})
+	require.NoError(t, err)
+	target, err := srv.store.CreateProjectTarget(
+		t.Context(),
+		principal,
+		project.ProjectID,
+		domain.CreateProjectTargetRequest{
+			AgentID:     fixture.agentID,
+			DisplayName: "Manager workspace",
+			Cwd:         "~/pax-manager",
+		},
+	)
+	require.NoError(t, err)
+
+	t.Run("given a target without a project then the creation context is rejected", func(t *testing.T) {
+		_, resolveErr := srv.resolveConversationProjectContext(
+			t.Context(),
+			principal,
+			fixture.agentID,
+			conversationRequest{ProjectTargetID: target.TargetID},
+		)
+		require.Error(t, resolveErr)
+		assert.Contains(t, resolveErr.Error(), "primary_project_id is required")
+	})
+
+	t.Run("given only a project then caller-selected agent and cwd remain valid", func(t *testing.T) {
+		resolved, resolveErr := srv.resolveConversationProjectContext(
+			t.Context(),
+			principal,
+			fixture.agentID,
+			conversationRequest{
+				CWD:              "~/caller-workspace",
+				PrimaryProjectID: " " + project.ProjectID + " ",
+			},
+		)
+		require.NoError(t, resolveErr)
+		assert.Equal(t, project.ProjectID, resolved.PrimaryProjectID)
+		assert.Equal(t, "~/caller-workspace", resolved.CWD)
+	})
+
+	t.Run("given an unknown project or target then the resource stays hidden", func(t *testing.T) {
+		_, projectErr := srv.resolveConversationProjectContext(
+			t.Context(),
+			principal,
+			fixture.agentID,
+			conversationRequest{PrimaryProjectID: "proj_missing"},
+		)
+		require.Error(t, projectErr)
+
+		_, targetErr := srv.resolveConversationProjectContext(
+			t.Context(),
+			principal,
+			fixture.agentID,
+			conversationRequest{
+				PrimaryProjectID: project.ProjectID,
+				ProjectTargetID:  "ptgt_missing",
+			},
+		)
+		require.Error(t, targetErr)
+	})
+
+	t.Run("given a target owned by another route agent then the target stays hidden", func(t *testing.T) {
+		_, resolveErr := srv.resolveConversationProjectContext(
+			t.Context(),
+			principal,
+			"agent_other",
+			conversationRequest{
+				PrimaryProjectID: project.ProjectID,
+				ProjectTargetID:  target.TargetID,
+			},
+		)
+		assert.ErrorIs(t, resolveErr, ErrNotFound)
+	})
+
+	t.Run("given an archived project then new sessions cannot be attached", func(t *testing.T) {
+		_, archiveErr := srv.store.ArchiveProject(
+			t.Context(),
+			principal,
+			project.ProjectID,
+		)
+		require.NoError(t, archiveErr)
+
+		_, resolveErr := srv.resolveConversationProjectContext(
+			t.Context(),
+			principal,
+			fixture.agentID,
+			conversationRequest{PrimaryProjectID: project.ProjectID},
+		)
+		require.Error(t, resolveErr)
+		assert.Contains(t, resolveErr.Error(), "project is archived")
+	})
 }
 
 func TestConversationMissingPaxdRouteResumesOnceThenRetriesPrompt(t *testing.T) {
@@ -6687,7 +7180,7 @@ func TestNodeAgentSessionReportEndpoint(t *testing.T) {
 				srv,
 				fixture.nodeAPIKey,
 				fixture.agentID,
-				`{"sessions":[{"session_id":"codex:abc","native_id":"codex:abc","agent_type":"codex","name":"Fix paxd","project_id":"/workspace/paxd","preview":"Working","workspace_roots":["/workspace/paxd"],"status":"available","message_count":3,"token_usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}}]}`,
+				`{"sessions":[{"session_id":"codex:abc","native_id":"codex:abc","agent_type":"codex","name":"Fix paxd","preview":"Working","workspace_roots":["/workspace/paxd"],"status":"available","message_count":3,"token_usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}}]}`,
 			)
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
@@ -6700,7 +7193,7 @@ func TestNodeAgentSessionReportEndpoint(t *testing.T) {
 				sessions[0].SessionID,
 			)
 			assert.Equal(t, "Fix paxd", sessions[0].SessionName)
-			assert.Equal(t, "/workspace/paxd", sessions[0].ProjectID)
+			assert.Empty(t, sessions[0].PrimaryProjectID)
 			assert.Equal(t, []string{"/workspace/paxd"}, sessions[0].WorkspaceRoots)
 			assert.Equal(t, int64(30), sessions[0].TokenUsage.Total)
 

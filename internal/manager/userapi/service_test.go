@@ -1996,11 +1996,12 @@ func TestListSessions(t *testing.T) {
 					ctx,
 					principal,
 					domain.ListSessionsFilter{
-						OwnerUserID: "usr_self",
-						NodeIDs:     []string{"node_1", "node_2"},
-						AgentIDs:    []string{"agent_1", "agent_2"},
-						PageSize:    25,
-						PageNum:     2,
+						OwnerUserID:      "usr_self",
+						NodeIDs:          []string{"node_1", "node_2"},
+						AgentIDs:         []string{"agent_1", "agent_2"},
+						PrimaryProjectID: "proj_1",
+						PageSize:         25,
+						PageNum:          2,
 					},
 				).
 				Return(expected, nil).
@@ -2018,6 +2019,7 @@ func TestListSessions(t *testing.T) {
 				"self",
 				"node_1,node_2,node_1",
 				"agent_1, agent_2",
+				" proj_1 ",
 				25,
 				2,
 			)
@@ -2062,6 +2064,7 @@ func TestListSessions(t *testing.T) {
 				"usr_self",
 				"",
 				"",
+				"",
 				900,
 				0,
 			)
@@ -2091,6 +2094,7 @@ func TestListSessions(t *testing.T) {
 				ctx,
 				auth.RequestMetadata{},
 				"usr_other",
+				"",
 				"",
 				"",
 				50,

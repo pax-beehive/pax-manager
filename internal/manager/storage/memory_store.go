@@ -33,6 +33,8 @@ type MemoryStore struct {
 	userAPIKeys                  map[string]UserAPIKey
 	userAPIKeyHashes             map[string]string
 	sessions                     map[string]AgentSession
+	projects                     map[string]Project
+	projectTargets               map[string]ProjectTarget
 	mailbox                      map[int64]MailboxMessage
 	offsets                      map[string]int64
 	nextTransportID              int64
@@ -93,6 +95,8 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		userAPIKeys:                  make(map[string]UserAPIKey),
 		userAPIKeyHashes:             make(map[string]string),
 		sessions:                     make(map[string]AgentSession),
+		projects:                     make(map[string]Project),
+		projectTargets:               make(map[string]ProjectTarget),
 		mailbox:                      make(map[int64]MailboxMessage),
 		offsets:                      make(map[string]int64),
 		transportJournal:             make(map[transportFrameKey]TransportFrame),
@@ -1053,7 +1057,7 @@ func (s *MemoryStore) UpsertNodeStatus(
 			if err != nil {
 				return err
 			}
-			s.upsertSessionLocked(current.NodeID, agent.AgentID, session, now)
+			s.upsertSessionLocked(current.NodeID, agent.AgentID, session, "", now)
 		}
 	}
 	return nil
@@ -1299,7 +1303,6 @@ func (s *MemoryStore) CreateNodeAgentSession(
 		AgentType:      req.AgentType,
 		NativeID:       req.NativeID,
 		SessionName:    req.SessionName,
-		ProjectID:      req.ProjectID,
 		WorkspaceRoots: req.WorkspaceRoots,
 		Source:         req.Source,
 		Status:         "idle",
@@ -1311,7 +1314,13 @@ func (s *MemoryStore) CreateNodeAgentSession(
 		}
 		input.SessionID = generated
 	}
-	session := s.upsertSessionLocked(req.NodeID, req.AgentID, input, now)
+	session := s.upsertSessionLocked(
+		req.NodeID,
+		req.AgentID,
+		input,
+		req.PrimaryProjectID,
+		now,
+	)
 	if req.ConversationID != "" {
 		session.ConversationID = req.ConversationID
 	}
@@ -1472,7 +1481,7 @@ func (s *MemoryStore) UpsertAgentStatus(ctx context.Context, report AgentStatusR
 		if err != nil {
 			return err
 		}
-		s.upsertSessionLocked(nodeID, report.AgentID, input, now)
+		s.upsertSessionLocked(nodeID, report.AgentID, input, "", now)
 	}
 
 	return nil
@@ -1500,7 +1509,7 @@ func (s *MemoryStore) UpsertAgentSessions(
 		if err != nil {
 			return err
 		}
-		s.upsertSessionLocked(node.NodeID, agentID, normalized, now)
+		s.upsertSessionLocked(node.NodeID, agentID, normalized, "", now)
 	}
 	return nil
 }
@@ -1591,6 +1600,10 @@ func (s *MemoryStore) ListSessions(
 			continue
 		}
 		if len(filter.AgentIDs) > 0 && !containsString(filter.AgentIDs, session.AgentID) {
+			continue
+		}
+		if filter.PrimaryProjectID != "" &&
+			session.PrimaryProjectID != filter.PrimaryProjectID {
 			continue
 		}
 		out = append(out, session)
@@ -2540,6 +2553,7 @@ func (s *MemoryStore) upsertSessionLocked(
 	nodeID string,
 	agentID string,
 	input SessionStatusInput,
+	primaryProjectID string,
 	now time.Time,
 ) AgentSession {
 	existing, exists := s.sessions[sessionKey(agentID, input.SessionID)]
@@ -2565,7 +2579,9 @@ func (s *MemoryStore) upsertSessionLocked(
 	if input.NativeID != "" {
 		existing.NativeID = input.NativeID
 	}
-	existing.ProjectID = input.ProjectID
+	if existing.PrimaryProjectID == "" {
+		existing.PrimaryProjectID = primaryProjectID
+	}
 	existing.Preview = input.Preview
 	existing.WorkspaceRoots = append([]string(nil), input.WorkspaceRoots...)
 	if !exists || existing.Source == "" {

@@ -101,7 +101,7 @@ type AgentSession struct {
 	NameIsCustom          bool                 `json:"name_is_custom"`
 	AgentType             string               `json:"agent_type,omitempty"`
 	NativeID              string               `json:"-"`
-	ProjectID             string               `json:"project_id,omitempty"`
+	PrimaryProjectID      string               `json:"primary_project_id,omitempty"`
 	Preview               string               `json:"preview,omitempty"`
 	WorkspaceRoots        []string             `json:"workspace_roots,omitempty"`
 	Source                string               `json:"source,omitempty"`
@@ -125,11 +125,12 @@ type AgentSession struct {
 }
 
 type ListSessionsFilter struct {
-	OwnerUserID string
-	NodeIDs     []string
-	AgentIDs    []string
-	PageSize    int
-	PageNum     int
+	OwnerUserID      string
+	NodeIDs          []string
+	AgentIDs         []string
+	PrimaryProjectID string
+	PageSize         int
+	PageNum          int
 }
 
 type ListSessionsResult struct {
@@ -1016,15 +1017,15 @@ type RegisterNodeAgentResponse struct {
 }
 
 type RegisterAgentRequest struct {
-	Name          string          `json:"name"`
-	AgentType     string          `json:"agent_type"`
-	Hostname      string          `json:"hostname"`
-	MachineType   string          `json:"machine_type"`
-	OS            string          `json:"os"`
-	HermesVersion string          `json:"hermes_version"`
-	APIEndpoint   string          `json:"api_endpoint"`
-	Projects      []Project       `json:"projects,omitempty"`
-	Metadata      json.RawMessage `json:"metadata"`
+	Name          string                 `json:"name"`
+	AgentType     string                 `json:"agent_type"`
+	Hostname      string                 `json:"hostname"`
+	MachineType   string                 `json:"machine_type"`
+	OS            string                 `json:"os"`
+	HermesVersion string                 `json:"hermes_version"`
+	APIEndpoint   string                 `json:"api_endpoint"`
+	Projects      []AgentReportedProject `json:"projects,omitempty"`
+	Metadata      json.RawMessage        `json:"metadata"`
 }
 
 type RegisterAgentResponse struct {
@@ -1609,7 +1610,6 @@ type SessionStatusInput struct {
 	AgentType         string     `json:"agent_type"`
 	NativeID          string     `json:"native_id"`
 	SessionName       string     `json:"name"`
-	ProjectID         string     `json:"project_id"`
 	Preview           string     `json:"preview"`
 	WorkspaceRoots    []string   `json:"workspace_roots"`
 	Source            string     `json:"source"`
@@ -1822,7 +1822,7 @@ type CreateSessionRequest struct {
 	SessionName           string           `json:"name"`
 	AgentType             string           `json:"agent_type"`
 	NativeID              string           `json:"native_id"`
-	ProjectID             string           `json:"project_id"`
+	PrimaryProjectID      string           `json:"primary_project_id"`
 	WorkspaceRoots        []string         `json:"workspace_roots"`
 	Source                string           `json:"source"`
 	Metadata              json.RawMessage  `json:"metadata"`
@@ -1843,7 +1843,7 @@ type OffsetRequest struct {
 	Offset int64 `json:"offset"`
 }
 
-type Project struct {
+type AgentReportedProject struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	RootPath string `json:"root_path"`
