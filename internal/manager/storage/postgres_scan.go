@@ -201,7 +201,7 @@ func scanSession(row rowScanner) (AgentSession, error) {
 		&session.NameIsCustom,
 		&session.AgentType,
 		&session.NativeID,
-		&session.ProjectID,
+		&session.PrimaryProjectID,
 		&session.Preview,
 		&roots,
 		&session.Source,

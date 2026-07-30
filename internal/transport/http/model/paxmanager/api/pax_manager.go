@@ -3073,7 +3073,6 @@ type SessionStatusInput struct {
 	AgentType         *string     `thrift:"agent_type,2,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
 	NativeID          *string     `thrift:"native_id,3,optional" form:"native_id" json:"native_id,omitempty" query:"native_id"`
 	Name              *string     `thrift:"name,4,optional" form:"name" json:"name,omitempty" query:"name"`
-	ProjectID         *string     `thrift:"project_id,5,optional" form:"project_id" json:"project_id,omitempty" query:"project_id"`
 	Preview           *string     `thrift:"preview,6,optional" form:"preview" json:"preview,omitempty" query:"preview"`
 	WorkspaceRoots    []string    `thrift:"workspace_roots,7,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`
 	Source            *string     `thrift:"source,8,optional" form:"source" json:"source,omitempty" query:"source"`
@@ -3129,15 +3128,6 @@ func (p *SessionStatusInput) GetName() (v string) {
 		return SessionStatusInput_Name_DEFAULT
 	}
 	return *p.Name
-}
-
-var SessionStatusInput_ProjectID_DEFAULT string
-
-func (p *SessionStatusInput) GetProjectID() (v string) {
-	if !p.IsSetProjectID() {
-		return SessionStatusInput_ProjectID_DEFAULT
-	}
-	return *p.ProjectID
 }
 
 var SessionStatusInput_Preview_DEFAULT string
@@ -3253,7 +3243,6 @@ var fieldIDToName_SessionStatusInput = map[int16]string{
 	2:  "agent_type",
 	3:  "native_id",
 	4:  "name",
-	5:  "project_id",
 	6:  "preview",
 	7:  "workspace_roots",
 	8:  "source",
@@ -3282,10 +3271,6 @@ func (p *SessionStatusInput) IsSetNativeID() bool {
 
 func (p *SessionStatusInput) IsSetName() bool {
 	return p.Name != nil
-}
-
-func (p *SessionStatusInput) IsSetProjectID() bool {
-	return p.ProjectID != nil
 }
 
 func (p *SessionStatusInput) IsSetPreview() bool {
@@ -3382,14 +3367,6 @@ func (p *SessionStatusInput) Read(iprot thrift.TProtocol) (err error) {
 		case 4:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField4(iprot); err != nil {
-					goto ReadFieldError
-				}
-			} else if err = iprot.Skip(fieldTypeId); err != nil {
-				goto SkipFieldError
-			}
-		case 5:
-			if fieldTypeId == thrift.STRING {
-				if err = p.ReadField5(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -3564,17 +3541,6 @@ func (p *SessionStatusInput) ReadField4(iprot thrift.TProtocol) error {
 	p.Name = _field
 	return nil
 }
-func (p *SessionStatusInput) ReadField5(iprot thrift.TProtocol) error {
-
-	var _field *string
-	if v, err := iprot.ReadString(); err != nil {
-		return err
-	} else {
-		_field = &v
-	}
-	p.ProjectID = _field
-	return nil
-}
 func (p *SessionStatusInput) ReadField6(iprot thrift.TProtocol) error {
 
 	var _field *string
@@ -3739,10 +3705,6 @@ func (p *SessionStatusInput) Write(oprot thrift.TProtocol) (err error) {
 			fieldId = 4
 			goto WriteFieldError
 		}
-		if err = p.writeField5(oprot); err != nil {
-			fieldId = 5
-			goto WriteFieldError
-		}
 		if err = p.writeField6(oprot); err != nil {
 			fieldId = 6
 			goto WriteFieldError
@@ -3883,25 +3845,6 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
-}
-
-func (p *SessionStatusInput) writeField5(oprot thrift.TProtocol) (err error) {
-	if p.IsSetProjectID() {
-		if err = oprot.WriteFieldBegin("project_id", thrift.STRING, 5); err != nil {
-			goto WriteFieldBeginError
-		}
-		if err := oprot.WriteString(*p.ProjectID); err != nil {
-			return err
-		}
-		if err = oprot.WriteFieldEnd(); err != nil {
-			goto WriteFieldEndError
-		}
-	}
-	return nil
-WriteFieldBeginError:
-	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
-WriteFieldEndError:
-	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
 }
 
 func (p *SessionStatusInput) writeField6(oprot thrift.TProtocol) (err error) {
@@ -11718,7 +11661,7 @@ type AgentSession struct {
 	SessionID         *string           `thrift:"session_id,4,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
 	Name              *string           `thrift:"name,5,optional" form:"name" json:"name,omitempty" query:"name"`
 	AgentType         *string           `thrift:"agent_type,6,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
-	ProjectID         *string           `thrift:"project_id,8,optional" form:"project_id" json:"project_id,omitempty" query:"project_id"`
+	PrimaryProjectID  *string           `thrift:"primary_project_id,8,optional" form:"primary_project_id" json:"primary_project_id,omitempty" query:"primary_project_id"`
 	Preview           *string           `thrift:"preview,9,optional" form:"preview" json:"preview,omitempty" query:"preview"`
 	WorkspaceRoots    []string          `thrift:"workspace_roots,10,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`
 	Source            *string           `thrift:"source,11,optional" form:"source" json:"source,omitempty" query:"source"`
@@ -11735,6 +11678,8 @@ type AgentSession struct {
 	Metadata          JSON              `thrift:"metadata,24,optional" form:"metadata" json:"metadata,omitempty" query:"metadata"`
 	PaxConfig         *SessionPaxConfig `thrift:"pax_config,25,optional" form:"pax_config" json:"pax_config,omitempty" query:"pax_config"`
 	LastUserMessageAt *string           `thrift:"last_user_message_at,26,optional" form:"last_user_message_at" json:"last_user_message_at,omitempty" query:"last_user_message_at"`
+	ReportedName      *string           `thrift:"reported_name,27,optional" form:"reported_name" json:"reported_name,omitempty" query:"reported_name"`
+	NameIsCustom      *bool             `thrift:"name_is_custom,28,optional" form:"name_is_custom" json:"name_is_custom,omitempty" query:"name_is_custom"`
 }
 
 func NewAgentSession() *AgentSession {
@@ -11798,13 +11743,13 @@ func (p *AgentSession) GetAgentType() (v string) {
 	return *p.AgentType
 }
 
-var AgentSession_ProjectID_DEFAULT string
+var AgentSession_PrimaryProjectID_DEFAULT string
 
-func (p *AgentSession) GetProjectID() (v string) {
-	if !p.IsSetProjectID() {
-		return AgentSession_ProjectID_DEFAULT
+func (p *AgentSession) GetPrimaryProjectID() (v string) {
+	if !p.IsSetPrimaryProjectID() {
+		return AgentSession_PrimaryProjectID_DEFAULT
 	}
-	return *p.ProjectID
+	return *p.PrimaryProjectID
 }
 
 var AgentSession_Preview_DEFAULT string
@@ -11951,6 +11896,24 @@ func (p *AgentSession) GetLastUserMessageAt() (v string) {
 	return *p.LastUserMessageAt
 }
 
+var AgentSession_ReportedName_DEFAULT string
+
+func (p *AgentSession) GetReportedName() (v string) {
+	if !p.IsSetReportedName() {
+		return AgentSession_ReportedName_DEFAULT
+	}
+	return *p.ReportedName
+}
+
+var AgentSession_NameIsCustom_DEFAULT bool
+
+func (p *AgentSession) GetNameIsCustom() (v bool) {
+	if !p.IsSetNameIsCustom() {
+		return AgentSession_NameIsCustom_DEFAULT
+	}
+	return *p.NameIsCustom
+}
+
 var fieldIDToName_AgentSession = map[int16]string{
 	1:  "id",
 	2:  "node_id",
@@ -11958,7 +11921,7 @@ var fieldIDToName_AgentSession = map[int16]string{
 	4:  "session_id",
 	5:  "name",
 	6:  "agent_type",
-	8:  "project_id",
+	8:  "primary_project_id",
 	9:  "preview",
 	10: "workspace_roots",
 	11: "source",
@@ -11975,6 +11938,8 @@ var fieldIDToName_AgentSession = map[int16]string{
 	24: "metadata",
 	25: "pax_config",
 	26: "last_user_message_at",
+	27: "reported_name",
+	28: "name_is_custom",
 }
 
 func (p *AgentSession) IsSetID() bool {
@@ -12001,8 +11966,8 @@ func (p *AgentSession) IsSetAgentType() bool {
 	return p.AgentType != nil
 }
 
-func (p *AgentSession) IsSetProjectID() bool {
-	return p.ProjectID != nil
+func (p *AgentSession) IsSetPrimaryProjectID() bool {
+	return p.PrimaryProjectID != nil
 }
 
 func (p *AgentSession) IsSetPreview() bool {
@@ -12067,6 +12032,14 @@ func (p *AgentSession) IsSetPaxConfig() bool {
 
 func (p *AgentSession) IsSetLastUserMessageAt() bool {
 	return p.LastUserMessageAt != nil
+}
+
+func (p *AgentSession) IsSetReportedName() bool {
+	return p.ReportedName != nil
+}
+
+func (p *AgentSession) IsSetNameIsCustom() bool {
+	return p.NameIsCustom != nil
 }
 
 func (p *AgentSession) Read(iprot thrift.TProtocol) (err error) {
@@ -12272,6 +12245,22 @@ func (p *AgentSession) Read(iprot thrift.TProtocol) (err error) {
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
 				goto SkipFieldError
 			}
+		case 27:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField27(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 28:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField28(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
 		default:
 			if err = iprot.Skip(fieldTypeId); err != nil {
 				goto SkipFieldError
@@ -12375,7 +12364,7 @@ func (p *AgentSession) ReadField8(iprot thrift.TProtocol) error {
 	} else {
 		_field = &v
 	}
-	p.ProjectID = _field
+	p.PrimaryProjectID = _field
 	return nil
 }
 func (p *AgentSession) ReadField9(iprot thrift.TProtocol) error {
@@ -12560,6 +12549,28 @@ func (p *AgentSession) ReadField26(iprot thrift.TProtocol) error {
 	p.LastUserMessageAt = _field
 	return nil
 }
+func (p *AgentSession) ReadField27(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ReportedName = _field
+	return nil
+}
+func (p *AgentSession) ReadField28(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NameIsCustom = _field
+	return nil
+}
 
 func (p *AgentSession) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -12657,6 +12668,14 @@ func (p *AgentSession) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField26(oprot); err != nil {
 			fieldId = 26
+			goto WriteFieldError
+		}
+		if err = p.writeField27(oprot); err != nil {
+			fieldId = 27
+			goto WriteFieldError
+		}
+		if err = p.writeField28(oprot); err != nil {
+			fieldId = 28
 			goto WriteFieldError
 		}
 	}
@@ -12792,11 +12811,11 @@ WriteFieldEndError:
 }
 
 func (p *AgentSession) writeField8(oprot thrift.TProtocol) (err error) {
-	if p.IsSetProjectID() {
-		if err = oprot.WriteFieldBegin("project_id", thrift.STRING, 8); err != nil {
+	if p.IsSetPrimaryProjectID() {
+		if err = oprot.WriteFieldBegin("primary_project_id", thrift.STRING, 8); err != nil {
 			goto WriteFieldBeginError
 		}
-		if err := oprot.WriteString(*p.ProjectID); err != nil {
+		if err := oprot.WriteString(*p.PrimaryProjectID); err != nil {
 			return err
 		}
 		if err = oprot.WriteFieldEnd(); err != nil {
@@ -13120,6 +13139,44 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 26 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 26 end error: ", p), err)
+}
+
+func (p *AgentSession) writeField27(oprot thrift.TProtocol) (err error) {
+	if p.IsSetReportedName() {
+		if err = oprot.WriteFieldBegin("reported_name", thrift.STRING, 27); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ReportedName); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 27 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 27 end error: ", p), err)
+}
+
+func (p *AgentSession) writeField28(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNameIsCustom() {
+		if err = oprot.WriteFieldBegin("name_is_custom", thrift.BOOL, 28); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.NameIsCustom); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 28 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 28 end error: ", p), err)
 }
 
 func (p *AgentSession) String() string {
@@ -25993,17 +26050,17 @@ func (p *ListUserSessionsRequest) String() string {
 }
 
 type CreateNodeAgentSessionRequest struct {
-	UserID         *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
-	NodeID         *string  `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
-	AgentID        *string  `thrift:"agent_id,3,optional" json:"agent_id,omitempty" path:"agent_id"`
-	SessionID      *string  `thrift:"session_id,4,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
-	Name           *string  `thrift:"name,5,optional" form:"name" json:"name,omitempty" query:"name"`
-	AgentType      *string  `thrift:"agent_type,6,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
-	NativeID       *string  `thrift:"native_id,7,optional" form:"native_id" json:"native_id,omitempty" query:"native_id"`
-	ProjectID      *string  `thrift:"project_id,8,optional" form:"project_id" json:"project_id,omitempty" query:"project_id"`
-	WorkspaceRoots []string `thrift:"workspace_roots,9,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`
-	Source         *string  `thrift:"source,10,optional" form:"source" json:"source,omitempty" query:"source"`
-	Metadata       JSON     `thrift:"metadata,11,optional" form:"metadata" json:"metadata,omitempty" query:"metadata"`
+	UserID           *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID           *string  `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	AgentID          *string  `thrift:"agent_id,3,optional" json:"agent_id,omitempty" path:"agent_id"`
+	SessionID        *string  `thrift:"session_id,4,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
+	Name             *string  `thrift:"name,5,optional" form:"name" json:"name,omitempty" query:"name"`
+	AgentType        *string  `thrift:"agent_type,6,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
+	NativeID         *string  `thrift:"native_id,7,optional" form:"native_id" json:"native_id,omitempty" query:"native_id"`
+	PrimaryProjectID *string  `thrift:"primary_project_id,8,optional" form:"primary_project_id" json:"primary_project_id,omitempty" query:"primary_project_id"`
+	WorkspaceRoots   []string `thrift:"workspace_roots,9,optional,list<string>" form:"workspace_roots" json:"workspace_roots,omitempty" query:"workspace_roots"`
+	Source           *string  `thrift:"source,10,optional" form:"source" json:"source,omitempty" query:"source"`
+	Metadata         JSON     `thrift:"metadata,11,optional" form:"metadata" json:"metadata,omitempty" query:"metadata"`
 }
 
 func NewCreateNodeAgentSessionRequest() *CreateNodeAgentSessionRequest {
@@ -26076,13 +26133,13 @@ func (p *CreateNodeAgentSessionRequest) GetNativeID() (v string) {
 	return *p.NativeID
 }
 
-var CreateNodeAgentSessionRequest_ProjectID_DEFAULT string
+var CreateNodeAgentSessionRequest_PrimaryProjectID_DEFAULT string
 
-func (p *CreateNodeAgentSessionRequest) GetProjectID() (v string) {
-	if !p.IsSetProjectID() {
-		return CreateNodeAgentSessionRequest_ProjectID_DEFAULT
+func (p *CreateNodeAgentSessionRequest) GetPrimaryProjectID() (v string) {
+	if !p.IsSetPrimaryProjectID() {
+		return CreateNodeAgentSessionRequest_PrimaryProjectID_DEFAULT
 	}
-	return *p.ProjectID
+	return *p.PrimaryProjectID
 }
 
 var CreateNodeAgentSessionRequest_WorkspaceRoots_DEFAULT []string
@@ -26120,7 +26177,7 @@ var fieldIDToName_CreateNodeAgentSessionRequest = map[int16]string{
 	5:  "name",
 	6:  "agent_type",
 	7:  "native_id",
-	8:  "project_id",
+	8:  "primary_project_id",
 	9:  "workspace_roots",
 	10: "source",
 	11: "metadata",
@@ -26154,8 +26211,8 @@ func (p *CreateNodeAgentSessionRequest) IsSetNativeID() bool {
 	return p.NativeID != nil
 }
 
-func (p *CreateNodeAgentSessionRequest) IsSetProjectID() bool {
-	return p.ProjectID != nil
+func (p *CreateNodeAgentSessionRequest) IsSetPrimaryProjectID() bool {
+	return p.PrimaryProjectID != nil
 }
 
 func (p *CreateNodeAgentSessionRequest) IsSetWorkspaceRoots() bool {
@@ -26391,7 +26448,7 @@ func (p *CreateNodeAgentSessionRequest) ReadField8(iprot thrift.TProtocol) error
 	} else {
 		_field = &v
 	}
-	p.ProjectID = _field
+	p.PrimaryProjectID = _field
 	return nil
 }
 func (p *CreateNodeAgentSessionRequest) ReadField9(iprot thrift.TProtocol) error {
@@ -26642,11 +26699,11 @@ WriteFieldEndError:
 }
 
 func (p *CreateNodeAgentSessionRequest) writeField8(oprot thrift.TProtocol) (err error) {
-	if p.IsSetProjectID() {
-		if err = oprot.WriteFieldBegin("project_id", thrift.STRING, 8); err != nil {
+	if p.IsSetPrimaryProjectID() {
+		if err = oprot.WriteFieldBegin("primary_project_id", thrift.STRING, 8); err != nil {
 			goto WriteFieldBeginError
 		}
-		if err := oprot.WriteString(*p.ProjectID); err != nil {
+		if err := oprot.WriteString(*p.PrimaryProjectID); err != nil {
 			return err
 		}
 		if err = oprot.WriteFieldEnd(); err != nil {
@@ -27056,11 +27113,13 @@ func (p *GetNodeAgentSessionRequest) String() string {
 }
 
 type UpdateNodeAgentSessionRequest struct {
-	UserID    *string           `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
-	NodeID    *string           `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
-	AgentID   *string           `thrift:"agent_id,3,optional" json:"agent_id,omitempty" path:"agent_id"`
-	SessionID *string           `thrift:"session_id,4,optional" json:"session_id,omitempty" path:"session_id"`
-	PaxConfig *SessionPaxConfig `thrift:"pax_config,5,optional" form:"pax_config" json:"pax_config,omitempty" query:"pax_config"`
+	UserID          *string           `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID          *string           `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	AgentID         *string           `thrift:"agent_id,3,optional" json:"agent_id,omitempty" path:"agent_id"`
+	SessionID       *string           `thrift:"session_id,4,optional" json:"session_id,omitempty" path:"session_id"`
+	PaxConfig       *SessionPaxConfig `thrift:"pax_config,5,optional" form:"pax_config" json:"pax_config,omitempty" query:"pax_config"`
+	Name            *string           `thrift:"name,6,optional" form:"name" json:"name,omitempty" query:"name"`
+	UseReportedName *bool             `thrift:"use_reported_name,7,optional" form:"use_reported_name" json:"use_reported_name,omitempty" query:"use_reported_name"`
 }
 
 func NewUpdateNodeAgentSessionRequest() *UpdateNodeAgentSessionRequest {
@@ -27115,12 +27174,32 @@ func (p *UpdateNodeAgentSessionRequest) GetPaxConfig() (v *SessionPaxConfig) {
 	return p.PaxConfig
 }
 
+var UpdateNodeAgentSessionRequest_Name_DEFAULT string
+
+func (p *UpdateNodeAgentSessionRequest) GetName() (v string) {
+	if !p.IsSetName() {
+		return UpdateNodeAgentSessionRequest_Name_DEFAULT
+	}
+	return *p.Name
+}
+
+var UpdateNodeAgentSessionRequest_UseReportedName_DEFAULT bool
+
+func (p *UpdateNodeAgentSessionRequest) GetUseReportedName() (v bool) {
+	if !p.IsSetUseReportedName() {
+		return UpdateNodeAgentSessionRequest_UseReportedName_DEFAULT
+	}
+	return *p.UseReportedName
+}
+
 var fieldIDToName_UpdateNodeAgentSessionRequest = map[int16]string{
 	1: "user_id",
 	2: "node_id",
 	3: "agent_id",
 	4: "session_id",
 	5: "pax_config",
+	6: "name",
+	7: "use_reported_name",
 }
 
 func (p *UpdateNodeAgentSessionRequest) IsSetUserID() bool {
@@ -27141,6 +27220,14 @@ func (p *UpdateNodeAgentSessionRequest) IsSetSessionID() bool {
 
 func (p *UpdateNodeAgentSessionRequest) IsSetPaxConfig() bool {
 	return p.PaxConfig != nil
+}
+
+func (p *UpdateNodeAgentSessionRequest) IsSetName() bool {
+	return p.Name != nil
+}
+
+func (p *UpdateNodeAgentSessionRequest) IsSetUseReportedName() bool {
+	return p.UseReportedName != nil
 }
 
 func (p *UpdateNodeAgentSessionRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -27197,6 +27284,22 @@ func (p *UpdateNodeAgentSessionRequest) Read(iprot thrift.TProtocol) (err error)
 		case 5:
 			if fieldTypeId == thrift.STRUCT {
 				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField7(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -27283,6 +27386,28 @@ func (p *UpdateNodeAgentSessionRequest) ReadField5(iprot thrift.TProtocol) error
 	p.PaxConfig = _field
 	return nil
 }
+func (p *UpdateNodeAgentSessionRequest) ReadField6(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Name = _field
+	return nil
+}
+func (p *UpdateNodeAgentSessionRequest) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UseReportedName = _field
+	return nil
+}
 
 func (p *UpdateNodeAgentSessionRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -27308,6 +27433,14 @@ func (p *UpdateNodeAgentSessionRequest) Write(oprot thrift.TProtocol) (err error
 		}
 		if err = p.writeField5(oprot); err != nil {
 			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
 			goto WriteFieldError
 		}
 	}
@@ -27421,6 +27554,44 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *UpdateNodeAgentSessionRequest) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetName() {
+		if err = oprot.WriteFieldBegin("name", thrift.STRING, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Name); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *UpdateNodeAgentSessionRequest) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUseReportedName() {
+		if err = oprot.WriteFieldBegin("use_reported_name", thrift.BOOL, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.UseReportedName); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
 }
 
 func (p *UpdateNodeAgentSessionRequest) String() string {

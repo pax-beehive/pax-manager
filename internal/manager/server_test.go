@@ -1096,7 +1096,6 @@ func TestAgentStatusUsesPaxdSessionShape(t *testing.T) {
 			"agent_type":"hermes",
 			"native_id":"resp-1",
 			"name":"repo task",
-			"project_id":"repo",
 			"preview":"fix tests",
 			"workspace_roots":["/workspace/repo"],
 			"status":"running",
@@ -6687,7 +6686,7 @@ func TestNodeAgentSessionReportEndpoint(t *testing.T) {
 				srv,
 				fixture.nodeAPIKey,
 				fixture.agentID,
-				`{"sessions":[{"session_id":"codex:abc","native_id":"codex:abc","agent_type":"codex","name":"Fix paxd","project_id":"/workspace/paxd","preview":"Working","workspace_roots":["/workspace/paxd"],"status":"available","message_count":3,"token_usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}}]}`,
+				`{"sessions":[{"session_id":"codex:abc","native_id":"codex:abc","agent_type":"codex","name":"Fix paxd","preview":"Working","workspace_roots":["/workspace/paxd"],"status":"available","message_count":3,"token_usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}}]}`,
 			)
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
@@ -6700,7 +6699,7 @@ func TestNodeAgentSessionReportEndpoint(t *testing.T) {
 				sessions[0].SessionID,
 			)
 			assert.Equal(t, "Fix paxd", sessions[0].SessionName)
-			assert.Equal(t, "/workspace/paxd", sessions[0].ProjectID)
+			assert.Empty(t, sessions[0].PrimaryProjectID)
 			assert.Equal(t, []string{"/workspace/paxd"}, sessions[0].WorkspaceRoots)
 			assert.Equal(t, int64(30), sessions[0].TokenUsage.Total)
 

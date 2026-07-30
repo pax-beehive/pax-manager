@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     custom_session_name TEXT,
     agent_type TEXT,
     native_id TEXT,
-    project_id TEXT,
+    primary_project_id TEXT,
     preview TEXT,
     workspace_roots JSONB NOT NULL DEFAULT '[]'::jsonb,
     source TEXT,
@@ -127,7 +127,8 @@ ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS custom_session_name TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(node_id);
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS agent_type TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS native_id TEXT;
-ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS project_id TEXT;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS primary_project_id TEXT;
+ALTER TABLE agent_sessions DROP COLUMN IF EXISTS project_id;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS preview TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS workspace_roots JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS source TEXT;

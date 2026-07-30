@@ -35,7 +35,6 @@ func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 				NativeID:       "codex:abc",
 				AgentType:      "codex",
 				SessionName:    "Old",
-				ProjectID:      "/workspace/paxd",
 				WorkspaceRoots: []string{"/workspace/paxd"},
 				Status:         "available",
 			}})
@@ -76,6 +75,40 @@ func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 			assert.Equal(t, before.AgentType, after.AgentType)
 			assert.Equal(t, before.Status, after.Status)
 			assert.Equal(t, before.LastHeartbeat, after.LastHeartbeat)
+		},
+	)
+
+	t.Run(
+		"Given a session with a primary project when the agent reports it then the primary project is preserved",
+		func(t *testing.T) {
+			ctx := context.Background()
+			store, node, agent := sessionReportStoreFixture(t, ctx)
+			principal := UserPrincipal{User: User{UserID: node.OwnerUserID}}
+
+			session, err := store.CreateNodeAgentSession(ctx, principal, CreateSessionRequest{
+				NodeID:           node.NodeID,
+				AgentID:          agent.AgentID,
+				SessionID:        "sess_primary_project",
+				NativeID:         "native_primary_project",
+				PrimaryProjectID: "proj_primary",
+			})
+			require.NoError(t, err)
+			assert.Equal(t, "proj_primary", session.PrimaryProjectID)
+
+			err = store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+				SessionID:   "native_primary_project",
+				NativeID:    "native_primary_project",
+				AgentType:   "codex",
+				SessionName: "Reported later",
+				Status:      "busy",
+			}})
+			require.NoError(t, err)
+
+			sessions, err := store.ListAgentSessions(ctx, principal, agent.AgentID)
+			require.NoError(t, err)
+			require.Len(t, sessions, 1)
+			assert.Equal(t, "proj_primary", sessions[0].PrimaryProjectID)
+			assert.Equal(t, "Reported later", sessions[0].SessionName)
 		},
 	)
 

@@ -1053,7 +1053,7 @@ func (s *MemoryStore) UpsertNodeStatus(
 			if err != nil {
 				return err
 			}
-			s.upsertSessionLocked(current.NodeID, agent.AgentID, session, now)
+			s.upsertSessionLocked(current.NodeID, agent.AgentID, session, "", now)
 		}
 	}
 	return nil
@@ -1299,7 +1299,6 @@ func (s *MemoryStore) CreateNodeAgentSession(
 		AgentType:      req.AgentType,
 		NativeID:       req.NativeID,
 		SessionName:    req.SessionName,
-		ProjectID:      req.ProjectID,
 		WorkspaceRoots: req.WorkspaceRoots,
 		Source:         req.Source,
 		Status:         "idle",
@@ -1311,7 +1310,13 @@ func (s *MemoryStore) CreateNodeAgentSession(
 		}
 		input.SessionID = generated
 	}
-	session := s.upsertSessionLocked(req.NodeID, req.AgentID, input, now)
+	session := s.upsertSessionLocked(
+		req.NodeID,
+		req.AgentID,
+		input,
+		req.PrimaryProjectID,
+		now,
+	)
 	if req.ConversationID != "" {
 		session.ConversationID = req.ConversationID
 	}
@@ -1472,7 +1477,7 @@ func (s *MemoryStore) UpsertAgentStatus(ctx context.Context, report AgentStatusR
 		if err != nil {
 			return err
 		}
-		s.upsertSessionLocked(nodeID, report.AgentID, input, now)
+		s.upsertSessionLocked(nodeID, report.AgentID, input, "", now)
 	}
 
 	return nil
@@ -1500,7 +1505,7 @@ func (s *MemoryStore) UpsertAgentSessions(
 		if err != nil {
 			return err
 		}
-		s.upsertSessionLocked(node.NodeID, agentID, normalized, now)
+		s.upsertSessionLocked(node.NodeID, agentID, normalized, "", now)
 	}
 	return nil
 }
@@ -2540,6 +2545,7 @@ func (s *MemoryStore) upsertSessionLocked(
 	nodeID string,
 	agentID string,
 	input SessionStatusInput,
+	primaryProjectID string,
 	now time.Time,
 ) AgentSession {
 	existing, exists := s.sessions[sessionKey(agentID, input.SessionID)]
@@ -2565,7 +2571,9 @@ func (s *MemoryStore) upsertSessionLocked(
 	if input.NativeID != "" {
 		existing.NativeID = input.NativeID
 	}
-	existing.ProjectID = input.ProjectID
+	if existing.PrimaryProjectID == "" {
+		existing.PrimaryProjectID = primaryProjectID
+	}
 	existing.Preview = input.Preview
 	existing.WorkspaceRoots = append([]string(nil), input.WorkspaceRoots...)
 	if !exists || existing.Source == "" {

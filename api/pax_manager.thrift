@@ -74,7 +74,6 @@ struct SessionStatusInput {
   2: optional string agent_type
   3: optional string native_id
   4: optional string name
-  5: optional string project_id
   6: optional string preview
   7: optional list<string> workspace_roots
   8: optional string source
@@ -255,7 +254,7 @@ struct AgentSession {
   4: optional string session_id
   5: optional string name
   6: optional string agent_type
-  8: optional string project_id
+  8: optional string primary_project_id
   9: optional string preview
   10: optional list<string> workspace_roots
   11: optional string source
@@ -557,7 +556,7 @@ struct CreateNodeAgentSessionRequest {
   5: optional string name
   6: optional string agent_type
   7: optional string native_id
-  8: optional string project_id
+  8: optional string primary_project_id
   9: optional list<string> workspace_roots
   10: optional string source
   11: optional JSON metadata

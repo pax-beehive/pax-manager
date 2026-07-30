@@ -101,7 +101,7 @@ type AgentSession struct {
 	NameIsCustom          bool                 `json:"name_is_custom"`
 	AgentType             string               `json:"agent_type,omitempty"`
 	NativeID              string               `json:"-"`
-	ProjectID             string               `json:"project_id,omitempty"`
+	PrimaryProjectID      string               `json:"primary_project_id,omitempty"`
 	Preview               string               `json:"preview,omitempty"`
 	WorkspaceRoots        []string             `json:"workspace_roots,omitempty"`
 	Source                string               `json:"source,omitempty"`
@@ -1609,7 +1609,6 @@ type SessionStatusInput struct {
 	AgentType         string     `json:"agent_type"`
 	NativeID          string     `json:"native_id"`
 	SessionName       string     `json:"name"`
-	ProjectID         string     `json:"project_id"`
 	Preview           string     `json:"preview"`
 	WorkspaceRoots    []string   `json:"workspace_roots"`
 	Source            string     `json:"source"`
@@ -1822,7 +1821,7 @@ type CreateSessionRequest struct {
 	SessionName           string           `json:"name"`
 	AgentType             string           `json:"agent_type"`
 	NativeID              string           `json:"native_id"`
-	ProjectID             string           `json:"project_id"`
+	PrimaryProjectID      string           `json:"primary_project_id"`
 	WorkspaceRoots        []string         `json:"workspace_roots"`
 	Source                string           `json:"source"`
 	Metadata              json.RawMessage  `json:"metadata"`

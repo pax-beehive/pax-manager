@@ -316,6 +316,9 @@
           "name": {
             "type": "string"
           },
+          "name_is_custom": {
+            "type": "boolean"
+          },
           "node_id": {
             "type": "string"
           },
@@ -325,7 +328,10 @@
           "preview": {
             "type": "string"
           },
-          "project_id": {
+          "primary_project_id": {
+            "type": "string"
+          },
+          "reported_name": {
             "type": "string"
           },
           "run_id": {
@@ -764,7 +770,7 @@
           "node_id": {
             "type": "string"
           },
-          "project_id": {
+          "primary_project_id": {
             "type": "string"
           },
           "session_id": {
@@ -2633,9 +2639,6 @@
           "preview": {
             "type": "string"
           },
-          "project_id": {
-            "type": "string"
-          },
           "run_id": {
             "type": "string"
           },
@@ -2748,6 +2751,9 @@
           "agent_id": {
             "type": "string"
           },
+          "name": {
+            "type": "string"
+          },
           "node_id": {
             "type": "string"
           },
@@ -2756,6 +2762,9 @@
           },
           "session_id": {
             "type": "string"
+          },
+          "use_reported_name": {
+            "type": "boolean"
           },
           "user_id": {
             "type": "string"

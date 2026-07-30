@@ -1204,7 +1204,7 @@ func (s *PostgresStore) UpsertNodeStatus(
 			if err != nil {
 				return err
 			}
-			if err := upsertSessionTx(ctx, tx, node.NodeID, agentID, session, now); err != nil {
+			if err := upsertSessionTx(ctx, tx, node.NodeID, agentID, session, "", now); err != nil {
 				return err
 			}
 		}
@@ -1243,7 +1243,15 @@ func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatu
 		if err != nil {
 			return err
 		}
-		if err := upsertSessionTx(ctx, tx, agentNodeID.String, report.AgentID, input, now); err != nil {
+		if err := upsertSessionTx(
+			ctx,
+			tx,
+			agentNodeID.String,
+			report.AgentID,
+			input,
+			"",
+			now,
+		); err != nil {
 			return err
 		}
 	}
@@ -1282,7 +1290,7 @@ func (s *PostgresStore) UpsertAgentSessions(
 		if err != nil {
 			return err
 		}
-		if err := upsertSessionTx(ctx, tx, node.NodeID, agentID, input, now); err != nil {
+		if err := upsertSessionTx(ctx, tx, node.NodeID, agentID, input, "", now); err != nil {
 			return err
 		}
 	}
@@ -1644,12 +1652,19 @@ func (s *PostgresStore) CreateNodeAgentSession(
 		AgentType:      req.AgentType,
 		NativeID:       req.NativeID,
 		SessionName:    req.SessionName,
-		ProjectID:      req.ProjectID,
 		WorkspaceRoots: req.WorkspaceRoots,
 		Source:         req.Source,
 		Status:         "idle",
 	}
-	if err := upsertSessionTx(ctx, dbExecer{s.db}, req.NodeID, req.AgentID, input, now); err != nil {
+	if err := upsertSessionTx(
+		ctx,
+		dbExecer{s.db},
+		req.NodeID,
+		req.AgentID,
+		input,
+		req.PrimaryProjectID,
+		now,
+	); err != nil {
 		return AgentSession{}, err
 	}
 	if err := s.validateSessionReferences(ctx, principal, req); err != nil {
@@ -2834,7 +2849,7 @@ const sessionSelectSQL = `
 		COALESCE(representative_agent_id, ''), COALESCE(created_by_user_id, ''),
 		COALESCE(custom_session_name, session_name, ''), COALESCE(session_name, ''),
 		custom_session_name IS NOT NULL, COALESCE(agent_sessions.agent_type, ''),
-		COALESCE(native_id, ''), COALESCE(project_id, ''), COALESCE(preview, ''),
+		COALESCE(native_id, ''), COALESCE(primary_project_id, ''), COALESCE(preview, ''),
 		COALESCE(workspace_roots, '[]'::jsonb), COALESCE(source, ''), agent_sessions.status,
 		COALESCE(current_task, ''), last_message_at, last_user_message_at, message_count, token_input,
 		token_output, token_total, cache_read_tokens, cache_write_tokens, cache_creation_tokens,
@@ -3146,6 +3161,7 @@ func upsertSessionTx(
 	nodeID string,
 	agentID string,
 	input SessionStatusInput,
+	primaryProjectID string,
 	now time.Time,
 ) error {
 	roots, err := json.Marshal(input.WorkspaceRoots)
@@ -3156,7 +3172,8 @@ func upsertSessionTx(
 		ctx,
 		`
 		INSERT INTO agent_sessions (
-			node_id, agent_id, session_id, session_name, agent_type, native_id, project_id, preview,
+			node_id, agent_id, session_id, session_name, agent_type, native_id,
+			primary_project_id, preview,
 			workspace_roots, source, status, current_task, last_message_at, last_user_message_at, message_count,
 			token_input, token_output, token_total, cache_read_tokens, cache_write_tokens,
 			cache_creation_tokens, reasoning_tokens, estimated_cost_usd, actual_cost_usd, cost_usd,
@@ -3168,7 +3185,10 @@ func upsertSessionTx(
 			session_name = COALESCE(NULLIF(EXCLUDED.session_name, ''), agent_sessions.session_name),
 			agent_type = EXCLUDED.agent_type,
 			native_id = COALESCE(NULLIF(EXCLUDED.native_id, ''), agent_sessions.native_id),
-			project_id = EXCLUDED.project_id,
+			primary_project_id = COALESCE(
+				agent_sessions.primary_project_id,
+				NULLIF(EXCLUDED.primary_project_id, '')
+			),
 			preview = EXCLUDED.preview,
 			workspace_roots = EXCLUDED.workspace_roots,
 			source = COALESCE(NULLIF(agent_sessions.source, ''), EXCLUDED.source),
@@ -3198,7 +3218,7 @@ func upsertSessionTx(
 		input.SessionName,
 		input.AgentType,
 		input.NativeID,
-		input.ProjectID,
+		primaryProjectID,
 		input.Preview,
 		roots,
 		input.Source,
