@@ -232,8 +232,8 @@ func (s *Service) readConversationRequest(
 	}
 	req.CWD = strings.TrimSpace(req.CWD)
 	req.ApprovalMode = strings.TrimSpace(req.ApprovalMode)
-	if req.CWD != "" && !filepath.IsAbs(req.CWD) {
-		writeHTTPError(w, http.StatusBadRequest, "cwd must be an absolute path")
+	if !isSupportedSessionWorkspace(req.CWD) {
+		writeHTTPError(w, http.StatusBadRequest, "cwd must be an absolute path, ~, or start with ~/")
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	if req.SessionID != "" && req.CWD != "" {
@@ -261,6 +261,13 @@ func (s *Service) readConversationRequest(
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	return req, resumeReq, true
+}
+
+func isSupportedSessionWorkspace(value string) bool {
+	return value == "" ||
+		filepath.IsAbs(value) ||
+		value == "~" ||
+		strings.HasPrefix(value, "~/")
 }
 
 func (s *Service) authorizeConversation(
