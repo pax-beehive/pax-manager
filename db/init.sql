@@ -38,6 +38,26 @@ CREATE INDEX IF NOT EXISTS idx_projects_owner
 CREATE INDEX IF NOT EXISTS idx_projects_parent
     ON projects(parent_project_id);
 
+CREATE TABLE IF NOT EXISTS project_targets (
+    target_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    cwd TEXT NOT NULL,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_targets_project
+    ON project_targets(project_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_project_targets_agent
+    ON project_targets(agent_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_project_targets_one_default
+    ON project_targets(project_id)
+    WHERE is_default = TRUE AND enabled = TRUE;
+
 CREATE TABLE IF NOT EXISTS agents (
     agent_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id),

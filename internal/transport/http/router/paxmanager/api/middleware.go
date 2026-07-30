@@ -616,3 +616,28 @@ func _archiveprojectMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _listprojecttargetsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createprojecttargetMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _targetsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getprojecttargetMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updateprojecttargetMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

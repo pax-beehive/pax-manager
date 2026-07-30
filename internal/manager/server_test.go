@@ -104,6 +104,8 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/v1/user/{user_id}/projects",
 		"/api/v1/user/{user_id}/projects/{project_id}",
 		"/api/v1/user/{user_id}/projects/{project_id}/archive",
+		"/api/v1/user/{user_id}/projects/{project_id}/targets",
+		"/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}",
 		"/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages",
 		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history",
 		"/api/v1/user/{user_id}/sessions/{session_id}/history",
@@ -263,6 +265,123 @@ func TestProjectCRUDHTTPBDD(t *testing.T) {
 			"todd@example.com",
 		)
 		assert.Equal(t, http.StatusBadRequest, invalidRec.Code, invalidRec.Body.String())
+	})
+}
+
+func TestProjectTargetCRUDHTTPBDD(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	ownerAgentID := testAgentID(t, srv, "todd@example.com")
+
+	request := func(method string, path string, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		var reader io.Reader
+		if body != "" {
+			reader = strings.NewReader(body)
+		}
+		req := httptest.NewRequest(method, path, reader)
+		req.Header.Set("X-User-Email", "todd@example.com")
+		if body != "" {
+			setJSON(req)
+		}
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		return rec
+	}
+
+	createProjectRec := request(
+		http.MethodPost,
+		"/api/v1/user/self/projects",
+		`{"display_name":"Manager"}`,
+	)
+	require.Equal(t, http.StatusCreated, createProjectRec.Code, createProjectRec.Body.String())
+	project := decodeData[struct {
+		Project domain.Project `json:"project"`
+	}](t, createProjectRec.Body.Bytes()).Project
+	targetsPath := "/api/v1/user/self/projects/" + project.ProjectID + "/targets"
+
+	t.Run("given one agent when configuring multiple paths then CRUD and default selection work", func(t *testing.T) {
+		firstRec := request(
+			http.MethodPost,
+			targetsPath,
+			`{
+				"agent_id":"`+ownerAgentID+`",
+				"display_name":"Mac main",
+				"cwd":"~/pax_workspace/pax-manager",
+				"is_default":true
+			}`,
+		)
+		require.Equal(t, http.StatusCreated, firstRec.Code, firstRec.Body.String())
+		first := decodeData[struct {
+			Target domain.ProjectTarget `json:"target"`
+		}](t, firstRec.Body.Bytes()).Target
+		assert.True(t, first.IsDefault)
+
+		secondRec := request(
+			http.MethodPost,
+			targetsPath,
+			`{
+				"agent_id":"`+ownerAgentID+`",
+				"display_name":"Mac feature",
+				"cwd":"~/worktrees/pax-manager-feature"
+			}`,
+		)
+		require.Equal(t, http.StatusCreated, secondRec.Code, secondRec.Body.String())
+		second := decodeData[struct {
+			Target domain.ProjectTarget `json:"target"`
+		}](t, secondRec.Body.Bytes()).Target
+		assert.NotEqual(t, first.Cwd, second.Cwd)
+
+		getRec := request(http.MethodGet, targetsPath+"/"+second.TargetID, "")
+		require.Equal(t, http.StatusOK, getRec.Code, getRec.Body.String())
+
+		defaultRec := request(
+			http.MethodPatch,
+			targetsPath+"/"+second.TargetID,
+			`{"is_default":true}`,
+		)
+		require.Equal(t, http.StatusOK, defaultRec.Code, defaultRec.Body.String())
+
+		listRec := request(http.MethodGet, targetsPath, "")
+		require.Equal(t, http.StatusOK, listRec.Code, listRec.Body.String())
+		listed := decodeData[struct {
+			Targets []domain.ProjectTarget `json:"targets"`
+		}](t, listRec.Body.Bytes()).Targets
+		require.Len(t, listed, 2)
+		defaults := 0
+		for _, target := range listed {
+			if target.IsDefault {
+				defaults++
+				assert.Equal(t, second.TargetID, target.TargetID)
+			}
+		}
+		assert.Equal(t, 1, defaults)
+
+		disableRec := request(
+			http.MethodPatch,
+			targetsPath+"/"+second.TargetID,
+			`{"enabled":false}`,
+		)
+		require.Equal(t, http.StatusOK, disableRec.Code, disableRec.Body.String())
+		disabled := decodeData[struct {
+			Target domain.ProjectTarget `json:"target"`
+		}](t, disableRec.Body.Bytes()).Target
+		assert.False(t, disabled.Enabled)
+		assert.False(t, disabled.IsDefault)
+	})
+
+	t.Run("given another users agent then target creation hides it", func(t *testing.T) {
+		_ = registerAdditionalTestAgent(t, srv, "mallory@example.com")
+		foreignAgentID := testAgentID(t, srv, "mallory@example.com")
+		rec := request(
+			http.MethodPost,
+			targetsPath,
+			`{
+				"agent_id":"`+foreignAgentID+`",
+				"display_name":"Foreign",
+				"cwd":"~/repo"
+			}`,
+		)
+		assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	})
 }
 

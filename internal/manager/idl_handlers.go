@@ -143,6 +143,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"CreateNodeOutboundMessage":     CreateNodeOutboundMessage,
 	"CreateNodeRegistrationToken":   CreateNodeRegistrationToken,
 	"CreateProject":                 CreateProject,
+	"CreateProjectTarget":           CreateProjectTarget,
 	"CreateUserSecret":              CreateUserSecret,
 	"DecideUserApproval":            DecideUserApproval,
 	"DeleteNode":                    DeleteNode,
@@ -153,6 +154,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"GetNodeAgentApproval":          GetNodeAgentApproval,
 	"GetNodeAgentSession":           GetNodeAgentSession,
 	"GetProject":                    GetProject,
+	"GetProjectTarget":              GetProjectTarget,
 	"GetUserApproval":               GetUserApproval,
 	"GetUserSecret":                 GetUserSecret,
 	"ListNodeAgentMessages":         ListNodeAgentMessages,
@@ -161,6 +163,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"ListNodeAgents":                ListNodeAgents,
 	"ListNodes":                     ListNodes,
 	"ListProjects":                  ListProjects,
+	"ListProjectTargets":            ListProjectTargets,
 	"ListUserApprovalGrants":        ListUserApprovalGrants,
 	"ListUserApprovals":             ListUserApprovals,
 	"ListUserSecrets":               ListUserSecrets,
@@ -180,6 +183,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"UpdateNodeAgentSession":        UpdateNodeAgentSession,
 	"UpdateNodeMailboxOffset":       UpdateNodeMailboxOffset,
 	"UpdateProject":                 UpdateProject,
+	"UpdateProjectTarget":           UpdateProjectTarget,
 	"WriteNodeSecretVersion":        WriteNodeSecretVersion,
 }
 

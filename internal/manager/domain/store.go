@@ -337,6 +337,30 @@ type Store interface {
 		principal UserPrincipal,
 		projectID string,
 	) (Project, error)
+	CreateProjectTarget(
+		ctx context.Context,
+		principal UserPrincipal,
+		projectID string,
+		req CreateProjectTargetRequest,
+	) (ProjectTarget, error)
+	ListProjectTargets(
+		ctx context.Context,
+		principal UserPrincipal,
+		projectID string,
+	) ([]ProjectTarget, error)
+	GetProjectTarget(
+		ctx context.Context,
+		principal UserPrincipal,
+		projectID string,
+		targetID string,
+	) (ProjectTarget, error)
+	UpdateProjectTarget(
+		ctx context.Context,
+		principal UserPrincipal,
+		projectID string,
+		targetID string,
+		req UpdateProjectTargetRequest,
+	) (ProjectTarget, error)
 	ListAgentSessions(
 		ctx context.Context,
 		principal UserPrincipal,

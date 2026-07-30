@@ -34,6 +34,7 @@ type MemoryStore struct {
 	userAPIKeyHashes             map[string]string
 	sessions                     map[string]AgentSession
 	projects                     map[string]Project
+	projectTargets               map[string]ProjectTarget
 	mailbox                      map[int64]MailboxMessage
 	offsets                      map[string]int64
 	nextTransportID              int64
@@ -95,6 +96,7 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		userAPIKeyHashes:             make(map[string]string),
 		sessions:                     make(map[string]AgentSession),
 		projects:                     make(map[string]Project),
+		projectTargets:               make(map[string]ProjectTarget),
 		mailbox:                      make(map[int64]MailboxMessage),
 		offsets:                      make(map[string]int64),
 		transportJournal:             make(map[transportFrameKey]TransportFrame),

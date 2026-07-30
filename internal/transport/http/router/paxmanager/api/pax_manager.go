@@ -169,6 +169,13 @@ func Register(r *server.Hertz) {
 						{
 							_project_id := _projects.Group("/:project_id", _project_idMw()...)
 							_project_id.POST("/archive", append(_archiveprojectMw(), handler.ArchiveProject)...)
+							_project_id.GET("/targets", append(_listprojecttargetsMw(), handler.ListProjectTargets)...)
+							_project_id.POST("/targets", append(_createprojecttargetMw(), handler.CreateProjectTarget)...)
+							{
+								_targets := _project_id.Group("/targets", _targetsMw()...)
+								_targets.GET("/:target_id", append(_getprojecttargetMw(), handler.GetProjectTarget)...)
+								_targets.PATCH("/:target_id", append(_updateprojecttargetMw(), handler.UpdateProjectTarget)...)
+							}
 						}
 					}
 					{
