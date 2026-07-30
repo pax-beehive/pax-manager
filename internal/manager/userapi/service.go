@@ -1741,6 +1741,7 @@ func (s *Service) ListSessions(
 	ownerUserID string,
 	nodeID string,
 	agentID string,
+	primaryProjectID string,
 	pageSize int,
 	pageNum int,
 ) (int, any, error) {
@@ -1757,11 +1758,12 @@ func (s *Service) ListSessions(
 	}
 	pageSize, pageNum = normalizeSessionPagination(pageSize, pageNum)
 	result, err := s.store.ListSessions(c, principal, domain.ListSessionsFilter{
-		OwnerUserID: ownerUserID,
-		NodeIDs:     splitCommaSeparatedIDs(nodeID),
-		AgentIDs:    splitCommaSeparatedIDs(agentID),
-		PageSize:    pageSize,
-		PageNum:     pageNum,
+		OwnerUserID:      ownerUserID,
+		NodeIDs:          splitCommaSeparatedIDs(nodeID),
+		AgentIDs:         splitCommaSeparatedIDs(agentID),
+		PrimaryProjectID: strings.TrimSpace(primaryProjectID),
+		PageSize:         pageSize,
+		PageNum:          pageNum,
 	})
 	if err != nil {
 		return 0, nil, err

@@ -1954,6 +1954,9 @@ func (s *PostgresStore) ListSessions(
 	}
 	addInFilter("agent_sessions.node_id", filter.NodeIDs)
 	addInFilter("agent_sessions.agent_id", filter.AgentIDs)
+	if filter.PrimaryProjectID != "" {
+		addFilter("agent_sessions.primary_project_id =", filter.PrimaryProjectID)
+	}
 	where := " WHERE " + strings.Join(clauses, " AND ")
 	var total int64
 	if err := s.db.QueryRowContext(ctx, `

@@ -21,6 +21,7 @@ type Node = domain.Node
 type Agent = domain.Agent
 type OwnerAgentFilter = domain.OwnerAgentFilter
 type AgentSession = domain.AgentSession
+type ListSessionsFilter = domain.ListSessionsFilter
 type SessionPaxConfig = domain.SessionPaxConfig
 type SessionRuntimeState = domain.SessionRuntimeState
 type MailboxMessage = domain.MailboxMessage

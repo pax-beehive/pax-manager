@@ -125,11 +125,12 @@ type AgentSession struct {
 }
 
 type ListSessionsFilter struct {
-	OwnerUserID string
-	NodeIDs     []string
-	AgentIDs    []string
-	PageSize    int
-	PageNum     int
+	OwnerUserID      string
+	NodeIDs          []string
+	AgentIDs         []string
+	PrimaryProjectID string
+	PageSize         int
+	PageNum          int
 }
 
 type ListSessionsResult struct {

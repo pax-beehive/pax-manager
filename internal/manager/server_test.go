@@ -106,6 +106,7 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/v1/user/{user_id}/projects/{project_id}/archive",
 		"/api/v1/user/{user_id}/projects/{project_id}/targets",
 		"/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}",
+		"/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}/sessions",
 		"/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages",
 		"/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history",
 		"/api/v1/user/{user_id}/sessions/{session_id}/history",
@@ -271,6 +272,7 @@ func TestProjectCRUDHTTPBDD(t *testing.T) {
 func TestProjectTargetCRUDHTTPBDD(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	ownerAgentID := testAgentID(t, srv, "todd@example.com")
+	ownerAgent := getTestAgent(t, srv, "todd@example.com", ownerAgentID)
 
 	request := func(method string, path string, body string) *httptest.ResponseRecorder {
 		t.Helper()
@@ -356,6 +358,43 @@ func TestProjectTargetCRUDHTTPBDD(t *testing.T) {
 		}
 		assert.Equal(t, 1, defaults)
 
+		sessionRec := request(
+			http.MethodPost,
+			targetsPath+"/"+second.TargetID+"/sessions",
+			`{"name":"Target session"}`,
+		)
+		require.Equal(t, http.StatusCreated, sessionRec.Code, sessionRec.Body.String())
+		session := decodeData[domain.AgentSession](t, sessionRec.Body.Bytes())
+		assert.Equal(t, project.ProjectID, session.PrimaryProjectID)
+		assert.Equal(t, ownerAgentID, session.AgentID)
+		assert.Equal(t, second.Cwd, session.PaxConfig.CWD)
+
+		projectlessRec := request(
+			http.MethodPost,
+			"/api/v1/user/self/nodes/"+ownerAgent.NodeID+
+				"/agents/"+ownerAgentID+"/sessions",
+			`{"name":"Projectless session"}`,
+		)
+		require.Equal(t, http.StatusOK, projectlessRec.Code, projectlessRec.Body.String())
+
+		projectSessionsRec := request(
+			http.MethodGet,
+			"/api/v1/user/self/sessions?primary_project_id="+project.ProjectID,
+			"",
+		)
+		require.Equal(
+			t,
+			http.StatusOK,
+			projectSessionsRec.Code,
+			projectSessionsRec.Body.String(),
+		)
+		projectSessions := decodeData[domain.ListSessionsResult](
+			t,
+			projectSessionsRec.Body.Bytes(),
+		)
+		require.Len(t, projectSessions.Sessions, 1)
+		assert.Equal(t, session.SessionID, projectSessions.Sessions[0].SessionID)
+
 		disableRec := request(
 			http.MethodPatch,
 			targetsPath+"/"+second.TargetID,
@@ -367,6 +406,18 @@ func TestProjectTargetCRUDHTTPBDD(t *testing.T) {
 		}](t, disableRec.Body.Bytes()).Target
 		assert.False(t, disabled.Enabled)
 		assert.False(t, disabled.IsDefault)
+
+		disabledSessionRec := request(
+			http.MethodPost,
+			targetsPath+"/"+second.TargetID+"/sessions",
+			`{"name":"Rejected"}`,
+		)
+		assert.Equal(
+			t,
+			http.StatusConflict,
+			disabledSessionRec.Code,
+			disabledSessionRec.Body.String(),
+		)
 	})
 
 	t.Run("given another users agent then target creation hides it", func(t *testing.T) {

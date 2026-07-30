@@ -1029,6 +1029,23 @@
         },
         "type": "object"
       },
+      "CreateProjectTargetSessionRequest": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateRegistrationTokenRequest": {
         "properties": {
           "expires_in_seconds": {
@@ -1768,6 +1785,9 @@
           "page_size": {
             "format": "int32",
             "type": "integer"
+          },
+          "primary_project_id": {
+            "type": "string"
           },
           "user_id": {
             "type": "string"
@@ -10030,6 +10050,121 @@
         ]
       }
     },
+    "/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}/sessions": {
+      "post": {
+        "description": "Creates a session by snapshotting the target Agent, configured cwd, and logical project.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project target identifier.",
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectTargetSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Create session from project target",
+        "tags": [
+          "project"
+        ]
+      }
+    },
     "/api/v1/user/{user_id}/secrets": {
       "get": {
         "description": "Lists secret metadata visible to the current user without returning plaintext values.",
@@ -10372,6 +10507,15 @@
             "description": "Maximum number of sessions per page.",
             "in": "query",
             "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional primary logical project identifier filter.",
+            "in": "query",
+            "name": "primary_project_id",
             "required": false,
             "schema": {
               "type": "string"

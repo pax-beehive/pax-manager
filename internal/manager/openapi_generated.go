@@ -33,6 +33,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/user/:user_id/projects/:project_id/targets", ListProjectTargets)
 	h.GET("/api/v1/user/:user_id/projects/:project_id/targets/:target_id", GetProjectTarget)
 	h.PATCH("/api/v1/user/:user_id/projects/:project_id/targets/:target_id", UpdateProjectTarget)
+	h.POST("/api/v1/user/:user_id/projects/:project_id/targets/:target_id/sessions", CreateProjectTargetSession)
 	h.GET("/api/v1/user/:user_id/nodes", ListNodes)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id", GetNode)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/daemon/status", GetNodeDaemonStatus)

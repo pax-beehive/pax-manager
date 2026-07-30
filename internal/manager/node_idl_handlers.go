@@ -443,6 +443,7 @@ func ListSessions(c context.Context, ctx *app.RequestContext) {
 		ctx.Param("user_id"),
 		string(ctx.QueryArgs().Peek("node_id")),
 		string(ctx.QueryArgs().Peek("agent_id")),
+		string(ctx.QueryArgs().Peek("primary_project_id")),
 		queryInt(ctx, "page_size"),
 		queryInt(ctx, "page_num"),
 	)

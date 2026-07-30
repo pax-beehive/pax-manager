@@ -584,6 +584,7 @@ struct ListUserSessionsRequest {
   3: optional string agent_id (api.query = "agent_id")
   4: optional i32 page_size (api.query = "page_size")
   5: optional i32 page_num (api.query = "page_num")
+  6: optional string primary_project_id (api.query = "primary_project_id")
 }
 
 struct CreateProjectRequest {
@@ -644,6 +645,13 @@ struct UpdateProjectTargetRequest {
   6: optional string cwd
   7: optional bool is_default
   8: optional bool enabled
+}
+
+struct CreateProjectTargetSessionRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string project_id (api.path = "project_id")
+  3: optional string target_id (api.path = "target_id")
+  4: optional string name
 }
 
 struct CreateNodeAgentSessionRequest {
@@ -1547,6 +1555,20 @@ service PaxManagerAPI {
     openapi.path.target_id = "Project target identifier."
   )
 
+  AgentSessionResponse CreateProjectTargetSession(
+    1: optional CreateProjectTargetSessionRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/projects/:project_id/targets/:target_id/sessions",
+    openapi.tag = "project",
+    openapi.summary = "Create session from project target",
+    openapi.description = "Creates a session by snapshotting the target Agent, configured cwd, and logical project.",
+    openapi.status = "201",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.project_id = "Project identifier.",
+    openapi.path.target_id = "Project target identifier."
+  )
+
   NodeListResponse ListNodes(1: optional ListNodesRequest request) (
     api.get = "/api/v1/user/:user_id/nodes",
     openapi.tag = "user",
@@ -1832,6 +1854,7 @@ service PaxManagerAPI {
     openapi.path.user_id = "User identifier or self.",
     openapi.query.node_id = "Optional node identifier filter. Use comma-separated IDs for multiple nodes.",
     openapi.query.agent_id = "Optional agent identifier filter. Use comma-separated IDs for multiple agents.",
+    openapi.query.primary_project_id = "Optional primary logical project identifier filter.",
     openapi.query.page_size = "Maximum number of sessions per page.",
     openapi.query.page_num = "One-based page number."
   )

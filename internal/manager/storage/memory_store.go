@@ -1602,6 +1602,10 @@ func (s *MemoryStore) ListSessions(
 		if len(filter.AgentIDs) > 0 && !containsString(filter.AgentIDs, session.AgentID) {
 			continue
 		}
+		if filter.PrimaryProjectID != "" &&
+			session.PrimaryProjectID != filter.PrimaryProjectID {
+			continue
+		}
 		out = append(out, session)
 	}
 	sortSessionsByActivity(out)

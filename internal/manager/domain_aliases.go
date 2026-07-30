@@ -150,6 +150,7 @@ type UpdateProjectRequest = domain.UpdateProjectRequest
 type ProjectTarget = domain.ProjectTarget
 type CreateProjectTargetRequest = domain.CreateProjectTargetRequest
 type UpdateProjectTargetRequest = domain.UpdateProjectTargetRequest
+type CreateProjectTargetSessionRequest = domain.CreateProjectTargetSessionRequest
 type AgentReportedProject = domain.AgentReportedProject
 type MailboxPull = domain.MailboxPull
 type MailboxFilter = domain.MailboxFilter

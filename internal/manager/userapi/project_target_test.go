@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
@@ -295,6 +296,233 @@ func TestProjectTargetServicePropagatesStorageErrorsBDD(t *testing.T) {
 			Return(domain.ProjectTarget{}, storeErr).
 			Once()
 		_, _, err := svc.UpdateProjectTarget(ctx, meta, "proj_1", "ptgt_1", req)
+		require.ErrorIs(t, err, storeErr)
+	})
+}
+
+func TestCreateProjectTargetSessionBDD(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	meta := auth.RequestMetadata{}
+	principal := userPrincipal("usr_owner", false)
+	target := domain.ProjectTarget{
+		TargetID:    "ptgt_1",
+		ProjectID:   "proj_1",
+		AgentID:     "agent_1",
+		DisplayName: "Mac main",
+		Cwd:         "~/pax_workspace/pax-manager",
+		Enabled:     true,
+	}
+	agent := domain.Agent{
+		AgentID:   "agent_1",
+		NodeID:    "node_1",
+		AgentType: "codex",
+	}
+
+	t.Run("given an enabled target then agent cwd and project are copied into the session", func(t *testing.T) {
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, meta).Return(principal, nil).Once()
+		store.EXPECT().
+			GetProjectTarget(ctx, principal, "proj_1", "ptgt_1").
+			Return(target, nil).
+			Once()
+		store.EXPECT().GetAgent(ctx, principal, "agent_1").Return(agent, nil).Once()
+		store.EXPECT().
+			CreateNodeAgentSession(
+				ctx,
+				principal,
+				domain.CreateSessionRequest{
+					UserID:           principal.User.UserID,
+					NodeID:           "node_1",
+					AgentID:          "agent_1",
+					SessionName:      "Implement target launch",
+					AgentType:        "codex",
+					PrimaryProjectID: "proj_1",
+					Source:           "project_target",
+					PaxConfig: domain.SessionPaxConfig{
+						CWD: "~/pax_workspace/pax-manager",
+					},
+				},
+			).
+			Return(domain.AgentSession{
+				SessionID:        "sess_1",
+				AgentID:          "agent_1",
+				PrimaryProjectID: "proj_1",
+				PaxConfig: domain.SessionPaxConfig{
+					CWD: "~/pax_workspace/pax-manager",
+				},
+			}, nil).
+			Once()
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+
+		status, data, err := svc.CreateProjectTargetSession(
+			ctx,
+			meta,
+			"proj_1",
+			"ptgt_1",
+			domain.CreateProjectTargetSessionRequest{
+				SessionName: " Implement target launch ",
+			},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusCreated, status)
+		session := data.(domain.AgentSession)
+		assert.Equal(t, "proj_1", session.PrimaryProjectID)
+		assert.Equal(t, "~/pax_workspace/pax-manager", session.PaxConfig.CWD)
+	})
+
+	t.Run("given a disabled target then session creation is rejected before agent lookup", func(t *testing.T) {
+		disabled := target
+		disabled.Enabled = false
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, meta).Return(principal, nil).Once()
+		store.EXPECT().
+			GetProjectTarget(ctx, principal, "proj_1", "ptgt_1").
+			Return(disabled, nil).
+			Once()
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+
+		_, _, err := svc.CreateProjectTargetSession(
+			ctx,
+			meta,
+			"proj_1",
+			"ptgt_1",
+			domain.CreateProjectTargetSessionRequest{},
+		)
+		var apiErr apperr.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusConflict, apiErr.Status)
+	})
+}
+
+func TestCreateProjectTargetSessionErrorsBDD(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	meta := auth.RequestMetadata{}
+	principal := userPrincipal("usr_owner", false)
+	target := domain.ProjectTarget{
+		TargetID:    "ptgt_1",
+		ProjectID:   "proj_1",
+		AgentID:     "agent_1",
+		DisplayName: "Mac main",
+		Cwd:         "~/repo",
+		Enabled:     true,
+	}
+	agent := domain.Agent{AgentID: "agent_1", NodeID: "node_1"}
+	storeErr := errors.New("session storage unavailable")
+
+	newService := func(t *testing.T) (*userapi.Service, *userapimocks.MockStore) {
+		t.Helper()
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, meta).Return(principal, nil).Once()
+		return userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		), store
+	}
+
+	t.Run("given a missing target then its lookup error is propagated", func(t *testing.T) {
+		svc, store := newService(t)
+		store.EXPECT().
+			GetProjectTarget(ctx, principal, "proj_1", "ptgt_1").
+			Return(domain.ProjectTarget{}, domain.ErrNotFound).
+			Once()
+
+		_, _, err := svc.CreateProjectTargetSession(
+			ctx,
+			meta,
+			"proj_1",
+			"ptgt_1",
+			domain.CreateProjectTargetSessionRequest{},
+		)
+		require.ErrorIs(t, err, domain.ErrNotFound)
+	})
+
+	t.Run("given a missing target agent then its lookup error is propagated", func(t *testing.T) {
+		svc, store := newService(t)
+		store.EXPECT().
+			GetProjectTarget(ctx, principal, "proj_1", "ptgt_1").
+			Return(target, nil).
+			Once()
+		store.EXPECT().
+			GetAgent(ctx, principal, "agent_1").
+			Return(domain.Agent{}, domain.ErrNotFound).
+			Once()
+
+		_, _, err := svc.CreateProjectTargetSession(
+			ctx,
+			meta,
+			"proj_1",
+			"ptgt_1",
+			domain.CreateProjectTargetSessionRequest{},
+		)
+		require.ErrorIs(t, err, domain.ErrNotFound)
+	})
+
+	t.Run("given an overlong name then persistence is not called", func(t *testing.T) {
+		svc, store := newService(t)
+		store.EXPECT().
+			GetProjectTarget(ctx, principal, "proj_1", "ptgt_1").
+			Return(target, nil).
+			Once()
+		store.EXPECT().GetAgent(ctx, principal, "agent_1").Return(agent, nil).Once()
+
+		_, _, err := svc.CreateProjectTargetSession(
+			ctx,
+			meta,
+			"proj_1",
+			"ptgt_1",
+			domain.CreateProjectTargetSessionRequest{
+				SessionName: strings.Repeat("s", 121),
+			},
+		)
+		var apiErr apperr.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusBadRequest, apiErr.Status)
+	})
+
+	t.Run("given a session persistence failure then the error is propagated", func(t *testing.T) {
+		svc, store := newService(t)
+		store.EXPECT().
+			GetProjectTarget(ctx, principal, "proj_1", "ptgt_1").
+			Return(target, nil).
+			Once()
+		store.EXPECT().GetAgent(ctx, principal, "agent_1").Return(agent, nil).Once()
+		store.EXPECT().
+			CreateNodeAgentSession(
+				ctx,
+				principal,
+				mock.MatchedBy(func(req domain.CreateSessionRequest) bool {
+					return req.PrimaryProjectID == "proj_1" && req.PaxConfig.CWD == "~/repo"
+				}),
+			).
+			Return(domain.AgentSession{}, storeErr).
+			Once()
+
+		_, _, err := svc.CreateProjectTargetSession(
+			ctx,
+			meta,
+			"proj_1",
+			"ptgt_1",
+			domain.CreateProjectTargetSessionRequest{},
+		)
 		require.ErrorIs(t, err, storeErr)
 	})
 }

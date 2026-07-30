@@ -192,6 +192,9 @@ CREATE INDEX IF NOT EXISTS idx_sessions_agent ON agent_sessions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_native ON agent_sessions(agent_id, native_id)
     WHERE native_id IS NOT NULL AND native_id <> '';
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON agent_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_sessions_primary_project
+    ON agent_sessions(primary_project_id)
+    WHERE primary_project_id IS NOT NULL AND primary_project_id <> '';
 
 CREATE TABLE IF NOT EXISTS mailbox (
     id BIGSERIAL PRIMARY KEY,

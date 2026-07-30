@@ -23,4 +23,5 @@ func TestPostgresSchemaGivenSessionsThenDefinesOnlyThePrimaryLogicalProjectField
 		"ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS primary_project_id TEXT",
 	)
 	assert.Contains(t, sql, "ALTER TABLE agent_sessions DROP COLUMN IF EXISTS project_id")
+	assert.Contains(t, sql, "idx_sessions_primary_project")
 }
