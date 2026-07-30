@@ -360,6 +360,25 @@ request from the built-in admin list plus current `ADMIN_EMAILS`.
 The agent-scoped message create route is for bootstrap or agent-level commands.
 Once a session exists, send messages through the session-scoped route.
 
+### Logical Projects
+
+Logical Projects group sessions separately from repositories. Reusable Targets
+bind a Project to an Agent and working-directory intent:
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` / `GET` | `/api/v1/user/{user_id}/projects` | Create or list Projects. |
+| `GET` / `PATCH` | `/api/v1/user/{user_id}/projects/{project_id}` | Read, rename, or move a Project. |
+| `POST` | `/api/v1/user/{user_id}/projects/{project_id}/archive` | Soft-archive a Project. |
+| `POST` / `GET` | `/api/v1/user/{user_id}/projects/{project_id}/targets` | Create or list reusable workspace Targets. |
+| `GET` / `PATCH` | `/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}` | Read or update a Target. |
+| `POST` | `/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}/sessions` | Start a Session with the Target's Agent and workspace. |
+
+`agent_sessions.primary_project_id` is optional and immutable after creation.
+The flat Session list accepts a `primary_project_id` filter. See
+[`docs/logical_projects.md`](docs/logical_projects.md) for persistence,
+ownership, and launch semantics.
+
 ### Create a Platform API Key
 
 Users can generate platform API key records:
