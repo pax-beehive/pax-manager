@@ -520,7 +520,11 @@ func endpointErrorStatus(err error) (int, string) {
 func writeHTTPError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+	_ = json.NewEncoder(w).Encode(apiResponse{
+		Data:    nil,
+		Code:    status,
+		Message: message,
+	})
 }
 
 func serviceFromContext(ctx *app.RequestContext) *Service {

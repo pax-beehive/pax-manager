@@ -3808,6 +3808,7 @@ func TestConversationGivenAlreadyRespondedApprovalWhenResumingThenDoesNotSendDup
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
 	events := decodeConversationEvents(t, body)
 	errorEvent := requireConversationEvent(t, events, "error")
+	assert.Equal(t, http.StatusConflict, errorEvent.StatusCode)
 	assert.Contains(t, errorEvent.Message, "approval response already sent")
 	assertNoManagerToAgentData(t, agentWS)
 }
@@ -4066,6 +4067,7 @@ func TestConversationPromptReturnsErrorAfterIdleTimeout(t *testing.T) {
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
 	events := decodeConversationEvents(t, body)
 	errorEvent := requireConversationEvent(t, events, "error")
+	assert.Equal(t, http.StatusGatewayTimeout, errorEvent.StatusCode)
 	assert.Contains(t, errorEvent.Message, "ACP request idle timed out: session/prompt")
 }
 
@@ -4267,11 +4269,12 @@ func TestConversationRejectsInvalidRequestsBeforeClaim(t *testing.T) {
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 
 	cases := []struct {
-		name   string
-		method string
-		body   string
-		path   string
-		want   int
+		name        string
+		method      string
+		body        string
+		path        string
+		want        int
+		wantMessage string
 	}{
 		{
 			name:   "method not allowed",
@@ -4279,7 +4282,8 @@ func TestConversationRejectsInvalidRequestsBeforeClaim(t *testing.T) {
 			body:   `{"input":"hello"}`,
 			path: "/api/v1/user/self/nodes/" + fixture.nodeID +
 				"/agents/" + fixture.agentID + "/conversation",
-			want: http.StatusMethodNotAllowed,
+			want:        http.StatusMethodNotAllowed,
+			wantMessage: "method not allowed",
 		},
 		{
 			name:   "invalid json body",
@@ -4287,7 +4291,8 @@ func TestConversationRejectsInvalidRequestsBeforeClaim(t *testing.T) {
 			body:   `{`,
 			path: "/api/v1/user/self/nodes/" + fixture.nodeID +
 				"/agents/" + fixture.agentID + "/conversation",
-			want: http.StatusBadRequest,
+			want:        http.StatusBadRequest,
+			wantMessage: "invalid JSON body",
 		},
 		{
 			name:   "empty input",
@@ -4295,14 +4300,16 @@ func TestConversationRejectsInvalidRequestsBeforeClaim(t *testing.T) {
 			body:   `{"input":"   "}`,
 			path: "/api/v1/user/self/nodes/" + fixture.nodeID +
 				"/agents/" + fixture.agentID + "/conversation",
-			want: http.StatusBadRequest,
+			want:        http.StatusBadRequest,
+			wantMessage: "input or content is required",
 		},
 		{
-			name:   "missing route ids",
-			method: http.MethodPost,
-			body:   `{"input":"hello"}`,
-			path:   "/api/v1/user/self/conversation",
-			want:   http.StatusBadRequest,
+			name:        "missing route ids",
+			method:      http.MethodPost,
+			body:        `{"input":"hello"}`,
+			path:        "/api/v1/user/self/conversation",
+			want:        http.StatusBadRequest,
+			wantMessage: "node_id and agent_id are required",
 		},
 	}
 
@@ -4313,9 +4320,13 @@ func TestConversationRejectsInvalidRequestsBeforeClaim(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 			srv.handleConversation(rec, req)
-			if rec.Code != tc.want {
-				t.Fatalf("code = %d, want %d body = %s", rec.Code, tc.want, rec.Body.String())
-			}
+
+			assert.Equal(t, tc.want, rec.Code)
+			var response apiResponse
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+			assert.Equal(t, tc.want, response.Code)
+			assert.Equal(t, tc.wantMessage, response.Message)
+			assert.Nil(t, response.Data)
 		})
 	}
 }
@@ -4368,9 +4379,11 @@ func TestConversationReturnsHTTPErrorWhenSessionNewFailsBeforeStream(t *testing.
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusBadGateway)
-	if !strings.Contains(string(body), "session create failed") {
-		t.Fatalf("body = %s, want ACP error message", body)
-	}
+	var response apiResponse
+	require.NoError(t, json.Unmarshal(body, &response))
+	assert.Equal(t, http.StatusBadGateway, response.Code)
+	assert.Equal(t, "session create failed", response.Message)
+	assert.Nil(t, response.Data)
 }
 
 func TestConversationHelpersCoverErrorBranches(t *testing.T) {

@@ -40,6 +40,7 @@ type conversationEvent struct {
 	NodeID     string          `json:"node_id,omitempty"`
 	AgentID    string          `json:"agent_id,omitempty"`
 	SessionID  string          `json:"session_id,omitempty"`
+	StatusCode int             `json:"status_code,omitempty"`
 	TurnID     string          `json:"turn_id,omitempty"`
 	MessageID  string          `json:"message_id,omitempty"`
 	Status     string          `json:"status,omitempty"`
@@ -205,12 +206,14 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 		err = s.promptConversation(r.Context(), w, flusher, &runner, session, prompt)
 	}
 	if err != nil {
+		status, _ := endpointErrorStatus(err)
 		_ = s.writeConversationEvent(w, flusher, conversationEvent{
-			Type:      "error",
-			NodeID:    agent.NodeID,
-			AgentID:   agent.AgentID,
-			SessionID: session.managerID,
-			Message:   err.Error(),
+			Type:       "error",
+			NodeID:     agent.NodeID,
+			AgentID:    agent.AgentID,
+			SessionID:  session.managerID,
+			StatusCode: status,
+			Message:    err.Error(),
 		})
 	}
 }
