@@ -3146,7 +3146,7 @@ func TestConversationMissingPaxdRouteResumesOnceThenRetriesPrompt(t *testing.T) 
 	}
 }
 
-func TestConversationDifferentSessionsPromptConcurrentlyOnDevPool(t *testing.T) {
+func TestConversationDifferentSessionsPromptConcurrentlyOnReadyReleasedPool(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 	createConversationTestSession(t, srv, fixture, "sess-a", "native-a")
@@ -3179,7 +3179,7 @@ func TestConversationDifferentSessionsPromptConcurrentlyOnDevPool(t *testing.T) 
 		"acp_pool_capability_report": map[string]any{
 			"connection_id":     poolConnectionID,
 			"report_generation": 1,
-			"paxd_version":      "dev",
+			"paxd_version":      "0.1.26",
 			"init_phase":        "ready",
 		},
 	})

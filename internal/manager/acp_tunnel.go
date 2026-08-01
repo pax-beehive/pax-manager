@@ -58,7 +58,6 @@ type ACPTunnelAgent struct {
 	reliableEngine    *reliablemq.Engine
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
-	internalRollout   bool
 	live              *acpTunnelLiveState
 }
 
@@ -440,9 +439,7 @@ func (a *ACPTunnelAgent) concurrentTurnsReady(ctx context.Context) bool {
 		return false
 	}
 	report := metadata.Report
-	rolloutEligible := a.internalRollout || strings.EqualFold(report.PaxdVersion, "dev")
-	return rolloutEligible &&
-		metadata.Runtime.ConnectionID != "" &&
+	return metadata.Runtime.ConnectionID != "" &&
 		report.ConnectionID == metadata.Runtime.ConnectionID &&
 		report.ReportGeneration > 0 &&
 		strings.EqualFold(report.InitPhase, "ready")
@@ -998,20 +995,15 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	internalRollout := false
-	if owner, ownerErr := s.store.GetUser(r.Context(), initial.OwnerUserID); ownerErr == nil {
-		internalRollout = s.cfg.AdminEmails[normalizeEmail(owner.Email)]
-	}
 	conn := &ACPTunnelAgent{
-		agentID:         initial.AgentID,
-		connectionID:    firstNonEmpty(initial.ConnectionID, initial.AgentID),
-		nodeID:          initial.NodeID,
-		ownerUserID:     initial.OwnerUserID,
-		sessionID:       initial.SessionID,
-		ws:              ws,
-		store:           s.store,
-		transportStore:  s.transportStore,
-		internalRollout: internalRollout,
+		agentID:        initial.AgentID,
+		connectionID:   firstNonEmpty(initial.ConnectionID, initial.AgentID),
+		nodeID:         initial.NodeID,
+		ownerUserID:    initial.OwnerUserID,
+		sessionID:      initial.SessionID,
+		ws:             ws,
+		store:          s.store,
+		transportStore: s.transportStore,
 	}
 	if s.transportProducers == nil {
 		_ = ws.Close()
