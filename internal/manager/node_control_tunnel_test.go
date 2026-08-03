@@ -13,8 +13,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 func TestNodeControlHeartbeatReportRefreshesNodeLease(t *testing.T) {
@@ -882,6 +883,65 @@ func TestSessionRuntimeResetEndpointForwardsCanonicalCompareIdentity(t *testing.
 	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
 	response := decodeData[map[string]any](t, rec.Body.Bytes())
 	require.Equal(t, "accepted_pending", response["status"])
+}
+
+func TestNodeControlSessionRuntimeSnapshotRejectsInvalidOrFencedReports(t *testing.T) {
+	t.Run("Given the report payload is missing then it is rejected", func(t *testing.T) {
+		err := new(Server).replaceSessionRuntimeSnapshot(
+			context.Background(),
+			Node{NodeID: "node_1", OwnerUserID: "user_1"},
+			"fence_1",
+			nodeControlReport{},
+		)
+
+		require.EqualError(t, err, "session_runtime.snapshot report missing session_runtime_snapshot")
+	})
+
+	t.Run("Given the schema version is unsupported then it is rejected", func(t *testing.T) {
+		err := new(Server).replaceSessionRuntimeSnapshot(
+			context.Background(),
+			Node{NodeID: "node_1", OwnerUserID: "user_1"},
+			"fence_1",
+			nodeControlReport{SessionRuntimeSnapshot: &nodeControlSessionRuntimeSnapshot{SchemaVersion: 2}},
+		)
+
+		require.EqualError(t, err, "unsupported session runtime schema version 2")
+	})
+
+	t.Run("Given runtime snapshot storage is unavailable then it is rejected", func(t *testing.T) {
+		err := new(Server).replaceSessionRuntimeSnapshot(
+			context.Background(),
+			Node{NodeID: "node_1", OwnerUserID: "user_1"},
+			"fence_1",
+			validNodeControlSessionRuntimeReport("agent_1"),
+		)
+
+		require.EqualError(t, err, "session runtime snapshot store is unavailable")
+	})
+
+	t.Run("Given a stale connection fence then it cannot mutate runtime state", func(t *testing.T) {
+		srv, registered := testNodeControlServer(t, "todd@example.com")
+
+		err := srv.replaceSessionRuntimeSnapshot(
+			context.Background(),
+			Node{NodeID: registered.NodeID, OwnerUserID: registered.Agent.OwnerUserID},
+			"stale_fence",
+			validNodeControlSessionRuntimeReport(registered.AgentID),
+		)
+
+		require.EqualError(t, err, "session runtime snapshot came from a fenced connection")
+	})
+}
+
+func validNodeControlSessionRuntimeReport(agentID string) nodeControlReport {
+	return nodeControlReport{SessionRuntimeSnapshot: &nodeControlSessionRuntimeSnapshot{
+		AgentID: agentID, Sequence: 1, SchemaVersion: 1,
+		GeneratedAt: time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC),
+		ActiveTurns: []nodeControlSessionRuntimeActiveTurn{{
+			NativeSessionID: "native_1", TurnInstanceID: "turn_1",
+			PromptRequestID: json.RawMessage(`1`), RuntimeStatus: domain.RuntimeStatusRunning,
+		}},
+	}}
 }
 
 func TestNodeControlRejectsMismatchedReportNodeIDWithoutRefreshingLease(t *testing.T) {
