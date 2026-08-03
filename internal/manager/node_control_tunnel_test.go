@@ -793,6 +793,97 @@ func TestNodeControlSessionRuntimeSnapshotReconcilesActiveThenAbsentSession(t *t
 	}, time.Second, 10*time.Millisecond)
 }
 
+func TestSessionRuntimeResetEndpointForwardsCanonicalCompareIdentity(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{
+		"kind":"report","version":1,"report_id":"rpt_inventory",
+		"report":{"type":"runtime.snapshot","remote_id":"remote_prod","node_id":%q,
+		"sent_at":"2026-08-03T12:00:00Z","runtime_snapshot":{"snapshot_id":"snap_1","agents":[{
+			"connection_id":"conn_1","cloud_agent_id":%q,"remote_id":"remote_prod",
+			"name":"codex-main","agent_type":"codex","runtime_phase":"running"
+		}]}}
+	}`, registered.NodeID, registered.AgentID))))
+	require.Eventually(t, func() bool {
+		remoteID, err := srv.nodeControls.RemoteID(registered.NodeID)
+		return err == nil && remoteID == "remote_prod"
+	}, time.Second, 10*time.Millisecond)
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{
+		"kind":"report","version":1,"report_id":"rpt_session_1",
+		"report":{"type":"session_runtime.snapshot","remote_id":"remote_prod","node_id":%q,
+		"sent_at":"2026-08-03T12:00:00Z","session_runtime_snapshot":{
+			"agent_id":%q,"connection_id":"conn_1","sequence":1,
+			"generated_at":"2026-08-03T12:00:00Z","schema_version":1,"active_turns":[{
+				"native_session_id":"native_1","turn_instance_id":"turn_1",
+				"prompt_request_id":1,"runtime_status":"running"
+			}]}}
+	}`, registered.NodeID, registered.AgentID))))
+	principal := UserPrincipal{User: User{UserID: registered.Agent.OwnerUserID}}
+	var session AgentSession
+	require.Eventually(t, func() bool {
+		sessions, err := srv.store.ListAgentSessions(t.Context(), principal, registered.AgentID)
+		if err != nil || len(sessions) != 1 || sessions[0].RuntimeTurnInstanceID != "turn_1" {
+			return false
+		}
+		session = sessions[0]
+		return true
+	}, time.Second, 10*time.Millisecond)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/agents/"+registered.AgentID+"/sessions/"+session.SessionID+"/runtime/reset",
+		strings.NewReader(`{"expected_turn_instance_id":"turn_1"}`),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		srv.handleSessionRuntimeReset(rec, req)
+	}()
+
+	_, commandPayload, err := ws.ReadMessage()
+	require.NoError(t, err)
+	var commandFrame struct {
+		CommandID string `json:"command_id"`
+		Command   struct {
+			Type  string `json:"type"`
+			Reset struct {
+				AgentID                string `json:"agent_id"`
+				ConnectionID           string `json:"connection_id"`
+				NativeSessionID        string `json:"native_session_id"`
+				ExpectedTurnInstanceID string `json:"expected_turn_instance_id"`
+			} `json:"reset_session_runtime"`
+		} `json:"command"`
+	}
+	require.NoError(t, json.Unmarshal(commandPayload, &commandFrame))
+	require.Equal(t, "session_runtime.reset", commandFrame.Command.Type)
+	require.Equal(t, registered.AgentID, commandFrame.Command.Reset.AgentID)
+	require.Equal(t, "conn_1", commandFrame.Command.Reset.ConnectionID)
+	require.Equal(t, "native_1", commandFrame.Command.Reset.NativeSessionID)
+	require.Equal(t, "turn_1", commandFrame.Command.Reset.ExpectedTurnInstanceID)
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{
+		"kind":"ack","command_id":%q,"command_ack":{
+			"command_id":%q,"ok":true,"status":"applied",
+			"result":{"session_runtime_reset":{"status":"suppressed","projection_revision":2}}
+		}
+	}`, commandFrame.CommandID, commandFrame.CommandID))))
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("runtime reset endpoint did not complete")
+	}
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	response := decodeData[map[string]any](t, rec.Body.Bytes())
+	require.Equal(t, "accepted_pending", response["status"])
+}
+
 func TestNodeControlRejectsMismatchedReportNodeIDWithoutRefreshingLease(t *testing.T) {
 	srv, registered := testNodeControlServer(t, "todd@example.com")
 	nodeBefore := getNode(t, srv, registered.APIKey)

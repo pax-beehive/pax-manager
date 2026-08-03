@@ -564,6 +564,37 @@ func addACPWebSocketPaths(doc map[string]any) {
 			},
 		},
 	}
+	paths[openAPIUserSessionRuntimeResetPath] = map[string]any{
+		"post": map[string]any{
+			"tags":        []string{"ACP"},
+			"summary":     "Reset a stale displayed session runtime status",
+			"description": "Requests a compare-and-reset projection suppression in paxd. This corrects display state and does not cancel the underlying task.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  turnControlParameters,
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{
+							"type":     "object",
+							"required": []string{"expected_turn_instance_id"},
+							"properties": map[string]any{
+								"expected_turn_instance_id": map[string]string{"type": "string"},
+							},
+						},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"202": map[string]string{"description": "Reset accepted; a complete runtime snapshot is pending."},
+				"400": map[string]string{"description": "Expected turn identity is missing."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Agent or session was not found."},
+				"409": map[string]string{"description": "The active turn changed or runtime mapping is unavailable."},
+				"503": map[string]string{"description": "Node control tunnel is unavailable."},
+			},
+		},
+	}
 }
 
 func addPaxdArtifactPaths(doc map[string]any) {

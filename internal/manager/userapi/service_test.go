@@ -343,6 +343,49 @@ func TestNodeDaemonQueries(t *testing.T) {
 	})
 }
 
+func TestResetSessionRuntimeDispatchesCompareAndResetCommand(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	store := userapimocks.NewMockStore(t)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	secrets := userapimocks.NewMockSecretIssuer(t)
+	client := &fakeNodeControlClient{
+		remoteID: "remote_prod",
+		commandAck: json.RawMessage(`{
+			"command_id":"ctlcmd_1","ok":true,"status":"applied",
+			"result":{"session_runtime_reset":{"status":"suppressed","projection_revision":9}}
+		}`),
+	}
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+	store.EXPECT().GetSession(ctx, principal, "sess_1").Return(domain.AgentSession{
+		AgentID: "agent_1", SessionID: "sess_1", NodeID: "node_1", NativeID: "native_1",
+		RuntimeStatus: domain.RuntimeStatusRunning, RuntimeTurnInstanceID: "turn_1",
+	}, nil).Once()
+	store.EXPECT().GetAgent(ctx, principal, "agent_1").Return(domain.Agent{
+		AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self",
+		Metadata: json.RawMessage(`{"runtime":{"connection_id":"conn_1"}}`),
+	}, nil).Once()
+	secrets.EXPECT().New("ctlcmd").Return("ctlcmd_1", nil).Once()
+
+	svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+	svc.SetNodeControlClient(client)
+	status, data, err := svc.ResetSessionRuntime(
+		ctx, auth.RequestMetadata{}, "agent_1", "sess_1", "turn_1",
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, status)
+	response := data.(map[string]any)
+	require.Equal(t, "accepted_pending", response["status"])
+	require.Equal(t, "suppressed", response["reset_status"])
+	require.Equal(t, "node_1", client.nodeID)
+	command := client.command.(map[string]any)
+	require.Equal(t, "session_runtime.reset", command["type"])
+	reset := command["reset_session_runtime"].(map[string]any)
+	require.Equal(t, "turn_1", reset["expected_turn_instance_id"])
+	require.Equal(t, "native_1", reset["native_session_id"])
+}
+
 func TestUpdateNodeAgentSessionName(t *testing.T) {
 	t.Run("Given a valid name then it trims and updates the session", func(t *testing.T) {
 		ctx := context.Background()

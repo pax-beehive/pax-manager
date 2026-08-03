@@ -368,6 +368,10 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		adaptor.HertzHandler(http.HandlerFunc(s.handleSessionObserverEvents)),
 	)
 	h.POST(
+		routeUserSessionRuntimeReset,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleSessionRuntimeReset)),
+	)
+	h.POST(
 		routeUserConversation,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleConversation)),
 	)

@@ -1735,6 +1735,129 @@ func (s *Service) ListAgentSessions(
 	return http.StatusOK, map[string]any{"sessions": sessions}, nil
 }
 
+func (s *Service) ResetSessionRuntime(
+	c context.Context,
+	meta auth.RequestMetadata,
+	agentID string,
+	sessionID string,
+	expectedTurnInstanceID string,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	agentID = strings.TrimSpace(agentID)
+	sessionID = strings.TrimSpace(sessionID)
+	expectedTurnInstanceID = strings.TrimSpace(expectedTurnInstanceID)
+	if agentID == "" || sessionID == "" || expectedTurnInstanceID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "agent_id, session_id, and expected_turn_instance_id are required",
+		}
+	}
+	session, err := s.sessionTarget(c, principal, agentID, sessionID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if session.RuntimeTurnInstanceID != expectedTurnInstanceID {
+		return 0, nil, apperr.Error{
+			Status: http.StatusConflict, Message: "session runtime turn has changed",
+		}
+	}
+	if strings.TrimSpace(session.NativeID) == "" {
+		return 0, nil, apperr.Error{
+			Status: http.StatusConflict, Message: "session has no native runtime identity",
+		}
+	}
+	agent, err := s.store.GetAgent(c, principal, agentID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if agent.NodeID == "" || session.NodeID != "" && session.NodeID != agent.NodeID {
+		return 0, nil, domain.ErrNotFound
+	}
+	connectionID := runtimeConnectionID(agent.Metadata)
+	if connectionID == "" {
+		return 0, nil, apperr.Error{
+			Status: http.StatusConflict, Message: "agent has no daemon runtime connection",
+		}
+	}
+	if s.nodeControl == nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	if _, err := s.nodeControl.RemoteID(agent.NodeID); err != nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	commandID, err := s.secrets.New("ctlcmd")
+	if err != nil {
+		return 0, nil, err
+	}
+	ackRaw, err := s.nodeControl.Command(c, agent.NodeID, commandID, map[string]any{
+		"command_id": commandID,
+		"type":       "session_runtime.reset",
+		"reset_session_runtime": map[string]any{
+			"agent_id":                  agentID,
+			"connection_id":             connectionID,
+			"native_session_id":         session.NativeID,
+			"expected_turn_instance_id": expectedTurnInstanceID,
+		},
+	})
+	if err != nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	var ack struct {
+		OK     bool   `json:"ok"`
+		Status string `json:"status"`
+		Error  *struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+		Result *struct {
+			SessionRuntimeReset *struct {
+				Status             string `json:"status"`
+				ProjectionRevision uint64 `json:"projection_revision"`
+			} `json:"session_runtime_reset"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(ackRaw, &ack); err != nil {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadGateway, Message: "invalid session runtime reset acknowledgement",
+		}
+	}
+	if !ack.OK || ack.Result == nil || ack.Result.SessionRuntimeReset == nil {
+		message := "session runtime reset was rejected"
+		if ack.Error != nil && strings.TrimSpace(ack.Error.Message) != "" {
+			message = ack.Error.Message
+		}
+		return 0, nil, apperr.Error{Status: http.StatusConflict, Message: message}
+	}
+	reset := ack.Result.SessionRuntimeReset
+	if reset.Status == "conflict" {
+		return 0, nil, apperr.Error{
+			Status: http.StatusConflict, Message: "session runtime turn has changed",
+		}
+	}
+	return http.StatusAccepted, map[string]any{
+		"status":                    "accepted_pending",
+		"reset_status":              reset.Status,
+		"projection_revision":       reset.ProjectionRevision,
+		"expected_turn_instance_id": expectedTurnInstanceID,
+		"command_id":                commandID,
+	}, nil
+}
+
+func runtimeConnectionID(metadata json.RawMessage) string {
+	var value struct {
+		Runtime struct {
+			ConnectionID string `json:"connection_id"`
+		} `json:"runtime"`
+	}
+	if json.Unmarshal(metadata, &value) != nil {
+		return ""
+	}
+	return strings.TrimSpace(value.Runtime.ConnectionID)
+}
+
 func (s *Service) ListSessions(
 	c context.Context,
 	meta auth.RequestMetadata,
