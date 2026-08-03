@@ -11,6 +11,10 @@ import (
 )
 
 const (
+	maxRuntimeSnapshotActiveTurns = 1024
+	maxRuntimeIdentifierBytes     = 512
+	maxRuntimePromptRequestBytes  = 512
+
 	RuntimeLifecycleIdle            = "idle"
 	RuntimeLifecycleRunning         = "running"
 	RuntimeLifecycleWaitingApproval = "waiting_approval"
@@ -104,11 +108,20 @@ func (s AgentRuntimeSnapshot) Validate() error {
 	if strings.TrimSpace(s.AgentID) == "" {
 		return fmt.Errorf("%w: agent_id is required", ErrInvalidRuntimeSnapshot)
 	}
+	if len(s.AgentID) > maxRuntimeIdentifierBytes {
+		return fmt.Errorf("%w: agent_id is too long", ErrInvalidRuntimeSnapshot)
+	}
 	if strings.TrimSpace(s.ConnectionFence) == "" {
 		return fmt.Errorf("%w: connection fence is required", ErrInvalidRuntimeSnapshot)
 	}
+	if len(s.ConnectionFence) > maxRuntimeIdentifierBytes {
+		return fmt.Errorf("%w: connection fence is too long", ErrInvalidRuntimeSnapshot)
+	}
 	if s.Sequence <= 0 {
 		return fmt.Errorf("%w: sequence must be positive", ErrInvalidRuntimeSnapshot)
+	}
+	if len(s.ActiveTurns) > maxRuntimeSnapshotActiveTurns {
+		return fmt.Errorf("%w: active_turns exceeds limit", ErrInvalidRuntimeSnapshot)
 	}
 	nativeSessions := make(map[string]struct{}, len(s.ActiveTurns))
 	turnInstances := make(map[string]struct{}, len(s.ActiveTurns))
@@ -132,11 +145,23 @@ func (t ActiveTurnSnapshot) validate() error {
 	if strings.TrimSpace(t.NativeSessionID) == "" {
 		return errors.New("native_session_id is required")
 	}
+	if len(t.NativeSessionID) > maxRuntimeIdentifierBytes {
+		return errors.New("native_session_id is too long")
+	}
 	if strings.TrimSpace(t.TurnInstanceID) == "" {
 		return errors.New("turn_instance_id is required")
 	}
+	if len(t.TurnInstanceID) > maxRuntimeIdentifierBytes {
+		return errors.New("turn_instance_id is too long")
+	}
+	if len(t.PendingApprovalID) > maxRuntimeIdentifierBytes {
+		return errors.New("pending_approval_id is too long")
+	}
 	if t.RuntimeStatus != RuntimeStatusRunning && t.RuntimeStatus != RuntimeStatusWaitingApproval {
 		return errors.New("runtime_status must be running or waiting_approval")
+	}
+	if len(t.PromptRequestID) > maxRuntimePromptRequestBytes {
+		return errors.New("prompt_request_id is too long")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(t.PromptRequestID))
 	decoder.UseNumber()

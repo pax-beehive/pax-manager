@@ -3,8 +3,10 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -188,6 +190,15 @@ func TestMemoryRuntimeSnapshotReconciliation(t *testing.T) {
 }
 
 func TestActiveTurnSnapshotValidation(t *testing.T) {
+	tooManyTurns := make([]domain.ActiveTurnSnapshot, 1025)
+	for index := range tooManyTurns {
+		tooManyTurns[index] = domain.ActiveTurnSnapshot{
+			NativeSessionID: fmt.Sprintf("native_%d", index),
+			TurnInstanceID:  fmt.Sprintf("turn_%d", index),
+			PromptRequestID: json.RawMessage(`1`),
+			RuntimeStatus:   domain.RuntimeStatusRunning,
+		}
+	}
 	tests := []struct {
 		name     string
 		snapshot domain.AgentRuntimeSnapshot
@@ -195,6 +206,12 @@ func TestActiveTurnSnapshotValidation(t *testing.T) {
 		{name: "empty agent", snapshot: runtimeSnapshot("", "fence", 1)},
 		{name: "empty fence", snapshot: runtimeSnapshot("agent", "", 1)},
 		{name: "zero sequence", snapshot: runtimeSnapshot("agent", "fence", 0)},
+		{name: "too many active turns", snapshot: runtimeSnapshot("agent", "fence", 1, tooManyTurns...)},
+		{name: "oversized agent id", snapshot: runtimeSnapshot(strings.Repeat("a", 513), "fence", 1)},
+		{name: "oversized native session id", snapshot: runtimeSnapshot(
+			"agent", "fence", 1,
+			domain.ActiveTurnSnapshot{NativeSessionID: strings.Repeat("n", 513), TurnInstanceID: "turn", PromptRequestID: json.RawMessage(`1`), RuntimeStatus: domain.RuntimeStatusRunning},
+		)},
 		{name: "duplicate native session", snapshot: runtimeSnapshot(
 			"agent", "fence", 1,
 			domain.ActiveTurnSnapshot{NativeSessionID: "native", TurnInstanceID: "turn_1", PromptRequestID: json.RawMessage(`1`), RuntimeStatus: domain.RuntimeStatusRunning},
