@@ -273,6 +273,8 @@ struct AgentSession {
   26: optional string last_user_message_at
   27: optional string reported_name
   28: optional bool name_is_custom
+  29: optional string runtime_status
+  30: optional string runtime_turn_instance_id
 }
 
 struct Project {

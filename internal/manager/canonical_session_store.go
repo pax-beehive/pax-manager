@@ -14,6 +14,26 @@ func newCanonicalSessionStore(store domain.Store) domain.Store {
 	return canonicalSessionStore{Store: store}
 }
 
+func (s canonicalSessionStore) ActivateNodeRuntimeFence(ctx context.Context, node domain.Node, fence string) error {
+	runtimeStore, ok := s.Store.(domain.SessionRuntimeSnapshotStore)
+	if !ok {
+		return domain.ErrConflict
+	}
+	return runtimeStore.ActivateNodeRuntimeFence(ctx, node, fence)
+}
+
+func (s canonicalSessionStore) ReplaceAgentActiveTurns(
+	ctx context.Context,
+	node domain.Node,
+	snapshot domain.AgentRuntimeSnapshot,
+) (domain.ReplaceAgentActiveTurnsResult, error) {
+	runtimeStore, ok := s.Store.(domain.SessionRuntimeSnapshotStore)
+	if !ok {
+		return domain.ReplaceAgentActiveTurnsResult{}, domain.ErrConflict
+	}
+	return runtimeStore.ReplaceAgentActiveTurns(ctx, node, snapshot)
+}
+
 func (s canonicalSessionStore) UpsertMessage(ctx context.Context, msg *domain.Message) error {
 	if msg != nil && msg.AgentID != "" && msg.SessionID != "" && msg.OwnerUserID != "" {
 		sessionID, err := s.canonicalSessionID(ctx, msg.OwnerUserID, msg.AgentID, msg.SessionID)

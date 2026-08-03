@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -747,6 +749,48 @@ func TestNodeControlRuntimeSnapshotPersistsACPPoolCapabilityReport(t *testing.T)
 	require.Equal(t, int64(7), report.ReportGeneration)
 	require.Equal(t, 1, report.ProtocolVersion)
 	require.Equal(t, "fingerprint_1", report.CommandFingerprint)
+}
+
+func TestNodeControlSessionRuntimeSnapshotReconcilesActiveThenAbsentSession(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+
+	writeSessionRuntimeReport := func(sequence int, activeTurns string) {
+		require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{
+			"kind":"report","version":1,"report_id":"rpt_session_%d",
+			"report":{
+				"type":"session_runtime.snapshot","remote_id":"remote_prod",
+				"node_id":%q,"sent_at":"2026-08-03T12:00:00Z",
+				"session_runtime_snapshot":{
+					"agent_id":%q,"connection_id":"conn_1","sequence":%d,
+					"generated_at":"2026-08-03T12:00:00Z","schema_version":1,
+					"active_turns":%s
+				}
+			}
+		}`, sequence, registered.NodeID, registered.AgentID, sequence, activeTurns))))
+	}
+
+	writeSessionRuntimeReport(1, `[{
+		"native_session_id":"native_1","turn_instance_id":"turn_1",
+		"prompt_request_id":1,"runtime_status":"running"
+	}]`)
+	principal := UserPrincipal{User: User{UserID: registered.Agent.OwnerUserID}}
+	require.Eventually(t, func() bool {
+		sessions, err := srv.store.ListAgentSessions(t.Context(), principal, registered.AgentID)
+		return err == nil && len(sessions) == 1 && sessions[0].NativeID == "native_1" &&
+			sessions[0].RuntimeStatus == domain.RuntimeStatusRunning &&
+			sessions[0].RuntimeTurnInstanceID == "turn_1"
+	}, time.Second, 10*time.Millisecond)
+
+	writeSessionRuntimeReport(2, `[]`)
+	require.Eventually(t, func() bool {
+		sessions, err := srv.store.ListAgentSessions(t.Context(), principal, registered.AgentID)
+		return err == nil && len(sessions) == 1 &&
+			sessions[0].RuntimeStatus == domain.RuntimeStatusIdle &&
+			sessions[0].RuntimeTurnInstanceID == ""
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestNodeControlRejectsMismatchedReportNodeIDWithoutRefreshingLease(t *testing.T) {
