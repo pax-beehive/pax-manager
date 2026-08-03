@@ -386,6 +386,194 @@ func TestResetSessionRuntimeDispatchesCompareAndResetCommand(t *testing.T) {
 	require.Equal(t, "native_1", reset["native_session_id"])
 }
 
+func TestResetSessionRuntimeRejectsUnsafeTargets(t *testing.T) {
+	t.Run("Given an incomplete compare request then it is rejected before session lookup", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		svc := userapi.NewService(store, fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+
+		_, _, err := svc.ResetSessionRuntime(ctx, auth.RequestMetadata{}, "agent_1", "sess_1", " ")
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+	})
+
+	t.Run("Given the turn instance changed then it returns conflict without dispatch", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetSession(ctx, principal, "sess_1").Return(domain.AgentSession{
+			AgentID: "agent_1", SessionID: "sess_1", RuntimeTurnInstanceID: "turn_new",
+		}, nil).Once()
+		svc := userapi.NewService(store, fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+
+		_, _, err := svc.ResetSessionRuntime(ctx, auth.RequestMetadata{}, "agent_1", "sess_1", "turn_old")
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusConflict, appErr.Status)
+	})
+
+	t.Run("Given the canonical session has no native identity then it returns conflict", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetSession(ctx, principal, "sess_1").Return(domain.AgentSession{
+			AgentID: "agent_1", SessionID: "sess_1", RuntimeTurnInstanceID: "turn_1",
+		}, nil).Once()
+		svc := userapi.NewService(store, fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+
+		_, _, err := svc.ResetSessionRuntime(ctx, auth.RequestMetadata{}, "agent_1", "sess_1", "turn_1")
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusConflict, appErr.Status)
+	})
+
+	t.Run("Given the agent has no runtime connection binding then it returns conflict", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetSession(ctx, principal, "sess_1").Return(domain.AgentSession{
+			AgentID: "agent_1", SessionID: "sess_1", NodeID: "node_1", NativeID: "native_1",
+			RuntimeTurnInstanceID: "turn_1",
+		}, nil).Once()
+		store.EXPECT().GetAgent(ctx, principal, "agent_1").Return(domain.Agent{
+			AgentID: "agent_1", NodeID: "node_1", Metadata: json.RawMessage(`not-json`),
+		}, nil).Once()
+		svc := userapi.NewService(store, fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+
+		_, _, err := svc.ResetSessionRuntime(ctx, auth.RequestMetadata{}, "agent_1", "sess_1", "turn_1")
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusConflict, appErr.Status)
+	})
+
+	t.Run("Given node control is unavailable then it returns service unavailable", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetSession(ctx, principal, "sess_1").Return(domain.AgentSession{
+			AgentID: "agent_1", SessionID: "sess_1", NodeID: "node_1", NativeID: "native_1",
+			RuntimeTurnInstanceID: "turn_1",
+		}, nil).Once()
+		store.EXPECT().GetAgent(ctx, principal, "agent_1").Return(domain.Agent{
+			AgentID: "agent_1", NodeID: "node_1",
+			Metadata: json.RawMessage(`{"runtime":{"connection_id":"conn_1"}}`),
+		}, nil).Once()
+		svc := userapi.NewService(store, fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+
+		_, _, err := svc.ResetSessionRuntime(ctx, auth.RequestMetadata{}, "agent_1", "sess_1", "turn_1")
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusServiceUnavailable, appErr.Status)
+	})
+
+	t.Run("Given paxd returns an invalid acknowledgement then it returns bad gateway", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		secrets := userapimocks.NewMockSecretIssuer(t)
+		client := &fakeNodeControlClient{remoteID: "remote_prod", commandAck: json.RawMessage(`not-json`)}
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetSession(ctx, principal, "sess_1").Return(domain.AgentSession{
+			AgentID: "agent_1", SessionID: "sess_1", NodeID: "node_1", NativeID: "native_1",
+			RuntimeTurnInstanceID: "turn_1",
+		}, nil).Once()
+		store.EXPECT().GetAgent(ctx, principal, "agent_1").Return(domain.Agent{
+			AgentID: "agent_1", NodeID: "node_1",
+			Metadata: json.RawMessage(`{"runtime":{"connection_id":"conn_1"}}`),
+		}, nil).Once()
+		secrets.EXPECT().New("ctlcmd").Return("ctlcmd_1", nil).Once()
+		svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+		svc.SetNodeControlClient(client)
+
+		_, _, err := svc.ResetSessionRuntime(ctx, auth.RequestMetadata{}, "agent_1", "sess_1", "turn_1")
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadGateway, appErr.Status)
+	})
+
+	t.Run("Given paxd rejects reset then manager returns the safe rejection", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		secrets := userapimocks.NewMockSecretIssuer(t)
+		client := &fakeNodeControlClient{
+			remoteID:   "remote_prod",
+			commandAck: json.RawMessage(`{"ok":false,"status":"rejected","error":{"message":"reset denied"}}`),
+		}
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetSession(ctx, principal, "sess_1").Return(domain.AgentSession{
+			AgentID: "agent_1", SessionID: "sess_1", NodeID: "node_1", NativeID: "native_1",
+			RuntimeTurnInstanceID: "turn_1",
+		}, nil).Once()
+		store.EXPECT().GetAgent(ctx, principal, "agent_1").Return(domain.Agent{
+			AgentID: "agent_1", NodeID: "node_1",
+			Metadata: json.RawMessage(`{"runtime":{"connection_id":"conn_1"}}`),
+		}, nil).Once()
+		secrets.EXPECT().New("ctlcmd").Return("ctlcmd_1", nil).Once()
+		svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+		svc.SetNodeControlClient(client)
+
+		_, _, err := svc.ResetSessionRuntime(ctx, auth.RequestMetadata{}, "agent_1", "sess_1", "turn_1")
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusConflict, appErr.Status)
+		require.Equal(t, "reset denied", appErr.Message)
+	})
+
+	t.Run("Given paxd reports a compare conflict then manager preserves the conflict", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		secrets := userapimocks.NewMockSecretIssuer(t)
+		client := &fakeNodeControlClient{
+			remoteID: "remote_prod",
+			commandAck: json.RawMessage(`{
+				"command_id":"ctlcmd_1","ok":true,"status":"applied",
+				"result":{"session_runtime_reset":{"status":"conflict","projection_revision":10}}
+			}`),
+		}
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().GetSession(ctx, principal, "sess_1").Return(domain.AgentSession{
+			AgentID: "agent_1", SessionID: "sess_1", NodeID: "node_1", NativeID: "native_1",
+			RuntimeTurnInstanceID: "turn_1",
+		}, nil).Once()
+		store.EXPECT().GetAgent(ctx, principal, "agent_1").Return(domain.Agent{
+			AgentID: "agent_1", NodeID: "node_1", Metadata: json.RawMessage(`{"runtime":{"connection_id":"conn_1"}}`),
+		}, nil).Once()
+		secrets.EXPECT().New("ctlcmd").Return("ctlcmd_1", nil).Once()
+		svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+		svc.SetNodeControlClient(client)
+
+		_, _, err := svc.ResetSessionRuntime(ctx, auth.RequestMetadata{}, "agent_1", "sess_1", "turn_1")
+
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusConflict, appErr.Status)
+	})
+}
+
 func TestUpdateNodeAgentSessionName(t *testing.T) {
 	t.Run("Given a valid name then it trims and updates the session", func(t *testing.T) {
 		ctx := context.Background()
