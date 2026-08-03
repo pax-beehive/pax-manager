@@ -117,6 +117,9 @@ type AgentSession struct {
 	Model                 string               `json:"model,omitempty"`
 	RunID                 string               `json:"run_id,omitempty"`
 	RunStatus             string               `json:"run_status,omitempty"`
+	RuntimeStatus         string               `json:"runtime_status"`
+	RuntimeTurnInstanceID string               `json:"runtime_turn_instance_id,omitempty"`
+	RuntimeAuthority      string               `json:"-"`
 	CreatedAt             time.Time            `json:"created_at"`
 	UpdatedAt             time.Time            `json:"updated_at"`
 	Metadata              json.RawMessage      `json:"metadata,omitempty"`
