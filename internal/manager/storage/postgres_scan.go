@@ -223,6 +223,8 @@ func scanSession(row rowScanner) (AgentSession, error) {
 		&session.Model,
 		&session.RunID,
 		&session.RunStatus,
+		&session.RuntimeStatus,
+		&session.RuntimeTurnInstanceID,
 		&session.CreatedAt,
 		&session.UpdatedAt,
 		&metadata,

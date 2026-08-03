@@ -340,6 +340,12 @@
           "run_status": {
             "type": "string"
           },
+          "runtime_status": {
+            "type": "string"
+          },
+          "runtime_turn_instance_id": {
+            "type": "string"
+          },
           "session_id": {
             "type": "string"
           },

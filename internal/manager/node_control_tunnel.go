@@ -54,6 +54,23 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 		logging.Error(ctx, "node control tunnel upgrade failed", logging.Err(err))
 		return
 	}
+	runtimeStore, ok := s.store.(domain.SessionRuntimeSnapshotStore)
+	if !ok {
+		_ = ws.Close()
+		logging.Error(ctx, "node control tunnel runtime store is unavailable")
+		return
+	}
+	connectionFence, err := s.secrets.New("fence")
+	if err != nil {
+		_ = ws.Close()
+		logging.Error(ctx, "node control tunnel fence allocation failed", logging.Err(err))
+		return
+	}
+	if err := runtimeStore.ActivateNodeRuntimeFence(ctx, node, connectionFence); err != nil {
+		_ = ws.Close()
+		logging.Error(ctx, "node control tunnel fence activation failed", logging.Err(err))
+		return
+	}
 	conn := newNodeControlConnection(node.NodeID, ws)
 	s.nodeControls.Add(node.NodeID, conn)
 	defer func() {
@@ -96,7 +113,7 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 			)
 			continue
 		}
-		if err := s.handleNodeControlTunnelFrame(ctx, node, payload); err != nil {
+		if err := s.handleNodeControlTunnelFrameWithFence(ctx, node, connectionFence, payload); err != nil {
 			logging.Warn(
 				ctx,
 				"node control tunnel ignored frame",
@@ -119,13 +136,31 @@ type nodeControlFrame struct {
 }
 
 type nodeControlReport struct {
-	Type                 string                           `json:"type"`
-	RemoteID             string                           `json:"remote_id"`
-	NodeID               string                           `json:"node_id"`
-	SentAt               time.Time                        `json:"sent_at"`
-	Heartbeat            json.RawMessage                  `json:"heartbeat,omitempty"`
-	RuntimeSnapshot      *nodeControlRuntimeSnapshot      `json:"runtime_snapshot,omitempty"`
-	AttachmentLocalState *nodeControlAttachmentLocalState `json:"attachment_local_state,omitempty"`
+	Type                   string                             `json:"type"`
+	RemoteID               string                             `json:"remote_id"`
+	NodeID                 string                             `json:"node_id"`
+	SentAt                 time.Time                          `json:"sent_at"`
+	Heartbeat              json.RawMessage                    `json:"heartbeat,omitempty"`
+	RuntimeSnapshot        *nodeControlRuntimeSnapshot        `json:"runtime_snapshot,omitempty"`
+	AttachmentLocalState   *nodeControlAttachmentLocalState   `json:"attachment_local_state,omitempty"`
+	SessionRuntimeSnapshot *nodeControlSessionRuntimeSnapshot `json:"session_runtime_snapshot,omitempty"`
+}
+
+type nodeControlSessionRuntimeSnapshot struct {
+	AgentID       string                                `json:"agent_id"`
+	ConnectionID  string                                `json:"connection_id"`
+	Sequence      int64                                 `json:"sequence"`
+	GeneratedAt   time.Time                             `json:"generated_at"`
+	SchemaVersion int                                   `json:"schema_version"`
+	ActiveTurns   []nodeControlSessionRuntimeActiveTurn `json:"active_turns"`
+}
+
+type nodeControlSessionRuntimeActiveTurn struct {
+	NativeSessionID   string          `json:"native_session_id"`
+	TurnInstanceID    string          `json:"turn_instance_id"`
+	PromptRequestID   json.RawMessage `json:"prompt_request_id"`
+	RuntimeStatus     string          `json:"runtime_status"`
+	PendingApprovalID json.RawMessage `json:"pending_approval_id,omitempty"`
 }
 
 type nodeControlRuntimeSnapshot struct {
@@ -163,6 +198,15 @@ func (s *Server) handleNodeControlTunnelFrame(
 	node Node,
 	payload []byte,
 ) error {
+	return s.handleNodeControlTunnelFrameWithFence(ctx, node, "", payload)
+}
+
+func (s *Server) handleNodeControlTunnelFrameWithFence(
+	ctx context.Context,
+	node Node,
+	connectionFence string,
+	payload []byte,
+) error {
 	var frame nodeControlFrame
 	if err := json.Unmarshal(payload, &frame); err != nil {
 		return fmt.Errorf("decode node control frame: %w", err)
@@ -185,6 +229,8 @@ func (s *Server) handleNodeControlTunnelFrame(
 		})
 	case "runtime.snapshot":
 		return s.upsertRuntimeSnapshotReport(ctx, node, frame.Report)
+	case "session_runtime.snapshot":
+		return s.replaceSessionRuntimeSnapshot(ctx, node, connectionFence, frame.Report)
 	case "attachment.local_state":
 		if frame.Report.AttachmentLocalState == nil {
 			return errors.New("attachment.local_state report missing attachment_local_state")
@@ -197,6 +243,49 @@ func (s *Server) handleNodeControlTunnelFrame(
 	default:
 		return fmt.Errorf("unsupported node control report type %q", frame.Report.Type)
 	}
+}
+
+func (s *Server) replaceSessionRuntimeSnapshot(
+	ctx context.Context,
+	node Node,
+	connectionFence string,
+	report nodeControlReport,
+) error {
+	if report.SessionRuntimeSnapshot == nil {
+		return errors.New("session_runtime.snapshot report missing session_runtime_snapshot")
+	}
+	if report.SessionRuntimeSnapshot.SchemaVersion != 1 {
+		return fmt.Errorf("unsupported session runtime schema version %d", report.SessionRuntimeSnapshot.SchemaVersion)
+	}
+	turns := make([]domain.ActiveTurnSnapshot, 0, len(report.SessionRuntimeSnapshot.ActiveTurns))
+	for _, turn := range report.SessionRuntimeSnapshot.ActiveTurns {
+		turns = append(turns, domain.ActiveTurnSnapshot{
+			NativeSessionID:   turn.NativeSessionID,
+			TurnInstanceID:    turn.TurnInstanceID,
+			PromptRequestID:   cloneRawJSON(turn.PromptRequestID),
+			RuntimeStatus:     turn.RuntimeStatus,
+			PendingApprovalID: domain.RuntimePromptRequestID(turn.PendingApprovalID),
+		})
+	}
+	snapshot := domain.AgentRuntimeSnapshot{
+		AgentID:         report.SessionRuntimeSnapshot.AgentID,
+		ConnectionFence: connectionFence,
+		Sequence:        report.SessionRuntimeSnapshot.Sequence,
+		GeneratedAt:     report.SessionRuntimeSnapshot.GeneratedAt,
+		ActiveTurns:     turns,
+	}
+	runtimeStore, ok := s.store.(domain.SessionRuntimeSnapshotStore)
+	if !ok {
+		return errors.New("session runtime snapshot store is unavailable")
+	}
+	result, err := runtimeStore.ReplaceAgentActiveTurns(ctx, node, snapshot)
+	if err != nil {
+		return err
+	}
+	if result.Status == domain.RuntimeSnapshotFenced {
+		return errors.New("session runtime snapshot came from a fenced connection")
+	}
+	return nil
 }
 
 func (s *Server) upsertRuntimeSnapshotReport(

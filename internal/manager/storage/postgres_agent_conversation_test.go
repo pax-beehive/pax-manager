@@ -493,6 +493,8 @@ func postgresSessionValues(
 		"",
 		"",
 		"",
+		domain.RuntimeStatusIdle,
+		"",
 		now,
 		now,
 		[]byte(`{}`),

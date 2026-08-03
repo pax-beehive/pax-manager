@@ -152,6 +152,8 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     model TEXT,
     run_id TEXT,
     run_status TEXT,
+    runtime_status TEXT NOT NULL DEFAULT 'idle',
+    runtime_turn_instance_id TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(agent_id, session_id)
@@ -185,6 +187,8 @@ ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS metadata JSONB;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS model TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS run_id TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS run_status TEXT;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS runtime_status TEXT NOT NULL DEFAULT 'idle';
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS runtime_turn_instance_id TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
@@ -195,6 +199,32 @@ CREATE INDEX IF NOT EXISTS idx_sessions_status ON agent_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_primary_project
     ON agent_sessions(primary_project_id)
     WHERE primary_project_id IS NOT NULL AND primary_project_id <> '';
+
+CREATE TABLE IF NOT EXISTS node_runtime_fences (
+    node_id TEXT PRIMARY KEY REFERENCES nodes(node_id) ON DELETE CASCADE,
+    connection_fence TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS agent_runtime_snapshot_heads (
+    agent_id TEXT PRIMARY KEY REFERENCES agents(agent_id) ON DELETE CASCADE,
+    connection_fence TEXT,
+    last_sequence BIGINT,
+    runtime_authority TEXT NOT NULL DEFAULT 'frames',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (runtime_authority IN ('frames', 'snapshot'))
+);
+
+CREATE TABLE IF NOT EXISTS agent_native_session_bindings (
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    native_session_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (agent_id, native_session_id),
+    UNIQUE (agent_id, session_id),
+    FOREIGN KEY (agent_id, session_id)
+        REFERENCES agent_sessions(agent_id, session_id) ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS mailbox (
     id BIGSERIAL PRIMARY KEY,

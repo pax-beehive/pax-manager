@@ -2024,14 +2024,38 @@ func (s *PostgresStore) UpdateSessionRuntimeState(
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var lockedAgentID string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT agent_id FROM agents WHERE agent_id = $1 AND deleted_at IS NULL FOR UPDATE
+	`, state.AgentID).Scan(&lockedAgentID); err != nil {
+		return mapSQLError(err)
+	}
+	var authority string
+	err = tx.QueryRowContext(ctx, `
+		SELECT runtime_authority
+		FROM agent_runtime_snapshot_heads
+		WHERE agent_id = $1
+	`, state.AgentID).Scan(&authority)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if authority == domain.RuntimeAuthoritySnapshot {
+		return tx.Commit()
+	}
+	runtimeStatus := domain.NormalizeRuntimeStatus(state.Lifecycle)
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO agent_sessions (
 			node_id, agent_id, session_id, status, current_task, run_id, run_status,
-			metadata, created_at, updated_at
+			runtime_status, runtime_turn_instance_id, metadata, created_at, updated_at
 		)
 		VALUES (
 			NULLIF($1,''), $2, $3, $4, $5, $6, $7,
-			jsonb_build_object('runtime_state', $8::jsonb), $9, $9
+			$8, NULLIF($9, ''), jsonb_build_object('runtime_state', $10::jsonb), $11, $11
 		)
 		ON CONFLICT (agent_id, session_id) DO UPDATE SET
 			node_id = COALESCE(EXCLUDED.node_id, agent_sessions.node_id),
@@ -2039,15 +2063,21 @@ func (s *PostgresStore) UpdateSessionRuntimeState(
 			current_task = EXCLUDED.current_task,
 			run_id = EXCLUDED.run_id,
 			run_status = EXCLUDED.run_status,
+			runtime_status = EXCLUDED.runtime_status,
+			runtime_turn_instance_id = EXCLUDED.runtime_turn_instance_id,
 			metadata = jsonb_set(
 				COALESCE(agent_sessions.metadata, '{}'::jsonb),
 				'{runtime_state}',
-				$8::jsonb,
+				$10::jsonb,
 				true
 			),
 			updated_at = EXCLUDED.updated_at
-	`, state.NodeID, state.AgentID, state.SessionID, status, currentTask, runID, runStatus, stateJSON, state.UpdatedAt)
-	return err
+	`, state.NodeID, state.AgentID, state.SessionID, status, currentTask, runID, runStatus,
+		runtimeStatus, state.TurnInstanceID, stateJSON, state.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *PostgresStore) ListSessionMessages(
@@ -2857,7 +2887,8 @@ const sessionSelectSQL = `
 		COALESCE(current_task, ''), last_message_at, last_user_message_at, message_count, token_input,
 		token_output, token_total, cache_read_tokens, cache_write_tokens, cache_creation_tokens,
 		reasoning_tokens, estimated_cost_usd, actual_cost_usd, cost_usd, COALESCE(model, ''), COALESCE(run_id, ''),
-		COALESCE(run_status, ''), agent_sessions.created_at, agent_sessions.updated_at,
+		COALESCE(run_status, ''), runtime_status, COALESCE(runtime_turn_instance_id, ''),
+		agent_sessions.created_at, agent_sessions.updated_at,
 		COALESCE(agent_sessions.metadata, '{}'::jsonb)
 	FROM agent_sessions`
 

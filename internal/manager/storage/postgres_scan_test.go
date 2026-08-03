@@ -311,6 +311,8 @@ func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 		"gpt-5",
 		"run_1",
 		"in_progress",
+		"running",
+		"turn_instance_1",
 		now,
 		now.Add(2 * time.Minute),
 		[]byte(
@@ -339,6 +341,8 @@ func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 		session.CreatedByUserID != "usr_creator" {
 		t.Fatalf("conversation session fields = %+v", session)
 	}
+	require.Equal(t, "running", session.RuntimeStatus)
+	require.Equal(t, "turn_instance_1", session.RuntimeTurnInstanceID)
 	if !reflect.DeepEqual(session.WorkspaceRoots, []string{"/workspace", "/tmp/project"}) {
 		t.Fatalf("workspace roots = %#v", session.WorkspaceRoots)
 	}

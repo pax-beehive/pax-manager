@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 func TestNodeControlHeartbeatReportRefreshesNodeLease(t *testing.T) {
@@ -747,6 +750,198 @@ func TestNodeControlRuntimeSnapshotPersistsACPPoolCapabilityReport(t *testing.T)
 	require.Equal(t, int64(7), report.ReportGeneration)
 	require.Equal(t, 1, report.ProtocolVersion)
 	require.Equal(t, "fingerprint_1", report.CommandFingerprint)
+}
+
+func TestNodeControlSessionRuntimeSnapshotReconcilesActiveThenAbsentSession(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+
+	writeSessionRuntimeReport := func(sequence int, activeTurns string) {
+		require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{
+			"kind":"report","version":1,"report_id":"rpt_session_%d",
+			"report":{
+				"type":"session_runtime.snapshot","remote_id":"remote_prod",
+				"node_id":%q,"sent_at":"2026-08-03T12:00:00Z",
+				"session_runtime_snapshot":{
+					"agent_id":%q,"connection_id":"conn_1","sequence":%d,
+					"generated_at":"2026-08-03T12:00:00Z","schema_version":1,
+					"active_turns":%s
+				}
+			}
+		}`, sequence, registered.NodeID, registered.AgentID, sequence, activeTurns))))
+	}
+
+	writeSessionRuntimeReport(1, `[{
+		"native_session_id":"native_1","turn_instance_id":"turn_1",
+		"prompt_request_id":1,"runtime_status":"running"
+	}]`)
+	principal := UserPrincipal{User: User{UserID: registered.Agent.OwnerUserID}}
+	require.Eventually(t, func() bool {
+		sessions, err := srv.store.ListAgentSessions(t.Context(), principal, registered.AgentID)
+		return err == nil && len(sessions) == 1 && sessions[0].NativeID == "native_1" &&
+			sessions[0].RuntimeStatus == domain.RuntimeStatusRunning &&
+			sessions[0].RuntimeTurnInstanceID == "turn_1"
+	}, time.Second, 10*time.Millisecond)
+
+	writeSessionRuntimeReport(2, `[]`)
+	require.Eventually(t, func() bool {
+		sessions, err := srv.store.ListAgentSessions(t.Context(), principal, registered.AgentID)
+		return err == nil && len(sessions) == 1 &&
+			sessions[0].RuntimeStatus == domain.RuntimeStatusIdle &&
+			sessions[0].RuntimeTurnInstanceID == ""
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestSessionRuntimeResetEndpointForwardsCanonicalCompareIdentity(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{
+		"kind":"report","version":1,"report_id":"rpt_inventory",
+		"report":{"type":"runtime.snapshot","remote_id":"remote_prod","node_id":%q,
+		"sent_at":"2026-08-03T12:00:00Z","runtime_snapshot":{"snapshot_id":"snap_1","agents":[{
+			"connection_id":"conn_1","cloud_agent_id":%q,"remote_id":"remote_prod",
+			"name":"codex-main","agent_type":"codex","runtime_phase":"running"
+		}]}}
+	}`, registered.NodeID, registered.AgentID))))
+	require.Eventually(t, func() bool {
+		remoteID, err := srv.nodeControls.RemoteID(registered.NodeID)
+		return err == nil && remoteID == "remote_prod"
+	}, time.Second, 10*time.Millisecond)
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{
+		"kind":"report","version":1,"report_id":"rpt_session_1",
+		"report":{"type":"session_runtime.snapshot","remote_id":"remote_prod","node_id":%q,
+		"sent_at":"2026-08-03T12:00:00Z","session_runtime_snapshot":{
+			"agent_id":%q,"connection_id":"conn_1","sequence":1,
+			"generated_at":"2026-08-03T12:00:00Z","schema_version":1,"active_turns":[{
+				"native_session_id":"native_1","turn_instance_id":"turn_1",
+				"prompt_request_id":1,"runtime_status":"running"
+			}]}}
+	}`, registered.NodeID, registered.AgentID))))
+	principal := UserPrincipal{User: User{UserID: registered.Agent.OwnerUserID}}
+	var session AgentSession
+	require.Eventually(t, func() bool {
+		sessions, err := srv.store.ListAgentSessions(t.Context(), principal, registered.AgentID)
+		if err != nil || len(sessions) != 1 || sessions[0].RuntimeTurnInstanceID != "turn_1" {
+			return false
+		}
+		session = sessions[0]
+		return true
+	}, time.Second, 10*time.Millisecond)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/agents/"+registered.AgentID+"/sessions/"+session.SessionID+"/runtime/reset",
+		strings.NewReader(`{"expected_turn_instance_id":"turn_1"}`),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		srv.handleSessionRuntimeReset(rec, req)
+	}()
+
+	_, commandPayload, err := ws.ReadMessage()
+	require.NoError(t, err)
+	var commandFrame struct {
+		CommandID string `json:"command_id"`
+		Command   struct {
+			Type  string `json:"type"`
+			Reset struct {
+				AgentID                string `json:"agent_id"`
+				ConnectionID           string `json:"connection_id"`
+				NativeSessionID        string `json:"native_session_id"`
+				ExpectedTurnInstanceID string `json:"expected_turn_instance_id"`
+			} `json:"reset_session_runtime"`
+		} `json:"command"`
+	}
+	require.NoError(t, json.Unmarshal(commandPayload, &commandFrame))
+	require.Equal(t, "session_runtime.reset", commandFrame.Command.Type)
+	require.Equal(t, registered.AgentID, commandFrame.Command.Reset.AgentID)
+	require.Equal(t, "conn_1", commandFrame.Command.Reset.ConnectionID)
+	require.Equal(t, "native_1", commandFrame.Command.Reset.NativeSessionID)
+	require.Equal(t, "turn_1", commandFrame.Command.Reset.ExpectedTurnInstanceID)
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{
+		"kind":"ack","command_id":%q,"command_ack":{
+			"command_id":%q,"ok":true,"status":"applied",
+			"result":{"session_runtime_reset":{"status":"suppressed","projection_revision":2}}
+		}
+	}`, commandFrame.CommandID, commandFrame.CommandID))))
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("runtime reset endpoint did not complete")
+	}
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	response := decodeData[map[string]any](t, rec.Body.Bytes())
+	require.Equal(t, "accepted_pending", response["status"])
+}
+
+func TestNodeControlSessionRuntimeSnapshotRejectsInvalidOrFencedReports(t *testing.T) {
+	t.Run("Given the report payload is missing then it is rejected", func(t *testing.T) {
+		err := new(Server).replaceSessionRuntimeSnapshot(
+			context.Background(),
+			Node{NodeID: "node_1", OwnerUserID: "user_1"},
+			"fence_1",
+			nodeControlReport{},
+		)
+
+		require.EqualError(t, err, "session_runtime.snapshot report missing session_runtime_snapshot")
+	})
+
+	t.Run("Given the schema version is unsupported then it is rejected", func(t *testing.T) {
+		err := new(Server).replaceSessionRuntimeSnapshot(
+			context.Background(),
+			Node{NodeID: "node_1", OwnerUserID: "user_1"},
+			"fence_1",
+			nodeControlReport{SessionRuntimeSnapshot: &nodeControlSessionRuntimeSnapshot{SchemaVersion: 2}},
+		)
+
+		require.EqualError(t, err, "unsupported session runtime schema version 2")
+	})
+
+	t.Run("Given runtime snapshot storage is unavailable then it is rejected", func(t *testing.T) {
+		err := new(Server).replaceSessionRuntimeSnapshot(
+			context.Background(),
+			Node{NodeID: "node_1", OwnerUserID: "user_1"},
+			"fence_1",
+			validNodeControlSessionRuntimeReport("agent_1"),
+		)
+
+		require.EqualError(t, err, "session runtime snapshot store is unavailable")
+	})
+
+	t.Run("Given a stale connection fence then it cannot mutate runtime state", func(t *testing.T) {
+		srv, registered := testNodeControlServer(t, "todd@example.com")
+
+		err := srv.replaceSessionRuntimeSnapshot(
+			context.Background(),
+			Node{NodeID: registered.NodeID, OwnerUserID: registered.Agent.OwnerUserID},
+			"stale_fence",
+			validNodeControlSessionRuntimeReport(registered.AgentID),
+		)
+
+		require.EqualError(t, err, "session runtime snapshot came from a fenced connection")
+	})
+}
+
+func validNodeControlSessionRuntimeReport(agentID string) nodeControlReport {
+	return nodeControlReport{SessionRuntimeSnapshot: &nodeControlSessionRuntimeSnapshot{
+		AgentID: agentID, Sequence: 1, SchemaVersion: 1,
+		GeneratedAt: time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC),
+		ActiveTurns: []nodeControlSessionRuntimeActiveTurn{{
+			NativeSessionID: "native_1", TurnInstanceID: "turn_1",
+			PromptRequestID: json.RawMessage(`1`), RuntimeStatus: domain.RuntimeStatusRunning,
+		}},
+	}}
 }
 
 func TestNodeControlRejectsMismatchedReportNodeIDWithoutRefreshingLease(t *testing.T) {

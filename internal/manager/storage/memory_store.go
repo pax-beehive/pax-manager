@@ -33,6 +33,8 @@ type MemoryStore struct {
 	userAPIKeys                  map[string]UserAPIKey
 	userAPIKeyHashes             map[string]string
 	sessions                     map[string]AgentSession
+	nodeRuntimeFences            map[string]string
+	agentRuntimeSnapshotHeads    map[string]memoryAgentRuntimeSnapshotHead
 	projects                     map[string]Project
 	projectTargets               map[string]ProjectTarget
 	mailbox                      map[int64]MailboxMessage
@@ -95,6 +97,8 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		userAPIKeys:                  make(map[string]UserAPIKey),
 		userAPIKeyHashes:             make(map[string]string),
 		sessions:                     make(map[string]AgentSession),
+		nodeRuntimeFences:            make(map[string]string),
+		agentRuntimeSnapshotHeads:    make(map[string]memoryAgentRuntimeSnapshotHead),
 		projects:                     make(map[string]Project),
 		projectTargets:               make(map[string]ProjectTarget),
 		mailbox:                      make(map[int64]MailboxMessage),
@@ -1694,6 +1698,9 @@ func (s *MemoryStore) UpdateSessionRuntimeState(
 	if state.UpdatedAt.IsZero() {
 		state.UpdatedAt = s.now().UTC()
 	}
+	if s.agentRuntimeSnapshotHeads[state.AgentID].Authority == domain.RuntimeAuthoritySnapshot {
+		return nil
+	}
 	status, currentTask, runID, runStatus := state.StatusSummary()
 	session, ok := s.sessions[sessionKey(state.AgentID, state.SessionID)]
 	if !ok {
@@ -1711,6 +1718,9 @@ func (s *MemoryStore) UpdateSessionRuntimeState(
 	session.CurrentTask = currentTask
 	session.RunID = runID
 	session.RunStatus = runStatus
+	session.RuntimeStatus = domain.NormalizeRuntimeStatus(state.Lifecycle)
+	session.RuntimeTurnInstanceID = state.TurnInstanceID
+	session.RuntimeAuthority = domain.RuntimeAuthorityFrames
 	session.UpdatedAt = state.UpdatedAt
 	session.RuntimeState = &state
 	session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(session.PaxConfig.ApprovalMode)
@@ -2599,6 +2609,18 @@ func (s *MemoryStore) upsertSessionLocked(
 	existing.Model = input.Model
 	existing.RunID = input.RunID
 	existing.RunStatus = input.RunStatus
+	head := s.agentRuntimeSnapshotHeads[agentID]
+	if head.Authority == domain.RuntimeAuthoritySnapshot {
+		existing.RuntimeAuthority = domain.RuntimeAuthoritySnapshot
+		existing.RunStatus = existing.RuntimeStatus
+	} else {
+		existing.RuntimeAuthority = domain.RuntimeAuthorityFrames
+		if existing.RuntimeStatus == "" {
+			existing.RuntimeStatus = domain.NormalizeRuntimeStatus(
+				firstNonEmpty(input.RunStatus, input.Status),
+			)
+		}
+	}
 	existing.UpdatedAt = now
 	existing.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(existing.PaxConfig.ApprovalMode)
 	s.sessions[sessionKey(agentID, input.SessionID)] = existing
