@@ -132,7 +132,7 @@ func projectACPTransportMessageWithTextSinkForTurn(
 	seq int64,
 	historyGroupID string,
 	fallbackSessionID string,
-	fallbackTurnID string,
+	businessTurnID string,
 	payload json.RawMessage,
 ) error {
 	if stream != domain.TransportStreamPaxdToManager {
@@ -146,7 +146,7 @@ func projectACPTransportMessageWithTextSinkForTurn(
 	direction := domain.MessageDirectionAgentToUser
 	role := "assistant"
 	fields := extractACPHistoryFields(payload, rpc)
-	fields.TurnID = firstNonEmpty(fields.TurnID, fallbackTurnID)
+	fields.TurnID = firstNonEmpty(businessTurnID, fields.TurnID)
 	fields, projection := classifyACPHistoryProjection(rpc, fields)
 	if projection == acpHistoryProjectionNone {
 		if len(rpc.Result) > 0 || len(rpc.Error) > 0 {
