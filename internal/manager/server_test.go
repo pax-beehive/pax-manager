@@ -2488,10 +2488,13 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	}
 	events := decodeConversationEvents(t, body)
 	sessionEvent := requireConversationEvent(t, events, "session")
+	turnStartedEvent := requireConversationEvent(t, events, "turn_started")
+	require.True(t, strings.HasPrefix(turnStartedEvent.TurnID, "turn_"))
 	if !strings.HasPrefix(sessionEvent.SessionID, "sess_") {
 		t.Fatalf("session id = %q, want manager sess_*", sessionEvent.SessionID)
 	}
 	acpEvent := requireConversationEvent(t, events, "acp")
+	assert.Equal(t, turnStartedEvent.TurnID, acpEvent.TurnID)
 	if !strings.Contains(string(acpEvent.Frame), "hello back") {
 		t.Fatalf("acp frame missing update: %+v body=%s", acpEvent, body)
 	}
@@ -2526,7 +2529,18 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 			}
 		}
 	}
-	requireConversationEvent(t, events, "done")
+	turnDoneEvent := requireConversationEvent(t, events, "turn_done")
+	assert.Equal(t, turnStartedEvent.TurnID, turnDoneEvent.TurnID)
+	assert.Equal(t, "complete", turnDoneEvent.Status)
+	assert.Empty(t, requireConversationEvent(t, events, "done").TurnID)
+	for _, messageType := range []string{
+		domain.MessageTypeUser,
+		"agent_message_chunk",
+		"turn_done",
+	} {
+		message := requireHistoryMessageType(t, messages, messageType)
+		assert.Equal(t, turnStartedEvent.TurnID, message.TurnID)
+	}
 }
 
 func TestConversationTurnStopSendsSessionCancelForActivePrompt(t *testing.T) {
@@ -2755,7 +2769,45 @@ func TestConversationTurnQueueReplacesDraftAndDrainsAfterActivePrompt(t *testing
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
 	events := decodeConversationEvents(t, body)
-	requireConversationEvent(t, events, "done")
+	startedEvents := conversationEventsOfType(events, "turn_started")
+	doneEvents := conversationEventsOfType(events, "turn_done")
+	require.Len(t, startedEvents, 2)
+	require.Len(t, doneEvents, 2)
+	require.True(t, strings.HasPrefix(startedEvents[0].TurnID, "turn_"))
+	assert.NotEqual(t, startedEvents[0].TurnID, startedEvents[1].TurnID)
+	assert.Equal(t, firstQueue.QueuedTurnID, startedEvents[1].TurnID)
+	assert.Equal(t, startedEvents[0].TurnID, doneEvents[0].TurnID)
+	assert.Equal(t, startedEvents[1].TurnID, doneEvents[1].TurnID)
+	assert.Empty(t, requireConversationEvent(t, events, "done").TurnID)
+	timeline := make([]string, 0, 4)
+	for _, event := range events {
+		if event.Type == "turn_started" || event.Type == "turn_done" {
+			timeline = append(timeline, event.Type+":"+event.TurnID)
+		}
+	}
+	assert.Equal(t, []string{
+		"turn_started:" + startedEvents[0].TurnID,
+		"turn_done:" + startedEvents[0].TurnID,
+		"turn_started:" + startedEvents[1].TurnID,
+		"turn_done:" + startedEvents[1].TurnID,
+	}, timeline)
+
+	messages, err := srv.store.ListMessages(t.Context(), fixture.agentID, "sess-queue", 100)
+	require.NoError(t, err)
+	completedTurns := make(map[string]bool)
+	userTurns := make(map[string]bool)
+	for _, message := range messages {
+		switch message.MessageType {
+		case domain.MessageTypeUser:
+			userTurns[message.TurnID] = true
+		case "turn_done":
+			completedTurns[message.TurnID] = message.Status == "complete"
+		}
+	}
+	for _, started := range startedEvents {
+		assert.True(t, userTurns[started.TurnID])
+		assert.True(t, completedTurns[started.TurnID])
+	}
 }
 
 func TestSessionObserverGivenIdleSessionWhenOpenedThenReturnsNoRunningTurn(t *testing.T) {
@@ -2776,6 +2828,116 @@ func TestSessionObserverGivenIdleSessionWhenOpenedThenReturnsNoRunningTurn(t *te
 	assert.Contains(t, rec.Header().Get("Content-Type"), "text/event-stream")
 	assert.Contains(t, rec.Body.String(), `"type":"no_running_turn"`)
 	assert.Contains(t, rec.Body.String(), `"session_id":"sess-observer-idle"`)
+}
+
+func TestSessionObserverGivenBusinessTurnWhenStreamingThenKeepsExistingEnvelopeProtocol(
+	t *testing.T,
+) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-observer", "native-observer")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/events") {
+			srv.handleSessionObserverEvents(w, r)
+			return
+		}
+		srv.handleConversation(w, r)
+	})
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	conversationRespCh := make(chan *http.Response, 1)
+	conversationErrCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"session_id":"sess-observer","input":"observe me"}`,
+		conversationRespCh,
+		conversationErrCh,
+	)
+	promptEnv := readNextManagerToAgentData(t, agentWS)
+	promptID := acpPayloadRequestID(t, promptEnv.Payload)
+	storedSession, err := srv.store.GetSession(
+		t.Context(),
+		testUserPrincipal(t, srv, fixture.userEmail),
+		"sess-observer",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, storedSession.RuntimeState)
+	businessTurnID := storedSession.RuntimeState.ActiveTurnID
+	require.True(t, strings.HasPrefix(businessTurnID, "turn_"))
+
+	observerReq, err := http.NewRequest(
+		http.MethodGet,
+		httpServer.URL+"/api/v1/user/self/agents/"+fixture.agentID+
+			"/sessions/sess-observer/events",
+		nil,
+	)
+	require.NoError(t, err)
+	observerReq.Header.Set("X-User-Email", fixture.userEmail)
+	observerRespCh := make(chan *http.Response, 1)
+	observerErrCh := make(chan error, 1)
+	go func() {
+		resp, requestErr := http.DefaultClient.Do(observerReq)
+		if requestErr != nil {
+			observerErrCh <- requestErr
+			return
+		}
+		observerRespCh <- resp
+	}()
+	agentConn, err := srv.acpTunnels.findAny(fixture.agentID, "")
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return agentConn.asyncReceiverCounts().sseSubscribers >= 2
+	}, 2*time.Second, 5*time.Millisecond)
+
+	writeAgentDataFrame(t, agentWS, promptEnv.QueueID, 1, json.RawMessage(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-observer","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"observed output"}}}}`,
+	))
+	writeAgentDataFrame(t, agentWS, promptEnv.QueueID, 2, json.RawMessage(
+		`{"jsonrpc":"2.0","id":`+promptID+`,"result":{"stopReason":"end_turn"}}`,
+	))
+
+	var observerResp *http.Response
+	select {
+	case observerResp = <-observerRespCh:
+		require.Equal(t, http.StatusOK, observerResp.StatusCode)
+	case requestErr := <-observerErrCh:
+		require.NoError(t, requestErr)
+	case <-time.After(2 * time.Second):
+		require.FailNow(t, "observer did not return after turn completion")
+	}
+	observerBody, err := io.ReadAll(observerResp.Body)
+	require.NoError(t, err)
+	require.NoError(t, observerResp.Body.Close())
+	observerEvents := decodeConversationEvents(t, observerBody)
+	requireNoConversationEvent(t, observerEvents, "turn_started")
+	for _, event := range conversationEventsOfType(observerEvents, "acp") {
+		assert.Equal(t, businessTurnID, event.TurnID)
+	}
+	observerDone := requireConversationEvent(t, observerEvents, "turn_done")
+	assert.Equal(t, businessTurnID, observerDone.TurnID)
+	assert.Equal(t, "done", observerDone.Status)
+
+	_ = readConversationResponse(
+		t,
+		conversationRespCh,
+		conversationErrCh,
+		http.StatusOK,
+	)
 }
 
 func TestConversationCreatesSessionWithCustomPaxConfig(t *testing.T) {
@@ -3302,7 +3464,10 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
 	events := decodeConversationEvents(t, body)
+	turnStartedEvent := requireConversationEvent(t, events, "turn_started")
+	require.True(t, strings.HasPrefix(turnStartedEvent.TurnID, "turn_"))
 	requiredEvent := requireConversationEvent(t, events, "approval_required")
+	assert.Equal(t, turnStartedEvent.TurnID, requiredEvent.TurnID)
 	require.NotEmpty(t, requiredEvent.ApprovalID)
 	require.Equal(t, "sess-existing", requiredEvent.SessionID)
 	require.NotNil(t, requiredEvent.Approval)
@@ -3311,6 +3476,7 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 	assert.Contains(t, string(requiredEvent.Frame), `"sessionId":"sess-existing"`)
 
 	interruptedEvent := requireConversationEvent(t, events, "interrupted")
+	assert.Equal(t, turnStartedEvent.TurnID, interruptedEvent.TurnID)
 	assert.Equal(t, "permission_required", interruptedEvent.Reason)
 	assert.Equal(t, requiredEvent.ApprovalID, interruptedEvent.ApprovalID)
 
@@ -3333,6 +3499,7 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 	require.NoError(t, err)
 	require.NotNil(t, session.RuntimeState)
 	assert.Equal(t, requiredEvent.ApprovalID, session.RuntimeState.PendingApprovalID)
+	assert.Equal(t, turnStartedEvent.TurnID, session.RuntimeState.ActiveTurnID)
 
 	historyReq := httptest.NewRequest(
 		http.MethodGet,
@@ -3347,6 +3514,20 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 		Messages []MessageWithParts `json:"messages"`
 	}](t, historyRec.Body.Bytes())
 	requireHistoryPermissionRequestWithApprovalID(t, history.Messages, requiredEvent.ApprovalID)
+	assert.Equal(
+		t,
+		turnStartedEvent.TurnID,
+		requireHistoryMessageWithPartsType(t, history.Messages, domain.MessageTypeUser).TurnID,
+	)
+	assert.Equal(
+		t,
+		turnStartedEvent.TurnID,
+		requireHistoryMessageWithPartsType(
+			t,
+			history.Messages,
+			"session/request_permission",
+		).TurnID,
+	)
 }
 
 func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T) {
@@ -3521,6 +3702,15 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
 
 	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
+	pausedSession, err := srv.store.GetSession(
+		t.Context(),
+		testUserPrincipal(t, srv, fixture.userEmail),
+		"sess-existing",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, pausedSession.RuntimeState)
+	pausedTurnID := pausedSession.RuntimeState.ActiveTurnID
+	require.True(t, strings.HasPrefix(pausedTurnID, "turn_"))
 	decideTestApproval(t, srv, approval.ApprovalID, "allow_once")
 
 	respCh := make(chan *http.Response, 1)
@@ -3568,7 +3758,11 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
 	events := decodeConversationEvents(t, body)
+	turnStartedEvent := requireConversationEvent(t, events, "turn_started")
+	assert.Equal(t, pausedTurnID, turnStartedEvent.TurnID)
+	assert.Equal(t, "resumed", turnStartedEvent.Status)
 	responseEvent := requireConversationACPFrameContaining(t, events, `"result"`)
+	assert.Equal(t, pausedTurnID, responseEvent.TurnID)
 	assert.Contains(t, string(responseEvent.Frame), `"id":"perm_1"`)
 	assert.Contains(
 		t,
@@ -3576,8 +3770,12 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 		`"decided_by_user_id":"`+approval.OwnerUserID+`"`,
 	)
 	acpEvent := requireConversationACPFrameContaining(t, events, "approved output")
+	assert.Equal(t, pausedTurnID, acpEvent.TurnID)
 	assert.Contains(t, string(acpEvent.Frame), "approved output")
-	requireConversationEvent(t, events, "done")
+	turnDoneEvent := requireConversationEvent(t, events, "turn_done")
+	assert.Equal(t, pausedTurnID, turnDoneEvent.TurnID)
+	assert.Equal(t, "complete", turnDoneEvent.Status)
+	assert.Empty(t, requireConversationEvent(t, events, "done").TurnID)
 
 	updatedApproval, err := srv.store.GetApproval(
 		t.Context(),
@@ -3607,6 +3805,14 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 		"perm_1",
 		approval.OwnerUserID,
 	)
+	for _, messageType := range []string{
+		"permission_response",
+		"agent_message_chunk",
+		"turn_done",
+	} {
+		message := requireHistoryMessageWithPartsType(t, history.Messages, messageType)
+		assert.Equal(t, pausedTurnID, message.TurnID)
+	}
 }
 
 func TestConversationGivenNumericPermissionRequestIDWhenResumingThenPreservesIDType(
@@ -6213,6 +6419,49 @@ func requireConversationEvent(
 	}
 	t.Fatalf("missing conversation event %q in %+v", eventType, events)
 	return conversationEvent{}
+}
+
+func conversationEventsOfType(
+	events []conversationEvent,
+	eventType string,
+) []conversationEvent {
+	matched := make([]conversationEvent, 0)
+	for _, event := range events {
+		if event.Type == eventType {
+			matched = append(matched, event)
+		}
+	}
+	return matched
+}
+
+func requireHistoryMessageType(
+	t *testing.T,
+	messages []domain.Message,
+	messageType string,
+) domain.Message {
+	t.Helper()
+	for _, message := range messages {
+		if message.MessageType == messageType {
+			return message
+		}
+	}
+	t.Fatalf("missing history message type %q in %+v", messageType, messages)
+	return domain.Message{}
+}
+
+func requireHistoryMessageWithPartsType(
+	t *testing.T,
+	messages []MessageWithParts,
+	messageType string,
+) MessageWithParts {
+	t.Helper()
+	for _, message := range messages {
+		if message.MessageType == messageType {
+			return message
+		}
+	}
+	t.Fatalf("missing history message type %q in %+v", messageType, messages)
+	return MessageWithParts{}
 }
 
 func requireConversationACPFrameContaining(

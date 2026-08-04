@@ -60,6 +60,7 @@ type conversationRunner struct {
 	service          *Service
 	agentConn        *ACPTunnelAgent
 	managerSessionID string
+	turnID           string
 }
 
 type conversationResponse struct {
@@ -212,6 +213,7 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 			NodeID:     agent.NodeID,
 			AgentID:    agent.AgentID,
 			SessionID:  session.managerID,
+			TurnID:     runner.turnID,
 			StatusCode: status,
 			Message:    err.Error(),
 		})
@@ -471,14 +473,32 @@ func (s *Service) promptConversation(
 	defer runner.agentConn.unsubscribeSSE(sub)
 
 	nextPrompt := prompt
+	nextTurnID, err := newConversationTurnID()
+	if err != nil {
+		return err
+	}
 	for {
-		if err := s.promptConversationOnce(ctx, w, flusher, runner, session, sub, nextPrompt); err != nil {
+		completed, err := s.promptConversationOnce(
+			ctx,
+			w,
+			flusher,
+			runner,
+			session,
+			sub,
+			nextTurnID,
+			nextPrompt,
+		)
+		if err != nil {
 			return err
+		}
+		if !completed {
+			break
 		}
 		queued, ok := s.conversationTurns.take(runner.agentConn.agentID, session.managerID)
 		if !ok {
 			break
 		}
+		nextTurnID = queued.TurnID
 		nextPrompt = []map[string]any{{
 			"type": "text",
 			"text": queued.Input,
@@ -499,18 +519,34 @@ func (s *Service) promptConversationOnce(
 	runner *conversationRunner,
 	session conversationSession,
 	sub *acpSSESubscriber,
+	turnID string,
 	prompt []map[string]any,
-) error {
+) (bool, error) {
+	runner.turnID = turnID
+	if err := s.writeConversationEvent(w, flusher, conversationEvent{
+		Type:      "turn_started",
+		NodeID:    runner.agentConn.nodeID,
+		AgentID:   runner.agentConn.agentID,
+		SessionID: session.managerID,
+		TurnID:    turnID,
+		Status:    "running",
+	}); err != nil {
+		return false, err
+	}
 	params := map[string]any{
 		"sessionId": session.managerID,
 		"prompt":    prompt,
 	}
 	for attempt := 0; attempt < 2; attempt++ {
-		requestID, waiter, cancel, err := runner.send(ctx, "session/prompt", params)
+		requestID, waiter, cancel, err := runner.sendTurnPrompt(
+			ctx,
+			turnID,
+			params,
+		)
 		if err != nil {
-			return err
+			return false, err
 		}
-		err = s.streamConversationUntilPromptDone(
+		completed, streamErr := s.streamConversationUntilPromptDone(
 			ctx,
 			w,
 			flusher,
@@ -521,17 +557,30 @@ func (s *Service) promptConversationOnce(
 			waiter,
 		)
 		cancel()
-		if !isConversationACPErrorKind(err, "session_route_missing") || attempt > 0 {
-			if err != nil {
-				return err
+		if !isConversationACPErrorKind(streamErr, "session_route_missing") || attempt > 0 {
+			if streamErr != nil {
+				return false, streamErr
 			}
-			break
+			if !completed {
+				return false, nil
+			}
+			if err := s.writeConversationTurnDone(
+				ctx,
+				w,
+				flusher,
+				runner.agentConn,
+				session,
+				turnID,
+			); err != nil {
+				return false, err
+			}
+			return true, nil
 		}
 		if err := runner.resumeMissingRoute(ctx); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return false, errors.New("conversation prompt retry exhausted")
 }
 
 func (s *Service) resumeConversation(
@@ -550,6 +599,21 @@ func (s *Service) resumeConversation(
 		req,
 	)
 	if err != nil {
+		return err
+	}
+	turnID, err := s.ensureConversationResumeTurnID(ctx, principal, session)
+	if err != nil {
+		return err
+	}
+	runner.turnID = turnID
+	if err := s.writeConversationEvent(w, flusher, conversationEvent{
+		Type:      "turn_started",
+		NodeID:    runner.agentConn.nodeID,
+		AgentID:   runner.agentConn.agentID,
+		SessionID: session.managerID,
+		TurnID:    turnID,
+		Status:    "resumed",
+	}); err != nil {
 		return err
 	}
 	response, err := acpPermissionResponseFromApproval(approval)
@@ -593,12 +657,35 @@ func (s *Service) resumeConversation(
 		NodeID:    runner.agentConn.nodeID,
 		AgentID:   runner.agentConn.agentID,
 		SessionID: session.managerID,
+		TurnID:    turnID,
 		Frame:     eventFrame,
 	}); err != nil {
 		return err
 	}
-	if err := s.streamConversationUntilPromptDone(ctx, w, flusher, runner, session, sub, promptRequestID, waiter); err != nil {
+	completed, err := s.streamConversationUntilPromptDone(
+		ctx,
+		w,
+		flusher,
+		runner,
+		session,
+		sub,
+		promptRequestID,
+		waiter,
+	)
+	if err != nil {
 		return err
+	}
+	if completed {
+		if err := s.writeConversationTurnDone(
+			ctx,
+			w,
+			flusher,
+			runner.agentConn,
+			session,
+			turnID,
+		); err != nil {
+			return err
+		}
 	}
 	return s.writeConversationEvent(w, flusher, conversationEvent{
 		Type:      "done",
@@ -606,6 +693,41 @@ func (s *Service) resumeConversation(
 		AgentID:   runner.agentConn.agentID,
 		SessionID: session.managerID,
 	})
+}
+
+func (s *Service) ensureConversationResumeTurnID(
+	ctx context.Context,
+	principal UserPrincipal,
+	session conversationSession,
+) (string, error) {
+	stored, err := s.store.GetSession(ctx, principal, session.managerID)
+	if err != nil {
+		return "", err
+	}
+	if turnID := conversationActiveTurnID(stored); turnID != "" {
+		return turnID, nil
+	}
+	turnID, err := newConversationTurnID()
+	if err != nil {
+		return "", err
+	}
+	state := domain.SessionRuntimeState{
+		OwnerUserID: principal.User.UserID,
+		NodeID:      stored.NodeID,
+		AgentID:     stored.AgentID,
+		SessionID:   stored.SessionID,
+		Lifecycle:   domain.RuntimeLifecycleWaitingApproval,
+		UpdatedAt:   s.clock().UTC(),
+	}
+	if stored.RuntimeState != nil {
+		state = *stored.RuntimeState
+		state.UpdatedAt = s.clock().UTC()
+	}
+	state.ActiveTurnID = turnID
+	if err := s.store.UpdateSessionRuntimeState(ctx, state); err != nil {
+		return "", err
+	}
+	return turnID, nil
 }
 
 func (r *conversationRunner) request(
@@ -692,11 +814,12 @@ func (r *conversationRunner) resumeMissingRoute(ctx context.Context) error {
 	return err
 }
 
-func (r *conversationRunner) send(
+func (r *conversationRunner) sendTurnPrompt(
 	ctx context.Context,
-	method string,
+	turnID string,
 	params map[string]any,
 ) (int64, <-chan []byte, func(), error) {
+	const method = "session/prompt"
 	requestID, err := r.service.store.NextAgentACPRequestID(ctx, r.agentConn.agentID)
 	if err != nil {
 		return 0, nil, func() {}, err
@@ -710,7 +833,7 @@ func (r *conversationRunner) send(
 		r.managerSessionID,
 		method,
 	)
-	if err := r.sendRaw(ctx, payload); err != nil {
+	if err := r.sendRawForTurn(ctx, payload, turnID); err != nil {
 		cancel()
 		return 0, nil, func() {}, err
 	}
@@ -731,8 +854,17 @@ func conversationRequestPayload(
 }
 
 func (r *conversationRunner) sendRaw(ctx context.Context, payload []byte) error {
+	return r.sendRawForTurn(ctx, payload, "")
+}
+
+func (r *conversationRunner) sendRawForTurn(
+	ctx context.Context,
+	payload []byte,
+	turnID string,
+) error {
 	frame := newACPFrameContext(r.agentConn, acpUserToAgent, websocket.TextMessage, payload)
 	frame.managerSessionID = r.managerSessionID
+	frame.businessTurnID = turnID
 	return r.service.userACPFramePipeline().Handle(
 		ctx,
 		frame,
@@ -740,10 +872,11 @@ func (r *conversationRunner) sendRaw(ctx context.Context, payload []byte) error 
 			if err := r.agentConn.writeToAgent(ctx, frame.messageType, frame.payload); err != nil {
 				return err
 			}
-			return projectACPUserPromptForSession(
+			return projectACPUserPromptForSessionTurn(
 				ctx,
 				r.agentConn,
 				frame.managerSessionID,
+				frame.businessTurnID,
 				frame.payload,
 			)
 		},
@@ -753,6 +886,7 @@ func (r *conversationRunner) sendRaw(ctx context.Context, payload []byte) error 
 func (r *conversationRunner) sendWorkerResponseRaw(ctx context.Context, payload []byte) error {
 	frame := newACPFrameContext(r.agentConn, acpUserToAgent, websocket.TextMessage, payload)
 	frame.managerSessionID = r.managerSessionID
+	frame.businessTurnID = r.turnID
 	return r.service.userACPFramePipeline().Handle(
 		ctx,
 		frame,
@@ -766,10 +900,11 @@ func (r *conversationRunner) sendWorkerResponseRaw(ctx context.Context, payload 
 			); err != nil {
 				return err
 			}
-			return projectACPUserPromptForSession(
+			return projectACPUserPromptForSessionTurn(
 				ctx,
 				r.agentConn,
 				frame.managerSessionID,
+				frame.businessTurnID,
 				frame.payload,
 			)
 		},
@@ -785,7 +920,7 @@ func (s *Service) streamConversationUntilPromptDone(
 	sub *acpSSESubscriber,
 	promptRequestID string,
 	waiter <-chan []byte,
-) error {
+) (bool, error) {
 	timer := time.NewTimer(conversationRequestIdleTimeout)
 	defer timer.Stop()
 	for {
@@ -794,9 +929,9 @@ func (s *Service) streamConversationUntilPromptDone(
 			if !ok {
 				select {
 				case err := <-sub.terminal:
-					return err
+					return false, err
 				default:
-					return nil
+					return false, nil
 				}
 			}
 			resetConversationIdleTimer(timer)
@@ -809,28 +944,28 @@ func (s *Service) streamConversationUntilPromptDone(
 				payload,
 			)
 			if err != nil || interrupted {
-				return err
+				return false, err
 			}
 		case payload := <-waiter:
 			s.drainConversationSSE(ctx, w, flusher, runner, session, sub)
 			var msg acpJSONRPCMessage
 			_ = json.Unmarshal(payload, &msg)
 			if len(msg.Error) > 0 {
-				return decodeConversationACPError(msg.Error)
+				return false, decodeConversationACPError(msg.Error)
 			}
-			return nil
+			return true, nil
 		case err, ok := <-sub.terminal:
 			if ok && err != nil {
-				return err
+				return false, err
 			}
-			return nil
+			return false, nil
 		case <-timer.C:
-			return apperr.Error{
+			return false, apperr.Error{
 				Status:  http.StatusGatewayTimeout,
 				Message: "ACP request idle timed out: session/prompt",
 			}
 		case <-ctx.Done():
-			return ctx.Err()
+			return false, ctx.Err()
 		}
 	}
 }
@@ -881,6 +1016,7 @@ func (s *Service) writeConversationACPEvent(
 				NodeID:    runner.agentConn.nodeID,
 				AgentID:   runner.agentConn.agentID,
 				SessionID: session.managerID,
+				TurnID:    runner.turnID,
 				Frame:     append(json.RawMessage(nil), payload...),
 			})
 		}
@@ -898,6 +1034,7 @@ func (s *Service) writeConversationACPEvent(
 				NodeID:    runner.agentConn.nodeID,
 				AgentID:   runner.agentConn.agentID,
 				SessionID: session.managerID,
+				TurnID:    runner.turnID,
 				Frame:     frame,
 			}); err != nil {
 				return false, err
@@ -911,6 +1048,7 @@ func (s *Service) writeConversationACPEvent(
 				NodeID:    runner.agentConn.nodeID,
 				AgentID:   runner.agentConn.agentID,
 				SessionID: session.managerID,
+				TurnID:    runner.turnID,
 				Frame:     response,
 			})
 		}
@@ -919,6 +1057,7 @@ func (s *Service) writeConversationACPEvent(
 			NodeID:     runner.agentConn.nodeID,
 			AgentID:    runner.agentConn.agentID,
 			SessionID:  session.managerID,
+			TurnID:     runner.turnID,
 			ApprovalID: approval.ApprovalID,
 			Approval:   &approval,
 			Frame:      frame,
@@ -930,6 +1069,7 @@ func (s *Service) writeConversationACPEvent(
 			NodeID:     runner.agentConn.nodeID,
 			AgentID:    runner.agentConn.agentID,
 			SessionID:  session.managerID,
+			TurnID:     runner.turnID,
 			ApprovalID: approval.ApprovalID,
 			Reason:     "permission_required",
 		})
@@ -939,6 +1079,7 @@ func (s *Service) writeConversationACPEvent(
 		NodeID:    runner.agentConn.nodeID,
 		AgentID:   runner.agentConn.agentID,
 		SessionID: session.managerID,
+		TurnID:    runner.turnID,
 		Frame:     append(json.RawMessage(nil), payload...),
 	})
 }
@@ -1510,6 +1651,74 @@ func resetConversationIdleTimer(timer *time.Timer) {
 		}
 	}
 	timer.Reset(conversationRequestIdleTimeout)
+}
+
+func (s *Service) writeConversationTurnDone(
+	ctx context.Context,
+	w http.ResponseWriter,
+	flusher http.Flusher,
+	agent *ACPTunnelAgent,
+	session conversationSession,
+	turnID string,
+) error {
+	if err := persistConversationTurnDone(ctx, agent, session.managerID, turnID); err != nil {
+		return err
+	}
+	return s.writeConversationEvent(w, flusher, conversationEvent{
+		Type:      "turn_done",
+		NodeID:    agent.nodeID,
+		AgentID:   agent.agentID,
+		SessionID: session.managerID,
+		TurnID:    turnID,
+		Status:    "complete",
+	})
+}
+
+func persistConversationTurnDone(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+	sessionID string,
+	turnID string,
+) error {
+	if agent == nil || agent.store == nil || sessionID == "" || turnID == "" {
+		return errors.New("conversation turn completion requires agent, session, and turn IDs")
+	}
+	if err := agent.flushHistoryText(ctx); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(map[string]string{
+		"type":        "turn_done",
+		"turn_id":     turnID,
+		"turn_status": "complete",
+	})
+	if err != nil {
+		return err
+	}
+	logicalKey := "conversation:" + agent.agentID + ":" + sessionID + ":" + turnID + ":done"
+	msg := domain.Message{
+		MessageID:   acpHistoryMessageID(logicalKey),
+		OwnerUserID: agent.ownerUserID,
+		NodeID:      agent.nodeID,
+		AgentID:     agent.agentID,
+		SessionID:   sessionID,
+		Source:      domain.MessageSourceACPTunnel,
+		Direction:   domain.MessageDirectionAgentToUser,
+		Role:        "assistant",
+		Status:      "complete",
+		MessageType: "turn_done",
+		TurnID:      turnID,
+		LogicalKey:  logicalKey,
+		RawJSON:     raw,
+	}
+	if err := agent.store.UpsertMessage(ctx, &msg); err != nil {
+		return err
+	}
+	return agent.store.UpsertMessagePart(ctx, &domain.MessagePart{
+		MessageID:   msg.MessageID,
+		PartIndex:   0,
+		PartType:    domain.MessagePartRawJSON,
+		PayloadJSON: append(json.RawMessage(nil), raw...),
+	})
 }
 
 func (s *Service) writeConversationEvent(

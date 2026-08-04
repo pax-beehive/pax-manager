@@ -1830,7 +1830,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 	}
 	frame.nativeSessionID = frame.transportMetadata["native_session_id"]
 	err := pipeline.Handle(ctx, frame, func(_ context.Context, frame *acpFrameContext) error {
-		if err := projectACPTransportMessageWithTextSink(
+		if err := projectACPTransportMessageWithTextSinkForTurn(
 			ctx,
 			a.store,
 			acpAgentHistoryTextSink{agent: a},
@@ -1845,6 +1845,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 				frame.payload,
 			),
 			frame.managerSessionID,
+			frame.businessTurnID,
 			frame.payload,
 		); err != nil {
 			return err

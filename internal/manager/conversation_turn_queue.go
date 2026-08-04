@@ -93,7 +93,7 @@ func (q *conversationTurnQueue) upsert(
 		turn.TurnID = existing.TurnID
 		turn.CreatedAt = existing.CreatedAt
 	} else {
-		turnID, err := auth.Secrets{}.New("turn")
+		turnID, err := newConversationTurnID()
 		if err != nil {
 			return conversationQueuedTurn{}, "", err
 		}
@@ -103,6 +103,10 @@ func (q *conversationTurnQueue) upsert(
 	turn.UpdatedAt = now
 	q.turns[key] = turn
 	return turn, effect, nil
+}
+
+func newConversationTurnID() (string, error) {
+	return auth.Secrets{}.New("turn")
 }
 
 func (q *conversationTurnQueue) patch(
@@ -564,10 +568,7 @@ func conversationActiveTurnID(session domain.AgentSession) string {
 	if session.RuntimeState == nil {
 		return ""
 	}
-	return firstNonEmpty(
-		session.RuntimeState.ActiveTurnID,
-		session.RuntimeState.ActivePromptRequestID,
-	)
+	return session.RuntimeState.ActiveTurnID
 }
 
 func conversationSessionStatus(session domain.AgentSession) string {

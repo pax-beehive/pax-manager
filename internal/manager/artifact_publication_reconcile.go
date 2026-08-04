@@ -105,6 +105,7 @@ func reconcileArtifactPublicationDisplay(
 		Status:          terminal.Status,
 		MessageType:     domain.MessageTypePaxArtifact,
 		ParentMessageID: terminal.MessageID,
+		TurnID:          terminal.TurnID,
 		LogicalKey:      logicalKey,
 		RawJSON:         raw,
 	}
