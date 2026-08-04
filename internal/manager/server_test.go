@@ -3479,6 +3479,8 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 	assert.Equal(t, turnStartedEvent.TurnID, interruptedEvent.TurnID)
 	assert.Equal(t, "permission_required", interruptedEvent.Reason)
 	assert.Equal(t, requiredEvent.ApprovalID, interruptedEvent.ApprovalID)
+	requireNoConversationEvent(t, events, "turn_done")
+	assert.Empty(t, requireConversationEvent(t, events, "done").TurnID)
 
 	approval, err := srv.store.GetApproval(
 		t.Context(),
@@ -3613,6 +3615,16 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 	assert.Equal(t, json.RawMessage(`1`), response.ID)
 	assert.Equal(t, "selected", response.Result.Outcome.Outcome)
 	assert.Equal(t, "allow", response.Result.Outcome.OptionID)
+	autoApprovedSession, err := srv.store.GetSession(
+		t.Context(),
+		testUserPrincipal(t, srv, fixture.userEmail),
+		"sess-existing",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, autoApprovedSession.RuntimeState)
+	autoApprovedTurnID := autoApprovedSession.RuntimeState.ActiveTurnID
+	require.True(t, strings.HasPrefix(autoApprovedTurnID, "turn_"))
+	assert.Equal(t, domain.RuntimeLifecycleRunning, autoApprovedSession.RuntimeState.Lifecycle)
 
 	writeAgentDataFrame(
 		t,
@@ -3633,17 +3645,22 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
 	events := decodeConversationEvents(t, body)
+	turnStartedEvent := requireConversationEvent(t, events, "turn_started")
+	assert.Equal(t, autoApprovedTurnID, turnStartedEvent.TurnID)
 	permissionRequestEvent := requireConversationACPFrameContaining(
 		t,
 		events,
 		`"method":"session/request_permission"`,
 	)
+	assert.Equal(t, autoApprovedTurnID, permissionRequestEvent.TurnID)
 	assert.Contains(t, string(permissionRequestEvent.Frame), `"id":1`)
 	assert.Contains(t, string(permissionRequestEvent.Frame), `"approval_id"`)
 	permissionResponseEvent := requireConversationACPFrameContaining(t, events, `"result"`)
+	assert.Equal(t, autoApprovedTurnID, permissionResponseEvent.TurnID)
 	assert.Contains(t, string(permissionResponseEvent.Frame), `"id":1`)
 	assert.Contains(t, string(permissionResponseEvent.Frame), `"approval_mode":"auto_approve_all"`)
 	outputEvent := requireConversationACPFrameContaining(t, events, "approved output")
+	assert.Equal(t, autoApprovedTurnID, outputEvent.TurnID)
 	assert.Contains(t, string(outputEvent.Frame), "approved output")
 	requireConversationEvent(t, events, "done")
 	requireNoConversationEvent(t, events, "approval_required")
@@ -3676,6 +3693,16 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 	requireHistoryUserPrompt(t, history.Messages, "run approved command")
 	requireHistoryPermissionRequestWithApprovalID(t, history.Messages, approvals[0].ApprovalID)
 	requireHistoryPermissionResponseWithGrantBody(t, history.Messages, "1", "auto_approve_all")
+	for _, messageType := range []string{
+		domain.MessageTypeUser,
+		"session/request_permission",
+		"permission_response",
+		"agent_message_chunk",
+		"turn_done",
+	} {
+		message := requireHistoryMessageWithPartsType(t, history.Messages, messageType)
+		assert.Equal(t, autoApprovedTurnID, message.TurnID)
+	}
 }
 
 func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionResponse(
