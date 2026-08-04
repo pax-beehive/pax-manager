@@ -3586,6 +3586,7 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 			"id":1,
 			"method":"session/request_permission",
 			"params":{
+				"_meta":{"codex":{"params":{"turnId":"019fcebb-5a1b-7612-95c5-bd2939574630"}}},
 				"sessionId":"native-existing",
 				"toolCall":{
 					"toolCallId":"toolu_approval",
