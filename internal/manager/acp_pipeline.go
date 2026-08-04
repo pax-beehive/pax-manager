@@ -30,6 +30,7 @@ type acpFrameContext struct {
 	managerSessionID  string
 	nativeSessionID   string
 	requestKind       string
+	businessTurnID    string
 	legacyRaw         bool
 	dropReason        string
 	handled           bool
@@ -673,6 +674,12 @@ func (m acpRuntimeStateMiddleware) HandleACPFrame(
 	next acpFrameHandler,
 ) error {
 	if m.projector != nil {
+		if frame.businessTurnID == "" {
+			frame.businessTurnID = m.projector.CurrentTurnID(
+				frame.agent,
+				frame.managerSessionID,
+			)
+		}
 		_ = m.projector.Observe(ctx, frame)
 	}
 	return next(ctx, frame)
@@ -719,6 +726,22 @@ func (p *acpRuntimeProjector) Observe(ctx context.Context, frame *acpFrameContex
 	return p.store.UpdateSessionRuntimeState(ctx, state)
 }
 
+func (p *acpRuntimeProjector) CurrentTurnID(
+	agent *ACPTunnelAgent,
+	managerSessionID string,
+) string {
+	if p == nil || agent == nil || agent.agentID == "" || managerSessionID == "" {
+		return ""
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	session := p.sessions[acpSessionKey(agent.agentID, managerSessionID)]
+	if session == nil {
+		return ""
+	}
+	return session.state.ActiveTurnID
+}
+
 type acpRuntimeEvent struct {
 	kind        string
 	requestID   string
@@ -736,12 +759,17 @@ func (p *acpRuntimeProjector) eventFromFrame(frame *acpFrameContext) (acpRuntime
 			return acpRuntimeEvent{
 				kind:      "prompt_started",
 				requestID: acpRequestID(frame.frame.ID),
+				turnID: firstNonEmpty(
+					frame.businessTurnID,
+					findStringFromRaw(frame.frame.Params, "turnId", "turn_id"),
+				),
 			}, true
 		}
 		if requestID := acpRequestID(frame.frame.ID); requestID != "" {
 			return acpRuntimeEvent{
 				kind:      "permission_resolved",
 				requestID: requestID,
+				turnID:    frame.businessTurnID,
 			}, true
 		}
 	case acpAgentToUser:
@@ -817,7 +845,7 @@ func (p *acpRuntimeProjector) apply(
 	case "prompt_started":
 		state.Lifecycle = domain.RuntimeLifecycleRunning
 		state.ActivePromptRequestID = event.requestID
-		state.ActiveTurnID = firstNonEmpty(event.turnID, event.requestID)
+		state.ActiveTurnID = event.turnID
 		state.BlockedReason = ""
 		state.BlockedRef = ""
 		state.PendingApprovalID = ""
@@ -837,6 +865,9 @@ func (p *acpRuntimeProjector) apply(
 			session.permissionRequests[event.requestID] = state.BlockedRef
 		}
 	case "permission_resolved":
+		if event.turnID != "" {
+			state.ActiveTurnID = event.turnID
+		}
 		if _, ok := session.permissionRequests[event.requestID]; ok {
 			delete(session.permissionRequests, event.requestID)
 			state.PendingApprovalID = ""
@@ -857,6 +888,7 @@ func (p *acpRuntimeProjector) apply(
 			state.BlockedRef = ""
 			state.PendingApprovalID = ""
 			state.ActivePromptRequestID = ""
+			state.ActiveTurnID = ""
 			state.LastStopReason = event.stopReason
 		}
 	case "prompt_failed":
@@ -867,6 +899,7 @@ func (p *acpRuntimeProjector) apply(
 			state.BlockedRef = ""
 			state.PendingApprovalID = ""
 			state.ActivePromptRequestID = ""
+			state.ActiveTurnID = ""
 			state.LastError = event.errorText
 		}
 	}

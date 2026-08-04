@@ -63,12 +63,12 @@ func TestACPRuntimeProjectorTracksPromptPermissionAndCompletion(t *testing.T) {
 		"jsonrpc":"2.0",
 		"id":1,
 		"method":"session/prompt",
-		"params":{"sessionId":"sess_1","prompt":[{"type":"text","text":"hi"}]}
+		"params":{"sessionId":"sess_1","turn_id":"turn_business","prompt":[{"type":"text","text":"hi"}]}
 	}`)
 	state := recorder.last()
 	if state.Lifecycle != domain.RuntimeLifecycleRunning ||
 		state.ActivePromptRequestID != "1" ||
-		state.ActiveTurnID != "1" {
+		state.ActiveTurnID != "turn_business" {
 		t.Fatalf("after prompt start state = %+v", state)
 	}
 
@@ -135,7 +135,8 @@ func TestACPRuntimeProjectorTracksPromptPermissionAndCompletion(t *testing.T) {
 	state = recorder.last()
 	if state.Lifecycle != domain.RuntimeLifecycleIdle ||
 		state.LastStopReason != "end_turn" ||
-		state.ActivePromptRequestID != "" {
+		state.ActivePromptRequestID != "" ||
+		state.ActiveTurnID != "" {
 		t.Fatalf("after prompt completion state = %+v", state)
 	}
 }

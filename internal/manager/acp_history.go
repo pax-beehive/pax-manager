@@ -105,6 +105,36 @@ func projectACPTransportMessageWithTextSink(
 	fallbackSessionID string,
 	payload json.RawMessage,
 ) error {
+	return projectACPTransportMessageWithTextSinkForTurn(
+		ctx,
+		store,
+		textSink,
+		agentID,
+		ownerUserID,
+		nodeID,
+		stream,
+		seq,
+		historyGroupID,
+		fallbackSessionID,
+		"",
+		payload,
+	)
+}
+
+func projectACPTransportMessageWithTextSinkForTurn(
+	ctx context.Context,
+	store domain.Store,
+	textSink acpHistoryTextSink,
+	agentID string,
+	ownerUserID string,
+	nodeID string,
+	stream string,
+	seq int64,
+	historyGroupID string,
+	fallbackSessionID string,
+	fallbackTurnID string,
+	payload json.RawMessage,
+) error {
 	if stream != domain.TransportStreamPaxdToManager {
 		return nil
 	}
@@ -116,6 +146,7 @@ func projectACPTransportMessageWithTextSink(
 	direction := domain.MessageDirectionAgentToUser
 	role := "assistant"
 	fields := extractACPHistoryFields(payload, rpc)
+	fields.TurnID = firstNonEmpty(fields.TurnID, fallbackTurnID)
 	fields, projection := classifyACPHistoryProjection(rpc, fields)
 	if projection == acpHistoryProjectionNone {
 		if len(rpc.Result) > 0 || len(rpc.Error) > 0 {
@@ -220,6 +251,16 @@ func projectACPUserPromptForSession(
 	managerSessionID string,
 	payload []byte,
 ) error {
+	return projectACPUserPromptForSessionTurn(ctx, agent, managerSessionID, "", payload)
+}
+
+func projectACPUserPromptForSessionTurn(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
+	managerSessionID string,
+	turnID string,
+	payload []byte,
+) error {
 	if agent == nil || agent.store == nil {
 		return nil
 	}
@@ -234,7 +275,14 @@ func projectACPUserPromptForSession(
 		return err
 	}
 	if rpc.Method != "session/prompt" {
-		return projectACPUserRawFrameForSession(ctx, agent, managerSessionID, payload, rpc)
+		return projectACPUserRawFrameForSession(
+			ctx,
+			agent,
+			managerSessionID,
+			turnID,
+			payload,
+			rpc,
+		)
 	}
 	sessionID := firstNonEmpty(
 		managerSessionID,
@@ -252,7 +300,7 @@ func projectACPUserPromptForSession(
 		return nil
 	}
 	paxMeta, hasPaxMeta := paxInvocationPromptMetadataFromRaw(rpc.Params)
-	projectionID := firstNonEmpty(acpHistoryRPCID(rpc.ID), acpHistoryContentHash(content))
+	projectionID := firstNonEmpty(turnID, acpHistoryRPCID(rpc.ID), acpHistoryContentHash(content))
 	if hasPaxMeta && strings.TrimSpace(paxMeta.TurnID) != "" {
 		projectionID = paxMeta.TurnID
 	}
@@ -274,6 +322,7 @@ func projectACPUserPromptForSession(
 		Role:        "user",
 		Status:      "sent",
 		MessageType: domain.MessageTypeUser,
+		TurnID:      turnID,
 		LogicalKey:  logicalKey,
 		RawJSON:     append(json.RawMessage(nil), payload...),
 	}
@@ -322,6 +371,7 @@ func projectACPPaxInvocationDisplay(
 		Status:          parent.Status,
 		MessageType:     domain.MessageTypePaxInvocation,
 		ParentMessageID: parent.MessageID,
+		TurnID:          parent.TurnID,
 		LogicalKey:      logicalKey,
 	}
 	msg.RawJSON, _ = paxInvocationDisplayRawForPrompt(parent.MessageID, meta)
@@ -383,6 +433,7 @@ func projectACPPaxInvocationPendingDisplay(
 		Status:          terminal.Status,
 		MessageType:     domain.MessageTypePaxInvocation,
 		ParentMessageID: terminal.MessageID,
+		TurnID:          firstNonEmpty(pending.TurnID, terminal.TurnID),
 		LogicalKey:      logicalKey,
 		RawJSON:         raw,
 	}
@@ -502,6 +553,7 @@ func projectACPUserRawFrameForSession(
 	ctx context.Context,
 	agent *ACPTunnelAgent,
 	managerSessionID string,
+	turnID string,
 	payload []byte,
 	rpc acpHistoryRPC,
 ) error {
@@ -538,6 +590,7 @@ func projectACPUserRawFrameForSession(
 		Role:        "user",
 		Status:      "sent",
 		MessageType: messageType,
+		TurnID:      turnID,
 		LogicalKey:  logicalKey,
 		RawJSON:     append(json.RawMessage(nil), payload...),
 	}
