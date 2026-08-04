@@ -3213,14 +3213,14 @@ func upsertSessionTx(
 			cache_creation_tokens, reasoning_tokens, estimated_cost_usd, actual_cost_usd, cost_usd,
 			model, run_id, run_status, created_at, updated_at
 		)
-		VALUES (NULLIF($1,''),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$29)
+		VALUES (NULLIF($1,''),$2,$3,$4,$5,$6,NULLIF($7,''),$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$29)
 		ON CONFLICT (agent_id, session_id) DO UPDATE SET
 			node_id = COALESCE(EXCLUDED.node_id, agent_sessions.node_id),
 			session_name = COALESCE(NULLIF(EXCLUDED.session_name, ''), agent_sessions.session_name),
 			agent_type = EXCLUDED.agent_type,
 			native_id = COALESCE(NULLIF(EXCLUDED.native_id, ''), agent_sessions.native_id),
 			primary_project_id = COALESCE(
-				agent_sessions.primary_project_id,
+				NULLIF(agent_sessions.primary_project_id, ''),
 				NULLIF(EXCLUDED.primary_project_id, '')
 			),
 			preview = EXCLUDED.preview,

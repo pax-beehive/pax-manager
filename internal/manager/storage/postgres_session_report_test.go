@@ -168,6 +168,32 @@ func TestPostgresStoreUpsertAgentSessions(t *testing.T) {
 	)
 }
 
+func TestUpsertSessionTxGivenPrimaryProjectRaceThenBackfillsEmptyProject(t *testing.T) {
+	script := &scriptedPostgresScript{}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+
+	err := upsertSessionTx(
+		context.Background(),
+		dbExecer{store.db},
+		"node_1",
+		"agent_1",
+		SessionStatusInput{SessionID: "sess_1"},
+		"proj_1",
+		store.now(),
+	)
+
+	require.NoError(t, err)
+	require.Len(t, script.execTexts, 1)
+	query := script.execTexts[0]
+	assert.Contains(t, query, "NULLIF($7,'')")
+	assert.Contains(
+		t,
+		query,
+		"NULLIF(agent_sessions.primary_project_id, '')",
+	)
+}
+
 func TestPostgresStoreUpsertAgentStatus(t *testing.T) {
 	t.Run(
 		"Given a node-owned agent when reporting sessions then it upserts with the agent node ID",
