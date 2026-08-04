@@ -419,7 +419,8 @@ func rewriteACPFrameSessionID(payload []byte, sessionID string) ([]byte, bool, e
 }
 
 type acpApprovalMiddleware struct {
-	store Store
+	store   Store
+	runtime *acpRuntimeProjector
 }
 
 func (m acpApprovalMiddleware) HandleACPFrame(
@@ -545,6 +546,9 @@ func (m acpApprovalMiddleware) autoApproveSessionPolicy(
 	); err != nil {
 		return true, err
 	}
+	if err := m.observePermissionResponse(ctx, frame, response); err != nil {
+		return true, err
+	}
 	recorded, err := m.store.RecordApprovalResponse(
 		ctx,
 		principal,
@@ -559,10 +563,11 @@ func (m acpApprovalMiddleware) autoApproveSessionPolicy(
 	if err != nil {
 		return true, err
 	}
-	if err := projectACPUserPromptForSession(
+	if err := projectACPUserPromptForSessionTurn(
 		ctx,
 		frame.agent,
 		frame.managerSessionID,
+		m.businessTurnID(ctx, frame),
 		response,
 	); err != nil {
 		return true, err
@@ -628,19 +633,68 @@ func (m acpApprovalMiddleware) autoApproveReusableGrant(
 	); err != nil {
 		return err
 	}
+	if err := m.observePermissionResponse(ctx, frame, response); err != nil {
+		return err
+	}
 	if err := m.notifyAutoApprovedFrame(ctx, frame, json.RawMessage(response)); err != nil {
 		return err
 	}
-	if err := projectACPUserPromptForSession(
+	if err := projectACPUserPromptForSessionTurn(
 		ctx,
 		frame.agent,
 		frame.managerSessionID,
+		m.businessTurnID(ctx, frame),
 		response,
 	); err != nil {
 		return err
 	}
 	frame.handled = true
 	return nil
+}
+
+func (m acpApprovalMiddleware) businessTurnID(
+	ctx context.Context,
+	frame *acpFrameContext,
+) string {
+	if frame == nil {
+		return ""
+	}
+	if frame.businessTurnID != "" {
+		return frame.businessTurnID
+	}
+	if m.store == nil || frame.agent == nil || frame.managerSessionID == "" {
+		return ""
+	}
+	session, err := m.store.GetSession(
+		ctx,
+		domain.UserPrincipal{User: domain.User{UserID: frame.agent.ownerUserID}},
+		frame.managerSessionID,
+	)
+	if err != nil {
+		return ""
+	}
+	frame.businessTurnID = conversationActiveTurnID(session)
+	return frame.businessTurnID
+}
+
+func (m acpApprovalMiddleware) observePermissionResponse(
+	ctx context.Context,
+	frame *acpFrameContext,
+	payload []byte,
+) error {
+	if m.runtime == nil || frame == nil || frame.agent == nil {
+		return nil
+	}
+	response := newACPFrameContext(
+		frame.agent,
+		acpUserToAgent,
+		websocket.TextMessage,
+		payload,
+	)
+	response.managerSessionID = frame.managerSessionID
+	response.nativeSessionID = frame.nativeSessionID
+	response.businessTurnID = m.businessTurnID(ctx, frame)
+	return m.runtime.Observe(ctx, response)
 }
 
 func (m acpApprovalMiddleware) notifyAutoApprovedFrame(
