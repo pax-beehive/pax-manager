@@ -207,6 +207,16 @@ func TestACPApprovalMiddlewareGivenSessionAutoApproveAllThenAllowsAutoApprove(t 
 		},
 	)
 	require.NoError(t, err)
+	require.NoError(t, store.UpdateSessionRuntimeState(ctx, domain.SessionRuntimeState{
+		OwnerUserID:           user.UserID,
+		NodeID:                agentModel.NodeID,
+		AgentID:               agentModel.AgentID,
+		SessionID:             session.SessionID,
+		Lifecycle:             domain.RuntimeLifecycleRunning,
+		ActivePromptRequestID: "prompt_1",
+		ActiveTurnID:          "turn_business",
+		UpdatedAt:             time.Now().UTC(),
+	}))
 	agent := &ACPTunnelAgent{
 		agentID:     agentModel.AgentID,
 		nodeID:      agentModel.NodeID,
@@ -234,6 +244,8 @@ func TestACPApprovalMiddlewareGivenSessionAutoApproveAllThenAllowsAutoApprove(t 
 	gotSessionID, ok := middleware.autoApproveSessionID(ctx, frame)
 	assert.True(t, ok)
 	assert.Equal(t, "sess_manager_1", gotSessionID)
+	assert.Equal(t, "turn_business", middleware.businessTurnID(ctx, frame))
+	assert.Equal(t, "turn_business", frame.businessTurnID)
 }
 
 func TestACPSessionIDMiddlewareTranslatesFramePayloadAtUserBoundary(t *testing.T) {

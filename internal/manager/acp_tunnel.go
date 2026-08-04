@@ -839,7 +839,7 @@ func (s *Service) agentACPFramePipeline() acpFramePipeline {
 		acpSessionLifecycleMiddleware{store: s.store},
 		acpSessionIDMiddleware{store: s.store},
 		acpSessionMuxMiddleware{},
-		acpApprovalMiddleware{store: s.store},
+		acpApprovalMiddleware{store: s.store, runtime: s.acpRuntime},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
 	)
 }
