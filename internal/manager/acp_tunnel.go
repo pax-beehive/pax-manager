@@ -207,6 +207,32 @@ func (h *ACPTunnelHub) remove(agentID string, sessionID string, conn *ACPTunnelA
 	}
 }
 
+func (h *ACPTunnelHub) interruptSession(agentID string, sessionID string, err error) int {
+	if h == nil || agentID == "" || sessionID == "" || err == nil {
+		return 0
+	}
+	h.mu.RLock()
+	muxes := make(map[*acpSessionMux]struct{})
+	for key, state := range h.states {
+		if key.agentID != agentID || state == nil {
+			continue
+		}
+		state.mu.Lock()
+		mux := state.sessionMux
+		state.mu.Unlock()
+		if mux != nil {
+			muxes[mux] = struct{}{}
+		}
+	}
+	h.mu.RUnlock()
+
+	interrupted := 0
+	for mux := range muxes {
+		interrupted += mux.interruptSession(sessionID, err)
+	}
+	return interrupted
+}
+
 func (h *ACPTunnelHub) claim(agentID string, sessionID string) (*ACPTunnelAgent, error) {
 	return h.claimAny(agentID, sessionID, "")
 }
@@ -607,7 +633,7 @@ func (a *ACPTunnelAgent) addResponseWaiter(
 	requestID string,
 	managerSessionID string,
 	requestKind string,
-) (<-chan []byte, func()) {
+) (<-chan acpResponseWaiterResult, func()) {
 	return a.sessionRouter().addResponseWaiter(requestID, managerSessionID, requestKind)
 }
 

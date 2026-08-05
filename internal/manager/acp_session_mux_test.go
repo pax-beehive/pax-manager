@@ -2,11 +2,51 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 )
+
+func TestACPSessionMuxInterruptsOnlyTheMissingRuntimeSession(t *testing.T) {
+	mux := newACPSessionMux()
+	waiterA, cancelA := mux.addResponseWaiter("11", "sess-a", "session/prompt")
+	defer cancelA()
+	waiterB, cancelB := mux.addResponseWaiter("22", "sess-b", "session/prompt")
+	defer cancelB()
+	subA := mux.subscribe("sess-a")
+	defer mux.unsubscribe(subA)
+	subB := mux.subscribe("sess-b")
+	defer mux.unsubscribe(subB)
+
+	interrupted := errors.New("runtime turn disappeared")
+	require.Equal(t, 2, mux.interruptSession("sess-a", interrupted))
+
+	waiterResult := <-waiterA
+	require.ErrorIs(t, waiterResult.err, interrupted)
+	terminalErr := <-subA.terminal
+	require.ErrorIs(t, terminalErr, interrupted)
+
+	require.True(t, mux.notifyResponseWaiter("22", []byte(`{"id":22,"result":{}}`)))
+	require.JSONEq(t, `{"id":22,"result":{}}`, string((<-waiterB).payload))
+	require.True(t, mux.publish("sess-b", []byte(`{"method":"session/update"}`)))
+	require.JSONEq(t, `{"method":"session/update"}`, string(<-subB.ch))
+}
+
+func TestACPSessionMuxKeepsBufferedPromptResponseWhenIdleSnapshotArrives(t *testing.T) {
+	mux := newACPSessionMux()
+	waiter, cancel := mux.addResponseWaiter("11", "sess-a", "session/prompt")
+	defer cancel()
+	sub := mux.subscribe("sess-a")
+	defer mux.unsubscribe(sub)
+
+	require.True(t, mux.notifyResponseWaiter("11", []byte(`{"id":11,"result":{}}`)))
+	require.Zero(t, mux.interruptSession("sess-a", errors.New("runtime turn disappeared")))
+	require.JSONEq(t, `{"id":11,"result":{}}`, string((<-waiter).payload))
+	require.True(t, mux.publish("sess-a", []byte(`{"method":"session/update"}`)))
+	require.JSONEq(t, `{"method":"session/update"}`, string(<-sub.ch))
+}
 
 func TestACPSessionMuxRoutesInterleavedSessionlessResponsesByRequestID(t *testing.T) {
 	agent := &ACPTunnelAgent{}
@@ -41,14 +81,14 @@ func TestACPSessionMuxRoutesInterleavedSessionlessResponsesByRequestID(t *testin
 
 	dispatch(`{"jsonrpc":"2.0","id":22,"result":{"ok":"b"}}`)
 	select {
-	case payload := <-waiterA:
-		t.Fatalf("session A received session B response: %s", payload)
+	case result := <-waiterA:
+		t.Fatalf("session A received session B response: %s", result.payload)
 	default:
 	}
-	require.JSONEq(t, `{"jsonrpc":"2.0","id":22,"result":{"ok":"b"}}`, string(<-waiterB))
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":22,"result":{"ok":"b"}}`, string((<-waiterB).payload))
 
 	dispatch(`{"jsonrpc":"2.0","id":11,"result":{"ok":"a"}}`)
-	require.JSONEq(t, `{"jsonrpc":"2.0","id":11,"result":{"ok":"a"}}`, string(<-waiterA))
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":11,"result":{"ok":"a"}}`, string((<-waiterA).payload))
 	require.Equal(t, []string{
 		"sess-b:session/set_mode",
 		"sess-a:session/prompt",
@@ -123,7 +163,7 @@ func TestACPSessionMuxClosingOneSessionDoesNotAffectAnother(t *testing.T) {
 	require.Equal(t, "sess-b", sessionID)
 	require.Equal(t, "session/prompt", requestKind)
 	require.True(t, mux.notifyResponseWaiter("22", []byte(`{"id":22,"result":{}}`)))
-	require.JSONEq(t, `{"id":22,"result":{}}`, string(<-waiterB))
+	require.JSONEq(t, `{"id":22,"result":{}}`, string((<-waiterB).payload))
 	require.True(t, mux.publish("sess-b", []byte(`{"method":"session/update"}`)))
 	require.JSONEq(t, `{"method":"session/update"}`, string(<-subB.ch))
 }
