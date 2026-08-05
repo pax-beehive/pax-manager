@@ -668,14 +668,21 @@ func (s *Service) GetSecret(
 	return http.StatusOK, map[string]any{"secret": secret}, nil
 }
 
-func (s *Service) ListAgents(c context.Context, meta auth.RequestMetadata, scope string) (int, any, error) {
+func (s *Service) ListAgents(
+	c context.Context,
+	meta auth.RequestMetadata,
+	scope string,
+) (int, any, error) {
 	principal, err := s.principal.Principal(c, meta)
 	if err != nil {
 		return 0, nil, err
 	}
 	scope = strings.ToLower(strings.TrimSpace(scope))
 	if scope != "" && scope != "accessible" && scope != "owned" {
-		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "scope must be accessible or owned"}
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "scope must be accessible or owned",
+		}
 	}
 	agents, err := s.store.ListAgents(c, principal)
 	if err != nil {
@@ -889,7 +896,8 @@ func (s *Service) filterOwnedNodeDaemonAgentConnections(
 			Message: "paxd returned an invalid agent connection result",
 		}
 	}
-	if result.Error != nil || result.AgentConnections == nil || len(result.AgentConnections.Items) == 0 {
+	if result.Error != nil || result.AgentConnections == nil ||
+		len(result.AgentConnections.Items) == 0 {
 		return raw, nil
 	}
 
@@ -1167,6 +1175,71 @@ func (s *Service) CreateNodeDaemonAgentConnection(
 			"desired_state":  "running",
 			"desired_slots":  desiredSlots,
 		},
+	}, data)
+}
+
+func (s *Service) RestartNodeDaemon(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.RestartNodeDaemonRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	if req.NodeID == "" || req.CommandID == "" {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadRequest, Message: "node_id and command_id are required",
+		}
+	}
+	mode := strings.TrimSpace(req.Mode)
+	if mode == "" {
+		mode = "immediate"
+	}
+	if mode != "immediate" {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadRequest, Message: "mode must be immediate",
+		}
+	}
+	if req.ShutdownGraceSeconds != nil &&
+		(*req.ShutdownGraceSeconds < 1 || *req.ShutdownGraceSeconds > 60) {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "shutdown_grace_seconds must be between 1 and 60",
+		}
+	}
+	if len(req.Reason) > 512 {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadRequest, Message: "reason must not exceed 512 bytes",
+		}
+	}
+	node, err := s.store.GetNode(c, principal, req.NodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if s.nodeControl == nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	restart := map[string]any{"mode": mode}
+	if req.ShutdownGraceSeconds != nil {
+		restart["shutdown_grace_seconds"] = *req.ShutdownGraceSeconds
+	}
+	if reason := strings.TrimSpace(req.Reason); reason != "" {
+		restart["reason"] = reason
+	}
+	data := map[string]any{
+		"command_id": req.CommandID, "remote_id": remoteID, "dispatch_status": "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id":   req.CommandID,
+		"type":         "paxd.restart",
+		"restart_paxd": restart,
 	}, data)
 }
 

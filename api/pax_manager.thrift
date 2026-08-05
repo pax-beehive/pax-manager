@@ -1262,6 +1262,15 @@ struct GetNodeDaemonCommandRequest {
   3: optional string command_id (api.path = "command_id")
 }
 
+struct RestartNodeDaemonRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string command_id
+  4: optional string mode
+  5: optional i32 shutdown_grace_seconds
+  6: optional string reason
+}
+
 service PaxManagerAPI {
   HealthResponse Health(1: optional EmptyRequest request) (
     api.get = "/api/v1/health",
@@ -1612,6 +1621,19 @@ service PaxManagerAPI {
     openapi.tag = "user",
     openapi.summary = "List node daemon agent connections",
     openapi.description = "Forwards an agent_connections.list query to the connected paxd control tunnel.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonCommandResponse RestartNodeDaemon(
+    1: optional RestartNodeDaemonRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/restart",
+    openapi.tag = "user",
+    openapi.summary = "Restart node daemon",
+    openapi.description = "Forwards paxd.restart to the connected paxd control tunnel.",
+    openapi.status = "202",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier."

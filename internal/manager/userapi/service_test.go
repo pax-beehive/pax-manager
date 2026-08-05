@@ -1126,6 +1126,80 @@ func TestStopNodeDaemonAgentConnection(t *testing.T) {
 	}, client.command)
 }
 
+func TestRestartNodeDaemon(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+	store := userapimocks.NewMockStore(t)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	grace := 12
+	client := &fakeNodeControlClient{
+		remoteID: "remote_prod",
+		commandAck: json.RawMessage(`{
+			"command_id":"cmd_restart_paxd_1",
+			"ok":true,
+			"status":"received",
+			"target_type":"paxd"
+		}`),
+	}
+
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+	svc := userapi.NewService(
+		store,
+		fixedUserClock,
+		principals,
+		userapimocks.NewMockSecretIssuer(t),
+	)
+	svc.SetNodeControlClient(client)
+	status, rawData, err := svc.RestartNodeDaemon(
+		ctx,
+		auth.RequestMetadata{},
+		domain.RestartNodeDaemonRequest{
+			NodeID: "node_1", CommandID: "cmd_restart_paxd_1",
+			ShutdownGraceSeconds: &grace, Reason: " operator requested ",
+		},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, status)
+	data := rawData.(map[string]any)
+	require.Equal(t, "received", data["command_status"])
+	require.Equal(t, "acknowledged", data["dispatch_status"])
+	require.Equal(t, map[string]any{
+		"command_id": "cmd_restart_paxd_1",
+		"type":       "paxd.restart",
+		"restart_paxd": map[string]any{
+			"mode": "immediate", "shutdown_grace_seconds": 12, "reason": "operator requested",
+		},
+	}, client.command)
+}
+
+func TestRestartNodeDaemonRejectsUnsupportedPolicy(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Times(2)
+	svc := userapi.NewService(
+		userapimocks.NewMockStore(t),
+		fixedUserClock,
+		principals,
+		userapimocks.NewMockSecretIssuer(t),
+	)
+	grace := 61
+	for _, req := range []domain.RestartNodeDaemonRequest{
+		{NodeID: "node_1", CommandID: "cmd_bad_mode", Mode: "when_idle"},
+		{NodeID: "node_1", CommandID: "cmd_bad_grace", ShutdownGraceSeconds: &grace},
+	} {
+		status, _, err := svc.RestartNodeDaemon(ctx, auth.RequestMetadata{}, req)
+		require.Error(t, err)
+		require.Zero(t, status)
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+	}
+}
+
 func TestRestartNodeDaemonAgentConnection(t *testing.T) {
 	ctx := context.Background()
 	principal := userPrincipal("usr_self", false)
@@ -1866,7 +1940,12 @@ func TestAgents(t *testing.T) {
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 			store.EXPECT().ListAgents(ctx, principal).Return(agents, nil).Once()
 
-			svc := userapi.NewService(store, fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
 			status, data, err := svc.ListAgents(ctx, auth.RequestMetadata{}, "owned")
 
 			require.NoError(t, err)
@@ -1883,7 +1962,12 @@ func TestAgents(t *testing.T) {
 			principals := userapimocks.NewMockPrincipalResolver(t)
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 
-			svc := userapi.NewService(userapimocks.NewMockStore(t), fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
 			_, _, err := svc.ListAgents(ctx, auth.RequestMetadata{}, "all")
 
 			var appErr apperr.Error
@@ -3917,7 +4001,10 @@ func TestFriendFlow(t *testing.T) {
 			store.EXPECT().DeleteRemovedFriendsBetween(ctx, principal, "recipient@example.com").
 				Return(nil).
 				Once()
-			store.EXPECT().GetUserByEmail(ctx, "recipient@example.com").Return(recipient, nil).Once()
+			store.EXPECT().
+				GetUserByEmail(ctx, "recipient@example.com").
+				Return(recipient, nil).
+				Once()
 			secrets.EXPECT().New("fr").Return("fr_2", nil).Once()
 			store.EXPECT().CreateFriend(
 				ctx,

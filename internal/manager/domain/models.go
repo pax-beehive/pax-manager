@@ -1777,6 +1777,15 @@ type UpdateNodeDaemonAgentConnectionRequest struct {
 	DesiredState *string   `json:"desired_state"`
 }
 
+type RestartNodeDaemonRequest struct {
+	UserID               string `json:"user_id"`
+	NodeID               string `json:"node_id"`
+	CommandID            string `json:"command_id"`
+	Mode                 string `json:"mode"`
+	ShutdownGraceSeconds *int   `json:"shutdown_grace_seconds"`
+	Reason               string `json:"reason"`
+}
+
 type NodeDaemonAgentConnectionActionRequest struct {
 	UserID       string `json:"user_id"`
 	NodeID       string `json:"node_id"`

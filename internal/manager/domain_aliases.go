@@ -136,6 +136,7 @@ type CreateAgentRequest = domain.CreateAgentRequest
 type CreateNodeDaemonAgentConnectionRequest = domain.CreateNodeDaemonAgentConnectionRequest
 type DiscoverNodeDaemonHarnessesRequest = domain.DiscoverNodeDaemonHarnessesRequest
 type UpdateNodeDaemonAgentConnectionRequest = domain.UpdateNodeDaemonAgentConnectionRequest
+type RestartNodeDaemonRequest = domain.RestartNodeDaemonRequest
 type NodeDaemonAgentConnectionActionRequest = domain.NodeDaemonAgentConnectionActionRequest
 type UpdateNodeRequest = domain.UpdateNodeRequest
 type DeleteNodeRequest = domain.DeleteNodeRequest

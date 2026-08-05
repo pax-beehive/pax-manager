@@ -651,3 +651,8 @@ func _createprojecttargetsessionMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _restartnodedaemonMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

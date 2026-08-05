@@ -564,6 +564,86 @@ func TestNodeDaemonAgentConnectionCommandAPIs(t *testing.T) {
 	}`, string(result))
 }
 
+func TestRestartNodeDaemonForwardsCommandOverControlTunnel(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+	waitNodeControlConnection(t, srv.nodeControls, registered.NodeID)
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{
+		"kind":"report",
+		"version":1,
+		"report_id":"rpt_restart_daemon_identity",
+		"report":{
+			"type":"heartbeat",
+			"remote_id":"remote_prod",
+			"node_id":"`+registered.NodeID+`",
+			"heartbeat":{}
+		}
+	}`)))
+	waitNodeControlRemoteID(t, srv.nodeControls, registered.NodeID, "remote_prod")
+
+	const commandID = "cmd_restart_paxd_e2e"
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/self/nodes/"+registered.NodeID+"/daemon/restart",
+		strings.NewReader(`{
+			"command_id":"cmd_restart_paxd_e2e",
+			"shutdown_grace_seconds":12,
+			"reason":"operator requested"
+		}`),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", "todd@example.com")
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		srv.routes().ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	messageType, payload, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, websocket.TextMessage, messageType)
+	var frame struct {
+		Kind      string          `json:"kind"`
+		CommandID string          `json:"command_id"`
+		Command   json.RawMessage `json:"command"`
+	}
+	require.NoError(t, json.Unmarshal(payload, &frame))
+	require.Equal(t, "command", frame.Kind)
+	require.Equal(t, commandID, frame.CommandID)
+	require.JSONEq(t, `{
+		"command_id":"cmd_restart_paxd_e2e",
+		"type":"paxd.restart",
+		"restart_paxd":{
+			"mode":"immediate",
+			"shutdown_grace_seconds":12,
+			"reason":"operator requested"
+		}
+	}`, string(frame.Command))
+
+	ack := `{"kind":"ack","command_id":"cmd_restart_paxd_e2e",` +
+		`"command_ack":{"command_id":"cmd_restart_paxd_e2e",` +
+		`"ok":true,"status":"received","target_type":"paxd"}}`
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(ack)))
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("restart daemon API did not complete")
+	}
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	data := decodeData[struct {
+		CommandID      string `json:"command_id"`
+		CommandStatus  string `json:"command_status"`
+		DispatchStatus string `json:"dispatch_status"`
+	}](t, rec.Body.Bytes())
+	require.Equal(t, commandID, data.CommandID)
+	require.Equal(t, "received", data.CommandStatus)
+	require.Equal(t, "acknowledged", data.DispatchStatus)
+}
+
 func TestNodeControlRuntimeSnapshotUpdatesBoundAgentAndSkipsUnbound(t *testing.T) {
 	srv, registered := testNodeControlServer(t, "todd@example.com")
 	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
