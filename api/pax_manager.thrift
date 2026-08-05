@@ -1269,6 +1269,30 @@ struct RestartNodeDaemonRequest {
   4: optional string mode
   5: optional i32 shutdown_grace_seconds
   6: optional string reason
+  7: optional i32 idle_grace_seconds
+  8: optional i32 drain_timeout_seconds
+  9: optional bool force_at_deadline
+}
+
+struct UpgradeNodeDaemonRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string command_id
+  4: optional string version
+  5: optional string tag
+  6: optional string mode
+  7: optional i32 shutdown_grace_seconds
+  8: optional i32 idle_grace_seconds
+  9: optional i32 drain_timeout_seconds
+  10: optional bool force_at_deadline
+  11: optional string reason
+}
+
+struct CancelNodeDaemonMaintenanceRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string maintenance_command_id (api.path = "maintenance_command_id")
+  4: optional string command_id
 }
 
 service PaxManagerAPI {
@@ -1637,6 +1661,33 @@ service PaxManagerAPI {
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonCommandResponse UpgradeNodeDaemon(
+    1: optional UpgradeNodeDaemonRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/upgrade",
+    openapi.tag = "user",
+    openapi.summary = "Upgrade node daemon",
+    openapi.description = "Forwards paxd.upgrade to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonCommandResponse CancelNodeDaemonMaintenance(
+    1: optional CancelNodeDaemonMaintenanceRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/maintenance/:maintenance_command_id/cancel",
+    openapi.tag = "user",
+    openapi.summary = "Cancel node daemon maintenance",
+    openapi.description = "Cancels a restart or upgrade before binary activation or shutdown is committed.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.maintenance_command_id = "Maintenance command identifier."
   )
 
   CreateNodeDaemonAgentConnectionResponse CreateNodeDaemonAgentConnection(

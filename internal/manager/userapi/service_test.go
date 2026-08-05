@@ -1188,7 +1188,7 @@ func TestRestartNodeDaemonRejectsUnsupportedPolicy(t *testing.T) {
 	)
 	grace := 61
 	for _, req := range []domain.RestartNodeDaemonRequest{
-		{NodeID: "node_1", CommandID: "cmd_bad_mode", Mode: "when_idle"},
+		{NodeID: "node_1", CommandID: "cmd_bad_mode", Mode: "opportunistic"},
 		{NodeID: "node_1", CommandID: "cmd_bad_grace", ShutdownGraceSeconds: &grace},
 	} {
 		status, _, err := svc.RestartNodeDaemon(ctx, auth.RequestMetadata{}, req)
@@ -1198,6 +1198,81 @@ func TestRestartNodeDaemonRejectsUnsupportedPolicy(t *testing.T) {
 		require.ErrorAs(t, err, &appErr)
 		require.Equal(t, http.StatusBadRequest, appErr.Status)
 	}
+}
+func TestUpgradeAndCancelNodeDaemon(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+	store := userapimocks.NewMockStore(t)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	client := &fakeNodeControlClient{
+		remoteID: "remote_prod",
+		commandAck: json.RawMessage(`{
+			"command_id":"cmd_upgrade_1",
+			"ok":true,
+			"status":"received",
+			"result":{"paxd_upgrade":{
+				"requested_boot_id":"boot_old",
+				"target_version":"1.2.3"
+			}}
+		}`),
+	}
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Twice()
+	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Twice()
+	svc := userapi.NewService(
+		store,
+		fixedUserClock,
+		principals,
+		userapimocks.NewMockSecretIssuer(t),
+	)
+	svc.SetNodeControlClient(client)
+	idleGrace := 8
+	drainTimeout := 90
+	status, rawData, err := svc.UpgradeNodeDaemon(
+		ctx,
+		auth.RequestMetadata{},
+		domain.UpgradeNodeDaemonRequest{
+			NodeID: "node_1", CommandID: "cmd_upgrade_1", Version: "1.2.3",
+			Mode: "when_idle", IdleGraceSeconds: &idleGrace,
+			DrainTimeoutSeconds: &drainTimeout, ForceAtDeadline: true,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, status)
+	data := rawData.(map[string]any)
+	require.Equal(t, "acknowledged", data["dispatch_status"])
+	require.Equal(t, map[string]any{
+		"command_id": "cmd_upgrade_1",
+		"type":       "paxd.upgrade",
+		"upgrade_paxd": map[string]any{
+			"version": "1.2.3", "tag": "stable", "mode": "when_idle",
+			"idle_grace_seconds": 8, "drain_timeout_seconds": 90,
+			"force_at_deadline": true,
+		},
+	}, client.command)
+
+	client.commandAck = json.RawMessage(`{
+		"command_id":"cmd_cancel_1","ok":true,"status":"applied"
+	}`)
+	status, rawData, err = svc.CancelNodeDaemonMaintenance(
+		ctx,
+		auth.RequestMetadata{},
+		domain.CancelNodeDaemonMaintenanceRequest{
+			NodeID: "node_1", CommandID: "cmd_cancel_1",
+			MaintenanceCommandID: "cmd_upgrade_1",
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, status)
+	data = rawData.(map[string]any)
+	require.Equal(t, "applied", data["command_status"])
+	require.Equal(t, map[string]any{
+		"command_id": "cmd_cancel_1",
+		"type":       "paxd.maintenance.cancel",
+		"cancel_paxd_maintenance": map[string]any{
+			"maintenance_command_id": "cmd_upgrade_1",
+		},
+	}, client.command)
 }
 
 func TestRestartNodeDaemonAgentConnection(t *testing.T) {

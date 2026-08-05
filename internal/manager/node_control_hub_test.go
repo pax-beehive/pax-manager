@@ -10,6 +10,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 func TestNodeControlConnectionQueryAllowsInterleavedReport(t *testing.T) {
@@ -187,6 +189,33 @@ func TestNodeControlHubReplacementDoesNotRemoveNewConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, second, got)
 	require.ErrorIs(t, first.Err(), ErrNodeControlReplaced)
+}
+
+func TestNodeControlHubConfirmsMaintenanceOnNewRunningBootAndVersion(t *testing.T) {
+	hub := NewNodeControlHub()
+	hub.ObserveHeartbeat("node_1", domain.NodeDaemonHeartbeat{
+		BootID: "boot_old", PaxdVersion: "1.2.2", DaemonPhase: "running",
+	})
+	hub.TrackMaintenance("node_1", "cmd_upgrade", "boot_old", "1.2.3")
+
+	confirmation, ok := hub.MaintenanceConfirmation("node_1", "cmd_upgrade")
+	require.True(t, ok)
+	require.Equal(t, "awaiting_new_boot", confirmation.Status)
+
+	hub.ObserveHeartbeat("node_1", domain.NodeDaemonHeartbeat{
+		BootID: "boot_new", PaxdVersion: "1.2.2", DaemonPhase: "running",
+	})
+	confirmation, ok = hub.MaintenanceConfirmation("node_1", "cmd_upgrade")
+	require.True(t, ok)
+	require.Equal(t, "version_mismatch", confirmation.Status)
+
+	hub.ObserveHeartbeat("node_1", domain.NodeDaemonHeartbeat{
+		BootID: "boot_new", PaxdVersion: "1.2.3", DaemonPhase: "running",
+	})
+	confirmation, ok = hub.MaintenanceConfirmation("node_1", "cmd_upgrade")
+	require.True(t, ok)
+	require.Equal(t, "confirmed", confirmation.Status)
+	require.Equal(t, "boot_new", confirmation.ObservedBootID)
 }
 
 type fakeNodeControlWebSocket struct {
