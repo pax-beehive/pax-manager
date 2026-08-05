@@ -651,3 +651,28 @@ func _createprojecttargetsessionMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _restartnodedaemonMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _upgradenodedaemonMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _maintenanceMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _maintenance_command_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _cancelnodedaemonmaintenanceMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

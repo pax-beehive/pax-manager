@@ -140,7 +140,9 @@ func Register(r *server.Hertz) {
 								_daemon.GET("/agent-connections", append(_listnodedaemonagentconnectionsMw(), handler.ListNodeDaemonAgentConnections)...)
 								_daemon.POST("/agent-connections", append(_createnodedaemonagentconnectionMw(), handler.CreateNodeDaemonAgentConnection)...)
 								_daemon.GET("/harnesses", append(_listnodedaemonharnessesMw(), handler.ListNodeDaemonHarnesses)...)
+								_daemon.POST("/restart", append(_restartnodedaemonMw(), handler.RestartNodeDaemon)...)
 								_daemon.GET("/status", append(_getnodedaemonstatusMw(), handler.GetNodeDaemonStatus)...)
+								_daemon.POST("/upgrade", append(_upgradenodedaemonMw(), handler.UpgradeNodeDaemon)...)
 								{
 									_agent_connections := _daemon.Group("/agent-connections", _agent_connectionsMw()...)
 									_agent_connections.DELETE("/:connection_id", append(_removenodedaemonagentconnectionMw(), handler.RemoveNodeDaemonAgentConnection)...)
@@ -158,6 +160,13 @@ func Register(r *server.Hertz) {
 								{
 									_harnesses := _daemon.Group("/harnesses", _harnessesMw()...)
 									_harnesses.POST("/discover", append(_discovernodedaemonharnessesMw(), handler.DiscoverNodeDaemonHarnesses)...)
+								}
+								{
+									_maintenance := _daemon.Group("/maintenance", _maintenanceMw()...)
+									{
+										_maintenance_command_id := _maintenance.Group("/:maintenance_command_id", _maintenance_command_idMw()...)
+										_maintenance_command_id.POST("/cancel", append(_cancelnodedaemonmaintenanceMw(), handler.CancelNodeDaemonMaintenance)...)
+									}
 								}
 							}
 						}

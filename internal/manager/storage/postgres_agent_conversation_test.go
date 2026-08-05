@@ -497,6 +497,7 @@ func postgresSessionValues(
 		"",
 		now,
 		now,
+		nil,
 		[]byte(`{}`),
 	}
 }

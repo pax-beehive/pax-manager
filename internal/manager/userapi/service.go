@@ -522,6 +522,14 @@ type NodeControlClient interface {
 	) (json.RawMessage, error)
 }
 
+type nodeMaintenanceTracker interface {
+	TrackMaintenance(nodeID, commandID, requestedBootID, expectedVersion string)
+	MaintenanceConfirmation(
+		nodeID string,
+		commandID string,
+	) (domain.NodeDaemonMaintenanceConfirmation, bool)
+}
+
 type Service struct {
 	store             Store
 	clock             func() time.Time
@@ -668,14 +676,21 @@ func (s *Service) GetSecret(
 	return http.StatusOK, map[string]any{"secret": secret}, nil
 }
 
-func (s *Service) ListAgents(c context.Context, meta auth.RequestMetadata, scope string) (int, any, error) {
+func (s *Service) ListAgents(
+	c context.Context,
+	meta auth.RequestMetadata,
+	scope string,
+) (int, any, error) {
 	principal, err := s.principal.Principal(c, meta)
 	if err != nil {
 		return 0, nil, err
 	}
 	scope = strings.ToLower(strings.TrimSpace(scope))
 	if scope != "" && scope != "accessible" && scope != "owned" {
-		return 0, nil, apperr.Error{Status: http.StatusBadRequest, Message: "scope must be accessible or owned"}
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "scope must be accessible or owned",
+		}
 	}
 	agents, err := s.store.ListAgents(c, principal)
 	if err != nil {
@@ -844,12 +859,47 @@ func (s *Service) GetNodeDaemonCommand(
 			Message: "command_id is required",
 		}
 	}
-	return s.queryNodeDaemon(c, meta, nodeID, map[string]any{
+	status, data, err := s.queryNodeDaemon(c, meta, nodeID, map[string]any{
 		"type": "command.get",
 		"get_command": map[string]any{
 			"command_id": commandID,
 		},
 	})
+	if err != nil {
+		return status, data, err
+	}
+	tracker, ok := s.nodeControl.(nodeMaintenanceTracker)
+	if !ok {
+		return status, data, nil
+	}
+	raw, ok := data.(json.RawMessage)
+	if !ok {
+		return status, data, nil
+	}
+	var result map[string]any
+	if json.Unmarshal(raw, &result) != nil || result == nil {
+		return status, data, nil
+	}
+	confirmation, found := tracker.MaintenanceConfirmation(nodeID, commandID)
+	if !found {
+		command, _ := result["command"].(map[string]any)
+		maintenanceResult, _ := command["result"].(map[string]any)
+		requestedBootID, _ := maintenanceResult["requested_boot_id"].(string)
+		commandType, _ := command["type"].(string)
+		expectedVersion := ""
+		if commandType == "paxd.upgrade" {
+			expectedVersion, _ = maintenanceResult["target_version"].(string)
+		}
+		if requestedBootID != "" &&
+			(commandType == "paxd.restart" || commandType == "paxd.upgrade") {
+			tracker.TrackMaintenance(nodeID, commandID, requestedBootID, expectedVersion)
+			confirmation, found = tracker.MaintenanceConfirmation(nodeID, commandID)
+		}
+	}
+	if found {
+		result["maintenance_confirmation"] = confirmation
+	}
+	return status, result, nil
 }
 
 func (s *Service) queryNodeDaemon(
@@ -889,7 +939,8 @@ func (s *Service) filterOwnedNodeDaemonAgentConnections(
 			Message: "paxd returned an invalid agent connection result",
 		}
 	}
-	if result.Error != nil || result.AgentConnections == nil || len(result.AgentConnections.Items) == 0 {
+	if result.Error != nil || result.AgentConnections == nil ||
+		len(result.AgentConnections.Items) == 0 {
 		return raw, nil
 	}
 
@@ -1091,6 +1142,13 @@ type nodeDaemonCommandAck struct {
 		AgentConnection *struct {
 			ID string `json:"id"`
 		} `json:"agent_connection,omitempty"`
+		PaxdRestart *struct {
+			RequestedBootID string `json:"requested_boot_id"`
+		} `json:"paxd_restart,omitempty"`
+		PaxdUpgrade *struct {
+			RequestedBootID string `json:"requested_boot_id"`
+			TargetVersion   string `json:"target_version"`
+		} `json:"paxd_upgrade,omitempty"`
 	} `json:"result,omitempty"`
 }
 
@@ -1166,6 +1224,237 @@ func (s *Service) CreateNodeDaemonAgentConnection(
 			"working_dir":    strings.TrimSpace(req.WorkingDir),
 			"desired_state":  "running",
 			"desired_slots":  desiredSlots,
+		},
+	}, data)
+}
+
+func (s *Service) RestartNodeDaemon(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.RestartNodeDaemonRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	if req.NodeID == "" || req.CommandID == "" {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadRequest, Message: "node_id and command_id are required",
+		}
+	}
+	mode := strings.TrimSpace(req.Mode)
+	if mode == "" {
+		mode = "immediate"
+	}
+	if mode != "immediate" && mode != "when_idle" {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadRequest, Message: "mode must be immediate or when_idle",
+		}
+	}
+	if req.ShutdownGraceSeconds != nil &&
+		(*req.ShutdownGraceSeconds < 1 || *req.ShutdownGraceSeconds > 60) {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "shutdown_grace_seconds must be between 1 and 60",
+		}
+	}
+	if req.IdleGraceSeconds != nil && (*req.IdleGraceSeconds < 1 || *req.IdleGraceSeconds > 60) {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadRequest, Message: "idle_grace_seconds must be between 1 and 60",
+		}
+	}
+	if req.DrainTimeoutSeconds != nil &&
+		(*req.DrainTimeoutSeconds < 1 || *req.DrainTimeoutSeconds > 3600) {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "drain_timeout_seconds must be between 1 and 3600",
+		}
+	}
+	if len(req.Reason) > 512 {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadRequest, Message: "reason must not exceed 512 bytes",
+		}
+	}
+	node, err := s.store.GetNode(c, principal, req.NodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if s.nodeControl == nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	restart := map[string]any{"mode": mode}
+	if req.ShutdownGraceSeconds != nil {
+		restart["shutdown_grace_seconds"] = *req.ShutdownGraceSeconds
+	}
+	if req.IdleGraceSeconds != nil {
+		restart["idle_grace_seconds"] = *req.IdleGraceSeconds
+	}
+	if req.DrainTimeoutSeconds != nil {
+		restart["drain_timeout_seconds"] = *req.DrainTimeoutSeconds
+	}
+	if req.ForceAtDeadline {
+		restart["force_at_deadline"] = true
+	}
+	if reason := strings.TrimSpace(req.Reason); reason != "" {
+		restart["reason"] = reason
+	}
+	data := map[string]any{
+		"command_id": req.CommandID, "remote_id": remoteID, "dispatch_status": "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id":   req.CommandID,
+		"type":         "paxd.restart",
+		"restart_paxd": restart,
+	}, data)
+}
+func (s *Service) UpgradeNodeDaemon(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.UpgradeNodeDaemonRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	req.Version = strings.TrimSpace(req.Version)
+	if req.NodeID == "" || req.CommandID == "" || req.Version == "" {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadRequest, Message: "node_id, command_id, and version are required",
+		}
+	}
+	tag := strings.TrimSpace(req.Tag)
+	if tag == "" {
+		tag = "stable"
+	}
+	mode := strings.TrimSpace(req.Mode)
+	if mode == "" {
+		mode = "when_idle"
+	}
+	if mode != "immediate" && mode != "when_idle" && mode != "opportunistic" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "mode must be immediate, when_idle, or opportunistic",
+		}
+	}
+	if req.ShutdownGraceSeconds != nil &&
+		(*req.ShutdownGraceSeconds < 1 || *req.ShutdownGraceSeconds > 60) {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "shutdown_grace_seconds must be between 1 and 60",
+		}
+	}
+	if req.IdleGraceSeconds != nil &&
+		(*req.IdleGraceSeconds < 1 || *req.IdleGraceSeconds > 60) {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "idle_grace_seconds must be between 1 and 60",
+		}
+	}
+	if req.DrainTimeoutSeconds != nil &&
+		(*req.DrainTimeoutSeconds < 1 || *req.DrainTimeoutSeconds > 3600) {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "drain_timeout_seconds must be between 1 and 3600",
+		}
+	}
+	if len(req.Reason) > 512 {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadRequest, Message: "reason must not exceed 512 bytes",
+		}
+	}
+	node, err := s.store.GetNode(c, principal, req.NodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if s.nodeControl == nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	upgrade := map[string]any{
+		"version": req.Version,
+		"tag":     tag,
+		"mode":    mode,
+	}
+	if req.ShutdownGraceSeconds != nil {
+		upgrade["shutdown_grace_seconds"] = *req.ShutdownGraceSeconds
+	}
+	if req.IdleGraceSeconds != nil {
+		upgrade["idle_grace_seconds"] = *req.IdleGraceSeconds
+	}
+	if req.DrainTimeoutSeconds != nil {
+		upgrade["drain_timeout_seconds"] = *req.DrainTimeoutSeconds
+	}
+	if req.ForceAtDeadline {
+		upgrade["force_at_deadline"] = true
+	}
+	if reason := strings.TrimSpace(req.Reason); reason != "" {
+		upgrade["reason"] = reason
+	}
+	data := map[string]any{
+		"command_id":          req.CommandID,
+		"remote_id":           remoteID,
+		"dispatch_status":     "unknown",
+		"expected_version":    req.Version,
+		"confirmation_status": "awaiting_new_boot",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id":   req.CommandID,
+		"type":         "paxd.upgrade",
+		"upgrade_paxd": upgrade,
+	}, data)
+}
+
+func (s *Service) CancelNodeDaemonMaintenance(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.CancelNodeDaemonMaintenanceRequest,
+) (int, any, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	req.MaintenanceCommandID = strings.TrimSpace(req.MaintenanceCommandID)
+	if req.NodeID == "" || req.CommandID == "" || req.MaintenanceCommandID == "" {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "node_id, command_id, and maintenance_command_id are required",
+		}
+	}
+	node, err := s.store.GetNode(c, principal, req.NodeID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if s.nodeControl == nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return 0, nil, nodeControlUnavailableError()
+	}
+	data := map[string]any{
+		"command_id":             req.CommandID,
+		"maintenance_command_id": req.MaintenanceCommandID,
+		"remote_id":              remoteID,
+		"dispatch_status":        "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id": req.CommandID,
+		"type":       "paxd.maintenance.cancel",
+		"cancel_paxd_maintenance": map[string]any{
+			"maintenance_command_id": req.MaintenanceCommandID,
 		},
 	}, data)
 }
@@ -1455,6 +1744,28 @@ func (s *Service) dispatchNodeDaemonCommand(
 	connectionID := ack.TargetID
 	if connectionID == "" && ack.Result != nil && ack.Result.AgentConnection != nil {
 		connectionID = ack.Result.AgentConnection.ID
+	}
+	requestedBootID := ""
+	expectedVersion := ""
+	if ack.Result != nil {
+		if ack.Result.PaxdRestart != nil {
+			requestedBootID = ack.Result.PaxdRestart.RequestedBootID
+		}
+		if ack.Result.PaxdUpgrade != nil {
+			requestedBootID = ack.Result.PaxdUpgrade.RequestedBootID
+			expectedVersion = ack.Result.PaxdUpgrade.TargetVersion
+		}
+	}
+	if tracker, ok := s.nodeControl.(nodeMaintenanceTracker); ok && requestedBootID != "" {
+		tracker.TrackMaintenance(nodeID, commandID, requestedBootID, expectedVersion)
+		data["requested_boot_id"] = requestedBootID
+		if expectedVersion != "" {
+			data["expected_version"] = expectedVersion
+		}
+		if confirmation, found := tracker.MaintenanceConfirmation(nodeID, commandID); found {
+			data["maintenance_confirmation"] = confirmation
+			data["confirmation_status"] = confirmation.Status
+		}
 	}
 	data["command_ack"] = ackRaw
 	data["command_status"] = ack.Status
@@ -1865,6 +2176,7 @@ func (s *Service) ListSessions(
 	nodeID string,
 	agentID string,
 	primaryProjectID string,
+	includeArchived bool,
 	pageSize int,
 	pageNum int,
 ) (int, any, error) {
@@ -1885,6 +2197,7 @@ func (s *Service) ListSessions(
 		NodeIDs:          splitCommaSeparatedIDs(nodeID),
 		AgentIDs:         splitCommaSeparatedIDs(agentID),
 		PrimaryProjectID: strings.TrimSpace(primaryProjectID),
+		IncludeArchived:  includeArchived,
 		PageSize:         pageSize,
 		PageNum:          pageNum,
 	})
@@ -2035,23 +2348,14 @@ func normalizeUpdateNodeAgentSessionRequest(
 ) (domain.UpdateSessionRequest, error) {
 	hasName := req.SessionName != nil
 	hasPaxConfig := req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != ""
-	if !hasName && !req.UseReportedName && !hasPaxConfig {
-		return domain.UpdateSessionRequest{}, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "name, use_reported_name, or pax_config is required",
-		}
-	}
-	if hasName && req.UseReportedName {
-		return domain.UpdateSessionRequest{}, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "name and use_reported_name cannot be combined",
-		}
-	}
-	if hasPaxConfig && (hasName || req.UseReportedName) {
-		return domain.UpdateSessionRequest{}, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "session name updates cannot be combined with pax_config",
-		}
+	hasArchived := req.Archived != nil
+	if err := validateSessionUpdateShape(
+		hasName,
+		req.UseReportedName,
+		hasPaxConfig,
+		hasArchived,
+	); err != nil {
+		return domain.UpdateSessionRequest{}, err
 	}
 	if hasName {
 		name := strings.TrimSpace(*req.SessionName)
@@ -2092,6 +2396,39 @@ func normalizeUpdateNodeAgentSessionRequest(
 		req.PaxConfig.ApprovalMode = mode
 	}
 	return req, nil
+}
+
+func validateSessionUpdateShape(
+	hasName bool,
+	useReportedName bool,
+	hasPaxConfig bool,
+	hasArchived bool,
+) error {
+	if !hasName && !useReportedName && !hasPaxConfig && !hasArchived {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "name, use_reported_name, archived, or pax_config is required",
+		}
+	}
+	if hasName && useReportedName {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "name and use_reported_name cannot be combined",
+		}
+	}
+	if hasPaxConfig && (hasName || useReportedName) {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "session name updates cannot be combined with pax_config",
+		}
+	}
+	if hasArchived && (hasName || useReportedName || hasPaxConfig) {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "archived cannot be combined with other session updates",
+		}
+	}
+	return nil
 }
 
 func (s *Service) ListAgentSessionMessages(

@@ -188,6 +188,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 }
 
 var generatedNodeDaemonHandlerBridge = map[string]generatedHandlerFunc{
+	"CancelNodeDaemonMaintenance":      CancelNodeDaemonMaintenance,
 	"CreateNodeDaemonAgentConnection":  CreateNodeDaemonAgentConnection,
 	"DiscoverNodeDaemonHarnesses":      DiscoverNodeDaemonHarnesses,
 	"GetNodeDaemonStatus":              GetNodeDaemonStatus,
@@ -195,8 +196,10 @@ var generatedNodeDaemonHandlerBridge = map[string]generatedHandlerFunc{
 	"ListNodeDaemonAgentConnections":   ListNodeDaemonAgentConnections,
 	"ListNodeDaemonHarnesses":          ListNodeDaemonHarnesses,
 	"RemoveNodeDaemonAgentConnection":  RemoveNodeDaemonAgentConnection,
+	"RestartNodeDaemon":                RestartNodeDaemon,
 	"RestartNodeDaemonAgentConnection": RestartNodeDaemonAgentConnection,
 	"StopNodeDaemonAgentConnection":    StopNodeDaemonAgentConnection,
+	"UpgradeNodeDaemon":                UpgradeNodeDaemon,
 	"UpdateNodeDaemonAgentConnection":  UpdateNodeDaemonAgentConnection,
 }
 

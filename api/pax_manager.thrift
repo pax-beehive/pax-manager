@@ -275,6 +275,7 @@ struct AgentSession {
   28: optional bool name_is_custom
   29: optional string runtime_status
   30: optional string runtime_turn_instance_id
+  31: optional string archived_at
 }
 
 struct Project {
@@ -587,6 +588,7 @@ struct ListUserSessionsRequest {
   4: optional i32 page_size (api.query = "page_size")
   5: optional i32 page_num (api.query = "page_num")
   6: optional string primary_project_id (api.query = "primary_project_id")
+  7: optional bool include_archived (api.query = "include_archived")
 }
 
 struct CreateProjectRequest {
@@ -678,6 +680,7 @@ struct UpdateNodeAgentSessionRequest {
   5: optional SessionPaxConfig pax_config
   6: optional string name
   7: optional bool use_reported_name
+  8: optional bool archived
 }
 
 struct ListNodeAgentSessionMessagesRequest {
@@ -1262,6 +1265,39 @@ struct GetNodeDaemonCommandRequest {
   3: optional string command_id (api.path = "command_id")
 }
 
+struct RestartNodeDaemonRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string command_id
+  4: optional string mode
+  5: optional i32 shutdown_grace_seconds
+  6: optional string reason
+  7: optional i32 idle_grace_seconds
+  8: optional i32 drain_timeout_seconds
+  9: optional bool force_at_deadline
+}
+
+struct UpgradeNodeDaemonRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string command_id
+  4: optional string version
+  5: optional string tag
+  6: optional string mode
+  7: optional i32 shutdown_grace_seconds
+  8: optional i32 idle_grace_seconds
+  9: optional i32 drain_timeout_seconds
+  10: optional bool force_at_deadline
+  11: optional string reason
+}
+
+struct CancelNodeDaemonMaintenanceRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string maintenance_command_id (api.path = "maintenance_command_id")
+  4: optional string command_id
+}
+
 service PaxManagerAPI {
   HealthResponse Health(1: optional EmptyRequest request) (
     api.get = "/api/v1/health",
@@ -1617,6 +1653,46 @@ service PaxManagerAPI {
     openapi.path.node_id = "Node identifier."
   )
 
+  NodeDaemonCommandResponse RestartNodeDaemon(
+    1: optional RestartNodeDaemonRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/restart",
+    openapi.tag = "user",
+    openapi.summary = "Restart node daemon",
+    openapi.description = "Forwards paxd.restart to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonCommandResponse UpgradeNodeDaemon(
+    1: optional UpgradeNodeDaemonRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/upgrade",
+    openapi.tag = "user",
+    openapi.summary = "Upgrade node daemon",
+    openapi.description = "Forwards paxd.upgrade to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonCommandResponse CancelNodeDaemonMaintenance(
+    1: optional CancelNodeDaemonMaintenanceRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/maintenance/:maintenance_command_id/cancel",
+    openapi.tag = "user",
+    openapi.summary = "Cancel node daemon maintenance",
+    openapi.description = "Cancels a restart or upgrade before binary activation or shutdown is committed.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.maintenance_command_id = "Maintenance command identifier."
+  )
+
   CreateNodeDaemonAgentConnectionResponse CreateNodeDaemonAgentConnection(
     1: optional CreateNodeDaemonAgentConnectionRequest request
   ) (
@@ -1836,6 +1912,7 @@ service PaxManagerAPI {
     openapi.query.node_id = "Optional node identifier filter. Use comma-separated IDs for multiple nodes.",
     openapi.query.agent_id = "Optional agent identifier filter. Use comma-separated IDs for multiple agents.",
     openapi.query.primary_project_id = "Optional primary logical project identifier filter.",
+    openapi.query.include_archived = "Whether archived sessions should be included. Defaults to false.",
     openapi.query.page_size = "Maximum number of sessions per page.",
     openapi.query.page_num = "One-based page number."
   )

@@ -1421,6 +1421,16 @@ func (s *MemoryStore) UpdateNodeAgentSession(
 	if req.PaxConfig.ApprovalMode != "" {
 		session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
 	}
+	if req.Archived != nil {
+		if *req.Archived {
+			if session.ArchivedAt == nil {
+				archivedAt := s.now().UTC()
+				session.ArchivedAt = &archivedAt
+			}
+		} else {
+			session.ArchivedAt = nil
+		}
+	}
 	session.Metadata = paxConfigMetadata(session.Metadata, session.PaxConfig)
 	session.UpdatedAt = s.now().UTC()
 	s.sessions[key] = session
@@ -1608,6 +1618,9 @@ func (s *MemoryStore) ListSessions(
 		}
 		if filter.PrimaryProjectID != "" &&
 			session.PrimaryProjectID != filter.PrimaryProjectID {
+			continue
+		}
+		if !filter.IncludeArchived && session.ArchivedAt != nil {
 			continue
 		}
 		out = append(out, session)
@@ -2600,7 +2613,10 @@ func (s *MemoryStore) upsertSessionLocked(
 	existing.Status = defaultSessionStatus(input.Status)
 	existing.CurrentTask = input.CurrentTask
 	existing.LastMessageAt = laterOptionalTime(existing.LastMessageAt, input.LastMessageAt)
-	existing.LastUserMessageAt = laterOptionalTime(existing.LastUserMessageAt, input.LastUserMessageAt)
+	existing.LastUserMessageAt = laterOptionalTime(
+		existing.LastUserMessageAt,
+		input.LastUserMessageAt,
+	)
 	existing.MessageCount = input.MessageCount
 	existing.TokenUsage = input.TokenUsage
 	existing.TokenInput = input.TokenUsage.Input

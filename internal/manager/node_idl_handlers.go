@@ -258,6 +258,45 @@ func UpdateNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext)
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func RestartNodeDaemon(c context.Context, ctx *app.RequestContext) {
+	var req RestartNodeDaemonRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	status, data, err := serviceFromContext(ctx).userapi.RestartNodeDaemon(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+func UpgradeNodeDaemon(c context.Context, ctx *app.RequestContext) {
+	var req UpgradeNodeDaemonRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	status, data, err := serviceFromContext(ctx).userapi.UpgradeNodeDaemon(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func CancelNodeDaemonMaintenance(c context.Context, ctx *app.RequestContext) {
+	var req CancelNodeDaemonMaintenanceRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	req.MaintenanceCommandID = ctx.Param("maintenance_command_id")
+	status, data, err := serviceFromContext(ctx).userapi.CancelNodeDaemonMaintenance(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func StopNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext) {
 	var req NodeDaemonAgentConnectionActionRequest
 	decodeBody(ctx, &req)
@@ -444,6 +483,7 @@ func ListSessions(c context.Context, ctx *app.RequestContext) {
 		string(ctx.QueryArgs().Peek("node_id")),
 		string(ctx.QueryArgs().Peek("agent_id")),
 		string(ctx.QueryArgs().Peek("primary_project_id")),
+		queryBool(ctx, "include_archived"),
 		queryInt(ctx, "page_size"),
 		queryInt(ctx, "page_num"),
 	)

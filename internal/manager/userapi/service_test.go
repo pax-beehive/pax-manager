@@ -575,6 +575,41 @@ func TestResetSessionRuntimeRejectsUnsafeTargets(t *testing.T) {
 }
 
 func TestUpdateNodeAgentSessionName(t *testing.T) {
+	t.Run("Given archive state then it updates the session independently", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		archived := true
+		req := domain.UpdateSessionRequest{
+			NodeID: "node_1", AgentID: "agent_1", SessionID: "sess_1", Archived: &archived,
+		}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().
+			GetAgent(ctx, principal, "agent_1").
+			Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+			Once()
+		store.EXPECT().
+			GetSession(ctx, principal, "sess_1").
+			Return(domain.AgentSession{NodeID: "node_1", AgentID: "agent_1", SessionID: "sess_1"}, nil).
+			Once()
+		store.EXPECT().
+			UpdateNodeAgentSession(ctx, principal, req).
+			Return(domain.AgentSession{NodeID: "node_1", AgentID: "agent_1", SessionID: "sess_1"}, nil).
+			Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, _, err := svc.UpdateNodeAgentSession(ctx, auth.RequestMetadata{}, req)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+	})
+
 	t.Run("Given a valid name then it trims and updates the session", func(t *testing.T) {
 		ctx := context.Background()
 		principal := userPrincipal("usr_self", false)
@@ -660,6 +695,20 @@ func TestUpdateNodeAgentSessionName(t *testing.T) {
 					SessionID:       "sess_1",
 					SessionName:     &name,
 					UseReportedName: true,
+				}
+			}(),
+		},
+		{
+			name: "archive and name",
+			req: func() domain.UpdateSessionRequest {
+				name := "Custom"
+				archived := true
+				return domain.UpdateSessionRequest{
+					NodeID:      "node_1",
+					AgentID:     "agent_1",
+					SessionID:   "sess_1",
+					SessionName: &name,
+					Archived:    &archived,
 				}
 			}(),
 		},
@@ -1122,6 +1171,155 @@ func TestStopNodeDaemonAgentConnection(t *testing.T) {
 		"update_agent_connection": map[string]any{
 			"connection_id": "conn_1",
 			"desired_state": "stopped",
+		},
+	}, client.command)
+}
+
+func TestRestartNodeDaemon(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+	store := userapimocks.NewMockStore(t)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	grace := 12
+	client := &fakeNodeControlClient{
+		remoteID: "remote_prod",
+		commandAck: json.RawMessage(`{
+			"command_id":"cmd_restart_paxd_1",
+			"ok":true,
+			"status":"received",
+			"target_type":"paxd"
+		}`),
+	}
+
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+	svc := userapi.NewService(
+		store,
+		fixedUserClock,
+		principals,
+		userapimocks.NewMockSecretIssuer(t),
+	)
+	svc.SetNodeControlClient(client)
+	status, rawData, err := svc.RestartNodeDaemon(
+		ctx,
+		auth.RequestMetadata{},
+		domain.RestartNodeDaemonRequest{
+			NodeID: "node_1", CommandID: "cmd_restart_paxd_1",
+			ShutdownGraceSeconds: &grace, Reason: " operator requested ",
+		},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, status)
+	data := rawData.(map[string]any)
+	require.Equal(t, "received", data["command_status"])
+	require.Equal(t, "acknowledged", data["dispatch_status"])
+	require.Equal(t, map[string]any{
+		"command_id": "cmd_restart_paxd_1",
+		"type":       "paxd.restart",
+		"restart_paxd": map[string]any{
+			"mode": "immediate", "shutdown_grace_seconds": 12, "reason": "operator requested",
+		},
+	}, client.command)
+}
+
+func TestRestartNodeDaemonRejectsUnsupportedPolicy(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Times(2)
+	svc := userapi.NewService(
+		userapimocks.NewMockStore(t),
+		fixedUserClock,
+		principals,
+		userapimocks.NewMockSecretIssuer(t),
+	)
+	grace := 61
+	for _, req := range []domain.RestartNodeDaemonRequest{
+		{NodeID: "node_1", CommandID: "cmd_bad_mode", Mode: "opportunistic"},
+		{NodeID: "node_1", CommandID: "cmd_bad_grace", ShutdownGraceSeconds: &grace},
+	} {
+		status, _, err := svc.RestartNodeDaemon(ctx, auth.RequestMetadata{}, req)
+		require.Error(t, err)
+		require.Zero(t, status)
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+	}
+}
+func TestUpgradeAndCancelNodeDaemon(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+	store := userapimocks.NewMockStore(t)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	client := &fakeNodeControlClient{
+		remoteID: "remote_prod",
+		commandAck: json.RawMessage(`{
+			"command_id":"cmd_upgrade_1",
+			"ok":true,
+			"status":"received",
+			"result":{"paxd_upgrade":{
+				"requested_boot_id":"boot_old",
+				"target_version":"1.2.3"
+			}}
+		}`),
+	}
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Twice()
+	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Twice()
+	svc := userapi.NewService(
+		store,
+		fixedUserClock,
+		principals,
+		userapimocks.NewMockSecretIssuer(t),
+	)
+	svc.SetNodeControlClient(client)
+	idleGrace := 8
+	drainTimeout := 90
+	status, rawData, err := svc.UpgradeNodeDaemon(
+		ctx,
+		auth.RequestMetadata{},
+		domain.UpgradeNodeDaemonRequest{
+			NodeID: "node_1", CommandID: "cmd_upgrade_1", Version: "1.2.3",
+			Mode: "when_idle", IdleGraceSeconds: &idleGrace,
+			DrainTimeoutSeconds: &drainTimeout, ForceAtDeadline: true,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, status)
+	data := rawData.(map[string]any)
+	require.Equal(t, "acknowledged", data["dispatch_status"])
+	require.Equal(t, map[string]any{
+		"command_id": "cmd_upgrade_1",
+		"type":       "paxd.upgrade",
+		"upgrade_paxd": map[string]any{
+			"version": "1.2.3", "tag": "stable", "mode": "when_idle",
+			"idle_grace_seconds": 8, "drain_timeout_seconds": 90,
+			"force_at_deadline": true,
+		},
+	}, client.command)
+
+	client.commandAck = json.RawMessage(`{
+		"command_id":"cmd_cancel_1","ok":true,"status":"applied"
+	}`)
+	status, rawData, err = svc.CancelNodeDaemonMaintenance(
+		ctx,
+		auth.RequestMetadata{},
+		domain.CancelNodeDaemonMaintenanceRequest{
+			NodeID: "node_1", CommandID: "cmd_cancel_1",
+			MaintenanceCommandID: "cmd_upgrade_1",
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, status)
+	data = rawData.(map[string]any)
+	require.Equal(t, "applied", data["command_status"])
+	require.Equal(t, map[string]any{
+		"command_id": "cmd_cancel_1",
+		"type":       "paxd.maintenance.cancel",
+		"cancel_paxd_maintenance": map[string]any{
+			"maintenance_command_id": "cmd_upgrade_1",
 		},
 	}, client.command)
 }
@@ -1866,7 +2064,12 @@ func TestAgents(t *testing.T) {
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 			store.EXPECT().ListAgents(ctx, principal).Return(agents, nil).Once()
 
-			svc := userapi.NewService(store, fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+			svc := userapi.NewService(
+				store,
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
 			status, data, err := svc.ListAgents(ctx, auth.RequestMetadata{}, "owned")
 
 			require.NoError(t, err)
@@ -1883,7 +2086,12 @@ func TestAgents(t *testing.T) {
 			principals := userapimocks.NewMockPrincipalResolver(t)
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 
-			svc := userapi.NewService(userapimocks.NewMockStore(t), fixedUserClock, principals, userapimocks.NewMockSecretIssuer(t))
+			svc := userapi.NewService(
+				userapimocks.NewMockStore(t),
+				fixedUserClock,
+				principals,
+				userapimocks.NewMockSecretIssuer(t),
+			)
 			_, _, err := svc.ListAgents(ctx, auth.RequestMetadata{}, "all")
 
 			var appErr apperr.Error
@@ -2231,6 +2439,7 @@ func TestListSessions(t *testing.T) {
 						NodeIDs:          []string{"node_1", "node_2"},
 						AgentIDs:         []string{"agent_1", "agent_2"},
 						PrimaryProjectID: "proj_1",
+						IncludeArchived:  true,
 						PageSize:         25,
 						PageNum:          2,
 					},
@@ -2251,6 +2460,7 @@ func TestListSessions(t *testing.T) {
 				"node_1,node_2,node_1",
 				"agent_1, agent_2",
 				" proj_1 ",
+				true,
 				25,
 				2,
 			)
@@ -2296,6 +2506,7 @@ func TestListSessions(t *testing.T) {
 				"",
 				"",
 				"",
+				false,
 				900,
 				0,
 			)
@@ -2328,6 +2539,7 @@ func TestListSessions(t *testing.T) {
 				"",
 				"",
 				"",
+				false,
 				50,
 				1,
 			)
@@ -3917,7 +4129,10 @@ func TestFriendFlow(t *testing.T) {
 			store.EXPECT().DeleteRemovedFriendsBetween(ctx, principal, "recipient@example.com").
 				Return(nil).
 				Once()
-			store.EXPECT().GetUserByEmail(ctx, "recipient@example.com").Return(recipient, nil).Once()
+			store.EXPECT().
+				GetUserByEmail(ctx, "recipient@example.com").
+				Return(recipient, nil).
+				Once()
 			secrets.EXPECT().New("fr").Return("fr_2", nil).Once()
 			store.EXPECT().CreateFriend(
 				ctx,

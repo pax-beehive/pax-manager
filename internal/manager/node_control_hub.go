@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 var (
@@ -319,12 +322,16 @@ type NodeControlHub struct {
 	mu               sync.RWMutex
 	connections      map[string]*nodeControlConnection
 	attachmentStates map[nodeAttachmentKey]nodeControlAttachmentLocalState
+	heartbeats       map[string]domain.NodeDaemonHeartbeat
+	maintenance      map[string]map[string]domain.NodeDaemonMaintenanceConfirmation
 }
 
 func NewNodeControlHub() *NodeControlHub {
 	return &NodeControlHub{
 		connections:      make(map[string]*nodeControlConnection),
 		attachmentStates: make(map[nodeAttachmentKey]nodeControlAttachmentLocalState),
+		heartbeats:       make(map[string]domain.NodeDaemonHeartbeat),
+		maintenance:      make(map[string]map[string]domain.NodeDaemonMaintenanceConfirmation),
 	}
 }
 
@@ -409,4 +416,94 @@ func (h *NodeControlHub) Command(
 		return nil, err
 	}
 	return conn.Command(ctx, commandID, command)
+}
+func (h *NodeControlHub) ObserveHeartbeat(nodeID string, heartbeat domain.NodeDaemonHeartbeat) {
+	if h == nil || strings.TrimSpace(nodeID) == "" {
+		return
+	}
+	heartbeat.BootID = strings.TrimSpace(heartbeat.BootID)
+	heartbeat.PaxdVersion = strings.TrimSpace(heartbeat.PaxdVersion)
+	heartbeat.DaemonPhase = strings.TrimSpace(heartbeat.DaemonPhase)
+	if heartbeat.ObservedAt.IsZero() {
+		heartbeat.ObservedAt = time.Now().UTC()
+	}
+	h.mu.Lock()
+	if h.heartbeats == nil {
+		h.heartbeats = make(map[string]domain.NodeDaemonHeartbeat)
+	}
+	h.heartbeats[nodeID] = heartbeat
+	for commandID, confirmation := range h.maintenance[nodeID] {
+		h.maintenance[nodeID][commandID] = evaluateMaintenanceConfirmation(confirmation, heartbeat)
+	}
+	h.mu.Unlock()
+}
+
+func (h *NodeControlHub) TrackMaintenance(
+	nodeID string,
+	commandID string,
+	requestedBootID string,
+	expectedVersion string,
+) {
+	if h == nil {
+		return
+	}
+	nodeID = strings.TrimSpace(nodeID)
+	commandID = strings.TrimSpace(commandID)
+	if nodeID == "" || commandID == "" {
+		return
+	}
+	confirmation := domain.NodeDaemonMaintenanceConfirmation{
+		CommandID:       commandID,
+		RequestedBootID: strings.TrimSpace(requestedBootID),
+		ExpectedVersion: strings.TrimSpace(expectedVersion),
+		Status:          "awaiting_new_boot",
+		UpdatedAt:       time.Now().UTC(),
+	}
+	h.mu.Lock()
+	if h.maintenance == nil {
+		h.maintenance = make(map[string]map[string]domain.NodeDaemonMaintenanceConfirmation)
+	}
+	if h.maintenance[nodeID] == nil {
+		h.maintenance[nodeID] = make(map[string]domain.NodeDaemonMaintenanceConfirmation)
+	}
+	if heartbeat, ok := h.heartbeats[nodeID]; ok {
+		confirmation = evaluateMaintenanceConfirmation(confirmation, heartbeat)
+	}
+	h.maintenance[nodeID][commandID] = confirmation
+	h.mu.Unlock()
+}
+
+func (h *NodeControlHub) MaintenanceConfirmation(
+	nodeID string,
+	commandID string,
+) (domain.NodeDaemonMaintenanceConfirmation, bool) {
+	if h == nil {
+		return domain.NodeDaemonMaintenanceConfirmation{}, false
+	}
+	h.mu.RLock()
+	confirmation, ok := h.maintenance[strings.TrimSpace(nodeID)][strings.TrimSpace(commandID)]
+	h.mu.RUnlock()
+	return confirmation, ok
+}
+
+func evaluateMaintenanceConfirmation(
+	confirmation domain.NodeDaemonMaintenanceConfirmation,
+	heartbeat domain.NodeDaemonHeartbeat,
+) domain.NodeDaemonMaintenanceConfirmation {
+	if heartbeat.BootID == "" || heartbeat.BootID == confirmation.RequestedBootID {
+		return confirmation
+	}
+	confirmation.ObservedBootID = heartbeat.BootID
+	confirmation.ObservedVersion = heartbeat.PaxdVersion
+	confirmation.UpdatedAt = heartbeat.ObservedAt
+	if heartbeat.DaemonPhase != "running" {
+		confirmation.Status = "awaiting_running"
+		return confirmation
+	}
+	if confirmation.ExpectedVersion != "" && heartbeat.PaxdVersion != confirmation.ExpectedVersion {
+		confirmation.Status = "version_mismatch"
+		return confirmation
+	}
+	confirmation.Status = "confirmed"
+	return confirmation
 }

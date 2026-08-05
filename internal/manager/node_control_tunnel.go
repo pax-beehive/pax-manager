@@ -223,9 +223,17 @@ func (s *Server) handleNodeControlTunnelFrameWithFence(
 
 	switch frame.Report.Type {
 	case "heartbeat":
+		observedAt := s.clock().UTC()
+		heartbeat := domain.NodeDaemonHeartbeat{ObservedAt: observedAt}
+		if len(frame.Report.Heartbeat) > 0 {
+			if err := json.Unmarshal(frame.Report.Heartbeat, &heartbeat); err != nil {
+				return fmt.Errorf("decode node control heartbeat: %w", err)
+			}
+			heartbeat.ObservedAt = observedAt
+		}
+		s.nodeControls.ObserveHeartbeat(node.NodeID, heartbeat)
 		return s.store.UpsertNodeStatus(ctx, node, domain.NodeStatusReport{
-			NodeID:    node.NodeID,
-			Timestamp: s.clock().UTC(),
+			NodeID: node.NodeID, Timestamp: observedAt,
 		})
 	case "runtime.snapshot":
 		return s.upsertRuntimeSnapshotReport(ctx, node, frame.Report)

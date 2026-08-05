@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     runtime_turn_instance_id TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    archived_at TIMESTAMPTZ,
     UNIQUE(agent_id, session_id)
 );
 
@@ -191,11 +192,15 @@ ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS runtime_status TEXT NOT NULL
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS runtime_turn_instance_id TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_sessions_agent ON agent_sessions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_native ON agent_sessions(agent_id, native_id)
     WHERE native_id IS NOT NULL AND native_id <> '';
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON agent_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_sessions_active_activity
+    ON agent_sessions(last_user_message_at DESC, last_message_at DESC, updated_at DESC)
+    WHERE archived_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_sessions_primary_project
     ON agent_sessions(primary_project_id)
     WHERE primary_project_id IS NOT NULL AND primary_project_id <> '';

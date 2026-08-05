@@ -287,6 +287,9 @@
           "agent_type": {
             "type": "string"
           },
+          "archived_at": {
+            "type": "string"
+          },
           "created_at": {
             "type": "string"
           },
@@ -573,6 +576,23 @@
             "$ref": "#/components/schemas/AuditEventListData"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CancelNodeDaemonMaintenanceRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "maintenance_command_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
             "type": "string"
           }
         },
@@ -1764,6 +1784,9 @@
           "agent_id": {
             "type": "string"
           },
+          "include_archived": {
+            "type": "boolean"
+          },
           "node_id": {
             "type": "string"
           },
@@ -2691,6 +2714,41 @@
         },
         "type": "object"
       },
+      "RestartNodeDaemonRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "drain_timeout_seconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "force_at_deadline": {
+            "type": "boolean"
+          },
+          "idle_grace_seconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "shutdown_grace_seconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "RevokeUserAPIKeyRequest": {
         "properties": {
           "key_id": {
@@ -3014,6 +3072,9 @@
           "agent_id": {
             "type": "string"
           },
+          "archived": {
+            "type": "boolean"
+          },
           "name": {
             "type": "string"
           },
@@ -3144,6 +3205,47 @@
             "type": "string"
           },
           "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpgradeNodeDaemonRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "drain_timeout_seconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "force_at_deadline": {
+            "type": "boolean"
+          },
+          "idle_grace_seconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "shutdown_grace_seconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "version": {
             "type": "string"
           }
         },
@@ -8978,6 +9080,227 @@
         ]
       }
     },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/maintenance/{maintenance_command_id}/cancel": {
+      "post": {
+        "description": "Cancels a restart or upgrade before binary activation or shutdown is committed.",
+        "parameters": [
+          {
+            "description": "Maintenance command identifier.",
+            "in": "path",
+            "name": "maintenance_command_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelNodeDaemonMaintenanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonCommandResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Cancel node daemon maintenance",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/restart": {
+      "post": {
+        "description": "Forwards paxd.restart to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestartNodeDaemonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonCommandResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Restart node daemon",
+        "tags": [
+          "user"
+        ]
+      }
+    },
     "/api/v1/user/{user_id}/nodes/{node_id}/daemon/status": {
       "get": {
         "description": "Forwards a status.get query to the connected paxd control tunnel.",
@@ -9079,6 +9402,112 @@
           }
         ],
         "summary": "Get node daemon status",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/upgrade": {
+      "post": {
+        "description": "Forwards paxd.upgrade to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpgradeNodeDaemonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonCommandResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Upgrade node daemon",
         "tags": [
           "user"
         ]
@@ -10354,6 +10783,15 @@
             "description": "Optional agent identifier filter. Use comma-separated IDs for multiple agents.",
             "in": "query",
             "name": "agent_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Whether archived sessions should be included. Defaults to false.",
+            "in": "query",
+            "name": "include_archived",
             "required": false,
             "schema": {
               "type": "string"
