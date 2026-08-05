@@ -11682,6 +11682,7 @@ type AgentSession struct {
 	NameIsCustom          *bool             `thrift:"name_is_custom,28,optional" form:"name_is_custom" json:"name_is_custom,omitempty" query:"name_is_custom"`
 	RuntimeStatus         *string           `thrift:"runtime_status,29,optional" form:"runtime_status" json:"runtime_status,omitempty" query:"runtime_status"`
 	RuntimeTurnInstanceID *string           `thrift:"runtime_turn_instance_id,30,optional" form:"runtime_turn_instance_id" json:"runtime_turn_instance_id,omitempty" query:"runtime_turn_instance_id"`
+	ArchivedAt            *string           `thrift:"archived_at,31,optional" form:"archived_at" json:"archived_at,omitempty" query:"archived_at"`
 }
 
 func NewAgentSession() *AgentSession {
@@ -11934,6 +11935,15 @@ func (p *AgentSession) GetRuntimeTurnInstanceID() (v string) {
 	return *p.RuntimeTurnInstanceID
 }
 
+var AgentSession_ArchivedAt_DEFAULT string
+
+func (p *AgentSession) GetArchivedAt() (v string) {
+	if !p.IsSetArchivedAt() {
+		return AgentSession_ArchivedAt_DEFAULT
+	}
+	return *p.ArchivedAt
+}
+
 var fieldIDToName_AgentSession = map[int16]string{
 	1:  "id",
 	2:  "node_id",
@@ -11962,6 +11972,7 @@ var fieldIDToName_AgentSession = map[int16]string{
 	28: "name_is_custom",
 	29: "runtime_status",
 	30: "runtime_turn_instance_id",
+	31: "archived_at",
 }
 
 func (p *AgentSession) IsSetID() bool {
@@ -12070,6 +12081,10 @@ func (p *AgentSession) IsSetRuntimeStatus() bool {
 
 func (p *AgentSession) IsSetRuntimeTurnInstanceID() bool {
 	return p.RuntimeTurnInstanceID != nil
+}
+
+func (p *AgentSession) IsSetArchivedAt() bool {
+	return p.ArchivedAt != nil
 }
 
 func (p *AgentSession) Read(iprot thrift.TProtocol) (err error) {
@@ -12302,6 +12317,14 @@ func (p *AgentSession) Read(iprot thrift.TProtocol) (err error) {
 		case 30:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField30(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 31:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField31(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -12639,6 +12662,17 @@ func (p *AgentSession) ReadField30(iprot thrift.TProtocol) error {
 	p.RuntimeTurnInstanceID = _field
 	return nil
 }
+func (p *AgentSession) ReadField31(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ArchivedAt = _field
+	return nil
+}
 
 func (p *AgentSession) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -12752,6 +12786,10 @@ func (p *AgentSession) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField30(oprot); err != nil {
 			fieldId = 30
+			goto WriteFieldError
+		}
+		if err = p.writeField31(oprot); err != nil {
+			fieldId = 31
 			goto WriteFieldError
 		}
 	}
@@ -13291,6 +13329,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 30 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 30 end error: ", p), err)
+}
+
+func (p *AgentSession) writeField31(oprot thrift.TProtocol) (err error) {
+	if p.IsSetArchivedAt() {
+		if err = oprot.WriteFieldBegin("archived_at", thrift.STRING, 31); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ArchivedAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 31 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 31 end error: ", p), err)
 }
 
 func (p *AgentSession) String() string {
@@ -27529,6 +27586,7 @@ type ListUserSessionsRequest struct {
 	PageSize         *int32  `thrift:"page_size,4,optional" json:"page_size,omitempty" query:"page_size"`
 	PageNum          *int32  `thrift:"page_num,5,optional" json:"page_num,omitempty" query:"page_num"`
 	PrimaryProjectID *string `thrift:"primary_project_id,6,optional" json:"primary_project_id,omitempty" query:"primary_project_id"`
+	IncludeArchived  *bool   `thrift:"include_archived,7,optional" json:"include_archived,omitempty" query:"include_archived"`
 }
 
 func NewListUserSessionsRequest() *ListUserSessionsRequest {
@@ -27592,6 +27650,15 @@ func (p *ListUserSessionsRequest) GetPrimaryProjectID() (v string) {
 	return *p.PrimaryProjectID
 }
 
+var ListUserSessionsRequest_IncludeArchived_DEFAULT bool
+
+func (p *ListUserSessionsRequest) GetIncludeArchived() (v bool) {
+	if !p.IsSetIncludeArchived() {
+		return ListUserSessionsRequest_IncludeArchived_DEFAULT
+	}
+	return *p.IncludeArchived
+}
+
 var fieldIDToName_ListUserSessionsRequest = map[int16]string{
 	1: "user_id",
 	2: "node_id",
@@ -27599,6 +27666,7 @@ var fieldIDToName_ListUserSessionsRequest = map[int16]string{
 	4: "page_size",
 	5: "page_num",
 	6: "primary_project_id",
+	7: "include_archived",
 }
 
 func (p *ListUserSessionsRequest) IsSetUserID() bool {
@@ -27623,6 +27691,10 @@ func (p *ListUserSessionsRequest) IsSetPageNum() bool {
 
 func (p *ListUserSessionsRequest) IsSetPrimaryProjectID() bool {
 	return p.PrimaryProjectID != nil
+}
+
+func (p *ListUserSessionsRequest) IsSetIncludeArchived() bool {
+	return p.IncludeArchived != nil
 }
 
 func (p *ListUserSessionsRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -27687,6 +27759,14 @@ func (p *ListUserSessionsRequest) Read(iprot thrift.TProtocol) (err error) {
 		case 6:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField7(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -27787,6 +27867,17 @@ func (p *ListUserSessionsRequest) ReadField6(iprot thrift.TProtocol) error {
 	p.PrimaryProjectID = _field
 	return nil
 }
+func (p *ListUserSessionsRequest) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.IncludeArchived = _field
+	return nil
+}
 
 func (p *ListUserSessionsRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -27816,6 +27907,10 @@ func (p *ListUserSessionsRequest) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField6(oprot); err != nil {
 			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
 			goto WriteFieldError
 		}
 	}
@@ -27948,6 +28043,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *ListUserSessionsRequest) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetIncludeArchived() {
+		if err = oprot.WriteFieldBegin("include_archived", thrift.BOOL, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.IncludeArchived); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
 }
 
 func (p *ListUserSessionsRequest) String() string {
@@ -31756,6 +31870,7 @@ type UpdateNodeAgentSessionRequest struct {
 	PaxConfig       *SessionPaxConfig `thrift:"pax_config,5,optional" form:"pax_config" json:"pax_config,omitempty" query:"pax_config"`
 	Name            *string           `thrift:"name,6,optional" form:"name" json:"name,omitempty" query:"name"`
 	UseReportedName *bool             `thrift:"use_reported_name,7,optional" form:"use_reported_name" json:"use_reported_name,omitempty" query:"use_reported_name"`
+	Archived        *bool             `thrift:"archived,8,optional" form:"archived" json:"archived,omitempty" query:"archived"`
 }
 
 func NewUpdateNodeAgentSessionRequest() *UpdateNodeAgentSessionRequest {
@@ -31828,6 +31943,15 @@ func (p *UpdateNodeAgentSessionRequest) GetUseReportedName() (v bool) {
 	return *p.UseReportedName
 }
 
+var UpdateNodeAgentSessionRequest_Archived_DEFAULT bool
+
+func (p *UpdateNodeAgentSessionRequest) GetArchived() (v bool) {
+	if !p.IsSetArchived() {
+		return UpdateNodeAgentSessionRequest_Archived_DEFAULT
+	}
+	return *p.Archived
+}
+
 var fieldIDToName_UpdateNodeAgentSessionRequest = map[int16]string{
 	1: "user_id",
 	2: "node_id",
@@ -31836,6 +31960,7 @@ var fieldIDToName_UpdateNodeAgentSessionRequest = map[int16]string{
 	5: "pax_config",
 	6: "name",
 	7: "use_reported_name",
+	8: "archived",
 }
 
 func (p *UpdateNodeAgentSessionRequest) IsSetUserID() bool {
@@ -31864,6 +31989,10 @@ func (p *UpdateNodeAgentSessionRequest) IsSetName() bool {
 
 func (p *UpdateNodeAgentSessionRequest) IsSetUseReportedName() bool {
 	return p.UseReportedName != nil
+}
+
+func (p *UpdateNodeAgentSessionRequest) IsSetArchived() bool {
+	return p.Archived != nil
 }
 
 func (p *UpdateNodeAgentSessionRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -31936,6 +32065,14 @@ func (p *UpdateNodeAgentSessionRequest) Read(iprot thrift.TProtocol) (err error)
 		case 7:
 			if fieldTypeId == thrift.BOOL {
 				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 8:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField8(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -32044,6 +32181,17 @@ func (p *UpdateNodeAgentSessionRequest) ReadField7(iprot thrift.TProtocol) error
 	p.UseReportedName = _field
 	return nil
 }
+func (p *UpdateNodeAgentSessionRequest) ReadField8(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Archived = _field
+	return nil
+}
 
 func (p *UpdateNodeAgentSessionRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -32077,6 +32225,10 @@ func (p *UpdateNodeAgentSessionRequest) Write(oprot thrift.TProtocol) (err error
 		}
 		if err = p.writeField7(oprot); err != nil {
 			fieldId = 7
+			goto WriteFieldError
+		}
+		if err = p.writeField8(oprot); err != nil {
+			fieldId = 8
 			goto WriteFieldError
 		}
 	}
@@ -32228,6 +32380,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *UpdateNodeAgentSessionRequest) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetArchived() {
+		if err = oprot.WriteFieldBegin("archived", thrift.BOOL, 8); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.Archived); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 end error: ", p), err)
 }
 
 func (p *UpdateNodeAgentSessionRequest) String() string {

@@ -275,6 +275,7 @@ struct AgentSession {
   28: optional bool name_is_custom
   29: optional string runtime_status
   30: optional string runtime_turn_instance_id
+  31: optional string archived_at
 }
 
 struct Project {
@@ -587,6 +588,7 @@ struct ListUserSessionsRequest {
   4: optional i32 page_size (api.query = "page_size")
   5: optional i32 page_num (api.query = "page_num")
   6: optional string primary_project_id (api.query = "primary_project_id")
+  7: optional bool include_archived (api.query = "include_archived")
 }
 
 struct CreateProjectRequest {
@@ -678,6 +680,7 @@ struct UpdateNodeAgentSessionRequest {
   5: optional SessionPaxConfig pax_config
   6: optional string name
   7: optional bool use_reported_name
+  8: optional bool archived
 }
 
 struct ListNodeAgentSessionMessagesRequest {
@@ -1909,6 +1912,7 @@ service PaxManagerAPI {
     openapi.query.node_id = "Optional node identifier filter. Use comma-separated IDs for multiple nodes.",
     openapi.query.agent_id = "Optional agent identifier filter. Use comma-separated IDs for multiple agents.",
     openapi.query.primary_project_id = "Optional primary logical project identifier filter.",
+    openapi.query.include_archived = "Whether archived sessions should be included. Defaults to false.",
     openapi.query.page_size = "Maximum number of sessions per page.",
     openapi.query.page_num = "One-based page number."
   )

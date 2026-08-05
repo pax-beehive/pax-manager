@@ -483,6 +483,7 @@ func ListSessions(c context.Context, ctx *app.RequestContext) {
 		string(ctx.QueryArgs().Peek("node_id")),
 		string(ctx.QueryArgs().Peek("agent_id")),
 		string(ctx.QueryArgs().Peek("primary_project_id")),
+		queryBool(ctx, "include_archived"),
 		queryInt(ctx, "page_size"),
 		queryInt(ctx, "page_num"),
 	)

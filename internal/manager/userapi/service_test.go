@@ -575,6 +575,41 @@ func TestResetSessionRuntimeRejectsUnsafeTargets(t *testing.T) {
 }
 
 func TestUpdateNodeAgentSessionName(t *testing.T) {
+	t.Run("Given archive state then it updates the session independently", func(t *testing.T) {
+		ctx := context.Background()
+		principal := userPrincipal("usr_self", false)
+		archived := true
+		req := domain.UpdateSessionRequest{
+			NodeID: "node_1", AgentID: "agent_1", SessionID: "sess_1", Archived: &archived,
+		}
+		store := userapimocks.NewMockStore(t)
+		principals := userapimocks.NewMockPrincipalResolver(t)
+		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+		store.EXPECT().
+			GetAgent(ctx, principal, "agent_1").
+			Return(domain.Agent{AgentID: "agent_1", NodeID: "node_1", OwnerUserID: "usr_self"}, nil).
+			Once()
+		store.EXPECT().
+			GetSession(ctx, principal, "sess_1").
+			Return(domain.AgentSession{NodeID: "node_1", AgentID: "agent_1", SessionID: "sess_1"}, nil).
+			Once()
+		store.EXPECT().
+			UpdateNodeAgentSession(ctx, principal, req).
+			Return(domain.AgentSession{NodeID: "node_1", AgentID: "agent_1", SessionID: "sess_1"}, nil).
+			Once()
+
+		svc := userapi.NewService(
+			store,
+			fixedUserClock,
+			principals,
+			userapimocks.NewMockSecretIssuer(t),
+		)
+		status, _, err := svc.UpdateNodeAgentSession(ctx, auth.RequestMetadata{}, req)
+
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+	})
+
 	t.Run("Given a valid name then it trims and updates the session", func(t *testing.T) {
 		ctx := context.Background()
 		principal := userPrincipal("usr_self", false)
@@ -660,6 +695,20 @@ func TestUpdateNodeAgentSessionName(t *testing.T) {
 					SessionID:       "sess_1",
 					SessionName:     &name,
 					UseReportedName: true,
+				}
+			}(),
+		},
+		{
+			name: "archive and name",
+			req: func() domain.UpdateSessionRequest {
+				name := "Custom"
+				archived := true
+				return domain.UpdateSessionRequest{
+					NodeID:      "node_1",
+					AgentID:     "agent_1",
+					SessionID:   "sess_1",
+					SessionName: &name,
+					Archived:    &archived,
 				}
 			}(),
 		},
@@ -2390,6 +2439,7 @@ func TestListSessions(t *testing.T) {
 						NodeIDs:          []string{"node_1", "node_2"},
 						AgentIDs:         []string{"agent_1", "agent_2"},
 						PrimaryProjectID: "proj_1",
+						IncludeArchived:  true,
 						PageSize:         25,
 						PageNum:          2,
 					},
@@ -2410,6 +2460,7 @@ func TestListSessions(t *testing.T) {
 				"node_1,node_2,node_1",
 				"agent_1, agent_2",
 				" proj_1 ",
+				true,
 				25,
 				2,
 			)
@@ -2455,6 +2506,7 @@ func TestListSessions(t *testing.T) {
 				"",
 				"",
 				"",
+				false,
 				900,
 				0,
 			)
@@ -2487,6 +2539,7 @@ func TestListSessions(t *testing.T) {
 				"",
 				"",
 				"",
+				false,
 				50,
 				1,
 			)

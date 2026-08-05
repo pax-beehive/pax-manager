@@ -1761,6 +1761,20 @@ func (s *PostgresStore) UpdateNodeAgentSession(
 			return AgentSession{}, err
 		}
 	}
+	if req.Archived != nil {
+		result, err := s.db.ExecContext(ctx, `
+			UPDATE agent_sessions
+			SET archived_at = CASE WHEN $3 THEN COALESCE(archived_at, $4) ELSE NULL END,
+				updated_at = $4
+			WHERE agent_id = $1 AND session_id = $2
+		`, req.AgentID, req.SessionID, *req.Archived, now)
+		if err != nil {
+			return AgentSession{}, err
+		}
+		if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+			return AgentSession{}, ErrNotFound
+		}
+	}
 	return scanSession(s.db.QueryRowContext(ctx, sessionSelectSQL+`
 		WHERE agent_sessions.agent_id = $1 AND agent_sessions.session_id = $2
 	`, req.AgentID, req.SessionID))
@@ -1902,7 +1916,7 @@ func (s *PostgresStore) ListAgentSessions(
 	principal UserPrincipal,
 	agentID string,
 ) ([]AgentSession, error) {
-	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.agent_id = $1 AND a.deleted_at IS NULL`
+	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.agent_id = $1 AND a.deleted_at IS NULL AND agent_sessions.archived_at IS NULL`
 	query += ` AND (
 		a.owner_user_id = $2
 		OR ` + teamAgentAccessSQL("a.agent_id", "$2") + `
@@ -1956,6 +1970,9 @@ func (s *PostgresStore) ListSessions(
 	addInFilter("agent_sessions.agent_id", filter.AgentIDs)
 	if filter.PrimaryProjectID != "" {
 		addFilter("agent_sessions.primary_project_id =", filter.PrimaryProjectID)
+	}
+	if !filter.IncludeArchived {
+		clauses = append(clauses, "agent_sessions.archived_at IS NULL")
 	}
 	where := " WHERE " + strings.Join(clauses, " AND ")
 	var total int64
@@ -2888,7 +2905,7 @@ const sessionSelectSQL = `
 		token_output, token_total, cache_read_tokens, cache_write_tokens, cache_creation_tokens,
 		reasoning_tokens, estimated_cost_usd, actual_cost_usd, cost_usd, COALESCE(model, ''), COALESCE(run_id, ''),
 		COALESCE(run_status, ''), runtime_status, COALESCE(runtime_turn_instance_id, ''),
-		agent_sessions.created_at, agent_sessions.updated_at,
+		agent_sessions.created_at, agent_sessions.updated_at, agent_sessions.archived_at,
 		COALESCE(agent_sessions.metadata, '{}'::jsonb)
 	FROM agent_sessions`
 

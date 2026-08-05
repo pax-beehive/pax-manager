@@ -2176,6 +2176,7 @@ func (s *Service) ListSessions(
 	nodeID string,
 	agentID string,
 	primaryProjectID string,
+	includeArchived bool,
 	pageSize int,
 	pageNum int,
 ) (int, any, error) {
@@ -2196,6 +2197,7 @@ func (s *Service) ListSessions(
 		NodeIDs:          splitCommaSeparatedIDs(nodeID),
 		AgentIDs:         splitCommaSeparatedIDs(agentID),
 		PrimaryProjectID: strings.TrimSpace(primaryProjectID),
+		IncludeArchived:  includeArchived,
 		PageSize:         pageSize,
 		PageNum:          pageNum,
 	})
@@ -2346,23 +2348,14 @@ func normalizeUpdateNodeAgentSessionRequest(
 ) (domain.UpdateSessionRequest, error) {
 	hasName := req.SessionName != nil
 	hasPaxConfig := req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != ""
-	if !hasName && !req.UseReportedName && !hasPaxConfig {
-		return domain.UpdateSessionRequest{}, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "name, use_reported_name, or pax_config is required",
-		}
-	}
-	if hasName && req.UseReportedName {
-		return domain.UpdateSessionRequest{}, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "name and use_reported_name cannot be combined",
-		}
-	}
-	if hasPaxConfig && (hasName || req.UseReportedName) {
-		return domain.UpdateSessionRequest{}, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "session name updates cannot be combined with pax_config",
-		}
+	hasArchived := req.Archived != nil
+	if err := validateSessionUpdateShape(
+		hasName,
+		req.UseReportedName,
+		hasPaxConfig,
+		hasArchived,
+	); err != nil {
+		return domain.UpdateSessionRequest{}, err
 	}
 	if hasName {
 		name := strings.TrimSpace(*req.SessionName)
@@ -2403,6 +2396,39 @@ func normalizeUpdateNodeAgentSessionRequest(
 		req.PaxConfig.ApprovalMode = mode
 	}
 	return req, nil
+}
+
+func validateSessionUpdateShape(
+	hasName bool,
+	useReportedName bool,
+	hasPaxConfig bool,
+	hasArchived bool,
+) error {
+	if !hasName && !useReportedName && !hasPaxConfig && !hasArchived {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "name, use_reported_name, archived, or pax_config is required",
+		}
+	}
+	if hasName && useReportedName {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "name and use_reported_name cannot be combined",
+		}
+	}
+	if hasPaxConfig && (hasName || useReportedName) {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "session name updates cannot be combined with pax_config",
+		}
+	}
+	if hasArchived && (hasName || useReportedName || hasPaxConfig) {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "archived cannot be combined with other session updates",
+		}
+	}
+	return nil
 }
 
 func (s *Service) ListAgentSessionMessages(

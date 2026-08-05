@@ -227,6 +227,7 @@ func scanSession(row rowScanner) (AgentSession, error) {
 		&session.RuntimeTurnInstanceID,
 		&session.CreatedAt,
 		&session.UpdatedAt,
+		&session.ArchivedAt,
 		&metadata,
 	); err != nil {
 		return AgentSession{}, mapSQLError(err)

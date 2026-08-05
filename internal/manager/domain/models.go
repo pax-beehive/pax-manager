@@ -122,6 +122,7 @@ type AgentSession struct {
 	RuntimeAuthority      string               `json:"-"`
 	CreatedAt             time.Time            `json:"created_at"`
 	UpdatedAt             time.Time            `json:"updated_at"`
+	ArchivedAt            *time.Time           `json:"archived_at,omitempty"`
 	Metadata              json.RawMessage      `json:"metadata,omitempty"`
 	RuntimeState          *SessionRuntimeState `json:"runtime_state,omitempty"`
 	PaxConfig             SessionPaxConfig     `json:"pax_config,omitempty"`
@@ -132,6 +133,7 @@ type ListSessionsFilter struct {
 	NodeIDs          []string
 	AgentIDs         []string
 	PrimaryProjectID string
+	IncludeArchived  bool
 	PageSize         int
 	PageNum          int
 }
@@ -1888,6 +1890,7 @@ type UpdateSessionRequest struct {
 	SessionID       string           `json:"session_id"`
 	SessionName     *string          `json:"name"`
 	UseReportedName bool             `json:"use_reported_name"`
+	Archived        *bool            `json:"archived"`
 	PaxConfig       SessionPaxConfig `json:"pax_config"`
 }
 

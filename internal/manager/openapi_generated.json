@@ -287,6 +287,9 @@
           "agent_type": {
             "type": "string"
           },
+          "archived_at": {
+            "type": "string"
+          },
           "created_at": {
             "type": "string"
           },
@@ -1781,6 +1784,9 @@
           "agent_id": {
             "type": "string"
           },
+          "include_archived": {
+            "type": "boolean"
+          },
           "node_id": {
             "type": "string"
           },
@@ -3065,6 +3071,9 @@
         "properties": {
           "agent_id": {
             "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
           },
           "name": {
             "type": "string"
@@ -10774,6 +10783,15 @@
             "description": "Optional agent identifier filter. Use comma-separated IDs for multiple agents.",
             "in": "query",
             "name": "agent_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Whether archived sessions should be included. Defaults to false.",
+            "in": "query",
+            "name": "include_archived",
             "required": false,
             "schema": {
               "type": "string"

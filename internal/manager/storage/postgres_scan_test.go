@@ -315,6 +315,7 @@ func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 		"turn_instance_1",
 		now,
 		now.Add(2 * time.Minute),
+		nil,
 		[]byte(
 			`{"runtime_state":{"agent_id":"agent_1","session_id":"sess_manager","lifecycle":"running"}}`,
 		),
