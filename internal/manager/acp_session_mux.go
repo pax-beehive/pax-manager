@@ -10,7 +10,12 @@ var errACPSSESubscriberOverflow = errors.New("ACP session stream fell behind; re
 type acpResponseWaiter struct {
 	managerSessionID string
 	requestKind      string
-	ch               chan []byte
+	ch               chan acpResponseWaiterResult
+}
+
+type acpResponseWaiterResult struct {
+	payload []byte
+	err     error
 }
 
 type acpWorkerRequest struct {
@@ -142,11 +147,11 @@ func (m *acpSessionMux) addResponseWaiter(
 	requestID string,
 	managerSessionID string,
 	requestKind string,
-) (<-chan []byte, func()) {
+) (<-chan acpResponseWaiterResult, func()) {
 	waiter := &acpResponseWaiter{
 		managerSessionID: managerSessionID,
 		requestKind:      requestKind,
-		ch:               make(chan []byte, 1),
+		ch:               make(chan acpResponseWaiterResult, 1),
 	}
 	m.mu.Lock()
 	m.waiters[requestID] = waiter
@@ -187,10 +192,51 @@ func (m *acpSessionMux) notifyResponseWaiter(requestID string, payload []byte) b
 		return false
 	}
 	select {
-	case waiter.ch <- append([]byte(nil), payload...):
+	case waiter.ch <- acpResponseWaiterResult{payload: append([]byte(nil), payload...)}:
 	default:
 	}
 	return true
+}
+
+// interruptSession wakes request owners and stream subscribers after the
+// authoritative runtime snapshot reports that their session has no active
+// turn. Other sessions sharing the same physical tunnel remain untouched.
+func (m *acpSessionMux) interruptSession(sessionID string, err error) int {
+	if m == nil || sessionID == "" || err == nil {
+		return 0
+	}
+	m.mu.Lock()
+	waiters := make([]*acpResponseWaiter, 0)
+	for requestID, waiter := range m.waiters {
+		if waiter.managerSessionID != sessionID {
+			continue
+		}
+		delete(m.waiters, requestID)
+		waiters = append(waiters, waiter)
+	}
+	// A response removes its waiter before the request owner consumes it. In
+	// that small window an idle snapshot is expected and must not replace the
+	// already-buffered successful response with an interruption.
+	subscribers := make([]*acpSSESubscriber, 0)
+	if len(waiters) > 0 {
+		subscribers = make([]*acpSSESubscriber, 0, len(m.subscribers[sessionID]))
+		for sub := range m.subscribers[sessionID] {
+			subscribers = append(subscribers, sub)
+		}
+		delete(m.subscribers, sessionID)
+	}
+	m.mu.Unlock()
+
+	for _, waiter := range waiters {
+		select {
+		case waiter.ch <- acpResponseWaiterResult{err: err}:
+		default:
+		}
+	}
+	for _, sub := range subscribers {
+		sub.close(err)
+	}
+	return len(waiters) + len(subscribers)
 }
 
 func (m *acpSessionMux) subscribe(sessionID string) *acpSSESubscriber {

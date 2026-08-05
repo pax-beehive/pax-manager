@@ -568,8 +568,8 @@ func TestJSONRPCRequestDoesNotWakeResponseWaiter(t *testing.T) {
 	}
 	require.False(t, delivered)
 	select {
-	case payload := <-waiter:
-		t.Fatalf("request woke response waiter with payload %s", payload)
+	case result := <-waiter:
+		t.Fatalf("request woke response waiter with payload %s", result.payload)
 	default:
 	}
 
@@ -586,8 +586,8 @@ func TestJSONRPCRequestDoesNotWakeResponseWaiter(t *testing.T) {
 		),
 	)
 	select {
-	case payload := <-waiter:
-		require.JSONEq(t, `{"id":1,"result":{"stopReason":"end_turn"}}`, string(payload))
+	case result := <-waiter:
+		require.JSONEq(t, `{"id":1,"result":{"stopReason":"end_turn"}}`, string(result.payload))
 	case <-time.After(time.Second):
 		t.Fatal("response did not wake response waiter")
 	}

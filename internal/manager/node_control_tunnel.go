@@ -293,6 +293,30 @@ func (s *Server) replaceSessionRuntimeSnapshot(
 	if result.Status == domain.RuntimeSnapshotFenced {
 		return errors.New("session runtime snapshot came from a fenced connection")
 	}
+	if result.Status == domain.RuntimeSnapshotApplied && s.acpTunnels != nil {
+		for _, change := range result.Changes {
+			if change.RuntimeStatus != domain.RuntimeStatusIdle {
+				continue
+			}
+			interrupted := s.acpTunnels.interruptSession(
+				snapshot.AgentID,
+				change.SessionID,
+				apperr.Error{
+					Status:  http.StatusConflict,
+					Message: "agent runtime stopped before the active prompt completed; send another prompt to continue the session",
+				},
+			)
+			if interrupted > 0 {
+				logging.Info(
+					ctx,
+					"session runtime snapshot interrupted stale receivers",
+					slog.String("agent_id", snapshot.AgentID),
+					slog.String("session_id", change.SessionID),
+					slog.Int("receivers", interrupted),
+				)
+			}
+		}
+	}
 	return nil
 }
 

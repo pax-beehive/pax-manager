@@ -4195,6 +4195,93 @@ func TestConversationContinuesWhenAgentTunnelReconnectsDuringPrompt(t *testing.T
 	requireConversationEvent(t, events, "done")
 }
 
+func TestConversationCanContinueAfterRuntimeSnapshotInterruptsPrompt(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"work across restart","session_id":"sess-existing"}`,
+		respCh,
+		errCh,
+	)
+
+	_, firstPrompt := readMockACPRequest(t, agentWS, "session/prompt")
+	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	node, err := srv.store.GetNode(t.Context(), principal, fixture.nodeID)
+	require.NoError(t, err)
+	runtimeStore, ok := srv.store.(domain.SessionRuntimeSnapshotStore)
+	require.True(t, ok)
+	require.NoError(t, runtimeStore.ActivateNodeRuntimeFence(t.Context(), node, "fence-restart"))
+	require.NoError(t, srv.replaceSessionRuntimeSnapshot(
+		t.Context(),
+		node,
+		"fence-restart",
+		nodeControlReport{SessionRuntimeSnapshot: &nodeControlSessionRuntimeSnapshot{
+			AgentID:       fixture.agentID,
+			ConnectionID:  "conn-1",
+			Sequence:      1,
+			GeneratedAt:   time.Now().UTC(),
+			SchemaVersion: 1,
+			ActiveTurns:   []nodeControlSessionRuntimeActiveTurn{},
+		}},
+	))
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	errorEvent := requireConversationEvent(t, events, "error")
+	require.Equal(t, http.StatusConflict, errorEvent.StatusCode)
+	require.Contains(t, errorEvent.Message, "send another prompt to continue the session")
+
+	secondRespCh := make(chan *http.Response, 1)
+	secondErrCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"input":"continue","session_id":"sess-existing"}`,
+		secondRespCh,
+		secondErrCh,
+	)
+	secondPromptEnv, secondPrompt := readMockACPRequest(t, agentWS, "session/prompt")
+	require.NotEqual(t, acpJSONRPCID(firstPrompt), acpJSONRPCID(secondPrompt))
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		secondPromptEnv.QueueID,
+		1,
+		json.RawMessage(fmt.Sprintf(
+			`{"jsonrpc":"2.0","id":%s,"result":{"stopReason":"end_turn"}}`,
+			acpJSONRPCID(secondPrompt),
+		)),
+	)
+
+	secondBody := readConversationResponse(t, secondRespCh, secondErrCh, http.StatusOK)
+	secondEvents := decodeConversationEvents(t, secondBody)
+	requireConversationEvent(t, secondEvents, "done")
+}
+
 func TestConversationPromptIdleTimeoutResetsOnACPUpdate(t *testing.T) {
 	previousTimeout := conversationRequestIdleTimeout
 	conversationRequestIdleTimeout = 100 * time.Millisecond

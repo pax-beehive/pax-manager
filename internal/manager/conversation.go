@@ -776,7 +776,11 @@ func (r *conversationRunner) requestOnce(
 	defer timer.Stop()
 	for {
 		select {
-		case payload := <-waiter:
+		case result := <-waiter:
+			if result.err != nil {
+				return conversationResponse{}, result.err
+			}
+			payload := result.payload
 			var msg acpJSONRPCMessage
 			_ = json.Unmarshal(payload, &msg)
 			if len(msg.Error) > 0 {
@@ -818,7 +822,7 @@ func (r *conversationRunner) sendTurnPrompt(
 	ctx context.Context,
 	turnID string,
 	params map[string]any,
-) (int64, <-chan []byte, func(), error) {
+) (int64, <-chan acpResponseWaiterResult, func(), error) {
 	const method = "session/prompt"
 	requestID, err := r.service.store.NextAgentACPRequestID(ctx, r.agentConn.agentID)
 	if err != nil {
@@ -919,7 +923,7 @@ func (s *Service) streamConversationUntilPromptDone(
 	session conversationSession,
 	sub *acpSSESubscriber,
 	promptRequestID string,
-	waiter <-chan []byte,
+	waiter <-chan acpResponseWaiterResult,
 ) (bool, error) {
 	timer := time.NewTimer(conversationRequestIdleTimeout)
 	defer timer.Stop()
@@ -946,7 +950,11 @@ func (s *Service) streamConversationUntilPromptDone(
 			if err != nil || interrupted {
 				return false, err
 			}
-		case payload := <-waiter:
+		case result := <-waiter:
+			if result.err != nil {
+				return false, result.err
+			}
+			payload := result.payload
 			s.drainConversationSSE(ctx, w, flusher, runner, session, sub)
 			var msg acpJSONRPCMessage
 			_ = json.Unmarshal(payload, &msg)
