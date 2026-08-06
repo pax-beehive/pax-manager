@@ -885,6 +885,9 @@
             "format": "int32",
             "type": "integer"
           },
+          "report_local_sessions": {
+            "type": "boolean"
+          },
           "harness": {
             "type": "string"
           },
@@ -3116,6 +3119,9 @@
           },
           "desired_state": {
             "type": "string"
+          },
+          "report_local_sessions": {
+            "type": "boolean"
           },
           "harness": {
             "type": "string"

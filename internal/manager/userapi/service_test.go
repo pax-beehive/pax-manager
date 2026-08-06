@@ -857,16 +857,17 @@ func TestCreateNodeDaemonAgentConnection(t *testing.T) {
 			"command_id": "cmd_create_1",
 			"type":       "agent_connection.create",
 			"create_agent_connection": map[string]any{
-				"remote_id":      "remote_prod",
-				"name":           "work",
-				"cloud_agent_id": "agent_1",
-				"instance_id":    "work",
-				"agent_type":     "codex",
-				"harness":        "codex",
-				"command":        []string{"codex", "--acp"},
-				"working_dir":    "/workspace",
-				"desired_state":  "running",
-				"desired_slots":  2,
+				"remote_id":             "remote_prod",
+				"name":                  "work",
+				"cloud_agent_id":        "agent_1",
+				"instance_id":           "work",
+				"agent_type":            "codex",
+				"harness":               "codex",
+				"command":               []string{"codex", "--acp"},
+				"working_dir":           "/workspace",
+				"desired_state":         "running",
+				"desired_slots":         2,
+				"report_local_sessions": false,
 			},
 		}, client.command)
 	})
@@ -988,6 +989,7 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 		workingDir := " /project "
 		desiredSlots := 4
 		desiredState := " running "
+		reportLocalSessions := false
 
 		principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 		store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
@@ -999,13 +1001,14 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 			ctx,
 			auth.RequestMetadata{},
 			domain.UpdateNodeDaemonAgentConnectionRequest{
-				NodeID:       "node_1",
-				ConnectionID: "conn_1",
-				CommandID:    "cmd_update_1",
-				Harness:      &harness,
-				WorkingDir:   &workingDir,
-				DesiredSlots: &desiredSlots,
-				DesiredState: &desiredState,
+				NodeID:              "node_1",
+				ConnectionID:        "conn_1",
+				CommandID:           "cmd_update_1",
+				Harness:             &harness,
+				WorkingDir:          &workingDir,
+				DesiredSlots:        &desiredSlots,
+				DesiredState:        &desiredState,
+				ReportLocalSessions: &reportLocalSessions,
 			},
 		)
 
@@ -1018,12 +1021,13 @@ func TestUpdateNodeDaemonAgentConnection(t *testing.T) {
 			"command_id": "cmd_update_1",
 			"type":       "agent_connection.update",
 			"update_agent_connection": map[string]any{
-				"connection_id": "conn_1",
-				"harness":       "claude",
-				"command":       []string{"claude", "--acp"},
-				"working_dir":   "/project",
-				"desired_slots": 4,
-				"desired_state": "running",
+				"connection_id":         "conn_1",
+				"harness":               "claude",
+				"command":               []string{"claude", "--acp"},
+				"working_dir":           "/project",
+				"desired_slots":         4,
+				"desired_state":         "running",
+				"report_local_sessions": false,
 			},
 		}, client.command)
 	})
