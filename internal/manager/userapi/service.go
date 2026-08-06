@@ -1214,16 +1214,17 @@ func (s *Service) CreateNodeDaemonAgentConnection(
 		"command_id": req.CommandID,
 		"type":       "agent_connection.create",
 		"create_agent_connection": map[string]any{
-			"remote_id":      remoteID,
-			"name":           name,
-			"cloud_agent_id": agent.AgentID,
-			"instance_id":    instanceID,
-			"agent_type":     agentType,
-			"harness":        req.Harness,
-			"command":        command,
-			"working_dir":    strings.TrimSpace(req.WorkingDir),
-			"desired_state":  "running",
-			"desired_slots":  desiredSlots,
+			"remote_id":             remoteID,
+			"name":                  name,
+			"cloud_agent_id":        agent.AgentID,
+			"instance_id":           instanceID,
+			"agent_type":            agentType,
+			"harness":               req.Harness,
+			"command":               command,
+			"working_dir":           strings.TrimSpace(req.WorkingDir),
+			"desired_state":         "running",
+			"desired_slots":         desiredSlots,
+			"report_local_sessions": nodeDaemonReportLocalSessions(req.ReportLocalSessions),
 		},
 	}, data)
 }
@@ -1545,6 +1546,9 @@ func (s *Service) UpdateNodeDaemonAgentConnection(
 	}
 	setNodeDaemonDesiredSlots(update, req.DesiredSlots)
 	setNodeDaemonDesiredState(update, req.DesiredState)
+	if req.ReportLocalSessions != nil {
+		update["report_local_sessions"] = *req.ReportLocalSessions
+	}
 	data := map[string]any{
 		"connection_id":   req.ConnectionID,
 		"command_id":      req.CommandID,
@@ -1575,6 +1579,10 @@ func nodeDaemonDesiredSlots(desiredSlots *int) (int, error) {
 	return *desiredSlots, validateNodeDaemonDesiredSlots(*desiredSlots)
 }
 
+func nodeDaemonReportLocalSessions(enabled *bool) bool {
+	return enabled != nil && *enabled
+}
+
 func validateOptionalNodeDaemonDesiredSlots(desiredSlots *int) error {
 	if desiredSlots == nil {
 		return nil
@@ -1590,7 +1598,8 @@ func setNodeDaemonDesiredSlots(update map[string]any, desiredSlots *int) {
 
 func hasNodeDaemonAgentConnectionUpdate(req domain.UpdateNodeDaemonAgentConnectionRequest) bool {
 	return req.Name != nil || req.Harness != nil || req.Command != nil ||
-		req.WorkingDir != nil || req.DesiredSlots != nil || req.DesiredState != nil
+		req.WorkingDir != nil || req.DesiredSlots != nil || req.DesiredState != nil ||
+		req.ReportLocalSessions != nil
 }
 
 func validateOptionalNodeDaemonDesiredState(desiredState *string) error {

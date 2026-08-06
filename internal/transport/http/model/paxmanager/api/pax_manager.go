@@ -56128,16 +56128,17 @@ func (p *NodeDaemonQueryResponse) String() string {
 }
 
 type CreateNodeDaemonAgentConnectionRequest struct {
-	UserID       *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
-	NodeID       *string  `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
-	CommandID    *string  `thrift:"command_id,3,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
-	Name         *string  `thrift:"name,4,optional" form:"name" json:"name,omitempty" query:"name"`
-	AgentType    *string  `thrift:"agent_type,5,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
-	Harness      *string  `thrift:"harness,6,optional" form:"harness" json:"harness,omitempty" query:"harness"`
-	InstanceID   *string  `thrift:"instance_id,7,optional" form:"instance_id" json:"instance_id,omitempty" query:"instance_id"`
-	Command      []string `thrift:"command,8,optional,list<string>" form:"command" json:"command,omitempty" query:"command"`
-	WorkingDir   *string  `thrift:"working_dir,9,optional" form:"working_dir" json:"working_dir,omitempty" query:"working_dir"`
-	DesiredSlots *int32   `thrift:"desired_slots,10,optional" form:"desired_slots" json:"desired_slots,omitempty" query:"desired_slots"`
+	UserID              *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID              *string  `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	CommandID           *string  `thrift:"command_id,3,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
+	Name                *string  `thrift:"name,4,optional" form:"name" json:"name,omitempty" query:"name"`
+	AgentType           *string  `thrift:"agent_type,5,optional" form:"agent_type" json:"agent_type,omitempty" query:"agent_type"`
+	Harness             *string  `thrift:"harness,6,optional" form:"harness" json:"harness,omitempty" query:"harness"`
+	InstanceID          *string  `thrift:"instance_id,7,optional" form:"instance_id" json:"instance_id,omitempty" query:"instance_id"`
+	Command             []string `thrift:"command,8,optional,list<string>" form:"command" json:"command,omitempty" query:"command"`
+	WorkingDir          *string  `thrift:"working_dir,9,optional" form:"working_dir" json:"working_dir,omitempty" query:"working_dir"`
+	DesiredSlots        *int32   `thrift:"desired_slots,10,optional" form:"desired_slots" json:"desired_slots,omitempty" query:"desired_slots"`
+	ReportLocalSessions *bool    `thrift:"report_local_sessions,11,optional" form:"report_local_sessions" json:"report_local_sessions,omitempty" query:"report_local_sessions"`
 }
 
 func NewCreateNodeDaemonAgentConnectionRequest() *CreateNodeDaemonAgentConnectionRequest {
@@ -56237,6 +56238,15 @@ func (p *CreateNodeDaemonAgentConnectionRequest) GetDesiredSlots() (v int32) {
 	return *p.DesiredSlots
 }
 
+var CreateNodeDaemonAgentConnectionRequest_ReportLocalSessions_DEFAULT bool
+
+func (p *CreateNodeDaemonAgentConnectionRequest) GetReportLocalSessions() (v bool) {
+	if !p.IsSetReportLocalSessions() {
+		return CreateNodeDaemonAgentConnectionRequest_ReportLocalSessions_DEFAULT
+	}
+	return *p.ReportLocalSessions
+}
+
 var fieldIDToName_CreateNodeDaemonAgentConnectionRequest = map[int16]string{
 	1:  "user_id",
 	2:  "node_id",
@@ -56248,6 +56258,7 @@ var fieldIDToName_CreateNodeDaemonAgentConnectionRequest = map[int16]string{
 	8:  "command",
 	9:  "working_dir",
 	10: "desired_slots",
+	11: "report_local_sessions",
 }
 
 func (p *CreateNodeDaemonAgentConnectionRequest) IsSetUserID() bool {
@@ -56288,6 +56299,10 @@ func (p *CreateNodeDaemonAgentConnectionRequest) IsSetWorkingDir() bool {
 
 func (p *CreateNodeDaemonAgentConnectionRequest) IsSetDesiredSlots() bool {
 	return p.DesiredSlots != nil
+}
+
+func (p *CreateNodeDaemonAgentConnectionRequest) IsSetReportLocalSessions() bool {
+	return p.ReportLocalSessions != nil
 }
 
 func (p *CreateNodeDaemonAgentConnectionRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -56384,6 +56399,14 @@ func (p *CreateNodeDaemonAgentConnectionRequest) Read(iprot thrift.TProtocol) (e
 		case 10:
 			if fieldTypeId == thrift.I32 {
 				if err = p.ReadField10(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 11:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField11(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -56540,6 +56563,17 @@ func (p *CreateNodeDaemonAgentConnectionRequest) ReadField10(iprot thrift.TProto
 	p.DesiredSlots = _field
 	return nil
 }
+func (p *CreateNodeDaemonAgentConnectionRequest) ReadField11(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ReportLocalSessions = _field
+	return nil
+}
 
 func (p *CreateNodeDaemonAgentConnectionRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -56585,6 +56619,10 @@ func (p *CreateNodeDaemonAgentConnectionRequest) Write(oprot thrift.TProtocol) (
 		}
 		if err = p.writeField10(oprot); err != nil {
 			fieldId = 10
+			goto WriteFieldError
+		}
+		if err = p.writeField11(oprot); err != nil {
+			fieldId = 11
 			goto WriteFieldError
 		}
 	}
@@ -56801,6 +56839,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 10 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 10 end error: ", p), err)
+}
+
+func (p *CreateNodeDaemonAgentConnectionRequest) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetReportLocalSessions() {
+		if err = oprot.WriteFieldBegin("report_local_sessions", thrift.BOOL, 11); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.ReportLocalSessions); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 end error: ", p), err)
 }
 
 func (p *CreateNodeDaemonAgentConnectionRequest) String() string {
@@ -57789,16 +57846,17 @@ func (p *CreateNodeDaemonAgentConnectionResponse) String() string {
 }
 
 type UpdateNodeDaemonAgentConnectionRequest struct {
-	UserID       *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
-	NodeID       *string  `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
-	ConnectionID *string  `thrift:"connection_id,3,optional" json:"connection_id,omitempty" path:"connection_id"`
-	CommandID    *string  `thrift:"command_id,4,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
-	Name         *string  `thrift:"name,5,optional" form:"name" json:"name,omitempty" query:"name"`
-	Harness      *string  `thrift:"harness,6,optional" form:"harness" json:"harness,omitempty" query:"harness"`
-	Command      []string `thrift:"command,7,optional,list<string>" form:"command" json:"command,omitempty" query:"command"`
-	WorkingDir   *string  `thrift:"working_dir,8,optional" form:"working_dir" json:"working_dir,omitempty" query:"working_dir"`
-	DesiredSlots *int32   `thrift:"desired_slots,9,optional" form:"desired_slots" json:"desired_slots,omitempty" query:"desired_slots"`
-	DesiredState *string  `thrift:"desired_state,10,optional" form:"desired_state" json:"desired_state,omitempty" query:"desired_state"`
+	UserID              *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID              *string  `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	ConnectionID        *string  `thrift:"connection_id,3,optional" json:"connection_id,omitempty" path:"connection_id"`
+	CommandID           *string  `thrift:"command_id,4,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
+	Name                *string  `thrift:"name,5,optional" form:"name" json:"name,omitempty" query:"name"`
+	Harness             *string  `thrift:"harness,6,optional" form:"harness" json:"harness,omitempty" query:"harness"`
+	Command             []string `thrift:"command,7,optional,list<string>" form:"command" json:"command,omitempty" query:"command"`
+	WorkingDir          *string  `thrift:"working_dir,8,optional" form:"working_dir" json:"working_dir,omitempty" query:"working_dir"`
+	DesiredSlots        *int32   `thrift:"desired_slots,9,optional" form:"desired_slots" json:"desired_slots,omitempty" query:"desired_slots"`
+	DesiredState        *string  `thrift:"desired_state,10,optional" form:"desired_state" json:"desired_state,omitempty" query:"desired_state"`
+	ReportLocalSessions *bool    `thrift:"report_local_sessions,11,optional" form:"report_local_sessions" json:"report_local_sessions,omitempty" query:"report_local_sessions"`
 }
 
 func NewUpdateNodeDaemonAgentConnectionRequest() *UpdateNodeDaemonAgentConnectionRequest {
@@ -57898,6 +57956,15 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) GetDesiredState() (v string) {
 	return *p.DesiredState
 }
 
+var UpdateNodeDaemonAgentConnectionRequest_ReportLocalSessions_DEFAULT bool
+
+func (p *UpdateNodeDaemonAgentConnectionRequest) GetReportLocalSessions() (v bool) {
+	if !p.IsSetReportLocalSessions() {
+		return UpdateNodeDaemonAgentConnectionRequest_ReportLocalSessions_DEFAULT
+	}
+	return *p.ReportLocalSessions
+}
+
 var fieldIDToName_UpdateNodeDaemonAgentConnectionRequest = map[int16]string{
 	1:  "user_id",
 	2:  "node_id",
@@ -57909,6 +57976,7 @@ var fieldIDToName_UpdateNodeDaemonAgentConnectionRequest = map[int16]string{
 	8:  "working_dir",
 	9:  "desired_slots",
 	10: "desired_state",
+	11: "report_local_sessions",
 }
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetUserID() bool {
@@ -57949,6 +58017,10 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetDesiredSlots() bool {
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetDesiredState() bool {
 	return p.DesiredState != nil
+}
+
+func (p *UpdateNodeDaemonAgentConnectionRequest) IsSetReportLocalSessions() bool {
+	return p.ReportLocalSessions != nil
 }
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -58045,6 +58117,14 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) Read(iprot thrift.TProtocol) (e
 		case 10:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField10(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 11:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField11(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -58201,6 +58281,17 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) ReadField10(iprot thrift.TProto
 	p.DesiredState = _field
 	return nil
 }
+func (p *UpdateNodeDaemonAgentConnectionRequest) ReadField11(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ReportLocalSessions = _field
+	return nil
+}
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -58246,6 +58337,10 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) Write(oprot thrift.TProtocol) (
 		}
 		if err = p.writeField10(oprot); err != nil {
 			fieldId = 10
+			goto WriteFieldError
+		}
+		if err = p.writeField11(oprot); err != nil {
+			fieldId = 11
 			goto WriteFieldError
 		}
 	}
@@ -58462,6 +58557,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 10 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 10 end error: ", p), err)
+}
+
+func (p *UpdateNodeDaemonAgentConnectionRequest) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetReportLocalSessions() {
+		if err = oprot.WriteFieldBegin("report_local_sessions", thrift.BOOL, 11); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.ReportLocalSessions); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 end error: ", p), err)
 }
 
 func (p *UpdateNodeDaemonAgentConnectionRequest) String() string {
