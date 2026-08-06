@@ -17,6 +17,8 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
 
+var sessionRuntimeIdleInterruptGrace = 5 * time.Second
+
 func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request) {
 	ctx, logID := httpRequestLogContext(r.Context(), r)
 	w.Header().Set(logging.HeaderLogID, logID)
@@ -296,23 +298,25 @@ func (s *Server) replaceSessionRuntimeSnapshot(
 	if result.Status == domain.RuntimeSnapshotApplied && s.acpTunnels != nil {
 		for _, change := range result.Changes {
 			if change.RuntimeStatus != domain.RuntimeStatusIdle {
+				s.acpTunnels.cancelIdleSessionInterrupt(snapshot.AgentID, change.SessionID)
 				continue
 			}
-			interrupted := s.acpTunnels.interruptSession(
+			deferred := s.acpTunnels.deferIdleSessionInterrupt(
 				snapshot.AgentID,
 				change.SessionID,
 				apperr.Error{
 					Status:  http.StatusConflict,
 					Message: "agent runtime stopped before the active prompt completed; send another prompt to continue the session",
 				},
+				sessionRuntimeIdleInterruptGrace,
 			)
-			if interrupted > 0 {
+			if deferred > 0 {
 				logging.Info(
 					ctx,
-					"session runtime snapshot interrupted stale receivers",
+					"session runtime snapshot deferred stale receiver interruption",
 					slog.String("agent_id", snapshot.AgentID),
 					slog.String("session_id", change.SessionID),
-					slog.Int("receivers", interrupted),
+					slog.Duration("grace", sessionRuntimeIdleInterruptGrace),
 				)
 			}
 		}
