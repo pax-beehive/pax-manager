@@ -233,6 +233,55 @@ func (h *ACPTunnelHub) interruptSession(agentID string, sessionID string, err er
 	return interrupted
 }
 
+func (h *ACPTunnelHub) deferIdleSessionInterrupt(
+	agentID string,
+	sessionID string,
+	err error,
+	delay time.Duration,
+) int {
+	if h == nil || agentID == "" || sessionID == "" || err == nil || delay <= 0 {
+		return 0
+	}
+	deferred := 0
+	for _, mux := range h.sessionMuxes(agentID) {
+		if mux.deferIdleInterrupt(sessionID, err, delay) {
+			deferred++
+		}
+	}
+	return deferred
+}
+
+func (h *ACPTunnelHub) cancelIdleSessionInterrupt(agentID string, sessionID string) {
+	if h == nil || agentID == "" || sessionID == "" {
+		return
+	}
+	for _, mux := range h.sessionMuxes(agentID) {
+		mux.cancelIdleInterrupt(sessionID)
+	}
+}
+
+func (h *ACPTunnelHub) sessionMuxes(agentID string) []*acpSessionMux {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	muxes := make(map[*acpSessionMux]struct{})
+	for key, state := range h.states {
+		if key.agentID != agentID || state == nil {
+			continue
+		}
+		state.mu.Lock()
+		mux := state.sessionMux
+		state.mu.Unlock()
+		if mux != nil {
+			muxes[mux] = struct{}{}
+		}
+	}
+	result := make([]*acpSessionMux, 0, len(muxes))
+	for mux := range muxes {
+		result = append(result, mux)
+	}
+	return result
+}
+
 func (h *ACPTunnelHub) claim(agentID string, sessionID string) (*ACPTunnelAgent, error) {
 	return h.claimAny(agentID, sessionID, "")
 }
