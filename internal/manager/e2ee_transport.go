@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pax-beehive/paxkit/reliablemq"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -40,6 +41,25 @@ type e2eeCommandAck struct {
 	Type            string `json:"type"`
 	CommandID       string `json:"command_id"`
 	ConnectionEpoch int64  `json:"connection_epoch"`
+}
+
+type e2eeHistoryMessage struct {
+	ID        int64             `json:"id"`
+	MessageID string            `json:"message_id"`
+	Revision  int64             `json:"revision"`
+	Envelope  e2eeEnvelope      `json:"envelope"`
+	Parts     []e2eeHistoryPart `json:"parts"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
+}
+
+type e2eeHistoryPart struct {
+	ID        int64        `json:"id"`
+	PartIndex int          `json:"part_index"`
+	Revision  int64        `json:"revision"`
+	Envelope  e2eeEnvelope `json:"envelope"`
+	CreatedAt time.Time    `json:"created_at"`
+	UpdatedAt time.Time    `json:"updated_at"`
 }
 
 type e2eeWakeRegistry struct {
@@ -211,6 +231,66 @@ func (s *Service) handleE2EEEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Service) handleE2EEHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeHTTPError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	control, err := s.resolveConversationTurnControlSession(r)
+	if err != nil {
+		writeHTTPEndpointError(w, err)
+		return
+	}
+	limit := 100
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || parsed < 1 || parsed > 500 {
+			writeHTTPError(w, http.StatusBadRequest, "limit must be between 1 and 500")
+			return
+		}
+		limit = parsed
+	}
+	var beforeID int64
+	if raw := strings.TrimSpace(r.URL.Query().Get("before_id")); raw != "" {
+		beforeID, err = strconv.ParseInt(raw, 10, 64)
+		if err != nil || beforeID < 1 {
+			writeHTTPError(w, http.StatusBadRequest, "before_id must be positive")
+			return
+		}
+	}
+	page, err := s.store.ListE2EEMessageHistoryPage(
+		r.Context(), control.principal.User.UserID, control.session.SessionID, beforeID, limit,
+	)
+	if err != nil {
+		writeHTTPEndpointError(w, err)
+		return
+	}
+	messages := make([]e2eeHistoryMessage, 0, len(page.Messages))
+	for _, item := range page.Messages {
+		message := e2eeHistoryMessage{
+			ID: item.Message.ID, MessageID: item.Message.MessageID,
+			Revision: item.Message.Revision, Envelope: encodeE2EERecord(item.Message.E2EERecord),
+			CreatedAt: item.Message.CreatedAt, UpdatedAt: item.Message.UpdatedAt,
+			Parts: make([]e2eeHistoryPart, 0, len(item.Parts)),
+		}
+		for _, part := range item.Parts {
+			message.Parts = append(message.Parts, e2eeHistoryPart{
+				ID: part.ID, PartIndex: part.PartIndex, Revision: part.Revision,
+				Envelope:  encodeE2EERecord(part.E2EERecord),
+				CreatedAt: part.CreatedAt, UpdatedAt: part.UpdatedAt,
+			})
+		}
+		messages = append(messages, message)
+	}
+	writeHTTPData(w, http.StatusOK, map[string]any{
+		"messages": messages,
+		"pagination": map[string]any{
+			"next_before_id": page.NextBeforeID,
+			"has_more":       page.HasMore,
+		},
+	})
+}
+
 func (a *ACPTunnelAgent) runE2EECommandSender(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
@@ -282,7 +362,11 @@ func (a *ACPTunnelAgent) drainE2EECommands(ctx context.Context) error {
 	}
 }
 
-func (a *ACPTunnelAgent) handleE2EEAgentPayload(ctx context.Context, payload []byte) (bool, error) {
+func (a *ACPTunnelAgent) handleE2EEAgentPayload(
+	ctx context.Context,
+	payload []byte,
+	metadata reliablemq.Metadata,
+) (bool, error) {
 	var ack e2eeCommandAck
 	if err := json.Unmarshal(payload, &ack); err == nil && ack.Type == "e2ee_command_ack" {
 		if ack.CommandID == "" {
@@ -301,7 +385,7 @@ func (a *ACPTunnelAgent) handleE2EEAgentPayload(ctx context.Context, payload []b
 	if err := json.Unmarshal(payload, &envelope); err != nil || envelope.ProtocolVersion == 0 {
 		return false, nil
 	}
-	if envelope.Kind != "acp_event" || envelope.AgentID != a.agentID {
+	if envelope.AgentID != a.agentID {
 		return true, errors.New("invalid encrypted agent event route")
 	}
 	currentEpoch, err := a.store.CurrentAgentConnectionEpoch(ctx, a.agentID)
@@ -315,20 +399,54 @@ func (a *ACPTunnelAgent) handleE2EEAgentPayload(ctx context.Context, payload []b
 	if err != nil {
 		return true, err
 	}
-	event, inserted, err := a.store.InsertAgentEvent(
-		ctx,
-		domain.AgentEvent{E2EERecord: domain.E2EERecord{
-			RecordID: record.RecordID, OwnerUserID: a.ownerUserID, NodeID: a.nodeID,
-			AgentID: record.AgentID, SessionID: record.SessionID, Kind: record.Kind,
-			ProtocolVersion: record.ProtocolVersion, CipherVersion: record.CipherVersion,
-			KeyEpoch: record.KeyEpoch, Nonce: record.Nonce, Ciphertext: record.Ciphertext,
-			CreatedAt: time.Now().UTC(),
-		}},
-	)
-	if err == nil && inserted && a.eventWakes != nil {
-		a.eventWakes.wake(event.SessionID)
+	record.OwnerUserID = a.ownerUserID
+	record.NodeID = a.nodeID
+	record.CreatedAt = time.Now().UTC()
+	switch envelope.Kind {
+	case "acp_event":
+		event, inserted, err := a.store.InsertAgentEvent(
+			ctx,
+			domain.AgentEvent{E2EERecord: record},
+		)
+		if err == nil && inserted && a.eventWakes != nil {
+			a.eventWakes.wake(event.SessionID)
+		}
+		return true, err
+	case "e2ee_message":
+		messageID, revision, err := e2eeMessageMetadata(metadata)
+		if err != nil {
+			return true, err
+		}
+		_, _, err = a.store.UpsertE2EEMessage(ctx, domain.E2EEMessage{
+			MessageID: messageID, Revision: revision, E2EERecord: record,
+		})
+		return true, err
+	case "e2ee_message_part":
+		messageID, revision, err := e2eeMessageMetadata(metadata)
+		if err != nil {
+			return true, err
+		}
+		partIndex, err := strconv.Atoi(metadata["part_index"])
+		if err != nil || partIndex < 0 {
+			return true, errors.New("invalid encrypted message part index")
+		}
+		_, _, err = a.store.UpsertE2EEMessagePart(ctx, domain.E2EEMessagePart{
+			MessageID: messageID, PartIndex: partIndex, Revision: revision,
+			E2EERecord: record,
+		})
+		return true, err
+	default:
+		return true, errors.New("invalid encrypted agent event kind")
 	}
-	return true, err
+}
+
+func e2eeMessageMetadata(metadata reliablemq.Metadata) (string, int64, error) {
+	messageID := strings.TrimSpace(metadata["message_id"])
+	revision, err := strconv.ParseInt(metadata["revision"], 10, 64)
+	if !validE2EEIdentifier(messageID) || err != nil || revision < 1 {
+		return "", 0, errors.New("invalid encrypted message metadata")
+	}
+	return messageID, revision, nil
 }
 
 func decodeE2EERecord(envelope e2eeEnvelope) (domain.E2EERecord, error) {

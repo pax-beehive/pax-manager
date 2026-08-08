@@ -110,6 +110,7 @@ const (
 	routeUserSessionEvents             = "/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/events"
 	routeUserSessionE2EECommands       = "/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/encrypted-commands"
 	routeUserSessionE2EEEvents         = "/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/encrypted-events"
+	routeUserSessionE2EEHistory        = "/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/encrypted-history"
 	routeUserSessionRuntimeReset       = "/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/runtime/reset"
 	routeUserConversation              = "/api/v1/user/:userID/nodes/:nodeID/agents/:agentID/conversation"
 	routeDeliverAgentConversation      = "/api/v1/node/conversation/deliver"

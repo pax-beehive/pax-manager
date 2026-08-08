@@ -377,6 +377,10 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		routeUserSessionE2EEEvents,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleE2EEEvents)),
 	)
+	h.GET(
+		routeUserSessionE2EEHistory,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleE2EEHistory)),
+	)
 	h.POST(
 		routeUserSessionRuntimeReset,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleSessionRuntimeReset)),

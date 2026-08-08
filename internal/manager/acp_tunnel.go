@@ -1927,7 +1927,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 	reliableFrame reliablemq.Frame,
 ) error {
 	payload := reliableFrame.Payload
-	if handled, err := a.handleE2EEAgentPayload(ctx, payload); handled {
+	if handled, err := a.handleE2EEAgentPayload(ctx, payload, reliableFrame.Metadata); handled {
 		return err
 	}
 	frame := newACPFrameContext(a, acpAgentToUser, websocket.TextMessage, []byte(payload))

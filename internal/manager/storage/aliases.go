@@ -113,6 +113,9 @@ type TransportFrame = domain.TransportFrame
 type E2EERecord = domain.E2EERecord
 type AgentCommand = domain.AgentCommand
 type AgentEvent = domain.AgentEvent
+type E2EEMessage = domain.E2EEMessage
+type E2EEMessagePart = domain.E2EEMessagePart
+type E2EEMessageHistoryPage = domain.E2EEMessageHistoryPage
 
 func newSecret(prefix string) (string, error) {
 	return auth.NewSecret(prefix)

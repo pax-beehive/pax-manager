@@ -5,6 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
+	"strconv"
 	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
@@ -149,6 +151,118 @@ func (s *MemoryStore) ListAgentEvents(
 		}
 	}
 	return events, nil
+}
+
+func (s *MemoryStore) UpsertE2EEMessage(
+	_ context.Context,
+	message E2EEMessage,
+) (E2EEMessage, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := e2eeMessageKey(message.AgentID, message.SessionID, message.MessageID)
+	if existing, ok := s.e2eeMessages[key]; ok {
+		if message.Revision < existing.Revision {
+			return cloneE2EEMessage(existing), false, nil
+		}
+		if message.Revision == existing.Revision {
+			if !sameE2EEMessage(existing, message) {
+				return E2EEMessage{}, false, ErrConflict
+			}
+			return cloneE2EEMessage(existing), false, nil
+		}
+		message.ID = existing.ID
+		message.CreatedAt = existing.CreatedAt
+		message.UpdatedAt = s.now().UTC()
+		s.e2eeMessages[key] = cloneE2EEMessage(message)
+		return cloneE2EEMessage(message), true, nil
+	}
+	s.nextE2EEMessageID++
+	message.ID = s.nextE2EEMessageID
+	if message.CreatedAt.IsZero() {
+		message.CreatedAt = s.now().UTC()
+	}
+	message.UpdatedAt = s.now().UTC()
+	s.e2eeMessages[key] = cloneE2EEMessage(message)
+	return cloneE2EEMessage(message), true, nil
+}
+
+func (s *MemoryStore) UpsertE2EEMessagePart(
+	_ context.Context,
+	part E2EEMessagePart,
+) (E2EEMessagePart, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.e2eeMessages[e2eeMessageKey(part.AgentID, part.SessionID, part.MessageID)]; !ok {
+		return E2EEMessagePart{}, false, ErrNotFound
+	}
+	key := e2eeMessagePartKey(part.AgentID, part.SessionID, part.MessageID, part.PartIndex)
+	if existing, ok := s.e2eeMessageParts[key]; ok {
+		if part.Revision < existing.Revision {
+			return cloneE2EEMessagePart(existing), false, nil
+		}
+		if part.Revision == existing.Revision {
+			if !sameE2EEMessagePart(existing, part) {
+				return E2EEMessagePart{}, false, ErrConflict
+			}
+			return cloneE2EEMessagePart(existing), false, nil
+		}
+		part.ID = existing.ID
+		part.CreatedAt = existing.CreatedAt
+		part.UpdatedAt = s.now().UTC()
+		s.e2eeMessageParts[key] = cloneE2EEMessagePart(part)
+		return cloneE2EEMessagePart(part), true, nil
+	}
+	s.nextE2EEMessagePartID++
+	part.ID = s.nextE2EEMessagePartID
+	if part.CreatedAt.IsZero() {
+		part.CreatedAt = s.now().UTC()
+	}
+	part.UpdatedAt = s.now().UTC()
+	s.e2eeMessageParts[key] = cloneE2EEMessagePart(part)
+	return cloneE2EEMessagePart(part), true, nil
+}
+
+func (s *MemoryStore) ListE2EEMessageHistoryPage(
+	_ context.Context,
+	ownerUserID string,
+	sessionID string,
+	beforeID int64,
+	limit int,
+) (E2EEMessageHistoryPage, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if limit <= 0 {
+		limit = 100
+	}
+	messages := make([]E2EEMessage, 0)
+	for _, message := range s.e2eeMessages {
+		if message.OwnerUserID == ownerUserID && message.SessionID == sessionID &&
+			(beforeID == 0 || message.ID < beforeID) {
+			messages = append(messages, cloneE2EEMessage(message))
+		}
+	}
+	sort.Slice(messages, func(i, j int) bool { return messages[i].ID > messages[j].ID })
+	hasMore := len(messages) > limit
+	if hasMore {
+		messages = messages[:limit]
+	}
+	page := E2EEMessageHistoryPage{HasMore: hasMore}
+	for index := len(messages) - 1; index >= 0; index-- {
+		message := messages[index]
+		parts := make([]E2EEMessagePart, 0)
+		for _, part := range s.e2eeMessageParts {
+			if part.AgentID == message.AgentID && part.SessionID == message.SessionID &&
+				part.MessageID == message.MessageID {
+				parts = append(parts, cloneE2EEMessagePart(part))
+			}
+		}
+		sort.Slice(parts, func(i, j int) bool { return parts[i].PartIndex < parts[j].PartIndex })
+		page.Messages = append(page.Messages, domain.E2EEMessageWithParts{Message: message, Parts: parts})
+	}
+	if hasMore && len(messages) > 0 {
+		page.NextBeforeID = messages[len(messages)-1].ID
+	}
+	return page, nil
 }
 
 func (s *MemoryStore) RegisterAgentConnection(_ context.Context, agentID string) (int64, error) {
@@ -356,6 +470,145 @@ func (s *PostgresStore) ListAgentEvents(
 	return events, rows.Err()
 }
 
+func (s *PostgresStore) UpsertE2EEMessage(
+	ctx context.Context,
+	message E2EEMessage,
+) (E2EEMessage, bool, error) {
+	requested := cloneE2EEMessage(message)
+	row := s.db.QueryRowContext(ctx, `
+		INSERT INTO e2ee_messages (
+			owner_user_id, node_id, agent_id, session_id, message_id, revision, record_id, kind,
+			protocol_version, cipher_version, key_epoch, nonce, ciphertext, created_at, updated_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)
+		ON CONFLICT (agent_id, session_id, message_id) DO UPDATE SET
+			revision = EXCLUDED.revision, record_id = EXCLUDED.record_id, kind = EXCLUDED.kind,
+			protocol_version = EXCLUDED.protocol_version,
+			cipher_version = EXCLUDED.cipher_version, key_epoch = EXCLUDED.key_epoch,
+			nonce = EXCLUDED.nonce, ciphertext = EXCLUDED.ciphertext, updated_at = EXCLUDED.updated_at
+		WHERE EXCLUDED.revision > e2ee_messages.revision
+		RETURNING id, created_at, updated_at`,
+		message.OwnerUserID, message.NodeID, message.AgentID, message.SessionID, message.MessageID,
+		message.Revision, message.RecordID, message.Kind, message.ProtocolVersion,
+		message.CipherVersion, message.KeyEpoch, message.Nonce, message.Ciphertext,
+		message.CreatedAt,
+	)
+	if err := row.Scan(&message.ID, &message.CreatedAt, &message.UpdatedAt); err == nil {
+		return message, true, nil
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return E2EEMessage{}, false, err
+	}
+	existing, err := scanE2EEMessage(s.db.QueryRowContext(ctx,
+		e2eeMessageSelect+` WHERE agent_id = $1 AND session_id = $2 AND message_id = $3`,
+		message.AgentID, message.SessionID, message.MessageID))
+	if err != nil {
+		return E2EEMessage{}, false, err
+	}
+	if requested.Revision == existing.Revision && !sameE2EEMessage(existing, requested) {
+		return E2EEMessage{}, false, ErrConflict
+	}
+	return existing, false, nil
+}
+
+func (s *PostgresStore) UpsertE2EEMessagePart(
+	ctx context.Context,
+	part E2EEMessagePart,
+) (E2EEMessagePart, bool, error) {
+	requested := cloneE2EEMessagePart(part)
+	row := s.db.QueryRowContext(ctx, `
+		INSERT INTO e2ee_message_parts (
+			owner_user_id, node_id, agent_id, session_id, message_id, part_index, revision,
+			record_id, kind, protocol_version, cipher_version, key_epoch, nonce,
+			ciphertext, created_at, updated_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
+		ON CONFLICT (agent_id, session_id, message_id, part_index) DO UPDATE SET
+			revision = EXCLUDED.revision, record_id = EXCLUDED.record_id, kind = EXCLUDED.kind,
+			protocol_version = EXCLUDED.protocol_version,
+			cipher_version = EXCLUDED.cipher_version, key_epoch = EXCLUDED.key_epoch,
+			nonce = EXCLUDED.nonce, ciphertext = EXCLUDED.ciphertext, updated_at = EXCLUDED.updated_at
+		WHERE EXCLUDED.revision > e2ee_message_parts.revision
+		RETURNING id, created_at, updated_at`,
+		part.OwnerUserID, part.NodeID, part.AgentID, part.SessionID, part.MessageID, part.PartIndex,
+		part.Revision, part.RecordID, part.Kind, part.ProtocolVersion, part.CipherVersion,
+		part.KeyEpoch, part.Nonce, part.Ciphertext, part.CreatedAt,
+	)
+	if err := row.Scan(&part.ID, &part.CreatedAt, &part.UpdatedAt); err == nil {
+		return part, true, nil
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return E2EEMessagePart{}, false, err
+	}
+	existing, err := scanE2EEMessagePart(s.db.QueryRowContext(ctx,
+		e2eeMessagePartSelect+` WHERE agent_id = $1 AND session_id = $2 AND message_id = $3 AND part_index = $4`,
+		part.AgentID, part.SessionID, part.MessageID, part.PartIndex))
+	if err != nil {
+		return E2EEMessagePart{}, false, err
+	}
+	if requested.Revision == existing.Revision && !sameE2EEMessagePart(existing, requested) {
+		return E2EEMessagePart{}, false, ErrConflict
+	}
+	return existing, false, nil
+}
+
+func (s *PostgresStore) ListE2EEMessageHistoryPage(
+	ctx context.Context,
+	ownerUserID string,
+	sessionID string,
+	beforeID int64,
+	limit int,
+) (E2EEMessageHistoryPage, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := s.db.QueryContext(ctx, e2eeMessageSelect+`
+		WHERE owner_user_id = $1 AND session_id = $2 AND ($3 = 0 OR id < $3)
+		ORDER BY id DESC LIMIT $4`, ownerUserID, sessionID, beforeID, limit+1)
+	if err != nil {
+		return E2EEMessageHistoryPage{}, err
+	}
+	defer func() { _ = rows.Close() }()
+	messages := make([]E2EEMessage, 0, limit+1)
+	for rows.Next() {
+		message, err := scanE2EEMessage(rows)
+		if err != nil {
+			return E2EEMessageHistoryPage{}, err
+		}
+		messages = append(messages, message)
+	}
+	if err := rows.Err(); err != nil {
+		return E2EEMessageHistoryPage{}, err
+	}
+	hasMore := len(messages) > limit
+	if hasMore {
+		messages = messages[:limit]
+	}
+	page := E2EEMessageHistoryPage{HasMore: hasMore}
+	for index := len(messages) - 1; index >= 0; index-- {
+		message := messages[index]
+		partRows, err := s.db.QueryContext(ctx, e2eeMessagePartSelect+`
+			WHERE agent_id = $1 AND session_id = $2 AND message_id = $3 ORDER BY part_index`,
+			message.AgentID, message.SessionID, message.MessageID)
+		if err != nil {
+			return E2EEMessageHistoryPage{}, err
+		}
+		parts := make([]E2EEMessagePart, 0)
+		for partRows.Next() {
+			part, err := scanE2EEMessagePart(partRows)
+			if err != nil {
+				_ = partRows.Close()
+				return E2EEMessageHistoryPage{}, err
+			}
+			parts = append(parts, part)
+		}
+		if err := partRows.Close(); err != nil {
+			return E2EEMessageHistoryPage{}, err
+		}
+		page.Messages = append(page.Messages, domain.E2EEMessageWithParts{Message: message, Parts: parts})
+	}
+	if hasMore && len(messages) > 0 {
+		page.NextBeforeID = messages[len(messages)-1].ID
+	}
+	return page, nil
+}
+
 func (s *PostgresStore) RegisterAgentConnection(
 	ctx context.Context,
 	agentID string,
@@ -393,6 +646,15 @@ const agentEventSelect = `SELECT cursor, local_id, owner_user_id, agent_id, sess
 	kind, protocol_version, cipher_version, key_epoch, nonce, ciphertext, created_at
 	FROM agent_events`
 
+const e2eeMessageSelect = `SELECT id, message_id, revision, record_id, owner_user_id,
+	node_id, agent_id, session_id, kind, protocol_version, cipher_version, key_epoch,
+	nonce, ciphertext, created_at, updated_at FROM e2ee_messages`
+
+const e2eeMessagePartSelect = `SELECT id, message_id, part_index, revision, record_id,
+	owner_user_id, node_id, agent_id, session_id, kind, protocol_version,
+	cipher_version, key_epoch, nonce, ciphertext, created_at, updated_at
+	FROM e2ee_message_parts`
+
 func scanAgentCommand(row rowScanner) (AgentCommand, error) {
 	var command AgentCommand
 	err := row.Scan(&command.ID, &command.RecordID, &command.OwnerUserID, &command.NodeID,
@@ -409,6 +671,25 @@ func scanAgentEvent(row rowScanner) (AgentEvent, error) {
 		&event.SessionID, &event.Kind, &event.ProtocolVersion, &event.CipherVersion,
 		&event.KeyEpoch, &event.Nonce, &event.Ciphertext, &event.CreatedAt)
 	return event, err
+}
+
+func scanE2EEMessage(row rowScanner) (E2EEMessage, error) {
+	var message E2EEMessage
+	err := row.Scan(&message.ID, &message.MessageID, &message.Revision,
+		&message.RecordID, &message.OwnerUserID, &message.NodeID, &message.AgentID,
+		&message.SessionID, &message.Kind, &message.ProtocolVersion,
+		&message.CipherVersion, &message.KeyEpoch, &message.Nonce, &message.Ciphertext,
+		&message.CreatedAt, &message.UpdatedAt)
+	return message, err
+}
+
+func scanE2EEMessagePart(row rowScanner) (E2EEMessagePart, error) {
+	var part E2EEMessagePart
+	err := row.Scan(&part.ID, &part.MessageID, &part.PartIndex, &part.Revision,
+		&part.RecordID, &part.OwnerUserID, &part.NodeID, &part.AgentID,
+		&part.SessionID, &part.Kind, &part.ProtocolVersion, &part.CipherVersion,
+		&part.KeyEpoch, &part.Nonce, &part.Ciphertext, &part.CreatedAt, &part.UpdatedAt)
+	return part, err
 }
 
 func e2eeUpdateResult(result sql.Result, err error) error {
@@ -432,6 +713,16 @@ func sameAgentCommand(left AgentCommand, right AgentCommand) bool {
 
 func sameAgentEvent(left AgentEvent, right AgentEvent) bool {
 	return sameE2EERecord(left.E2EERecord, right.E2EERecord)
+}
+
+func sameE2EEMessage(left E2EEMessage, right E2EEMessage) bool {
+	return left.MessageID == right.MessageID && left.Revision == right.Revision &&
+		sameE2EERecord(left.E2EERecord, right.E2EERecord)
+}
+
+func sameE2EEMessagePart(left E2EEMessagePart, right E2EEMessagePart) bool {
+	return left.MessageID == right.MessageID && left.PartIndex == right.PartIndex &&
+		left.Revision == right.Revision && sameE2EERecord(left.E2EERecord, right.E2EERecord)
 }
 
 func sameE2EERecord(left E2EERecord, right E2EERecord) bool {
@@ -465,6 +756,26 @@ func cloneAgentEvent(event AgentEvent) AgentEvent {
 	event.Nonce = append([]byte(nil), event.Nonce...)
 	event.Ciphertext = append([]byte(nil), event.Ciphertext...)
 	return event
+}
+
+func cloneE2EEMessage(message E2EEMessage) E2EEMessage {
+	message.Nonce = append([]byte(nil), message.Nonce...)
+	message.Ciphertext = append([]byte(nil), message.Ciphertext...)
+	return message
+}
+
+func cloneE2EEMessagePart(part E2EEMessagePart) E2EEMessagePart {
+	part.Nonce = append([]byte(nil), part.Nonce...)
+	part.Ciphertext = append([]byte(nil), part.Ciphertext...)
+	return part
+}
+
+func e2eeMessageKey(agentID string, sessionID string, messageID string) string {
+	return agentID + "\x00" + sessionID + "\x00" + messageID
+}
+
+func e2eeMessagePartKey(agentID string, sessionID string, messageID string, partIndex int) string {
+	return agentID + "\x00" + sessionID + "\x00" + messageID + "\x00" + strconv.Itoa(partIndex)
 }
 
 func int64Ptr(value int64) *int64 { return &value }

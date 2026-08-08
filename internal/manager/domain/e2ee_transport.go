@@ -35,6 +35,34 @@ type AgentEvent struct {
 	E2EERecord
 }
 
+type E2EEMessage struct {
+	ID        int64  `json:"id"`
+	MessageID string `json:"message_id"`
+	Revision  int64  `json:"revision"`
+	E2EERecord
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type E2EEMessagePart struct {
+	ID        int64  `json:"id"`
+	MessageID string `json:"message_id"`
+	PartIndex int    `json:"part_index"`
+	Revision  int64  `json:"revision"`
+	E2EERecord
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type E2EEMessageWithParts struct {
+	Message E2EEMessage       `json:"message"`
+	Parts   []E2EEMessagePart `json:"parts"`
+}
+
+type E2EEMessageHistoryPage struct {
+	Messages     []E2EEMessageWithParts
+	NextBeforeID int64
+	HasMore      bool
+}
+
 type E2EETransportStore interface {
 	CreateAgentCommand(ctx context.Context, command AgentCommand) (AgentCommand, bool, error)
 	ListPendingAgentCommands(
@@ -53,6 +81,15 @@ type E2EETransportStore interface {
 		afterCursor int64,
 		limit int,
 	) ([]AgentEvent, error)
+	UpsertE2EEMessage(ctx context.Context, message E2EEMessage) (E2EEMessage, bool, error)
+	UpsertE2EEMessagePart(ctx context.Context, part E2EEMessagePart) (E2EEMessagePart, bool, error)
+	ListE2EEMessageHistoryPage(
+		ctx context.Context,
+		ownerUserID string,
+		sessionID string,
+		beforeID int64,
+		limit int,
+	) (E2EEMessageHistoryPage, error)
 	RegisterAgentConnection(ctx context.Context, agentID string) (int64, error)
 	CurrentAgentConnectionEpoch(ctx context.Context, agentID string) (int64, error)
 }

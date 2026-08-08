@@ -179,6 +179,57 @@ CREATE TABLE IF NOT EXISTS agent_events (
 CREATE INDEX IF NOT EXISTS idx_agent_events_session_cursor
     ON agent_events(owner_user_id, session_id, cursor);
 
+CREATE TABLE IF NOT EXISTS e2ee_messages (
+    id BIGSERIAL PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    revision BIGINT NOT NULL,
+    record_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    protocol_version INTEGER NOT NULL,
+    cipher_version INTEGER NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    nonce BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(agent_id, session_id, message_id),
+    UNIQUE(agent_id, record_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_e2ee_messages_session_page
+    ON e2ee_messages(owner_user_id, session_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS e2ee_message_parts (
+    id BIGSERIAL PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    part_index INTEGER NOT NULL,
+    revision BIGINT NOT NULL,
+    record_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    protocol_version INTEGER NOT NULL,
+    cipher_version INTEGER NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    nonce BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(agent_id, session_id, message_id, part_index),
+    UNIQUE(agent_id, record_id),
+    FOREIGN KEY (agent_id, session_id, message_id)
+        REFERENCES e2ee_messages(agent_id, session_id, message_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_e2ee_message_parts_message
+    ON e2ee_message_parts(agent_id, session_id, message_id, part_index);
+
 CREATE TABLE IF NOT EXISTS agent_sessions (
     id BIGSERIAL PRIMARY KEY,
     agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
