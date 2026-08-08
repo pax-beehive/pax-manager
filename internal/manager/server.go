@@ -381,6 +381,16 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 		routeUserSessionE2EEHistory,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleE2EEHistory)),
 	)
+	h.POST(routeUserAgentE2EEPairings, s.handleCreateE2EEPairing)
+	h.GET(routeUserAgentE2EEPairings, s.handleListE2EEPairings)
+	h.POST(routeUserAgentE2EEPairingPackage, s.handleCompleteUserE2EEPairing)
+	h.GET(routeUserAgentE2EEKeyPackage, s.handleGetE2EEKeyPackage)
+	h.GET(routeNodeAgentE2EEPairing, NodeAuth(), s.handleGetNodeE2EEPairing)
+	h.POST(
+		routeNodeAgentE2EEPairingPackage,
+		NodeAuth(),
+		s.handleCompleteNodeE2EEPairing,
+	)
 	h.POST(
 		routeUserSessionRuntimeReset,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleSessionRuntimeReset)),

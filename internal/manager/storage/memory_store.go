@@ -46,6 +46,8 @@ type MemoryStore struct {
 	agentEvents                  map[string]AgentEvent
 	e2eeMessages                 map[string]E2EEMessage
 	e2eeMessageParts             map[string]E2EEMessagePart
+	e2eePairingRequests          map[string]E2EEPairingRequest
+	e2eeKeyPackages              map[string]E2EEKeyPackage
 	agentConnectionEpochs        map[string]int64
 	nextAgentCommandID           int64
 	nextAgentEventCursor         int64
@@ -118,6 +120,8 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		agentEvents:                  make(map[string]AgentEvent),
 		e2eeMessages:                 make(map[string]E2EEMessage),
 		e2eeMessageParts:             make(map[string]E2EEMessagePart),
+		e2eePairingRequests:          make(map[string]E2EEPairingRequest),
+		e2eeKeyPackages:              make(map[string]E2EEKeyPackage),
 		agentConnectionEpochs:        make(map[string]int64),
 		messages:                     make(map[string]Message),
 		messageLogical:               make(map[string]string),

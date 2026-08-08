@@ -230,6 +230,43 @@ CREATE TABLE IF NOT EXISTS e2ee_message_parts (
 CREATE INDEX IF NOT EXISTS idx_e2ee_message_parts_message
     ON e2ee_message_parts(agent_id, session_id, message_id, part_index);
 
+CREATE TABLE IF NOT EXISTS e2ee_pairing_requests (
+    pairing_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL,
+    device_name TEXT NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    recipient_public_key BYTEA NOT NULL,
+    secret_commitment BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_e2ee_pairing_requests_pending
+    ON e2ee_pairing_requests(owner_user_id, agent_id, created_at)
+    WHERE completed_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS e2ee_key_packages (
+    pairing_id TEXT NOT NULL REFERENCES e2ee_pairing_requests(pairing_id) ON DELETE CASCADE,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    recipient_public_key BYTEA NOT NULL,
+    sender_ephemeral_public_key BYTEA NOT NULL,
+    nonce BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(agent_id, device_id, key_epoch)
+);
+
+CREATE INDEX IF NOT EXISTS idx_e2ee_key_packages_owner_device
+    ON e2ee_key_packages(owner_user_id, device_id, agent_id, key_epoch);
+
 CREATE TABLE IF NOT EXISTS agent_sessions (
     id BIGSERIAL PRIMARY KEY,
     agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,

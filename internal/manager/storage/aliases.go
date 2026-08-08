@@ -116,6 +116,8 @@ type AgentEvent = domain.AgentEvent
 type E2EEMessage = domain.E2EEMessage
 type E2EEMessagePart = domain.E2EEMessagePart
 type E2EEMessageHistoryPage = domain.E2EEMessageHistoryPage
+type E2EEPairingRequest = domain.E2EEPairingRequest
+type E2EEKeyPackage = domain.E2EEKeyPackage
 
 func newSecret(prefix string) (string, error) {
 	return auth.NewSecret(prefix)
