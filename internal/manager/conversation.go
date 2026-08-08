@@ -873,7 +873,9 @@ func (r *conversationRunner) sendRawForTurn(
 		ctx,
 		frame,
 		func(_ context.Context, frame *acpFrameContext) error {
-			if err := r.agentConn.writeToAgent(ctx, frame.messageType, frame.payload); err != nil {
+			if err := r.agentConn.writeSessionFrame(
+				ctx, frame.managerSessionID, frame.nativeSessionID, frame.messageType, frame.payload,
+			); err != nil {
 				return err
 			}
 			return projectACPUserPromptForSessionTurn(

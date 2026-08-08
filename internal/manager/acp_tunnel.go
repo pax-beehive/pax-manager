@@ -59,6 +59,10 @@ type ACPTunnelAgent struct {
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
 	live              *acpTunnelLiveState
+	connectionEpoch   int64
+	commandWake       chan struct{}
+	e2eeReady         chan struct{}
+	eventWakes        *e2eeWakeRegistry
 }
 
 type acpTunnelLiveState struct {
@@ -204,6 +208,34 @@ func (h *ACPTunnelHub) remove(agentID string, sessionID string, conn *ACPTunnelA
 	key := acpTunnelKey{agentID: agentID, sessionID: sessionID}
 	if h.agents[key] == conn {
 		delete(h.agents, key)
+	}
+}
+
+func (h *ACPTunnelHub) wakeAgent(agentID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for key, conn := range h.agents {
+		if key.agentID != agentID || conn == nil {
+			continue
+		}
+		select {
+		case conn.commandWake <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (h *ACPTunnelHub) wakeAllAgents() {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, conn := range h.agents {
+		if conn == nil {
+			continue
+		}
+		select {
+		case conn.commandWake <- struct{}{}:
+		default:
+		}
 	}
 }
 
@@ -765,8 +797,26 @@ func (a *ACPTunnelAgent) writeWorkerResponse(
 		}
 	}
 	return a.writeToAgentWithMetadata(ctx, messageType, payload, reliablemq.Metadata{
-		"native_session_id": nativeSessionID,
+		"manager_session_id": managerSessionID,
+		"native_session_id":  nativeSessionID,
 	})
+}
+
+func (a *ACPTunnelAgent) writeSessionFrame(
+	ctx context.Context,
+	managerSessionID string,
+	nativeSessionID string,
+	messageType int,
+	payload []byte,
+) error {
+	metadata := reliablemq.Metadata{}
+	if strings.TrimSpace(managerSessionID) != "" {
+		metadata["manager_session_id"] = managerSessionID
+	}
+	if strings.TrimSpace(nativeSessionID) != "" {
+		metadata["native_session_id"] = nativeSessionID
+	}
+	return a.writeToAgentWithMetadata(ctx, messageType, payload, metadata)
 }
 
 func (a *ACPTunnelAgent) nativeSessionID(
@@ -883,7 +933,7 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 	ctx context.Context,
 	engine *reliablemq.Engine,
 	producer *reliablemq.Producer,
-	onRecovered func(),
+	onRecovered func() error,
 ) error {
 	reconciled := false
 	var binding *reliablemq.ProducerBinding
@@ -933,8 +983,8 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 				return fmt.Errorf("manager producer recovery barrier: %w", err)
 			}
 			reconciled = true
-			if onRecovered != nil {
-				onRecovered()
+			if err := runACPRecovered(onRecovered); err != nil {
+				return err
 			}
 			continue
 		}
@@ -976,6 +1026,13 @@ func (a *ACPTunnelAgent) forwardAgentFrames(
 			return err
 		}
 	}
+}
+
+func runACPRecovered(onRecovered func() error) error {
+	if onRecovered == nil {
+		return nil
+	}
+	return onRecovered()
 }
 
 func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
@@ -1020,7 +1077,6 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-
 	conn := &ACPTunnelAgent{
 		agentID:        initial.AgentID,
 		connectionID:   firstNonEmpty(initial.ConnectionID, initial.AgentID),
@@ -1030,6 +1086,9 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		ws:             ws,
 		store:          s.store,
 		transportStore: s.transportStore,
+		commandWake:    make(chan struct{}, 1),
+		e2eeReady:      make(chan struct{}),
+		eventWakes:     s.e2eeEventWakes,
 	}
 	if s.transportProducers == nil {
 		_ = ws.Close()
@@ -1071,12 +1130,27 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		name:  "agent_tunnel",
 		attrs: conn.actorAttrs(),
 		run: func(actorCtx context.Context) error {
-			return conn.forwardAgentFrames(actorCtx, engine, producer, func() {
+			return conn.forwardAgentFrames(actorCtx, engine, producer, func() error {
+				connectionEpoch, err := s.store.RegisterAgentConnection(actorCtx, initial.AgentID)
+				if err != nil {
+					return fmt.Errorf("register agent connection epoch: %w", err)
+				}
+				conn.connectionEpoch = connectionEpoch
 				s.acpTunnels.add(initial.AgentID, initial.SessionID, conn)
 				registered = true
+				close(conn.e2eeReady)
+				select {
+				case conn.commandWake <- struct{}{}:
+				default:
+				}
 				logging.Info(actorCtx, "agent acp tunnel transport ready")
+				return nil
 			})
 		},
+	}, acpActor{
+		name:  "e2ee_command_sender",
+		attrs: conn.actorAttrs(),
+		run:   conn.runE2EECommandSender,
 	})
 	if err != nil && !isWebSocketCloseError(err) {
 		logging.Warn(
@@ -1696,7 +1770,11 @@ func relayUserFramesToAgent(
 						frame.frame.Method,
 					)
 				}
-				write := agentConn.writeToAgent
+				write := func(ctx context.Context, messageType int, payload []byte) error {
+					return agentConn.writeSessionFrame(
+						ctx, frame.managerSessionID, frame.nativeSessionID, messageType, payload,
+					)
+				}
 				if isACPJSONRPCResponse(frame.frame) {
 					write = func(ctx context.Context, messageType int, payload []byte) error {
 						return agentConn.writeWorkerResponse(
@@ -1849,6 +1927,9 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 	reliableFrame reliablemq.Frame,
 ) error {
 	payload := reliableFrame.Payload
+	if handled, err := a.handleE2EEAgentPayload(ctx, payload); handled {
+		return err
+	}
 	frame := newACPFrameContext(a, acpAgentToUser, websocket.TextMessage, []byte(payload))
 	frame.transportMetadata = make(map[string]string, len(reliableFrame.Metadata))
 	for key, value := range reliableFrame.Metadata {

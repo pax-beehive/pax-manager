@@ -42,6 +42,11 @@ type MemoryStore struct {
 	nextTransportID              int64
 	transportJournal             map[transportFrameKey]TransportFrame
 	transportQueueState          map[transportQueueStateKey]transportQueueState
+	agentCommands                map[string]AgentCommand
+	agentEvents                  map[string]AgentEvent
+	agentConnectionEpochs        map[string]int64
+	nextAgentCommandID           int64
+	nextAgentEventCursor         int64
 	nextMessageID                int64
 	nextPartID                   int64
 	messages                     map[string]Message
@@ -105,6 +110,9 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		offsets:                      make(map[string]int64),
 		transportJournal:             make(map[transportFrameKey]TransportFrame),
 		transportQueueState:          make(map[transportQueueStateKey]transportQueueState),
+		agentCommands:                make(map[string]AgentCommand),
+		agentEvents:                  make(map[string]AgentEvent),
+		agentConnectionEpochs:        make(map[string]int64),
 		messages:                     make(map[string]Message),
 		messageLogical:               make(map[string]string),
 		messageParts:                 make(map[messagePartKey]MessagePart),

@@ -129,6 +129,56 @@ CREATE INDEX IF NOT EXISTS idx_nodes_owner_active ON nodes(owner_user_id, regist
 CREATE INDEX IF NOT EXISTS idx_agents_node_active ON agents(node_id, registered_at)
     WHERE deleted_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS agent_connection_epochs (
+    agent_id TEXT PRIMARY KEY REFERENCES agents(agent_id) ON DELETE CASCADE,
+    connection_epoch BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS agent_commands (
+    id BIGSERIAL PRIMARY KEY,
+    command_id TEXT NOT NULL UNIQUE,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    protocol_version INTEGER NOT NULL,
+    cipher_version INTEGER NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    nonce BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    delivered_at TIMESTAMPTZ,
+    delivered_epoch BIGINT,
+    acknowledged_at TIMESTAMPTZ,
+    acknowledged_epoch BIGINT,
+    expires_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_commands_pending
+    ON agent_commands(agent_id, id)
+    WHERE acknowledged_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS agent_events (
+    cursor BIGSERIAL PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    local_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    protocol_version INTEGER NOT NULL,
+    cipher_version INTEGER NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    nonce BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(agent_id, local_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_events_session_cursor
+    ON agent_events(owner_user_id, session_id, cursor);
+
 CREATE TABLE IF NOT EXISTS agent_sessions (
     id BIGSERIAL PRIMARY KEY,
     agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,

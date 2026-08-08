@@ -110,6 +110,9 @@ type TeamMemexRun = domain.TeamMemexRun
 type TeamMemexRunAttempt = domain.TeamMemexRunAttempt
 type AddTeamAgentRequest = domain.AddTeamAgentRequest
 type TransportFrame = domain.TransportFrame
+type E2EERecord = domain.E2EERecord
+type AgentCommand = domain.AgentCommand
+type AgentEvent = domain.AgentEvent
 
 func newSecret(prefix string) (string, error) {
 	return auth.NewSecret(prefix)

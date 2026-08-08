@@ -26,6 +26,10 @@ func Run(ctx context.Context) error {
 	defer closeStore()
 
 	srv := newServer(cfg, store)
+	if cfg.DatabaseURL != "" {
+		listener := newE2EENotificationListener(cfg.DatabaseURL, srv)
+		go listener.Run(ctx)
+	}
 	logging.Info(ctx, "acp transport consumer write-behind enabled")
 	defer func() {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
