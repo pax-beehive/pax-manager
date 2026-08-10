@@ -11683,6 +11683,7 @@ type AgentSession struct {
 	RuntimeStatus         *string           `thrift:"runtime_status,29,optional" form:"runtime_status" json:"runtime_status,omitempty" query:"runtime_status"`
 	RuntimeTurnInstanceID *string           `thrift:"runtime_turn_instance_id,30,optional" form:"runtime_turn_instance_id" json:"runtime_turn_instance_id,omitempty" query:"runtime_turn_instance_id"`
 	ArchivedAt            *string           `thrift:"archived_at,31,optional" form:"archived_at" json:"archived_at,omitempty" query:"archived_at"`
+	Transport             *string           `thrift:"transport,32,optional" form:"transport" json:"transport,omitempty" query:"transport"`
 }
 
 func NewAgentSession() *AgentSession {
@@ -11944,6 +11945,15 @@ func (p *AgentSession) GetArchivedAt() (v string) {
 	return *p.ArchivedAt
 }
 
+var AgentSession_Transport_DEFAULT string
+
+func (p *AgentSession) GetTransport() (v string) {
+	if !p.IsSetTransport() {
+		return AgentSession_Transport_DEFAULT
+	}
+	return *p.Transport
+}
+
 var fieldIDToName_AgentSession = map[int16]string{
 	1:  "id",
 	2:  "node_id",
@@ -11973,6 +11983,7 @@ var fieldIDToName_AgentSession = map[int16]string{
 	29: "runtime_status",
 	30: "runtime_turn_instance_id",
 	31: "archived_at",
+	32: "transport",
 }
 
 func (p *AgentSession) IsSetID() bool {
@@ -12085,6 +12096,10 @@ func (p *AgentSession) IsSetRuntimeTurnInstanceID() bool {
 
 func (p *AgentSession) IsSetArchivedAt() bool {
 	return p.ArchivedAt != nil
+}
+
+func (p *AgentSession) IsSetTransport() bool {
+	return p.Transport != nil
 }
 
 func (p *AgentSession) Read(iprot thrift.TProtocol) (err error) {
@@ -12325,6 +12340,14 @@ func (p *AgentSession) Read(iprot thrift.TProtocol) (err error) {
 		case 31:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField31(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 32:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField32(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -12673,6 +12696,17 @@ func (p *AgentSession) ReadField31(iprot thrift.TProtocol) error {
 	p.ArchivedAt = _field
 	return nil
 }
+func (p *AgentSession) ReadField32(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Transport = _field
+	return nil
+}
 
 func (p *AgentSession) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -12790,6 +12824,10 @@ func (p *AgentSession) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField31(oprot); err != nil {
 			fieldId = 31
+			goto WriteFieldError
+		}
+		if err = p.writeField32(oprot); err != nil {
+			fieldId = 32
 			goto WriteFieldError
 		}
 	}
@@ -13348,6 +13386,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 31 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 31 end error: ", p), err)
+}
+
+func (p *AgentSession) writeField32(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTransport() {
+		if err = oprot.WriteFieldBegin("transport", thrift.STRING, 32); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Transport); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 32 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 32 end error: ", p), err)
 }
 
 func (p *AgentSession) String() string {

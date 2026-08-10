@@ -1740,6 +1740,7 @@ func (s *MemoryStore) UpdateSessionRuntimeState(
 			NodeID:    state.NodeID,
 			AgentID:   state.AgentID,
 			SessionID: state.SessionID,
+			Transport: domain.SessionTransportManager,
 			Status:    status,
 			CreatedAt: state.UpdatedAt,
 		}
@@ -2604,6 +2605,7 @@ func (s *MemoryStore) upsertSessionLocked(
 		existing.NodeID = nodeID
 		existing.AgentID = agentID
 		existing.SessionID = input.SessionID
+		existing.Transport = domain.SessionTransportManager
 		existing.CreatedAt = now
 	}
 	existing.NodeID = nodeID

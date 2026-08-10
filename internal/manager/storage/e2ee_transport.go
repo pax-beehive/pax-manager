@@ -22,6 +22,7 @@ func (s *MemoryStore) CreateAgentCommand(
 		if !sameAgentCommand(existing, command) {
 			return AgentCommand{}, false, ErrConflict
 		}
+		s.markSessionE2EELocked(command.AgentID, command.SessionID)
 		return cloneAgentCommand(existing), false, nil
 	}
 	s.nextAgentCommandID++
@@ -32,7 +33,18 @@ func (s *MemoryStore) CreateAgentCommand(
 	command.Nonce = append([]byte(nil), command.Nonce...)
 	command.Ciphertext = append([]byte(nil), command.Ciphertext...)
 	s.agentCommands[command.RecordID] = command
+	s.markSessionE2EELocked(command.AgentID, command.SessionID)
 	return cloneAgentCommand(command), true, nil
+}
+
+func (s *MemoryStore) markSessionE2EELocked(agentID string, sessionID string) {
+	key := sessionKey(agentID, sessionID)
+	session, ok := s.sessions[key]
+	if !ok {
+		return
+	}
+	session.Transport = domain.SessionTransportE2EE
+	s.sessions[key] = session
 }
 
 func (s *MemoryStore) ListPendingAgentCommands(
@@ -320,6 +332,12 @@ func (s *PostgresStore) CreateAgentCommand(
 	}
 	if !created && !sameAgentCommand(command, requested) {
 		return AgentCommand{}, false, ErrConflict
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE agent_sessions
+		SET transport = 'e2ee'
+		WHERE agent_id = $1 AND session_id = $2`, command.AgentID, command.SessionID); err != nil {
+		return AgentCommand{}, false, err
 	}
 	if created {
 		if _, err := tx.ExecContext(ctx, `SELECT pg_notify('pax_agent_commands', $1)`, command.AgentID); err != nil {

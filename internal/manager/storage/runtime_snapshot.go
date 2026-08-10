@@ -18,7 +18,6 @@ type memoryAgentRuntimeSnapshotHead struct {
 type resolvedRuntimeSession struct {
 	key     string
 	session AgentSession
-	created bool
 }
 
 func (s *MemoryStore) ActivateNodeRuntimeFence(
@@ -93,7 +92,10 @@ func (s *MemoryStore) ReplaceAgentActiveTurns(
 
 	changes := make([]domain.RuntimeStatusChange, 0, len(snapshot.ActiveTurns)+len(previouslyActive))
 	for _, turn := range snapshot.ActiveTurns {
-		entry := resolved[turn.NativeSessionID]
+		entry, reportable := resolved[turn.NativeSessionID]
+		if !reportable {
+			continue
+		}
 		session := entry.session
 		previousStatus := session.RuntimeStatus
 		previousTurn := session.RuntimeTurnInstanceID
@@ -106,11 +108,6 @@ func (s *MemoryStore) ReplaceAgentActiveTurns(
 		session.RunStatus = turn.RuntimeStatus
 		session.Status = turn.RuntimeStatus
 		session.UpdatedAt = now
-		if entry.created {
-			s.nextSession++
-			session.ID = s.nextSession
-			session.CreatedAt = now
-		}
 		session.RuntimeState = runtimeStateFromTurn(node, snapshot.AgentID, session.SessionID, turn, now)
 		session.Metadata = runtimeMetadata(session.Metadata, *session.RuntimeState)
 		s.sessions[entry.key] = session
@@ -161,20 +158,6 @@ func (s *MemoryStore) resolveRuntimeSessionsLocked(
 		if len(matches) == 1 {
 			resolved[turn.NativeSessionID] = matches[0]
 			continue
-		}
-		sessionID, err := newSecret("sess")
-		if err != nil {
-			return nil, err
-		}
-		resolved[turn.NativeSessionID] = resolvedRuntimeSession{
-			key: sessionKey(snapshot.AgentID, sessionID),
-			session: AgentSession{
-				NodeID: node.NodeID, AgentID: snapshot.AgentID, SessionID: sessionID,
-				NativeID: turn.NativeSessionID, Status: domain.RuntimeStatusIdle,
-				RuntimeStatus: domain.RuntimeStatusIdle, RuntimeAuthority: domain.RuntimeAuthoritySnapshot,
-				PaxConfig: SessionPaxConfig{ApprovalMode: normalizeSessionApprovalMode("")},
-			},
-			created: true,
 		}
 	}
 	return resolved, nil

@@ -279,6 +279,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     preview TEXT,
     workspace_roots JSONB NOT NULL DEFAULT '[]'::jsonb,
     source TEXT,
+    transport TEXT NOT NULL DEFAULT 'manager',
     status TEXT NOT NULL DEFAULT 'idle',
     current_task TEXT,
     last_message_at TIMESTAMPTZ,
@@ -308,6 +309,7 @@ ALTER TABLE agent_sessions DROP COLUMN IF EXISTS project_id;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS preview TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS workspace_roots JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS transport TEXT NOT NULL DEFAULT 'manager';
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS current_task TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS last_user_message_at TIMESTAMPTZ;
@@ -331,6 +333,30 @@ ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS runtime_turn_instance_id TEX
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+UPDATE agent_sessions AS session
+SET transport = 'e2ee'
+WHERE session.transport <> 'e2ee'
+  AND (
+    EXISTS (
+      SELECT 1
+      FROM agent_commands AS command
+      WHERE command.agent_id = session.agent_id
+        AND command.session_id = session.session_id
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM agent_events AS encrypted_event
+      WHERE encrypted_event.agent_id = session.agent_id
+        AND encrypted_event.session_id = session.session_id
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM e2ee_messages AS message
+      WHERE message.agent_id = session.agent_id
+        AND message.session_id = session.session_id
+    )
+  );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_agent ON agent_sessions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_native ON agent_sessions(agent_id, native_id)

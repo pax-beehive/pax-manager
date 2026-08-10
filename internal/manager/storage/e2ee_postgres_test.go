@@ -31,8 +31,10 @@ func TestPostgresE2EECommandLifecycle(t *testing.T) {
 	assert.True(t, inserted)
 	assert.Equal(t, int64(11), created.ID)
 	assert.True(t, script.committed)
-	require.Len(t, script.execTexts, 1)
-	assert.Contains(t, script.execTexts[0], "pax_agent_commands")
+	require.Len(t, script.execTexts, 2)
+	assert.Contains(t, script.execTexts[0], "UPDATE agent_sessions")
+	assert.Contains(t, script.execTexts[0], "transport = 'e2ee'")
+	assert.Contains(t, script.execTexts[1], "pax_agent_commands")
 
 	commands, err := store.ListPendingAgentCommands(ctx, "agent_1", 3, 100)
 	require.NoError(t, err)

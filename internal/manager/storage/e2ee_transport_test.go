@@ -27,6 +27,57 @@ func TestPostgresSchemaGivenEncryptedCanonicalHistoryThenScopesMessagesAndPartsT
 	assert.Contains(t, schema[partStart:], "FOREIGN KEY (agent_id, session_id, message_id)")
 }
 
+func TestPostgresSchemaGivenSessionTransportThenDefaultsPlainAndBackfillsEncryptedSessions(t *testing.T) {
+	t.Parallel()
+	initSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "init.sql"))
+	require.NoError(t, err)
+	schema := string(initSQL)
+
+	assert.Contains(t, schema, "transport TEXT NOT NULL DEFAULT 'manager'")
+	assert.Contains(t, schema, "ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS transport TEXT NOT NULL DEFAULT 'manager'")
+	assert.Contains(t, schema, "SET transport = 'e2ee'")
+	assert.Contains(t, schema, "FROM agent_commands")
+	assert.Contains(t, schema, "FROM agent_events")
+	assert.Contains(t, schema, "FROM e2ee_messages")
+}
+
+func TestMemoryE2EECommandGivenKnownSessionThenMarksItsTransportEncrypted(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, node, agent := sessionReportStoreFixture(t, ctx)
+	require.NoError(t, store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+		SessionID: "session_1",
+		Status:    "idle",
+	}}))
+	sessions, err := store.ListAgentSessions(
+		ctx,
+		UserPrincipal{User: User{UserID: node.OwnerUserID}},
+		agent.AgentID,
+	)
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, "manager", sessions[0].Transport)
+	managerSessionID := sessions[0].SessionID
+
+	_, created, err := store.CreateAgentCommand(ctx, AgentCommand{E2EERecord: E2EERecord{
+		RecordID: "cmd_transport", OwnerUserID: node.OwnerUserID, NodeID: node.NodeID,
+		AgentID: agent.AgentID, SessionID: managerSessionID, Kind: "acp_command",
+		ProtocolVersion: 1, CipherVersion: 1, KeyEpoch: 1,
+		Nonce: []byte("123456789012"), Ciphertext: []byte("ciphertext"),
+	}})
+	require.NoError(t, err)
+	require.True(t, created)
+
+	sessions, err = store.ListAgentSessions(
+		ctx,
+		UserPrincipal{User: User{UserID: node.OwnerUserID}},
+		agent.AgentID,
+	)
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, "e2ee", sessions[0].Transport)
+}
+
 func TestMemoryE2EECommandLifecycleUsesConnectionFence(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)

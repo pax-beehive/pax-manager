@@ -205,6 +205,7 @@ func scanSession(row rowScanner) (AgentSession, error) {
 		&session.Preview,
 		&roots,
 		&session.Source,
+		&session.Transport,
 		&session.Status,
 		&session.CurrentTask,
 		&session.LastMessageAt,

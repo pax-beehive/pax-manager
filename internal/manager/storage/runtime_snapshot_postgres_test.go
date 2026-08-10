@@ -227,7 +227,7 @@ func TestPostgresRuntimeSnapshotReconciliation(t *testing.T) {
 		assert.True(t, script.committed)
 	})
 
-	t.Run("Given no canonical native session when a snapshot arrives then it creates and binds a minimal session", func(t *testing.T) {
+	t.Run("Given no canonical native session when a snapshot arrives then it defers without creating a shadow session", func(t *testing.T) {
 		script := &scriptedPostgresScript{
 			queries: []scriptedRows{
 				{columns: []string{"connection_fence"}, values: [][]driver.Value{{"fence_1"}}},
@@ -240,7 +240,7 @@ func TestPostgresRuntimeSnapshotReconciliation(t *testing.T) {
 				{columns: []string{"session_id"}},
 				{columns: []string{"session_id", "native_id", "runtime_status", "runtime_turn_instance_id"}},
 			},
-			execResults: []int64{1, 1, 1, 1},
+			execResults: []int64{1},
 		}
 		store, cleanup := scriptedPostgresStore(t, script)
 		defer cleanup()
@@ -259,8 +259,9 @@ func TestPostgresRuntimeSnapshotReconciliation(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.RuntimeSnapshotApplied, result.Status)
-		assert.Contains(t, strings.Join(script.execTexts, "\n"), "INSERT INTO agent_sessions")
-		assert.Contains(t, strings.Join(script.execTexts, "\n"), "INSERT INTO agent_native_session_bindings")
+		assert.Empty(t, result.Changes)
+		assert.NotContains(t, strings.Join(script.execTexts, "\n"), "INSERT INTO agent_sessions")
+		assert.NotContains(t, strings.Join(script.execTexts, "\n"), "INSERT INTO agent_native_session_bindings")
 		assert.True(t, script.committed)
 	})
 
