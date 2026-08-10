@@ -4201,6 +4201,10 @@ func TestConversationContinuesWhenAgentTunnelReconnectsDuringPrompt(t *testing.T
 }
 
 func TestConversationCanContinueAfterRuntimeSnapshotInterruptsPrompt(t *testing.T) {
+	previousGrace := sessionRuntimeIdleInterruptGrace
+	sessionRuntimeIdleInterruptGrace = 10 * time.Millisecond
+	defer func() { sessionRuntimeIdleInterruptGrace = previousGrace }()
+
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 	createConversationTestSession(t, srv, fixture, "sess-existing", "native-existing")

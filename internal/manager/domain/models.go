@@ -1753,16 +1753,17 @@ type CreateAgentRequest struct {
 }
 
 type CreateNodeDaemonAgentConnectionRequest struct {
-	UserID       string   `json:"user_id"`
-	NodeID       string   `json:"node_id"`
-	CommandID    string   `json:"command_id"`
-	Name         string   `json:"name"`
-	AgentType    string   `json:"agent_type"`
-	Harness      string   `json:"harness"`
-	InstanceID   string   `json:"instance_id"`
-	Command      []string `json:"command"`
-	WorkingDir   string   `json:"working_dir"`
-	DesiredSlots *int     `json:"desired_slots"`
+	UserID              string   `json:"user_id"`
+	NodeID              string   `json:"node_id"`
+	CommandID           string   `json:"command_id"`
+	Name                string   `json:"name"`
+	AgentType           string   `json:"agent_type"`
+	Harness             string   `json:"harness"`
+	InstanceID          string   `json:"instance_id"`
+	Command             []string `json:"command"`
+	WorkingDir          string   `json:"working_dir"`
+	DesiredSlots        *int     `json:"desired_slots"`
+	ReportLocalSessions *bool    `json:"report_local_sessions"`
 }
 
 type DiscoverNodeDaemonHarnessesRequest struct {
@@ -1773,16 +1774,17 @@ type DiscoverNodeDaemonHarnessesRequest struct {
 }
 
 type UpdateNodeDaemonAgentConnectionRequest struct {
-	UserID       string    `json:"user_id"`
-	NodeID       string    `json:"node_id"`
-	ConnectionID string    `json:"connection_id"`
-	CommandID    string    `json:"command_id"`
-	Name         *string   `json:"name"`
-	Harness      *string   `json:"harness"`
-	Command      *[]string `json:"command"`
-	WorkingDir   *string   `json:"working_dir"`
-	DesiredSlots *int      `json:"desired_slots"`
-	DesiredState *string   `json:"desired_state"`
+	UserID              string    `json:"user_id"`
+	NodeID              string    `json:"node_id"`
+	ConnectionID        string    `json:"connection_id"`
+	CommandID           string    `json:"command_id"`
+	Name                *string   `json:"name"`
+	Harness             *string   `json:"harness"`
+	Command             *[]string `json:"command"`
+	WorkingDir          *string   `json:"working_dir"`
+	DesiredSlots        *int      `json:"desired_slots"`
+	DesiredState        *string   `json:"desired_state"`
+	ReportLocalSessions *bool     `json:"report_local_sessions"`
 }
 
 type RestartNodeDaemonRequest struct {

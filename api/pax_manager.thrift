@@ -1201,6 +1201,7 @@ struct CreateNodeDaemonAgentConnectionRequest {
   8: optional list<string> command
   9: optional string working_dir
   10: optional i32 desired_slots
+  11: optional bool report_local_sessions
 }
 
 struct CreateNodeDaemonAgentConnectionData {
@@ -1234,6 +1235,7 @@ struct UpdateNodeDaemonAgentConnectionRequest {
   8: optional string working_dir
   9: optional i32 desired_slots
   10: optional string desired_state
+  11: optional bool report_local_sessions
 }
 
 struct NodeDaemonCommandData {

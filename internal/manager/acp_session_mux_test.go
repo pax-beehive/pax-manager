@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
@@ -46,6 +47,102 @@ func TestACPSessionMuxKeepsBufferedPromptResponseWhenIdleSnapshotArrives(t *test
 	require.JSONEq(t, `{"id":11,"result":{}}`, string((<-waiter).payload))
 	require.True(t, mux.publish("sess-a", []byte(`{"method":"session/update"}`)))
 	require.JSONEq(t, `{"method":"session/update"}`, string(<-sub.ch))
+}
+
+func TestACPSessionMuxInterruptsAfterIdleQuietPeriod(t *testing.T) {
+	mux := newACPSessionMux()
+	waiter, cancel := mux.addResponseWaiter("11", "sess-a", "session/prompt")
+	defer cancel()
+	sub := mux.subscribe("sess-a")
+	defer mux.unsubscribe(sub)
+
+	interrupted := errors.New("runtime turn disappeared")
+	require.True(t, mux.deferIdleInterrupt("sess-a", interrupted, 20*time.Millisecond))
+
+	select {
+	case result := <-waiter:
+		require.ErrorIs(t, result.err, interrupted)
+	case <-time.After(time.Second):
+		t.Fatal("idle prompt was not interrupted after the quiet period")
+	}
+	select {
+	case terminalErr := <-sub.terminal:
+		require.ErrorIs(t, terminalErr, interrupted)
+	case <-time.After(time.Second):
+		t.Fatal("idle subscriber was not interrupted after the quiet period")
+	}
+}
+
+func TestACPSessionMuxFrameRestartsIdleQuietPeriod(t *testing.T) {
+	mux := newACPSessionMux()
+	waiter, cancel := mux.addResponseWaiter("11", "sess-a", "session/prompt")
+	defer cancel()
+	sub := mux.subscribe("sess-a")
+	defer mux.unsubscribe(sub)
+
+	interrupted := errors.New("runtime turn disappeared")
+	require.True(t, mux.deferIdleInterrupt("sess-a", interrupted, 80*time.Millisecond))
+	time.Sleep(50 * time.Millisecond)
+	require.True(t, mux.publish("sess-a", []byte(`{"method":"session/update"}`)))
+	require.JSONEq(t, `{"method":"session/update"}`, string(<-sub.ch))
+
+	select {
+	case result := <-waiter:
+		t.Fatalf("frame did not restart idle quiet period: %v", result.err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	select {
+	case result := <-waiter:
+		require.ErrorIs(t, result.err, interrupted)
+	case <-time.After(time.Second):
+		t.Fatal("idle prompt was not interrupted after frames became quiet")
+	}
+}
+
+func TestACPSessionMuxPromptResponseCancelsIdleInterrupt(t *testing.T) {
+	mux := newACPSessionMux()
+	waiter, cancel := mux.addResponseWaiter("11", "sess-a", "session/prompt")
+	defer cancel()
+	sub := mux.subscribe("sess-a")
+	defer mux.unsubscribe(sub)
+
+	require.True(t, mux.deferIdleInterrupt(
+		"sess-a",
+		errors.New("runtime turn disappeared"),
+		20*time.Millisecond,
+	))
+	require.True(t, mux.notifyResponseWaiter("11", []byte(`{"id":11,"result":{}}`)))
+	require.JSONEq(t, `{"id":11,"result":{}}`, string((<-waiter).payload))
+	time.Sleep(40 * time.Millisecond)
+
+	require.True(t, mux.publish("sess-a", []byte(`{"method":"session/update"}`)))
+	require.JSONEq(t, `{"method":"session/update"}`, string(<-sub.ch))
+}
+
+func TestACPSessionMuxIdleTimerDoesNotInterruptNewPrompt(t *testing.T) {
+	mux := newACPSessionMux()
+	oldWaiter, cancelOld := mux.addResponseWaiter("11", "sess-a", "session/prompt")
+	defer cancelOld()
+	require.True(t, mux.deferIdleInterrupt(
+		"sess-a",
+		errors.New("runtime turn disappeared"),
+		20*time.Millisecond,
+	))
+
+	newWaiter, cancelNew := mux.addResponseWaiter("12", "sess-a", "session/prompt")
+	defer cancelNew()
+	time.Sleep(40 * time.Millisecond)
+
+	select {
+	case result := <-oldWaiter:
+		t.Fatalf("old idle timer interrupted a prompt generation: %v", result.err)
+	default:
+	}
+	select {
+	case result := <-newWaiter:
+		t.Fatalf("old idle timer interrupted the new prompt: %v", result.err)
+	default:
+	}
 }
 
 func TestACPSessionMuxRoutesInterleavedSessionlessResponsesByRequestID(t *testing.T) {

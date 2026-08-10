@@ -3,6 +3,7 @@ package manager
 import (
 	"errors"
 	"sync"
+	"time"
 )
 
 var errACPSSESubscriberOverflow = errors.New("ACP session stream fell behind; reconnect to resync")
@@ -25,21 +26,32 @@ type acpWorkerRequest struct {
 }
 
 type acpSessionMux struct {
-	mu          sync.Mutex
-	waiters     map[string]*acpResponseWaiter
-	workerCalls map[string]acpWorkerRequest
-	subscribers map[string]map[*acpSSESubscriber]struct{}
-	activeTurns map[string]*acpTurnAdmission
+	mu                sync.Mutex
+	waiters           map[string]*acpResponseWaiter
+	workerCalls       map[string]acpWorkerRequest
+	subscribers       map[string]map[*acpSSESubscriber]struct{}
+	activeTurns       map[string]*acpTurnAdmission
+	waiterGenerations map[string]uint64
+	idleInterrupts    map[string]*acpIdleInterrupt
+}
+
+type acpIdleInterrupt struct {
+	delay      time.Duration
+	err        error
+	generation uint64
+	timer      *time.Timer
 }
 
 type acpTurnAdmission struct{ _ byte }
 
 func newACPSessionMux() *acpSessionMux {
 	return &acpSessionMux{
-		waiters:     make(map[string]*acpResponseWaiter),
-		workerCalls: make(map[string]acpWorkerRequest),
-		subscribers: make(map[string]map[*acpSSESubscriber]struct{}),
-		activeTurns: make(map[string]*acpTurnAdmission),
+		waiters:           make(map[string]*acpResponseWaiter),
+		workerCalls:       make(map[string]acpWorkerRequest),
+		subscribers:       make(map[string]map[*acpSSESubscriber]struct{}),
+		activeTurns:       make(map[string]*acpTurnAdmission),
+		waiterGenerations: make(map[string]uint64),
+		idleInterrupts:    make(map[string]*acpIdleInterrupt),
 	}
 }
 
@@ -154,12 +166,19 @@ func (m *acpSessionMux) addResponseWaiter(
 		ch:               make(chan acpResponseWaiterResult, 1),
 	}
 	m.mu.Lock()
+	if requestKind == "session/prompt" {
+		m.cancelIdleInterruptLocked(managerSessionID)
+		m.waiterGenerations[managerSessionID]++
+	}
 	m.waiters[requestID] = waiter
 	m.mu.Unlock()
 	return waiter.ch, func() {
 		m.mu.Lock()
 		if m.waiters[requestID] == waiter {
 			delete(m.waiters, requestID)
+			if waiter.requestKind == "session/prompt" {
+				m.cancelIdleInterruptLocked(waiter.managerSessionID)
+			}
 		}
 		m.mu.Unlock()
 	}
@@ -186,6 +205,11 @@ func (m *acpSessionMux) notifyResponseWaiter(requestID string, payload []byte) b
 	waiter := m.waiters[requestID]
 	if waiter != nil {
 		delete(m.waiters, requestID)
+		if waiter.requestKind == "session/prompt" {
+			m.cancelIdleInterruptLocked(waiter.managerSessionID)
+		} else {
+			m.restartIdleInterruptLocked(waiter.managerSessionID)
+		}
 	}
 	m.mu.Unlock()
 	if waiter == nil {
@@ -198,6 +222,102 @@ func (m *acpSessionMux) notifyResponseWaiter(requestID string, payload []byte) b
 	return true
 }
 
+// deferIdleInterrupt treats an idle runtime snapshot as a suspicion rather
+// than proof that the prompt is gone. Session frames restart the quiet period;
+// a prompt response or a newer prompt cancels it.
+func (m *acpSessionMux) deferIdleInterrupt(
+	sessionID string,
+	err error,
+	delay time.Duration,
+) bool {
+	if m == nil || sessionID == "" || err == nil || delay <= 0 {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.hasResponseWaiterLocked(sessionID) {
+		return false
+	}
+	m.cancelIdleInterruptLocked(sessionID)
+	pending := &acpIdleInterrupt{
+		delay:      delay,
+		err:        err,
+		generation: m.waiterGenerations[sessionID],
+	}
+	m.idleInterrupts[sessionID] = pending
+	m.armIdleInterruptLocked(sessionID, pending)
+	return true
+}
+
+func (m *acpSessionMux) cancelIdleInterrupt(sessionID string) {
+	if m == nil || sessionID == "" {
+		return
+	}
+	m.mu.Lock()
+	m.cancelIdleInterruptLocked(sessionID)
+	m.mu.Unlock()
+}
+
+func (m *acpSessionMux) hasResponseWaiterLocked(sessionID string) bool {
+	for _, waiter := range m.waiters {
+		if waiter.managerSessionID == sessionID && waiter.requestKind == "session/prompt" {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *acpSessionMux) restartIdleInterruptLocked(sessionID string) {
+	pending := m.idleInterrupts[sessionID]
+	if pending == nil {
+		return
+	}
+	if pending.timer != nil {
+		pending.timer.Stop()
+	}
+	m.armIdleInterruptLocked(sessionID, pending)
+}
+
+func (m *acpSessionMux) cancelIdleInterruptLocked(sessionID string) {
+	pending := m.idleInterrupts[sessionID]
+	if pending == nil {
+		return
+	}
+	delete(m.idleInterrupts, sessionID)
+	if pending.timer != nil {
+		pending.timer.Stop()
+	}
+}
+
+func (m *acpSessionMux) armIdleInterruptLocked(
+	sessionID string,
+	pending *acpIdleInterrupt,
+) {
+	pending.timer = time.AfterFunc(pending.delay, func() {
+		m.fireIdleInterrupt(sessionID, pending)
+	})
+}
+
+func (m *acpSessionMux) fireIdleInterrupt(
+	sessionID string,
+	pending *acpIdleInterrupt,
+) {
+	m.mu.Lock()
+	if m.idleInterrupts[sessionID] != pending {
+		m.mu.Unlock()
+		return
+	}
+	delete(m.idleInterrupts, sessionID)
+	if m.waiterGenerations[sessionID] != pending.generation ||
+		!m.hasResponseWaiterLocked(sessionID) {
+		m.mu.Unlock()
+		return
+	}
+	waiters, subscribers := m.takeSessionReceiversLocked(sessionID)
+	m.mu.Unlock()
+	deliverSessionInterrupt(waiters, subscribers, pending.err)
+}
+
 // interruptSession wakes request owners and stream subscribers after the
 // authoritative runtime snapshot reports that their session has no active
 // turn. Other sessions sharing the same physical tunnel remain untouched.
@@ -206,6 +326,16 @@ func (m *acpSessionMux) interruptSession(sessionID string, err error) int {
 		return 0
 	}
 	m.mu.Lock()
+	m.cancelIdleInterruptLocked(sessionID)
+	waiters, subscribers := m.takeSessionReceiversLocked(sessionID)
+	m.mu.Unlock()
+	deliverSessionInterrupt(waiters, subscribers, err)
+	return len(waiters) + len(subscribers)
+}
+
+func (m *acpSessionMux) takeSessionReceiversLocked(
+	sessionID string,
+) ([]*acpResponseWaiter, []*acpSSESubscriber) {
 	waiters := make([]*acpResponseWaiter, 0)
 	for requestID, waiter := range m.waiters {
 		if waiter.managerSessionID != sessionID {
@@ -225,8 +355,14 @@ func (m *acpSessionMux) interruptSession(sessionID string, err error) int {
 		}
 		delete(m.subscribers, sessionID)
 	}
-	m.mu.Unlock()
+	return waiters, subscribers
+}
 
+func deliverSessionInterrupt(
+	waiters []*acpResponseWaiter,
+	subscribers []*acpSSESubscriber,
+	err error,
+) {
 	for _, waiter := range waiters {
 		select {
 		case waiter.ch <- acpResponseWaiterResult{err: err}:
@@ -236,7 +372,6 @@ func (m *acpSessionMux) interruptSession(sessionID string, err error) int {
 	for _, sub := range subscribers {
 		sub.close(err)
 	}
-	return len(waiters) + len(subscribers)
 }
 
 func (m *acpSessionMux) subscribe(sessionID string) *acpSSESubscriber {
@@ -276,6 +411,7 @@ func (m *acpSessionMux) publish(sessionID string, payload []byte) bool {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.restartIdleInterruptLocked(sessionID)
 	subs := m.subscribers[sessionID]
 	delivered := false
 	for sub := range subs {
