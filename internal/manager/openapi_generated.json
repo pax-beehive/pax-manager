@@ -361,6 +361,9 @@
           "token_usage": {
             "$ref": "#/components/schemas/TokenUsage"
           },
+          "transport": {
+            "type": "string"
+          },
           "updated_at": {
             "type": "string"
           },

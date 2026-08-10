@@ -5,6 +5,12 @@
 pax-manager is the Fleet Control Plane API for paxd agents. It stores agent state,
 session snapshots, and user-to-agent mailbox messages in PostgreSQL.
 
+It also supports a staged opaque E2EE transport: encrypted browser commands and
+paxd events are persisted in PostgreSQL, LISTEN/NOTIFY wakes the Manager instance
+holding the relevant WebSocket or SSE connection, and only Browser/paxd possess
+the payload key. See `docs/handoff_20260806_143500.md` for the transport boundary
+and rollout status.
+
 The primary production path is websocket-based after registration:
 
 ```text

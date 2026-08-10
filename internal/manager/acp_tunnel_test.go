@@ -215,8 +215,9 @@ func TestACPTunnelIsNotClaimableUntilProducerBacklogCatchesUp(t *testing.T) {
 	hub.prepare(agent.agentID, "", agent)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- agent.forwardAgentFrames(t.Context(), engine, producer, func() {
+		errCh <- agent.forwardAgentFrames(t.Context(), engine, producer, func() error {
 			hub.add(agent.agentID, "", agent)
+			return nil
 		})
 	}()
 

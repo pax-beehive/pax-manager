@@ -52,6 +52,8 @@ type ReliableTransportJournal interface {
 
 type Store interface {
 	ReliableTransportJournal
+	E2EETransportStore
+	E2EEKeyDistributionStore
 
 	EnsureUser(ctx context.Context, email string, displayName string, role string) (User, error)
 	GetUser(ctx context.Context, userID string) (User, error)

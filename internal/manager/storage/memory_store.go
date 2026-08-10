@@ -42,6 +42,17 @@ type MemoryStore struct {
 	nextTransportID              int64
 	transportJournal             map[transportFrameKey]TransportFrame
 	transportQueueState          map[transportQueueStateKey]transportQueueState
+	agentCommands                map[string]AgentCommand
+	agentEvents                  map[string]AgentEvent
+	e2eeMessages                 map[string]E2EEMessage
+	e2eeMessageParts             map[string]E2EEMessagePart
+	e2eePairingRequests          map[string]E2EEPairingRequest
+	e2eeKeyPackages              map[string]E2EEKeyPackage
+	agentConnectionEpochs        map[string]int64
+	nextAgentCommandID           int64
+	nextAgentEventCursor         int64
+	nextE2EEMessageID            int64
+	nextE2EEMessagePartID        int64
 	nextMessageID                int64
 	nextPartID                   int64
 	messages                     map[string]Message
@@ -105,6 +116,13 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		offsets:                      make(map[string]int64),
 		transportJournal:             make(map[transportFrameKey]TransportFrame),
 		transportQueueState:          make(map[transportQueueStateKey]transportQueueState),
+		agentCommands:                make(map[string]AgentCommand),
+		agentEvents:                  make(map[string]AgentEvent),
+		e2eeMessages:                 make(map[string]E2EEMessage),
+		e2eeMessageParts:             make(map[string]E2EEMessagePart),
+		e2eePairingRequests:          make(map[string]E2EEPairingRequest),
+		e2eeKeyPackages:              make(map[string]E2EEKeyPackage),
+		agentConnectionEpochs:        make(map[string]int64),
 		messages:                     make(map[string]Message),
 		messageLogical:               make(map[string]string),
 		messageParts:                 make(map[messagePartKey]MessagePart),
@@ -1722,6 +1740,7 @@ func (s *MemoryStore) UpdateSessionRuntimeState(
 			NodeID:    state.NodeID,
 			AgentID:   state.AgentID,
 			SessionID: state.SessionID,
+			Transport: domain.SessionTransportManager,
 			Status:    status,
 			CreatedAt: state.UpdatedAt,
 		}
@@ -2586,6 +2605,7 @@ func (s *MemoryStore) upsertSessionLocked(
 		existing.NodeID = nodeID
 		existing.AgentID = agentID
 		existing.SessionID = input.SessionID
+		existing.Transport = domain.SessionTransportManager
 		existing.CreatedAt = now
 	}
 	existing.NodeID = nodeID

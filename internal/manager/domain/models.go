@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+const (
+	SessionTransportManager = "manager"
+	SessionTransportE2EE    = "e2ee"
+)
+
 var (
 	ErrNotFound     = errors.New("not found")
 	ErrUnauthorized = errors.New("unauthorized")
@@ -105,6 +110,7 @@ type AgentSession struct {
 	Preview               string               `json:"preview,omitempty"`
 	WorkspaceRoots        []string             `json:"workspace_roots,omitempty"`
 	Source                string               `json:"source,omitempty"`
+	Transport             string               `json:"transport"`
 	Status                string               `json:"status"`
 	CurrentTask           string               `json:"current_task,omitempty"`
 	LastMessageAt         *time.Time           `json:"last_message_at,omitempty"`

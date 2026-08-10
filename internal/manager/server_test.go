@@ -33,11 +33,12 @@ const (
 )
 
 type acpTunnelEnvelope struct {
-	Type    string          `json:"type"`
-	QueueID string          `json:"queue_id,omitempty"`
-	Stream  string          `json:"stream"`
-	Seq     int64           `json:"seq"`
-	Payload json.RawMessage `json:"payload,omitempty"`
+	Type     string              `json:"type"`
+	QueueID  string              `json:"queue_id,omitempty"`
+	Stream   string              `json:"stream"`
+	Seq      int64               `json:"seq"`
+	Payload  json.RawMessage     `json:"payload,omitempty"`
+	Metadata reliablemq.Metadata `json:"metadata,omitempty"`
 }
 
 func TestRequestLogIDHeaderIsPropagated(t *testing.T) {
@@ -2464,7 +2465,9 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, promptEnv.Payload, "session/prompt")
-	assertFrameSessionID(t, promptEnv.Payload, "native-session-1")
+	require.True(t, strings.HasPrefix(promptEnv.Metadata["manager_session_id"], "sess_"))
+	assertFrameSessionID(t, promptEnv.Payload, promptEnv.Metadata["manager_session_id"])
+	assert.Equal(t, "native-session-1", promptEnv.Metadata["native_session_id"])
 	writeAgentDataFrame(
 		t,
 		agentWS,
@@ -2590,7 +2593,7 @@ func TestConversationTurnStopSendsSessionCancelForActivePrompt(t *testing.T) {
 
 	cancelEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, cancelEnv.Payload, "session/cancel")
-	assertFrameSessionID(t, cancelEnv.Payload, "native-stop")
+	assertFrameSessionID(t, cancelEnv.Payload, "sess-stop")
 
 	updated, err := srv.store.GetSession(
 		t.Context(),
@@ -2718,7 +2721,7 @@ func TestConversationTurnQueueReplacesDraftAndDrainsAfterActivePrompt(t *testing
 
 	firstPromptEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, firstPromptEnv.Payload, "session/prompt")
-	assertFrameSessionID(t, firstPromptEnv.Payload, "native-queue")
+	assertFrameSessionID(t, firstPromptEnv.Payload, "sess-queue")
 	require.Contains(t, string(firstPromptEnv.Payload), "first prompt")
 	firstPromptID := acpPayloadRequestID(t, firstPromptEnv.Payload)
 
@@ -2753,7 +2756,7 @@ func TestConversationTurnQueueReplacesDraftAndDrainsAfterActivePrompt(t *testing
 	)
 	queuedPromptEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, queuedPromptEnv.Payload, "session/prompt")
-	assertFrameSessionID(t, queuedPromptEnv.Payload, "native-queue")
+	assertFrameSessionID(t, queuedPromptEnv.Payload, "sess-queue")
 	require.Contains(t, string(queuedPromptEnv.Payload), "queued updated")
 	require.NotContains(t, string(queuedPromptEnv.Payload), "queued draft")
 	queuedPromptID := acpPayloadRequestID(t, queuedPromptEnv.Payload)
@@ -3073,7 +3076,8 @@ func TestConversationGivenProjectTargetWhenFirstPromptThenCreatesNativeBackedPro
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, promptEnv.Payload, "session/prompt")
-	assertFrameSessionID(t, promptEnv.Payload, "native-project-session")
+	assertFrameSessionID(t, promptEnv.Payload, promptEnv.Metadata["manager_session_id"])
+	assert.Equal(t, "native-project-session", promptEnv.Metadata["native_session_id"])
 	writeAgentDataFrame(
 		t,
 		agentWS,
@@ -3281,7 +3285,7 @@ func TestConversationMissingPaxdRouteResumesOnceThenRetriesPrompt(t *testing.T) 
 
 	resumeEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, resumeEnv.Payload, "session/resume")
-	assertFrameSessionID(t, resumeEnv.Payload, "native-legacy")
+	assertFrameSessionID(t, resumeEnv.Payload, "sess-legacy")
 	assertACPParamString(t, resumeEnv.Payload, "cwd", "/tmp")
 	assertACPParamArray(t, resumeEnv.Payload, "mcpServers")
 	var resume acpJSONRPCMessage
@@ -3292,7 +3296,7 @@ func TestConversationMissingPaxdRouteResumesOnceThenRetriesPrompt(t *testing.T) 
 
 	retryPromptEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, retryPromptEnv.Payload, "session/prompt")
-	assertFrameSessionID(t, retryPromptEnv.Payload, "native-legacy")
+	assertFrameSessionID(t, retryPromptEnv.Payload, "sess-legacy")
 	var retryPrompt acpJSONRPCMessage
 	require.NoError(t, json.Unmarshal(retryPromptEnv.Payload, &retryPrompt))
 	require.NotEqual(t, string(firstPrompt.ID), string(retryPrompt.ID))
@@ -3386,7 +3390,7 @@ func TestConversationDifferentSessionsPromptConcurrentlyOnReadyReleasedPool(t *t
 	secondSession := findStringFromRaw(second.Params, "sessionId", "session_id")
 	require.ElementsMatch(
 		t,
-		[]string{"native-a", "native-b"},
+		[]string{"sess-a", "sess-b"},
 		[]string{firstSession, secondSession},
 	)
 
@@ -4106,7 +4110,8 @@ func TestConversationWaitsForAgentTunnelReconnect(t *testing.T) {
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, promptEnv.Payload, "session/prompt")
-	assertFrameSessionID(t, promptEnv.Payload, "native-session-1")
+	assertFrameSessionID(t, promptEnv.Payload, promptEnv.Metadata["manager_session_id"])
+	assert.Equal(t, "native-session-1", promptEnv.Metadata["native_session_id"])
 	writeAgentDataFrame(
 		t,
 		agentWS,
@@ -4155,7 +4160,7 @@ func TestConversationContinuesWhenAgentTunnelReconnectsDuringPrompt(t *testing.T
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, promptEnv.Payload, "session/prompt")
-	assertFrameSessionID(t, promptEnv.Payload, "native-existing")
+	assertFrameSessionID(t, promptEnv.Payload, "sess-existing")
 	require.NoError(t, agentWS.Close())
 
 	secondAgentWS, _, err := websocket.DefaultDialer.Dial(
@@ -4169,7 +4174,7 @@ func TestConversationContinuesWhenAgentTunnelReconnectsDuringPrompt(t *testing.T
 	replayedPromptEnv := readNextManagerToAgentData(t, secondAgentWS)
 	assert.Equal(t, promptEnv.Seq, replayedPromptEnv.Seq)
 	assertACPMethod(t, replayedPromptEnv.Payload, "session/prompt")
-	assertFrameSessionID(t, replayedPromptEnv.Payload, "native-existing")
+	assertFrameSessionID(t, replayedPromptEnv.Payload, "sess-existing")
 
 	writeAgentDataFrame(
 		t,
@@ -4432,7 +4437,7 @@ func TestConversationContinuesExistingSessionWithoutInitialize(t *testing.T) {
 
 	promptEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, promptEnv.Payload, "session/prompt")
-	assertFrameSessionID(t, promptEnv.Payload, "native-existing")
+	assertFrameSessionID(t, promptEnv.Payload, "sess-existing")
 	writeAgentDataFrame(
 		t,
 		agentWS,
@@ -5190,11 +5195,12 @@ func decodeACPTunnelEnvelope(t *testing.T, data []byte) acpTunnelEnvelope {
 		stream = acpTunnelStreamPaxdToManager
 	}
 	return acpTunnelEnvelope{
-		Type:    string(env.Type),
-		QueueID: env.QueueID,
-		Stream:  stream,
-		Seq:     env.Seq,
-		Payload: env.Payload,
+		Type:     string(env.Type),
+		QueueID:  env.QueueID,
+		Stream:   stream,
+		Seq:      env.Seq,
+		Payload:  env.Payload,
+		Metadata: env.Metadata,
 	}
 }
 
@@ -5734,9 +5740,9 @@ func TestConversationDeliveryGivenRepresentativeTargetWhenPostedThenPromptsTarge
 		"must pass your final answer explicitly in the tool input",
 	)
 	require.Contains(t, targetPromptText, "Please answer this.")
-	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
-	require.Equal(t, "native-target", targetNativeSessionID)
-	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 2, targetNativeSessionID, "working")
+	targetPromptSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
+	require.Equal(t, targetManagerSessionID, targetPromptSessionID)
+	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 2, targetPromptSessionID, "working")
 	writeMockACPResponse(
 		t,
 		targetWS,
@@ -5805,7 +5811,7 @@ func TestConversationDeliveryGivenAgentTargetWhenPostedThenPromptsFreshTargetSes
 	require.Contains(t, targetPromptText, "Review the native agent path.")
 	require.Equal(
 		t,
-		"native-agent-target",
+		targetManagerSessionID,
 		findStringFromRaw(targetPrompt.Params, "sessionId", "session_id"),
 	)
 	writeMockACPResponse(
@@ -5937,9 +5943,9 @@ func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOrig
 	require.Contains(t, sourcePromptText, "Do not call the pax-conversation reply tool here")
 	require.Contains(t, sourcePromptText, "do not try to fetch a reply through that tool")
 	require.Contains(t, sourcePromptText, "Here is the answer.")
-	sourceNativeSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
-	require.Equal(t, "native-source", sourceNativeSessionID)
-	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 1, sourceNativeSessionID, "received")
+	sourcePromptSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
+	require.Equal(t, "sess_source", sourcePromptSessionID)
+	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 1, sourcePromptSessionID, "received")
 	writeMockACPResponse(
 		t,
 		sourceWS,
@@ -6044,14 +6050,14 @@ func TestConversationDeliveryGivenBusyOriginalSourceTunnelWhenReplyPostedThenQue
 	sourcePromptText := acpPromptText(sourcePrompt.Params)
 	require.Contains(t, sourcePromptText, "Your Pax conversation inquiry has received a reply")
 	require.Contains(t, sourcePromptText, "Here is the queued answer.")
-	sourceNativeSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
-	require.Equal(t, "native-source", sourceNativeSessionID)
+	sourcePromptSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
+	require.Equal(t, "sess_source", sourcePromptSessionID)
 	writeMockACPChunk(
 		t,
 		sourceWS,
 		sourcePromptEnv.QueueID,
 		1,
-		sourceNativeSessionID,
+		sourcePromptSessionID,
 		"received queued",
 	)
 	writeMockACPResponse(
@@ -6154,9 +6160,9 @@ func TestConversationDeliveryGivenRetryableNativeSessionBusyWhenReplyPostedThenR
 	retryEnv, retryPrompt := readMockACPRequest(t, sourceWS, "session/prompt")
 	require.NotEqual(t, string(firstPrompt.ID), string(retryPrompt.ID))
 	require.Equal(t, acpPromptText(firstPrompt.Params), acpPromptText(retryPrompt.Params))
-	nativeSessionID := findStringFromRaw(retryPrompt.Params, "sessionId", "session_id")
-	require.Equal(t, "native-source", nativeSessionID)
-	writeMockACPChunk(t, sourceWS, retryEnv.QueueID, 2, nativeSessionID, "received delayed")
+	promptSessionID := findStringFromRaw(retryPrompt.Params, "sessionId", "session_id")
+	require.Equal(t, "sess_source", promptSessionID)
+	writeMockACPChunk(t, sourceWS, retryEnv.QueueID, 2, promptSessionID, "received delayed")
 	writeMockACPResponse(
 		t,
 		sourceWS,
@@ -7939,9 +7945,9 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 
 	targetPromptEnv, targetPrompt := readMockACPRequest(t, targetWS, "session/prompt")
 	require.Equal(t, "count from 1 to 2", acpPromptText(targetPrompt.Params))
-	targetNativeSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
-	require.Equal(t, "native-target", targetNativeSessionID)
-	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 2, targetNativeSessionID, "1")
+	targetPromptSessionID := findStringFromRaw(targetPrompt.Params, "sessionId", "session_id")
+	require.Equal(t, targetPromptEnv.Metadata["manager_session_id"], targetPromptSessionID)
+	writeMockACPChunk(t, targetWS, targetPromptEnv.QueueID, 2, targetPromptSessionID, "1")
 	writeMockACPResponse(
 		t,
 		targetWS,
@@ -7953,9 +7959,9 @@ func TestAgentConversationGivenTwoMockTunnelsWhenDeliveredThenAgentsTakeTurns(t 
 
 	sourcePromptEnv, sourcePrompt := readMockACPRequest(t, sourceWS, "session/prompt")
 	require.Equal(t, "1", acpPromptText(sourcePrompt.Params))
-	sourceNativeSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
-	require.Equal(t, "native-source", sourceNativeSessionID)
-	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 2, sourceNativeSessionID, "2")
+	sourcePromptSessionID := findStringFromRaw(sourcePrompt.Params, "sessionId", "session_id")
+	require.Equal(t, sourcePromptEnv.Metadata["manager_session_id"], sourcePromptSessionID)
+	writeMockACPChunk(t, sourceWS, sourcePromptEnv.QueueID, 2, sourcePromptSessionID, "2")
 	writeMockACPResponse(
 		t,
 		sourceWS,

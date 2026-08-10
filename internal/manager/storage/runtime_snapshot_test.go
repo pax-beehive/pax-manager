@@ -49,7 +49,7 @@ func TestMemoryRuntimeSnapshotReconciliation(t *testing.T) {
 		assert.Equal(t, domain.RuntimeAuthoritySnapshot, stored.RuntimeAuthority)
 	})
 
-	t.Run("Given an unknown native session when a snapshot arrives then it creates one canonical row", func(t *testing.T) {
+	t.Run("Given an unknown native session when a snapshot arrives then it defers until the session is bound", func(t *testing.T) {
 		ctx := context.Background()
 		store, node, agent := sessionReportStoreFixture(t, ctx)
 		principal := UserPrincipal{User: User{UserID: node.OwnerUserID}}
@@ -69,13 +69,55 @@ func TestMemoryRuntimeSnapshotReconciliation(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.RuntimeSnapshotApplied, result.Status)
+		assert.Empty(t, result.Changes)
+		sessions, err := store.ListAgentSessions(ctx, principal, agent.AgentID)
+		require.NoError(t, err)
+		assert.Empty(t, sessions)
+	})
+
+	t.Run("Given an E2EE session awaiting its native binding when snapshots race then the next snapshot updates the canonical row", func(t *testing.T) {
+		ctx := context.Background()
+		store, node, agent := sessionReportStoreFixture(t, ctx)
+		principal := UserPrincipal{User: User{UserID: node.OwnerUserID}}
+		canonical, err := store.CreateNodeAgentSession(ctx, principal, domain.CreateSessionRequest{
+			NodeID: node.NodeID, AgentID: agent.AgentID, SessionID: "sess_e2ee", Source: "console",
+		})
+		require.NoError(t, err)
+		require.NoError(t, store.ActivateNodeRuntimeFence(ctx, node, "fence_1"))
+
+		first, err := store.ReplaceAgentActiveTurns(ctx, node, runtimeSnapshot(
+			agent.AgentID, "fence_1", 1,
+			domain.ActiveTurnSnapshot{
+				NativeSessionID: "native_1", TurnInstanceID: "turn_1",
+				PromptRequestID: json.RawMessage(`1`), RuntimeStatus: domain.RuntimeStatusRunning,
+			},
+		))
+		require.NoError(t, err)
+		assert.Empty(t, first.Changes)
 		sessions, err := store.ListAgentSessions(ctx, principal, agent.AgentID)
 		require.NoError(t, err)
 		require.Len(t, sessions, 1)
-		assert.True(t, isManagerSessionID(sessions[0].SessionID))
-		assert.Equal(t, "native_new", sessions[0].NativeID)
-		assert.Equal(t, domain.RuntimeStatusWaitingApproval, sessions[0].RuntimeStatus)
-		assert.Equal(t, "permission-1", sessions[0].RuntimeState.PendingApprovalID)
+		assert.Equal(t, canonical.SessionID, sessions[0].SessionID)
+		assert.Empty(t, sessions[0].NativeID)
+
+		require.NoError(t, store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+			SessionID: canonical.SessionID, NativeID: "native_1", Status: "idle",
+		}}))
+		second, err := store.ReplaceAgentActiveTurns(ctx, node, runtimeSnapshot(
+			agent.AgentID, "fence_1", 2,
+			domain.ActiveTurnSnapshot{
+				NativeSessionID: "native_1", TurnInstanceID: "turn_1",
+				PromptRequestID: json.RawMessage(`1`), RuntimeStatus: domain.RuntimeStatusRunning,
+			},
+		))
+		require.NoError(t, err)
+		require.Len(t, second.Changes, 1)
+		assert.Equal(t, canonical.SessionID, second.Changes[0].SessionID)
+		sessions, err = store.ListAgentSessions(ctx, principal, agent.AgentID)
+		require.NoError(t, err)
+		require.Len(t, sessions, 1)
+		assert.Equal(t, "native_1", sessions[0].NativeID)
+		assert.Equal(t, domain.RuntimeStatusRunning, sessions[0].RuntimeStatus)
 	})
 
 	t.Run("Given a previous active turn when the next complete snapshot omits it then it becomes idle", func(t *testing.T) {
@@ -112,8 +154,13 @@ func TestMemoryRuntimeSnapshotReconciliation(t *testing.T) {
 		ctx := context.Background()
 		store, node, agent := sessionReportStoreFixture(t, ctx)
 		principal := UserPrincipal{User: User{UserID: node.OwnerUserID}}
+		_, err := store.CreateNodeAgentSession(ctx, principal, domain.CreateSessionRequest{
+			NodeID: node.NodeID, AgentID: agent.AgentID,
+			SessionID: "sess_manager", NativeID: "native_1",
+		})
+		require.NoError(t, err)
 		require.NoError(t, store.ActivateNodeRuntimeFence(ctx, node, "fence_old"))
-		_, err := store.ReplaceAgentActiveTurns(ctx, node, runtimeSnapshot(
+		_, err = store.ReplaceAgentActiveTurns(ctx, node, runtimeSnapshot(
 			agent.AgentID, "fence_old", 4,
 			domain.ActiveTurnSnapshot{
 				NativeSessionID: "native_1", TurnInstanceID: "turn_1",

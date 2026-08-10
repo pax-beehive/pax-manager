@@ -276,6 +276,7 @@ struct AgentSession {
   29: optional string runtime_status
   30: optional string runtime_turn_instance_id
   31: optional string archived_at
+  32: optional string transport
 }
 
 struct Project {

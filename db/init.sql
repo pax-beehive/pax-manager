@@ -129,6 +129,144 @@ CREATE INDEX IF NOT EXISTS idx_nodes_owner_active ON nodes(owner_user_id, regist
 CREATE INDEX IF NOT EXISTS idx_agents_node_active ON agents(node_id, registered_at)
     WHERE deleted_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS agent_connection_epochs (
+    agent_id TEXT PRIMARY KEY REFERENCES agents(agent_id) ON DELETE CASCADE,
+    connection_epoch BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS agent_commands (
+    id BIGSERIAL PRIMARY KEY,
+    command_id TEXT NOT NULL UNIQUE,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    protocol_version INTEGER NOT NULL,
+    cipher_version INTEGER NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    nonce BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    delivered_at TIMESTAMPTZ,
+    delivered_epoch BIGINT,
+    acknowledged_at TIMESTAMPTZ,
+    acknowledged_epoch BIGINT,
+    expires_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_commands_pending
+    ON agent_commands(agent_id, id)
+    WHERE acknowledged_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS agent_events (
+    cursor BIGSERIAL PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    local_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    protocol_version INTEGER NOT NULL,
+    cipher_version INTEGER NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    nonce BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(agent_id, local_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_events_session_cursor
+    ON agent_events(owner_user_id, session_id, cursor);
+
+CREATE TABLE IF NOT EXISTS e2ee_messages (
+    id BIGSERIAL PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    revision BIGINT NOT NULL,
+    record_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    protocol_version INTEGER NOT NULL,
+    cipher_version INTEGER NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    nonce BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(agent_id, session_id, message_id),
+    UNIQUE(agent_id, record_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_e2ee_messages_session_page
+    ON e2ee_messages(owner_user_id, session_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS e2ee_message_parts (
+    id BIGSERIAL PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    part_index INTEGER NOT NULL,
+    revision BIGINT NOT NULL,
+    record_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    protocol_version INTEGER NOT NULL,
+    cipher_version INTEGER NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    nonce BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(agent_id, session_id, message_id, part_index),
+    UNIQUE(agent_id, record_id),
+    FOREIGN KEY (agent_id, session_id, message_id)
+        REFERENCES e2ee_messages(agent_id, session_id, message_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_e2ee_message_parts_message
+    ON e2ee_message_parts(agent_id, session_id, message_id, part_index);
+
+CREATE TABLE IF NOT EXISTS e2ee_pairing_requests (
+    pairing_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL,
+    device_name TEXT NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    recipient_public_key BYTEA NOT NULL,
+    secret_commitment BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_e2ee_pairing_requests_pending
+    ON e2ee_pairing_requests(owner_user_id, agent_id, created_at)
+    WHERE completed_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS e2ee_key_packages (
+    pairing_id TEXT NOT NULL REFERENCES e2ee_pairing_requests(pairing_id) ON DELETE CASCADE,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL,
+    key_epoch BIGINT NOT NULL,
+    recipient_public_key BYTEA NOT NULL,
+    sender_ephemeral_public_key BYTEA NOT NULL,
+    nonce BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(agent_id, device_id, key_epoch)
+);
+
+CREATE INDEX IF NOT EXISTS idx_e2ee_key_packages_owner_device
+    ON e2ee_key_packages(owner_user_id, device_id, agent_id, key_epoch);
+
 CREATE TABLE IF NOT EXISTS agent_sessions (
     id BIGSERIAL PRIMARY KEY,
     agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
@@ -141,6 +279,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     preview TEXT,
     workspace_roots JSONB NOT NULL DEFAULT '[]'::jsonb,
     source TEXT,
+    transport TEXT NOT NULL DEFAULT 'manager',
     status TEXT NOT NULL DEFAULT 'idle',
     current_task TEXT,
     last_message_at TIMESTAMPTZ,
@@ -170,6 +309,7 @@ ALTER TABLE agent_sessions DROP COLUMN IF EXISTS project_id;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS preview TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS workspace_roots JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS transport TEXT NOT NULL DEFAULT 'manager';
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS current_task TEXT;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ;
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS last_user_message_at TIMESTAMPTZ;
@@ -193,6 +333,30 @@ ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS runtime_turn_instance_id TEX
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+UPDATE agent_sessions AS session
+SET transport = 'e2ee'
+WHERE session.transport <> 'e2ee'
+  AND (
+    EXISTS (
+      SELECT 1
+      FROM agent_commands AS command
+      WHERE command.agent_id = session.agent_id
+        AND command.session_id = session.session_id
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM agent_events AS encrypted_event
+      WHERE encrypted_event.agent_id = session.agent_id
+        AND encrypted_event.session_id = session.session_id
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM e2ee_messages AS message
+      WHERE message.agent_id = session.agent_id
+        AND message.session_id = session.session_id
+    )
+  );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_agent ON agent_sessions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_native ON agent_sessions(agent_id, native_id)

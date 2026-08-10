@@ -107,15 +107,17 @@ func (s *PostgresStore) ReplaceAgentActiveTurns(
 
 	resolved := make(map[string]string, len(snapshot.ActiveTurns))
 	for _, turn := range snapshot.ActiveTurns {
-		sessionID, resolveErr := s.resolvePostgresRuntimeSession(
+		sessionID, found, resolveErr := s.resolvePostgresRuntimeSession(
 			ctx,
 			tx,
-			node,
 			snapshot.AgentID,
 			turn.NativeSessionID,
 		)
 		if resolveErr != nil {
 			return domain.ReplaceAgentActiveTurnsResult{}, resolveErr
+		}
+		if !found {
+			continue
 		}
 		resolved[turn.NativeSessionID] = sessionID
 	}
@@ -128,7 +130,10 @@ func (s *PostgresStore) ReplaceAgentActiveTurns(
 	changes := make([]domain.RuntimeStatusChange, 0, len(snapshot.ActiveTurns)+len(previous))
 	currentSessions := make(map[string]struct{}, len(snapshot.ActiveTurns))
 	for _, turn := range snapshot.ActiveTurns {
-		sessionID := resolved[turn.NativeSessionID]
+		sessionID, reportable := resolved[turn.NativeSessionID]
+		if !reportable {
+			continue
+		}
 		state := runtimeStateFromTurn(node, snapshot.AgentID, sessionID, turn, now)
 		stateJSON, marshalErr := json.Marshal(state)
 		if marshalErr != nil {
@@ -244,10 +249,9 @@ func lockPostgresRuntimeSnapshotHead(
 func (s *PostgresStore) resolvePostgresRuntimeSession(
 	ctx context.Context,
 	tx *sql.Tx,
-	node Node,
 	agentID string,
 	nativeSessionID string,
-) (string, error) {
+) (string, bool, error) {
 	var sessionID string
 	err := tx.QueryRowContext(ctx, `
 		SELECT session_id
@@ -255,10 +259,10 @@ func (s *PostgresStore) resolvePostgresRuntimeSession(
 		WHERE agent_id = $1 AND native_session_id = $2
 	`, agentID, nativeSessionID).Scan(&sessionID)
 	if err == nil {
-		return sessionID, nil
+		return sessionID, true, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return "", err
+		return "", false, err
 	}
 
 	rows, err := tx.QueryContext(ctx, `
@@ -269,38 +273,27 @@ func (s *PostgresStore) resolvePostgresRuntimeSession(
 		FOR UPDATE
 	`, agentID, nativeSessionID)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	defer func() { _ = rows.Close() }()
 	var matches []string
 	for rows.Next() {
 		var match string
 		if err := rows.Scan(&match); err != nil {
-			return "", err
+			return "", false, err
 		}
 		matches = append(matches, match)
 		if len(matches) > 1 {
-			return "", ErrConflict
+			return "", false, ErrConflict
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return "", err
+		return "", false, err
 	}
 	if len(matches) == 1 {
 		sessionID = matches[0]
 	} else {
-		sessionID, err = newSecret("sess")
-		if err != nil {
-			return "", err
-		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO agent_sessions (
-				node_id, agent_id, session_id, native_id, status, run_status,
-				runtime_status, created_at, updated_at
-			) VALUES ($1, $2, $3, $4, 'idle', 'idle', 'idle', $5, $5)
-		`, node.NodeID, agentID, sessionID, nativeSessionID, s.now().UTC()); err != nil {
-			return "", err
-		}
+		return "", false, nil
 	}
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO agent_native_session_bindings (
@@ -311,12 +304,12 @@ func (s *PostgresStore) resolvePostgresRuntimeSession(
 		WHERE agent_native_session_bindings.session_id = EXCLUDED.session_id
 	`, agentID, nativeSessionID, sessionID, s.now().UTC())
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if affected, rowsErr := result.RowsAffected(); rowsErr == nil && affected == 0 {
-		return "", ErrConflict
+		return "", false, ErrConflict
 	}
-	return sessionID, nil
+	return sessionID, true, nil
 }
 
 func loadPostgresRuntimeSessions(
