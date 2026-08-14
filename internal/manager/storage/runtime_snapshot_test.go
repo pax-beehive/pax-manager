@@ -150,6 +150,71 @@ func TestMemoryRuntimeSnapshotReconciliation(t *testing.T) {
 		assert.Empty(t, stored.RuntimeTurnInstanceID)
 	})
 
+	t.Run("Given a disconnected current fence when grace expires then active runtime becomes unknown", func(t *testing.T) {
+		ctx := context.Background()
+		store, node, agent := sessionReportStoreFixture(t, ctx)
+		principal := UserPrincipal{User: User{UserID: node.OwnerUserID}}
+		session, err := store.CreateNodeAgentSession(ctx, principal, domain.CreateSessionRequest{
+			NodeID: node.NodeID, AgentID: agent.AgentID, SessionID: "sess_manager", NativeID: "native_1",
+		})
+		require.NoError(t, err)
+		require.NoError(t, store.ActivateNodeRuntimeFence(ctx, node, "fence_1"))
+		_, err = store.ReplaceAgentActiveTurns(ctx, node, runtimeSnapshot(
+			agent.AgentID, "fence_1", 1,
+			domain.ActiveTurnSnapshot{
+				NativeSessionID: "native_1", TurnInstanceID: "turn_1",
+				PromptRequestID: json.RawMessage(`1`), RuntimeStatus: domain.RuntimeStatusRunning,
+			},
+		))
+		require.NoError(t, err)
+
+		applied, err := store.MarkNodeRuntimeStale(ctx, node, "fence_1")
+
+		require.NoError(t, err)
+		assert.True(t, applied)
+		stored, err := store.GetSession(ctx, principal, session.SessionID)
+		require.NoError(t, err)
+		assert.Equal(t, domain.RuntimeStatusUnknown, stored.RuntimeStatus)
+		assert.Equal(t, "turn_1", stored.RuntimeTurnInstanceID)
+		require.NotNil(t, stored.RuntimeState)
+		assert.Equal(t, domain.RuntimeLifecycleUnknown, stored.RuntimeState.Lifecycle)
+
+		_, err = store.ReplaceAgentActiveTurns(ctx, node, runtimeSnapshot(agent.AgentID, "fence_1", 2))
+		require.NoError(t, err)
+		stored, err = store.GetSession(ctx, principal, session.SessionID)
+		require.NoError(t, err)
+		assert.Equal(t, domain.RuntimeStatusIdle, stored.RuntimeStatus)
+	})
+
+	t.Run("Given a replacement connection when old grace expires then the old fence cannot mark runtime unknown", func(t *testing.T) {
+		ctx := context.Background()
+		store, node, agent := sessionReportStoreFixture(t, ctx)
+		principal := UserPrincipal{User: User{UserID: node.OwnerUserID}}
+		_, err := store.CreateNodeAgentSession(ctx, principal, domain.CreateSessionRequest{
+			NodeID: node.NodeID, AgentID: agent.AgentID, SessionID: "sess_manager", NativeID: "native_1",
+		})
+		require.NoError(t, err)
+		require.NoError(t, store.ActivateNodeRuntimeFence(ctx, node, "fence_old"))
+		require.NoError(t, store.ActivateNodeRuntimeFence(ctx, node, "fence_new"))
+		_, err = store.ReplaceAgentActiveTurns(ctx, node, runtimeSnapshot(
+			agent.AgentID, "fence_new", 1,
+			domain.ActiveTurnSnapshot{
+				NativeSessionID: "native_1", TurnInstanceID: "turn_1",
+				PromptRequestID: json.RawMessage(`1`), RuntimeStatus: domain.RuntimeStatusRunning,
+			},
+		))
+		require.NoError(t, err)
+
+		applied, err := store.MarkNodeRuntimeStale(ctx, node, "fence_old")
+
+		require.NoError(t, err)
+		assert.False(t, applied)
+		sessions, err := store.ListAgentSessions(ctx, principal, agent.AgentID)
+		require.NoError(t, err)
+		require.Len(t, sessions, 1)
+		assert.Equal(t, domain.RuntimeStatusRunning, sessions[0].RuntimeStatus)
+	})
+
 	t.Run("Given duplicate stale and old-fence snapshots then none overwrite the current projection", func(t *testing.T) {
 		ctx := context.Background()
 		store, node, agent := sessionReportStoreFixture(t, ctx)

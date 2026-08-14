@@ -21,6 +21,7 @@ const (
 	RuntimeLifecycleBlocked         = "blocked"
 	RuntimeLifecycleCancelling      = "cancelling"
 	RuntimeLifecycleErrored         = "errored"
+	RuntimeLifecycleUnknown         = "unknown"
 
 	RuntimeBlockedReasonToolApproval = "tool_approval"
 	RuntimeBlockedReasonUnknown      = "unknown"
@@ -28,6 +29,7 @@ const (
 	RuntimeStatusIdle            = "idle"
 	RuntimeStatusRunning         = "running"
 	RuntimeStatusWaitingApproval = "waiting_approval"
+	RuntimeStatusUnknown         = "unknown"
 
 	RuntimeAuthorityFrames   = "frames"
 	RuntimeAuthoritySnapshot = "snapshot"
@@ -97,6 +99,7 @@ type ReplaceAgentActiveTurnsResult struct {
 
 type SessionRuntimeSnapshotStore interface {
 	ActivateNodeRuntimeFence(ctx context.Context, node Node, fence string) error
+	MarkNodeRuntimeStale(ctx context.Context, node Node, fence string) (bool, error)
 	ReplaceAgentActiveTurns(
 		ctx context.Context,
 		node Node,

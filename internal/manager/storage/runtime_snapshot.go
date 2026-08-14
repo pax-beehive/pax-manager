@@ -39,6 +39,40 @@ func (s *MemoryStore) ActivateNodeRuntimeFence(
 	return nil
 }
 
+func (s *MemoryStore) MarkNodeRuntimeStale(
+	ctx context.Context,
+	node Node,
+	fence string,
+) (bool, error) {
+	_ = ctx
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.nodeRuntimeFences[node.NodeID] != fence {
+		return false, nil
+	}
+	now := s.now().UTC()
+	for key, session := range s.sessions {
+		if session.NodeID != node.NodeID || session.RuntimeAuthority != domain.RuntimeAuthoritySnapshot ||
+			session.RuntimeStatus != domain.RuntimeStatusRunning &&
+				session.RuntimeStatus != domain.RuntimeStatusWaitingApproval {
+			continue
+		}
+		session.RuntimeStatus = domain.RuntimeStatusUnknown
+		session.RunStatus = domain.RuntimeStatusUnknown
+		session.Status = domain.RuntimeStatusUnknown
+		session.UpdatedAt = now
+		if session.RuntimeState != nil {
+			state := *session.RuntimeState
+			state.Lifecycle = domain.RuntimeLifecycleUnknown
+			state.UpdatedAt = now
+			session.RuntimeState = &state
+			session.Metadata = runtimeMetadata(session.Metadata, state)
+		}
+		s.sessions[key] = session
+	}
+	return true, nil
+}
+
 func (s *MemoryStore) ReplaceAgentActiveTurns(
 	ctx context.Context,
 	node Node,
@@ -83,7 +117,8 @@ func (s *MemoryStore) ReplaceAgentActiveTurns(
 			continue
 		}
 		if session.RuntimeStatus == domain.RuntimeStatusRunning ||
-			session.RuntimeStatus == domain.RuntimeStatusWaitingApproval {
+			session.RuntimeStatus == domain.RuntimeStatusWaitingApproval ||
+			session.RuntimeStatus == domain.RuntimeStatusUnknown {
 			previouslyActive[key] = session
 		}
 		session.RuntimeAuthority = domain.RuntimeAuthoritySnapshot
