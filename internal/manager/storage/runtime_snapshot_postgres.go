@@ -49,6 +49,58 @@ func (s *PostgresStore) ActivateNodeRuntimeFence(
 	return nil
 }
 
+func (s *PostgresStore) MarkNodeRuntimeStale(
+	ctx context.Context,
+	node Node,
+	fence string,
+) (bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var currentFence string
+	err = tx.QueryRowContext(ctx, `
+		SELECT connection_fence
+		FROM node_runtime_fences
+		WHERE node_id = $1
+		FOR UPDATE
+	`, node.NodeID).Scan(&currentFence)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && currentFence != fence {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	now := s.now().UTC()
+	if _, err = tx.ExecContext(ctx, `
+		UPDATE agent_sessions AS sessions
+		SET runtime_status = 'unknown',
+			run_status = 'unknown',
+			metadata = jsonb_set(
+				jsonb_set(
+					COALESCE(sessions.metadata, '{}'::jsonb),
+					'{runtime_state,lifecycle}', '"unknown"'::jsonb, true
+				),
+				'{runtime_state,updated_at}', to_jsonb($3::timestamptz), true
+			),
+			updated_at = $3
+		FROM agents
+		WHERE sessions.agent_id = agents.agent_id
+			AND agents.node_id = $1
+			AND agents.owner_user_id = $2
+			AND agents.deleted_at IS NULL
+			AND sessions.owner_user_id = $2
+			AND sessions.runtime_status IN ('running', 'waiting_approval')
+	`, node.NodeID, node.OwnerUserID, now); err != nil {
+		return false, err
+	}
+	if err = tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (s *PostgresStore) ReplaceAgentActiveTurns(
 	ctx context.Context,
 	node Node,
@@ -168,7 +220,8 @@ func (s *PostgresStore) ReplaceAgentActiveTurns(
 	for sessionID, old := range previous {
 		if _, current := currentSessions[sessionID]; current ||
 			old.runtimeStatus != domain.RuntimeStatusRunning &&
-				old.runtimeStatus != domain.RuntimeStatusWaitingApproval {
+				old.runtimeStatus != domain.RuntimeStatusWaitingApproval &&
+				old.runtimeStatus != domain.RuntimeStatusUnknown {
 			continue
 		}
 		state := idleRuntimeState(node, AgentSession{

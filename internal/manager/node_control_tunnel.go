@@ -18,6 +18,7 @@ import (
 )
 
 var sessionRuntimeIdleInterruptGrace = 5 * time.Second
+var sessionRuntimeDisconnectGrace = 60 * time.Second
 
 func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request) {
 	ctx, logID := httpRequestLogContext(r.Context(), r)
@@ -79,6 +80,7 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 		conn.Fail(ErrNodeControlDisconnected)
 		s.nodeControls.Remove(node.NodeID, conn)
 		_ = ws.Close()
+		s.scheduleNodeRuntimeStale(node, connectionFence)
 		logging.Info(ctx, "node control tunnel disconnected")
 	}()
 
@@ -128,6 +130,28 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 			logging.Warn(ctx, "node control tunnel ignored report identity", logging.Err(err))
 		}
 	}
+}
+
+func (s *Server) scheduleNodeRuntimeStale(node Node, connectionFence string) {
+	time.AfterFunc(sessionRuntimeDisconnectGrace, func() {
+		runtimeStore, ok := s.store.(domain.SessionRuntimeSnapshotStore)
+		if !ok {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		applied, err := runtimeStore.MarkNodeRuntimeStale(ctx, node, connectionFence)
+		if err != nil {
+			logging.Error(ctx, "mark disconnected node runtime stale failed",
+				slog.String("node_id", node.NodeID), logging.Err(err))
+			return
+		}
+		if applied {
+			logging.Warn(ctx, "node runtime reports became stale after disconnect grace",
+				slog.String("node_id", node.NodeID),
+				slog.Duration("disconnect_grace", sessionRuntimeDisconnectGrace))
+		}
+	})
 }
 
 type nodeControlFrame struct {

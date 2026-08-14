@@ -22,6 +22,18 @@ func (s canonicalSessionStore) ActivateNodeRuntimeFence(ctx context.Context, nod
 	return runtimeStore.ActivateNodeRuntimeFence(ctx, node, fence)
 }
 
+func (s canonicalSessionStore) MarkNodeRuntimeStale(
+	ctx context.Context,
+	node domain.Node,
+	fence string,
+) (bool, error) {
+	runtimeStore, ok := s.Store.(domain.SessionRuntimeSnapshotStore)
+	if !ok {
+		return false, domain.ErrConflict
+	}
+	return runtimeStore.MarkNodeRuntimeStale(ctx, node, fence)
+}
+
 func (s canonicalSessionStore) ReplaceAgentActiveTurns(
 	ctx context.Context,
 	node domain.Node,
