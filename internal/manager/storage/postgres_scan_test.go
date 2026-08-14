@@ -293,6 +293,7 @@ func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 		"preview",
 		[]byte(`["/workspace","/tmp/project"]`),
 		"runtime",
+		"e2ee",
 		"running",
 		"test task",
 		&lastMessageAt,
@@ -343,6 +344,7 @@ func TestScanSessionHydratesRuntimeMetadataAndTokenAliases(t *testing.T) {
 		t.Fatalf("conversation session fields = %+v", session)
 	}
 	require.Equal(t, "running", session.RuntimeStatus)
+	require.Equal(t, "e2ee", session.Transport)
 	require.Equal(t, "turn_instance_1", session.RuntimeTurnInstanceID)
 	if !reflect.DeepEqual(session.WorkspaceRoots, []string{"/workspace", "/tmp/project"}) {
 		t.Fatalf("workspace roots = %#v", session.WorkspaceRoots)

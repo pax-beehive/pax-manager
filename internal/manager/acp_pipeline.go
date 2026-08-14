@@ -138,7 +138,10 @@ func (m acpSessionLifecycleMiddleware) HandleACPFrame(
 	if len(frame.frame.Error) > 0 {
 		return next(ctx, frame)
 	}
-	nativeSessionID := findStringFromRaw(frame.frame.Result, "sessionId", "session_id")
+	nativeSessionID := firstNonEmpty(
+		frame.nativeSessionID,
+		findStringFromRaw(frame.frame.Result, "sessionId", "session_id"),
+	)
 	if nativeSessionID == "" {
 		return next(ctx, frame)
 	}
@@ -219,19 +222,27 @@ func (m acpSessionIDMiddleware) HandleACPFrame(
 		}
 		frame.managerSessionID = managerSessionID
 		frame.nativeSessionID = nativeID
-		targetSessionID = nativeID
+		// Keep the public manager session ID in the payload. paxd owns the
+		// durable manager/native translation at the local ACP boundary.
+		targetSessionID = managerSessionID
 	} else {
-		nativeSessionID := firstNonEmpty(payloadSessionID, frame.nativeSessionID)
-		if nativeSessionID == "" {
-			return next(ctx, frame)
+		if managerSessionID := frame.transportMetadata["manager_session_id"]; managerSessionID != "" {
+			frame.managerSessionID = managerSessionID
+			frame.nativeSessionID = firstNonEmpty(frame.nativeSessionID, payloadSessionID)
+			targetSessionID = managerSessionID
+		} else {
+			nativeSessionID := firstNonEmpty(frame.nativeSessionID, payloadSessionID)
+			if nativeSessionID == "" {
+				return next(ctx, frame)
+			}
+			managerID, err := m.managerSessionID(ctx, frame.agent, nativeSessionID)
+			if err != nil {
+				return err
+			}
+			frame.nativeSessionID = nativeSessionID
+			frame.managerSessionID = managerID
+			targetSessionID = managerID
 		}
-		managerID, err := m.managerSessionID(ctx, frame.agent, nativeSessionID)
-		if err != nil {
-			return err
-		}
-		frame.nativeSessionID = nativeSessionID
-		frame.managerSessionID = managerID
-		targetSessionID = managerID
 	}
 	payload, ok, err := rewriteACPFrameSessionID(frame.payload, targetSessionID)
 	if err != nil {

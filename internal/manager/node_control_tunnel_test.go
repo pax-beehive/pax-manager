@@ -832,11 +832,17 @@ func TestNodeControlRuntimeSnapshotPersistsACPPoolCapabilityReport(t *testing.T)
 	require.Equal(t, "fingerprint_1", report.CommandFingerprint)
 }
 
-func TestNodeControlSessionRuntimeSnapshotReconcilesActiveThenAbsentSession(t *testing.T) {
+func TestNodeControlSessionRuntimeSnapshotDefersUnknownUntilCanonicalBindingThenReconcilesAbsent(t *testing.T) {
 	srv, registered := testNodeControlServer(t, "todd@example.com")
 	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
 	defer closeServer()
 	defer func() { _ = ws.Close() }()
+	principal := UserPrincipal{User: User{UserID: registered.Agent.OwnerUserID}}
+	canonical, err := srv.store.CreateNodeAgentSession(t.Context(), principal, CreateSessionRequest{
+		NodeID: registered.NodeID, AgentID: registered.AgentID, SessionID: "sess_encrypted",
+		Source: "console",
+	})
+	require.NoError(t, err)
 
 	writeSessionRuntimeReport := func(sequence int, activeTurns string) {
 		require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{
@@ -857,15 +863,30 @@ func TestNodeControlSessionRuntimeSnapshotReconcilesActiveThenAbsentSession(t *t
 		"native_session_id":"native_1","turn_instance_id":"turn_1",
 		"prompt_request_id":1,"runtime_status":"running"
 	}]`)
-	principal := UserPrincipal{User: User{UserID: registered.Agent.OwnerUserID}}
 	require.Eventually(t, func() bool {
 		sessions, err := srv.store.ListAgentSessions(t.Context(), principal, registered.AgentID)
-		return err == nil && len(sessions) == 1 && sessions[0].NativeID == "native_1" &&
+		return err == nil && len(sessions) == 1 && sessions[0].SessionID == canonical.SessionID &&
+			sessions[0].NativeID == "" && sessions[0].RuntimeStatus == domain.RuntimeStatusIdle
+	}, time.Second, 10*time.Millisecond)
+
+	require.NoError(t, srv.store.UpsertAgentSessions(t.Context(), Node{
+		NodeID: registered.NodeID, OwnerUserID: registered.Agent.OwnerUserID,
+	}, registered.AgentID, []SessionStatusInput{{
+		SessionID: canonical.SessionID, NativeID: "native_1", Status: "idle",
+	}}))
+	writeSessionRuntimeReport(2, `[{
+		"native_session_id":"native_1","turn_instance_id":"turn_1",
+		"prompt_request_id":1,"runtime_status":"running"
+	}]`)
+	require.Eventually(t, func() bool {
+		sessions, err := srv.store.ListAgentSessions(t.Context(), principal, registered.AgentID)
+		return err == nil && len(sessions) == 1 && sessions[0].SessionID == canonical.SessionID &&
+			sessions[0].NativeID == "native_1" &&
 			sessions[0].RuntimeStatus == domain.RuntimeStatusRunning &&
 			sessions[0].RuntimeTurnInstanceID == "turn_1"
 	}, time.Second, 10*time.Millisecond)
 
-	writeSessionRuntimeReport(2, `[]`)
+	writeSessionRuntimeReport(3, `[]`)
 	require.Eventually(t, func() bool {
 		sessions, err := srv.store.ListAgentSessions(t.Context(), principal, registered.AgentID)
 		return err == nil && len(sessions) == 1 &&
@@ -879,6 +900,12 @@ func TestSessionRuntimeResetEndpointForwardsCanonicalCompareIdentity(t *testing.
 	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
 	defer closeServer()
 	defer func() { _ = ws.Close() }()
+	principal := UserPrincipal{User: User{UserID: registered.Agent.OwnerUserID}}
+	session, err := srv.store.CreateNodeAgentSession(t.Context(), principal, CreateSessionRequest{
+		NodeID: registered.NodeID, AgentID: registered.AgentID,
+		SessionID: "sess_encrypted", NativeID: "native_1", Source: "console",
+	})
+	require.NoError(t, err)
 
 	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{
 		"kind":"report","version":1,"report_id":"rpt_inventory",
@@ -903,15 +930,10 @@ func TestSessionRuntimeResetEndpointForwardsCanonicalCompareIdentity(t *testing.
 				"prompt_request_id":1,"runtime_status":"running"
 			}]}}
 	}`, registered.NodeID, registered.AgentID))))
-	principal := UserPrincipal{User: User{UserID: registered.Agent.OwnerUserID}}
-	var session AgentSession
 	require.Eventually(t, func() bool {
 		sessions, err := srv.store.ListAgentSessions(t.Context(), principal, registered.AgentID)
-		if err != nil || len(sessions) != 1 || sessions[0].RuntimeTurnInstanceID != "turn_1" {
-			return false
-		}
-		session = sessions[0]
-		return true
+		return err == nil && len(sessions) == 1 && sessions[0].SessionID == session.SessionID &&
+			sessions[0].RuntimeTurnInstanceID == "turn_1"
 	}, time.Second, 10*time.Millisecond)
 
 	req := httptest.NewRequest(

@@ -967,22 +967,21 @@ func TestConversationGivenNativePermissionChoiceWhenCreatingThenConfiguresBefore
 		t,
 		httpServer.URL,
 		fixture,
-		`{"input":"hello","permission_choice_id":"agent:mode:agent","approval_mode":"manual"}`,
+		`{"input":"hello","permission_choice_id":"agent:config-option:mode:agent","approval_mode":"manual"}`,
 		respCh,
 		errCh,
 	)
 
-	sessionNew := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, sessionNew.Payload, "session/new")
-	writeAgentDataFrame(
+	sessionNew, sessionNewRequest := readMockACPRequest(t, agentWS, "session/new")
+	managerSessionID := sessionNew.Metadata["manager_session_id"]
+	require.NotEmpty(t, managerSessionID)
+	writeMockACPResponse(
 		t,
 		agentWS,
 		sessionNew.QueueID,
 		1,
+		sessionNewRequest.ID,
 		json.RawMessage(`{
-			"jsonrpc":"2.0",
-			"id":1,
-			"result":{
 				"sessionId":"native-permission-session",
 				"configOptions":[{
 					"id":"mode",
@@ -993,32 +992,39 @@ func TestConversationGivenNativePermissionChoiceWhenCreatingThenConfiguresBefore
 						{"value":"agent","name":"Agent"}
 					]
 				}]
-			}
 		}`),
 	)
 
-	setConfig := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, setConfig.Payload, "session/set_config_option")
-	assertACPParamString(t, setConfig.Payload, "sessionId", "native-permission-session")
+	setConfig, setConfigRequest := readMockACPRequest(
+		t,
+		agentWS,
+		"session/set_config_option",
+	)
+	assert.Equal(t, managerSessionID, setConfig.Metadata["manager_session_id"])
+	assert.Equal(t, "native-permission-session", setConfig.Metadata["native_session_id"])
+	assertACPParamString(t, setConfig.Payload, "sessionId", managerSessionID)
 	assertACPParamString(t, setConfig.Payload, "configId", "mode")
 	assertACPParamString(t, setConfig.Payload, "value", "agent")
-	writeAgentDataFrame(
+	writeMockACPResponse(
 		t,
 		agentWS,
 		setConfig.QueueID,
 		2,
-		json.RawMessage(`{"jsonrpc":"2.0","id":2,"result":{}}`),
+		setConfigRequest.ID,
+		json.RawMessage(`{}`),
 	)
 
-	prompt := readNextManagerToAgentData(t, agentWS)
-	assertACPMethod(t, prompt.Payload, "session/prompt")
-	assertFrameSessionID(t, prompt.Payload, "native-permission-session")
-	writeAgentDataFrame(
+	prompt, promptRequest := readMockACPRequest(t, agentWS, "session/prompt")
+	assert.Equal(t, managerSessionID, prompt.Metadata["manager_session_id"])
+	assert.Equal(t, "native-permission-session", prompt.Metadata["native_session_id"])
+	assertFrameSessionID(t, prompt.Payload, managerSessionID)
+	writeMockACPResponse(
 		t,
 		agentWS,
 		prompt.QueueID,
 		3,
-		json.RawMessage(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`),
+		promptRequest.ID,
+		json.RawMessage(`{"stopReason":"end_turn"}`),
 	)
 
 	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
@@ -1030,6 +1036,7 @@ func TestConversationGivenNativePermissionChoiceWhenCreatingThenConfiguresBefore
 		sessionEvent.SessionID,
 	)
 	require.NoError(t, err)
+	assert.Equal(t, "native-permission-session", stored.NativeID)
 	assert.Equal(t, domain.SessionApprovalModeManual, stored.PaxConfig.ApprovalMode)
-	assert.Equal(t, "agent:mode:agent", stored.PaxConfig.PermissionChoiceID)
+	assert.Equal(t, "agent:config-option:mode:agent", stored.PaxConfig.PermissionChoiceID)
 }

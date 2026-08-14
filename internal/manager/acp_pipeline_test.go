@@ -248,7 +248,7 @@ func TestACPApprovalMiddlewareGivenSessionAutoApproveAllThenAllowsAutoApprove(t 
 	assert.Equal(t, "turn_business", frame.businessTurnID)
 }
 
-func TestACPSessionIDMiddlewareTranslatesFramePayloadAtUserBoundary(t *testing.T) {
+func TestACPSessionIDMiddlewareKeepsOuterIDForPaxdBoundary(t *testing.T) {
 	ctx := context.Background()
 	store := storage.NewMemoryStore(func() time.Time {
 		return time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
@@ -294,7 +294,8 @@ func TestACPSessionIDMiddlewareTranslatesFramePayloadAtUserBoundary(t *testing.T
 		),
 	)
 	if err := middleware.HandleACPFrame(ctx, userFrame, func(_ context.Context, frame *acpFrameContext) error {
-		assertFrameSessionID(t, frame.payload, "harness-session-1")
+		assertFrameSessionID(t, frame.payload, "sess_manager_1")
+		assert.Equal(t, "harness-session-1", frame.nativeSessionID)
 		return nil
 	}); err != nil {
 		t.Fatalf("user frame middleware: %v", err)
@@ -361,7 +362,8 @@ func TestACPSessionIDMiddlewareUsesPayloadSessionWhenAgentContextEmpty(t *testin
 		),
 	)
 	if err := middleware.HandleACPFrame(ctx, userFrame, func(_ context.Context, frame *acpFrameContext) error {
-		assertFrameSessionID(t, frame.payload, "harness-session-1")
+		assertFrameSessionID(t, frame.payload, "sess_manager_1")
+		assert.Equal(t, "harness-session-1", frame.nativeSessionID)
 		return nil
 	}); err != nil {
 		t.Fatalf("user frame middleware: %v", err)
@@ -543,7 +545,8 @@ func TestACPSessionLifecycleMiddlewareBindsSessionNewResponse(t *testing.T) {
 		),
 	)
 	if err := pipeline.Handle(ctx, promptFrame, func(_ context.Context, frame *acpFrameContext) error {
-		assertFrameSessionID(t, frame.payload, "native-session-1")
+		assertFrameSessionID(t, frame.payload, "sess-manager-1")
+		assert.Equal(t, "native-session-1", frame.nativeSessionID)
 		return nil
 	}); err != nil {
 		t.Fatalf("prompt pipeline: %v", err)

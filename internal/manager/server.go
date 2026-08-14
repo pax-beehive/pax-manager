@@ -47,6 +47,7 @@ type Service struct {
 	userapi           *userapi.Service
 	paxdArtifacts     paxdArtifactBackend
 	backgroundRunner  func(context.Context, func(context.Context))
+	e2eeEventWakes    *e2eeWakeRegistry
 }
 
 type Server = Service
@@ -113,7 +114,8 @@ func newServer(cfg Config, store Store) *Service {
 			cfg.RegisterLimitBurst,
 			time.Now,
 		),
-		secrets: secrets,
+		secrets:        secrets,
+		e2eeEventWakes: newE2EEWakeRegistry(),
 		backgroundRunner: func(ctx context.Context, task func(context.Context)) {
 			go task(context.WithoutCancel(ctx))
 		},
@@ -367,6 +369,28 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.GET(
 		routeUserSessionEvents,
 		adaptor.HertzHandler(http.HandlerFunc(s.handleSessionObserverEvents)),
+	)
+	h.POST(
+		routeUserSessionE2EECommands,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleE2EECommands)),
+	)
+	h.GET(
+		routeUserSessionE2EEEvents,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleE2EEEvents)),
+	)
+	h.GET(
+		routeUserSessionE2EEHistory,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleE2EEHistory)),
+	)
+	h.POST(routeUserAgentE2EEPairings, s.handleCreateE2EEPairing)
+	h.GET(routeUserAgentE2EEPairings, s.handleListE2EEPairings)
+	h.POST(routeUserAgentE2EEPairingPackage, s.handleCompleteUserE2EEPairing)
+	h.GET(routeUserAgentE2EEKeyPackage, s.handleGetE2EEKeyPackage)
+	h.GET(routeNodeAgentE2EEPairing, NodeAuth(), s.handleGetNodeE2EEPairing)
+	h.POST(
+		routeNodeAgentE2EEPairingPackage,
+		NodeAuth(),
+		s.handleCompleteNodeE2EEPairing,
 	)
 	h.POST(
 		routeUserSessionRuntimeReset,

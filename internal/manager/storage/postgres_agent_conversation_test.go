@@ -475,6 +475,7 @@ func postgresSessionValues(
 		"",
 		[]byte(`[]`),
 		domain.MessageSourceACPTunnel,
+		domain.SessionTransportManager,
 		"idle",
 		"",
 		nil,

@@ -591,7 +591,9 @@ func (r *conversationRunner) sendCancelRaw(ctx context.Context, payload []byte) 
 		ctx,
 		frame,
 		func(_ context.Context, frame *acpFrameContext) error {
-			return r.agentConn.writeToAgent(ctx, frame.messageType, frame.payload)
+			return r.agentConn.writeSessionFrame(
+				ctx, frame.managerSessionID, frame.nativeSessionID, frame.messageType, frame.payload,
+			)
 		},
 	)
 }
