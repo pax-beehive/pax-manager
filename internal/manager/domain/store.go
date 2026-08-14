@@ -52,6 +52,7 @@ type ReliableTransportJournal interface {
 
 type Store interface {
 	ReliableTransportJournal
+	PermissionCatalogStore
 
 	EnsureUser(ctx context.Context, email string, displayName string, role string) (User, error)
 	GetUser(ctx context.Context, userID string) (User, error)

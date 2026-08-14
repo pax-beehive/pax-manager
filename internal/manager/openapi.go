@@ -128,6 +128,20 @@ func addAgentFleetPaths(doc map[string]any) {
 			},
 		},
 	}
+	paths[openAPIUserAgentPermissionCatalog] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "Get agent permission catalog",
+			"description": "Returns the owner-scoped permission choices resolved from live observations or versioned server profiles.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  []map[string]any{userPathParam, agentPathParam},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Permission catalog."},
+				"401": map[string]string{"description": "User authentication failed."},
+				"404": map[string]string{"description": "Owned agent not found."},
+			},
+		},
+	}
 }
 
 func addSessionHistoryPath(doc map[string]any) {

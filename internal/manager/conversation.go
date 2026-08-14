@@ -23,16 +23,18 @@ const (
 )
 
 var conversationRequestIdleTimeout = 5 * time.Minute
+var provisionalConversationCleanupTimeout = time.Second
 
 type conversationRequest struct {
-	SessionID        string                     `json:"session_id,omitempty"`
-	Input            string                     `json:"input"`
-	Content          []conversationContentBlock `json:"content,omitempty"`
-	Resume           json.RawMessage            `json:"resume,omitempty"`
-	CWD              string                     `json:"cwd,omitempty"`
-	ApprovalMode     string                     `json:"approval_mode,omitempty"`
-	PrimaryProjectID string                     `json:"primary_project_id,omitempty"`
-	ProjectTargetID  string                     `json:"project_target_id,omitempty"`
+	SessionID          string                     `json:"session_id,omitempty"`
+	Input              string                     `json:"input"`
+	Content            []conversationContentBlock `json:"content,omitempty"`
+	Resume             json.RawMessage            `json:"resume,omitempty"`
+	CWD                string                     `json:"cwd,omitempty"`
+	ApprovalMode       string                     `json:"approval_mode,omitempty"`
+	PermissionChoiceID string                     `json:"permission_choice_id,omitempty"`
+	PrimaryProjectID   string                     `json:"primary_project_id,omitempty"`
+	ProjectTargetID    string                     `json:"project_target_id,omitempty"`
 }
 
 type conversationEvent struct {
@@ -249,6 +251,7 @@ func (s *Service) readConversationRequest(
 	}
 	req.CWD = strings.TrimSpace(req.CWD)
 	req.ApprovalMode = strings.TrimSpace(req.ApprovalMode)
+	req.PermissionChoiceID = strings.TrimSpace(req.PermissionChoiceID)
 	if err := validateConversationSessionOptions(req); err != nil {
 		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
@@ -283,12 +286,29 @@ func validateConversationSessionOptions(req conversationRequest) error {
 				"use session PATCH to change it",
 		)
 	}
+	if req.SessionID != "" && req.PermissionChoiceID != "" {
+		return errors.New("permission_choice_id can only be set when creating a session")
+	}
 	if req.SessionID != "" &&
 		(req.PrimaryProjectID != "" || req.ProjectTargetID != "") {
 		return errors.New("project context can only be set when creating a session")
 	}
 	if req.ApprovalMode != "" && !domain.IsSessionApprovalMode(req.ApprovalMode) {
 		return errors.New("approval_mode must be manual or auto_approve_all")
+	}
+	if req.PermissionChoiceID != "" &&
+		req.PermissionChoiceID != domain.PermissionChoicePAXAutoApprove &&
+		!strings.HasPrefix(req.PermissionChoiceID, "agent:") {
+		return errors.New("permission_choice_id is invalid")
+	}
+	if req.PermissionChoiceID != "" && req.ApprovalMode != "" {
+		expected := domain.SessionApprovalModeManual
+		if req.PermissionChoiceID == domain.PermissionChoicePAXAutoApprove {
+			expected = domain.SessionApprovalModeAutoApproveAll
+		}
+		if req.ApprovalMode != expected {
+			return errors.New("approval_mode conflicts with permission_choice_id")
+		}
 	}
 	return nil
 }
@@ -445,6 +465,33 @@ func (s *Service) createConversationSession(
 			Message: "ACP session/new did not return a sessionId",
 		}
 	}
+	keepProvisionalSession := false
+	defer func() {
+		if !keepProvisionalSession {
+			s.rollbackProvisionalConversationSession(
+				ctx,
+				runner,
+				runner.agentConn.agentID,
+				managerSessionID,
+			)
+		}
+	}()
+	if req.PermissionChoiceID != "" {
+		resolved, err := s.resolveConversationPermissionChoice(
+			ctx,
+			principal,
+			runner.agentConn.agentID,
+			req.PermissionChoiceID,
+			resp.Result,
+		)
+		if err != nil {
+			return conversationSession{}, err
+		}
+		approvalMode = resolved.ApprovalMode
+		if err := applyResolvedPermissionChoice(ctx, runner, managerSessionID, resolved); err != nil {
+			return conversationSession{}, err
+		}
+	}
 	if _, err := s.store.CreateNodeAgentSession(ctx, principal, domain.CreateSessionRequest{
 		NodeID:           runner.agentConn.nodeID,
 		AgentID:          runner.agentConn.agentID,
@@ -452,13 +499,48 @@ func (s *Service) createConversationSession(
 		Source:           domain.MessageSourceACPTunnel,
 		PrimaryProjectID: req.PrimaryProjectID,
 		PaxConfig: domain.SessionPaxConfig{
-			CWD:          cwd,
-			ApprovalMode: approvalMode,
+			CWD:                cwd,
+			ApprovalMode:       approvalMode,
+			PermissionChoiceID: req.PermissionChoiceID,
 		},
 	}); err != nil {
 		return conversationSession{}, err
 	}
+	keepProvisionalSession = true
 	return conversationSession{managerID: managerSessionID}, nil
+}
+
+type provisionalConversationSessionCleaner interface {
+	DeleteProvisionalAgentSession(context.Context, string, string) error
+}
+
+func (s *Service) rollbackProvisionalConversationSession(
+	ctx context.Context,
+	runner permissionConfigRequester,
+	agentID string,
+	sessionID string,
+) {
+	baseCtx := context.WithoutCancel(ctx)
+	closeCtx, cancelClose := context.WithTimeout(baseCtx, provisionalConversationCleanupTimeout)
+	_, _ = runner.request(closeCtx, "session/close", map[string]any{
+		"sessionId": sessionID,
+	}, nil)
+	cancelClose()
+
+	cleaner, ok := s.store.(provisionalConversationSessionCleaner)
+	if !ok {
+		return
+	}
+	deleteCtx, cancelDelete := context.WithTimeout(baseCtx, provisionalConversationCleanupTimeout)
+	defer cancelDelete()
+	if err := cleaner.DeleteProvisionalAgentSession(deleteCtx, agentID, sessionID); err != nil &&
+		!errors.Is(err, domain.ErrNotFound) {
+		logging.Warn(
+			baseCtx,
+			"provisional conversation session cleanup failed",
+			logging.Err(err),
+		)
+	}
 }
 
 func (s *Service) promptConversation(
