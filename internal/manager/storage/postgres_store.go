@@ -1116,6 +1116,21 @@ func (s *PostgresStore) UpsertNodeStatus(
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if report.RuntimeFence != "" {
+		var currentFence string
+		err = tx.QueryRowContext(ctx, `
+			SELECT connection_fence
+			FROM node_runtime_fences
+			WHERE node_id = $1
+			FOR UPDATE
+		`, node.NodeID).Scan(&currentFence)
+		if errors.Is(err, sql.ErrNoRows) || err == nil && currentFence != report.RuntimeFence {
+			return ErrConflict
+		}
+		if err != nil {
+			return err
+		}
+	}
 	now := s.now().UTC()
 	if report.MachineType != "" {
 		node.MachineType = report.MachineType
@@ -1195,6 +1210,17 @@ func (s *PostgresStore) UpsertNodeStatus(
 			// An existing agent with this ID belongs to a different node or
 			// owner. Status reports must never re-home agents.
 			continue
+		}
+		if input.RuntimeIdentity != nil {
+			identity := *input.RuntimeIdentity
+			identity.AgentID = agentID
+			writeIdentity := upsertAgentRuntimeIdentity
+			if report.RuntimeFence != "" {
+				writeIdentity = replaceAgentRuntimeIdentity
+			}
+			if err := writeIdentity(ctx, tx, identity); err != nil {
+				return err
+			}
 		}
 		for _, session := range input.Sessions {
 			if session.SessionID == "" {
@@ -1698,7 +1724,8 @@ func (s *PostgresStore) CreateNodeAgentSession(
 			return AgentSession{}, err
 		}
 	}
-	if req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != "" {
+	if req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != "" ||
+		req.PaxConfig.PermissionChoiceID != "" {
 		config := req.PaxConfig
 		config.ApprovalMode = normalizeSessionApprovalMode(config.ApprovalMode)
 		if err := updateSessionPaxConfig(
@@ -1750,6 +1777,7 @@ func (s *PostgresStore) UpdateNodeAgentSession(
 	if req.PaxConfig.ApprovalMode != "" {
 		config := session.PaxConfig
 		config.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
+		config.PermissionChoiceID = ""
 		if err := updateSessionPaxConfig(
 			ctx,
 			dbExecer{s.db},
@@ -1804,9 +1832,9 @@ func (s *PostgresStore) LinkAgentSessionNativeID(
 	return err
 }
 
-// SetSessionApprovalMode overwrites the session's pax_config approval mode.
-// A2A inquiry target sessions carry no meaningful cwd, so replacing pax_config
-// is acceptable here.
+// SetSessionApprovalMode overwrites the legacy approval policy while preserving
+// unrelated session config. A legacy override clears permission_choice_id so a
+// native/manual selection cannot coexist with auto approval.
 func (s *PostgresStore) SetSessionApprovalMode(
 	ctx context.Context,
 	agentID string,
@@ -1818,14 +1846,51 @@ func (s *PostgresStore) SetSessionApprovalMode(
 	if agentID == "" || sessionID == "" {
 		return nil
 	}
-	return updateSessionPaxConfig(
-		ctx,
-		dbExecer{s.db},
-		agentID,
-		sessionID,
-		SessionPaxConfig{ApprovalMode: normalizeSessionApprovalMode(mode)},
-		s.now().UTC(),
-	)
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE agent_sessions
+		SET metadata = jsonb_set(
+			COALESCE(metadata, '{}'::jsonb),
+			'{pax_config}',
+			(COALESCE(metadata->'pax_config', '{}'::jsonb) - 'permission_choice_id') ||
+				jsonb_build_object('approval_mode', $3::text),
+			true
+		),
+			updated_at = $4
+		WHERE agent_id = $1 AND session_id = $2
+	`, agentID, sessionID, normalizeSessionApprovalMode(mode), s.now().UTC())
+	if err != nil {
+		return err
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteProvisionalAgentSession removes an exact session/new binding that
+// never advanced to its first prompt. Session-owned rows cascade from the
+// agent_sessions foreign key.
+func (s *PostgresStore) DeleteProvisionalAgentSession(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+) error {
+	agentID = strings.TrimSpace(agentID)
+	sessionID = strings.TrimSpace(sessionID)
+	if agentID == "" || sessionID == "" {
+		return ErrNotFound
+	}
+	result, err := s.db.ExecContext(ctx, `
+		DELETE FROM agent_sessions
+		WHERE agent_id = $1 AND session_id = $2
+	`, agentID, sessionID)
+	if err != nil {
+		return err
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *PostgresStore) ListAgents(ctx context.Context, principal UserPrincipal) ([]Agent, error) {

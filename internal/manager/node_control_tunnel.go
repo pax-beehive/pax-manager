@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -219,6 +220,34 @@ type nodeControlAgentRuntime struct {
 	ACPPoolCapabilityReport json.RawMessage `json:"acp_pool_capability_report,omitempty"`
 }
 
+type nodeControlACPPoolCapabilityReport struct {
+	SchemaVersion      int    `json:"schema_version"`
+	ConnectionID       string `json:"connection_id"`
+	ReportGeneration   int64  `json:"report_generation"`
+	ProtocolVersion    int    `json:"protocol_version"`
+	PaxdVersion        string `json:"paxd_version"`
+	CommandFingerprint string `json:"command_fingerprint"`
+	ClientProfileHash  string `json:"client_profile_hash"`
+	WorkerResultHash   string `json:"worker_result_hash"`
+	PoolConsistency    string `json:"pool_consistency"`
+	Implementation     struct {
+		ACPAgent struct {
+			Name    string `json:"name"`
+			Title   string `json:"title"`
+			Version string `json:"version"`
+		} `json:"acp_agent"`
+		Runtime *struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+			Build   string `json:"build"`
+			Channel string `json:"channel"`
+		} `json:"runtime,omitempty"`
+		IdentityFingerprint string `json:"identity_fingerprint"`
+	} `json:"implementation"`
+	// Accept the early v2 draft location while paxd installations roll over.
+	IdentityFingerprint string `json:"identity_fingerprint"`
+}
+
 func (s *Server) handleNodeControlTunnelFrame(
 	ctx context.Context,
 	node Node,
@@ -262,7 +291,7 @@ func (s *Server) handleNodeControlTunnelFrameWithFence(
 			NodeID: node.NodeID, Timestamp: observedAt,
 		})
 	case "runtime.snapshot":
-		return s.upsertRuntimeSnapshotReport(ctx, node, frame.Report)
+		return s.upsertRuntimeSnapshotReport(ctx, node, connectionFence, frame.Report)
 	case "session_runtime.snapshot":
 		return s.replaceSessionRuntimeSnapshot(ctx, node, connectionFence, frame.Report)
 	case "attachment.local_state":
@@ -351,6 +380,7 @@ func (s *Server) replaceSessionRuntimeSnapshot(
 func (s *Server) upsertRuntimeSnapshotReport(
 	ctx context.Context,
 	node Node,
+	connectionFence string,
 	report nodeControlReport,
 ) error {
 	if report.RuntimeSnapshot == nil {
@@ -361,28 +391,188 @@ func (s *Server) upsertRuntimeSnapshotReport(
 		_ = json.Unmarshal(report.RuntimeSnapshot.Host, &host)
 	}
 	status := domain.NodeStatusReport{
-		NodeID:      node.NodeID,
-		MachineType: host.MachineName,
-		OS:          host.OS,
-		Arch:        host.Arch,
-		Timestamp:   s.clock().UTC(),
-		System:      cloneRawJSON(report.RuntimeSnapshot.Host),
-		Metadata:    runtimeSnapshotNodeMetadata(report.RemoteID, report.RuntimeSnapshot),
+		NodeID:       node.NodeID,
+		RuntimeFence: connectionFence,
+		MachineType:  host.MachineName,
+		OS:           host.OS,
+		Arch:         host.Arch,
+		Timestamp:    s.clock().UTC(),
+		System:       cloneRawJSON(report.RuntimeSnapshot.Host),
+		Metadata:     runtimeSnapshotNodeMetadata(report.RemoteID, report.RuntimeSnapshot),
 	}
+	observedAt := s.clock().UTC()
 	for _, agent := range report.RuntimeSnapshot.Agents {
 		if agent.CloudAgentID == "" {
 			continue
 		}
+		identity, err := parseAgentRuntimeIdentity(
+			agent.CloudAgentID,
+			agent.AgentType,
+			agent.ConnectionID,
+			agent.ACPPoolCapabilityReport,
+			observedAt,
+		)
+		if err != nil {
+			logging.Warn(
+				ctx,
+				"runtime snapshot ignored invalid ACP identity",
+				slog.String("agent_id", agent.CloudAgentID),
+				logging.Err(err),
+			)
+			identity = nil
+		}
+		if identity == nil {
+			identity = unknownAgentRuntimeIdentity(
+				agent.CloudAgentID,
+				agent.ConnectionID,
+				agent.ObservedGeneration,
+				connectionFence,
+				observedAt,
+			)
+		}
+		identity.ReportEpoch = connectionFence
 		status.Agents = append(status.Agents, domain.AgentStatusInput{
-			AgentID:   agent.CloudAgentID,
-			Name:      agent.Name,
-			AgentType: agent.AgentType,
-			Status:    runtimePhaseAgentStatus(agent.RuntimePhase),
-			Online:    runtimePhaseAgentOnline(agent.RuntimePhase),
-			Metadata:  runtimeSnapshotAgentMetadata(agent),
+			AgentID:         agent.CloudAgentID,
+			Name:            agent.Name,
+			AgentType:       agent.AgentType,
+			Status:          runtimePhaseAgentStatus(agent.RuntimePhase),
+			Online:          runtimePhaseAgentOnline(agent.RuntimePhase),
+			Metadata:        runtimeSnapshotAgentMetadata(agent),
+			RuntimeIdentity: identity,
 		})
 	}
 	return s.store.UpsertNodeStatus(ctx, node, status)
+}
+
+func unknownAgentRuntimeIdentity(
+	agentID string,
+	connectionID string,
+	reportGeneration int64,
+	reportEpoch string,
+	observedAt time.Time,
+) *domain.AgentRuntimeIdentity {
+	value := strings.Join([]string{
+		"unknown",
+		strings.TrimSpace(agentID),
+		strings.TrimSpace(connectionID),
+		strings.TrimSpace(reportEpoch),
+	}, "\n")
+	return &domain.AgentRuntimeIdentity{
+		AgentID:             agentID,
+		ReportEpoch:         reportEpoch,
+		ConnectionID:        connectionID,
+		ReportGeneration:    reportGeneration,
+		IdentityFingerprint: fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(value))),
+		PoolConsistency:     "unknown",
+		ObservedAt:          observedAt.UTC(),
+	}
+}
+
+func parseAgentRuntimeIdentity(
+	agentID string,
+	agentType string,
+	runtimeConnectionID string,
+	raw json.RawMessage,
+	observedAt time.Time,
+) (*domain.AgentRuntimeIdentity, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var report nodeControlACPPoolCapabilityReport
+	if err := json.Unmarshal(raw, &report); err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+	if report.SchemaVersion != 1 && report.SchemaVersion != 2 {
+		return nil, fmt.Errorf("unsupported schema_version %d", report.SchemaVersion)
+	}
+	if report.ConnectionID != "" && runtimeConnectionID != "" &&
+		report.ConnectionID != runtimeConnectionID {
+		return nil, errors.New("connection_id does not match runtime agent")
+	}
+	identity := &domain.AgentRuntimeIdentity{
+		AgentID:            agentID,
+		SchemaVersion:      report.SchemaVersion,
+		ConnectionID:       firstNonEmpty(report.ConnectionID, runtimeConnectionID),
+		ReportGeneration:   report.ReportGeneration,
+		ProtocolVersion:    report.ProtocolVersion,
+		CommandFingerprint: strings.TrimSpace(report.CommandFingerprint),
+		ClientProfileHash:  strings.TrimSpace(report.ClientProfileHash),
+		WorkerResultHash:   strings.TrimSpace(report.WorkerResultHash),
+		PoolConsistency:    strings.ToLower(strings.TrimSpace(report.PoolConsistency)),
+		ObservedAt:         observedAt.UTC(),
+	}
+	if report.SchemaVersion == 1 {
+		identity.IdentityFingerprint = legacyRuntimeIdentityFingerprint(agentType, report)
+		return identity, nil
+	}
+	identity.ACPAgentName = strings.TrimSpace(report.Implementation.ACPAgent.Name)
+	identity.ACPAgentTitle = strings.TrimSpace(report.Implementation.ACPAgent.Title)
+	identity.ACPAgentVersion = strings.TrimSpace(report.Implementation.ACPAgent.Version)
+	if report.Implementation.Runtime != nil {
+		identity.RuntimeName = strings.TrimSpace(report.Implementation.Runtime.Name)
+		identity.RuntimeVersion = strings.TrimSpace(report.Implementation.Runtime.Version)
+		identity.RuntimeBuild = strings.TrimSpace(report.Implementation.Runtime.Build)
+		identity.RuntimeChannel = strings.TrimSpace(report.Implementation.Runtime.Channel)
+	}
+	identity.IdentityFingerprint = strings.TrimSpace(firstNonEmpty(
+		report.Implementation.IdentityFingerprint,
+		report.IdentityFingerprint,
+	))
+	if identity.IdentityFingerprint == "" {
+		identity.IdentityFingerprint = fallbackRuntimeIdentityFingerprint(agentType, report)
+	} else {
+		identity.IdentityFingerprint = effectiveObservationFingerprint(
+			identity.IdentityFingerprint,
+			report,
+		)
+	}
+	return identity, nil
+}
+
+func effectiveObservationFingerprint(
+	implementationFingerprint string,
+	report nodeControlACPPoolCapabilityReport,
+) string {
+	value := strings.Join([]string{
+		strings.TrimSpace(implementationFingerprint),
+		strings.TrimSpace(report.ClientProfileHash),
+		strings.TrimSpace(report.CommandFingerprint),
+		strings.TrimSpace(report.WorkerResultHash),
+	}, "\n")
+	return fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(value)))
+}
+
+func legacyRuntimeIdentityFingerprint(
+	agentType string,
+	report nodeControlACPPoolCapabilityReport,
+) string {
+	return fallbackRuntimeIdentityFingerprint(agentType, report)
+}
+
+func fallbackRuntimeIdentityFingerprint(
+	agentType string,
+	report nodeControlACPPoolCapabilityReport,
+) string {
+	runtimeName := ""
+	runtimeVersion := ""
+	if report.Implementation.Runtime != nil {
+		runtimeName = report.Implementation.Runtime.Name
+		runtimeVersion = report.Implementation.Runtime.Version
+	}
+	value := strings.Join([]string{
+		fmt.Sprintf("v%d", report.SchemaVersion),
+		strings.ToLower(strings.TrimSpace(agentType)),
+		strings.TrimSpace(report.PaxdVersion),
+		strings.TrimSpace(report.CommandFingerprint),
+		strings.TrimSpace(report.ClientProfileHash),
+		strings.TrimSpace(report.WorkerResultHash),
+		fmt.Sprint(report.ProtocolVersion),
+		strings.TrimSpace(report.Implementation.ACPAgent.Name),
+		strings.TrimSpace(report.Implementation.ACPAgent.Version),
+		strings.TrimSpace(runtimeName),
+		strings.TrimSpace(runtimeVersion),
+	}, "\n")
+	return fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(value)))
 }
 
 func runtimePhaseAgentStatus(phase string) string {

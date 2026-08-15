@@ -384,6 +384,100 @@ CREATE TABLE IF NOT EXISTS agent_runtime_snapshot_heads (
     CHECK (runtime_authority IN ('frames', 'snapshot'))
 );
 
+CREATE TABLE IF NOT EXISTS agent_runtime_identities (
+    agent_id TEXT PRIMARY KEY REFERENCES agents(agent_id) ON DELETE CASCADE,
+    report_epoch TEXT NOT NULL DEFAULT '',
+    schema_version INTEGER NOT NULL,
+    connection_id TEXT NOT NULL,
+    report_generation BIGINT NOT NULL,
+    protocol_version INTEGER NOT NULL DEFAULT 0,
+    acp_agent_name TEXT NOT NULL DEFAULT '',
+    acp_agent_title TEXT NOT NULL DEFAULT '',
+    acp_agent_version TEXT NOT NULL DEFAULT '',
+    runtime_name TEXT NOT NULL DEFAULT '',
+    runtime_version TEXT NOT NULL DEFAULT '',
+    runtime_build TEXT NOT NULL DEFAULT '',
+    runtime_channel TEXT NOT NULL DEFAULT '',
+    identity_fingerprint TEXT NOT NULL,
+    command_fingerprint TEXT NOT NULL DEFAULT '',
+    client_profile_hash TEXT NOT NULL DEFAULT '',
+    worker_result_hash TEXT NOT NULL DEFAULT '',
+    pool_consistency TEXT NOT NULL DEFAULT '',
+    observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE agent_runtime_identities
+    ADD COLUMN IF NOT EXISTS report_epoch TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_runtime_identities
+    ADD COLUMN IF NOT EXISTS client_profile_hash TEXT NOT NULL DEFAULT '';
+
+CREATE INDEX IF NOT EXISTS idx_agent_runtime_identities_fingerprint
+    ON agent_runtime_identities(identity_fingerprint);
+
+CREATE TABLE IF NOT EXISTS agent_permission_profiles (
+    profile_id TEXT NOT NULL,
+    revision BIGINT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    owner_user_id TEXT REFERENCES users(user_id) ON DELETE CASCADE,
+    agent_type TEXT NOT NULL DEFAULT '',
+    acp_agent_name TEXT NOT NULL DEFAULT '',
+    acp_agent_version_constraint TEXT NOT NULL DEFAULT '',
+    runtime_name TEXT NOT NULL DEFAULT '',
+    runtime_version_constraint TEXT NOT NULL DEFAULT '',
+    priority INTEGER NOT NULL DEFAULT 0,
+    definition JSONB NOT NULL,
+    source TEXT NOT NULL DEFAULT 'admin',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (profile_id, revision),
+    CHECK (status IN ('draft', 'active', 'retired'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_permission_profiles_match
+    ON agent_permission_profiles(status, agent_type, acp_agent_name, priority DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_permission_profiles_owner
+    ON agent_permission_profiles(owner_user_id, status, priority DESC);
+
+INSERT INTO agent_permission_profiles (
+    profile_id,
+    revision,
+    status,
+    agent_type,
+    acp_agent_name,
+    acp_agent_version_constraint,
+    runtime_name,
+    runtime_version_constraint,
+    priority,
+    definition,
+    source
+) VALUES (
+    'codex-acp.permissions',
+    1,
+    'active',
+    'codex',
+    '@agentclientprotocol/codex-acp',
+    '*',
+    'codex',
+    '*',
+    100,
+    '{"binding":{"kind":"config_option","config_id":"mode","category":"mode"},"default_choice_id":"agent:mode:agent","native_choices":[{"choice_id":"agent:mode:read-only","label":"Read-only","value":"read-only","risk":"read_only"},{"choice_id":"agent:mode:agent","label":"Agent","value":"agent","risk":"workspace_write"},{"choice_id":"agent:mode:agent-full-access","label":"Agent (full access)","value":"agent-full-access","risk":"host_full_access","requires_confirmation":true}]}'::jsonb,
+    'builtin'
+)
+ON CONFLICT (profile_id, revision) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS agent_permission_observations (
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    identity_fingerprint TEXT NOT NULL,
+    catalog_revision BIGINT NOT NULL DEFAULT 1,
+    catalog_hash TEXT NOT NULL,
+    catalog JSONB NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (agent_id, identity_fingerprint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_permission_observations_expiry
+    ON agent_permission_observations(agent_id, expires_at DESC);
+
 CREATE TABLE IF NOT EXISTS agent_native_session_bindings (
     agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
     native_session_id TEXT NOT NULL,

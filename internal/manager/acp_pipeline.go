@@ -134,6 +134,7 @@ func (m acpSessionLifecycleMiddleware) HandleACPFrame(
 		return next(ctx, frame)
 	}
 	frame.managerSessionID = managerSessionID
+	frame.requestKind = "session/new"
 	if len(frame.frame.Error) > 0 {
 		return next(ctx, frame)
 	}

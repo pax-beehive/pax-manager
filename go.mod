@@ -4,6 +4,7 @@ go 1.25.8
 
 require (
 	cloud.google.com/go/storage v1.62.3
+	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/apache/thrift v0.13.0
 	github.com/cloudwego/hertz v0.10.5
 	github.com/gorilla/websocket v1.5.3
@@ -50,7 +51,6 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.31.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.55.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.55.0 // indirect
-	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/MirrexOne/unqueryvet v1.5.4 // indirect
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
 	github.com/alecthomas/chroma/v2 v2.24.1 // indirect

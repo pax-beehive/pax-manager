@@ -46,6 +46,18 @@ func (s canonicalSessionStore) ReplaceAgentActiveTurns(
 	return runtimeStore.ReplaceAgentActiveTurns(ctx, node, snapshot)
 }
 
+func (s canonicalSessionStore) DeleteProvisionalAgentSession(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+) error {
+	cleaner, ok := s.Store.(provisionalConversationSessionCleaner)
+	if !ok {
+		return domain.ErrConflict
+	}
+	return cleaner.DeleteProvisionalAgentSession(ctx, agentID, sessionID)
+}
+
 func (s canonicalSessionStore) UpsertMessage(ctx context.Context, msg *domain.Message) error {
 	if msg != nil && msg.AgentID != "" && msg.SessionID != "" && msg.OwnerUserID != "" {
 		sessionID, err := s.canonicalSessionID(ctx, msg.OwnerUserID, msg.AgentID, msg.SessionID)

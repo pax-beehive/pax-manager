@@ -178,8 +178,9 @@ func IsSessionApprovalMode(mode string) bool {
 }
 
 type SessionPaxConfig struct {
-	CWD          string `json:"cwd,omitempty"`
-	ApprovalMode string `json:"approval_mode,omitempty"`
+	CWD                string `json:"cwd,omitempty"`
+	ApprovalMode       string `json:"approval_mode,omitempty"`
+	PermissionChoiceID string `json:"permission_choice_id,omitempty"`
 }
 
 const (
@@ -1587,15 +1588,16 @@ type AgentStatusReport struct {
 }
 
 type NodeStatusReport struct {
-	NodeID      string             `json:"node_id"`
-	Hostname    string             `json:"hostname"`
-	MachineType string             `json:"machine_type"`
-	OS          string             `json:"os"`
-	Arch        string             `json:"arch"`
-	Timestamp   time.Time          `json:"timestamp"`
-	Agents      []AgentStatusInput `json:"agents"`
-	System      json.RawMessage    `json:"system"`
-	Metadata    json.RawMessage    `json:"metadata"`
+	NodeID       string             `json:"node_id"`
+	RuntimeFence string             `json:"-"`
+	Hostname     string             `json:"hostname"`
+	MachineType  string             `json:"machine_type"`
+	OS           string             `json:"os"`
+	Arch         string             `json:"arch"`
+	Timestamp    time.Time          `json:"timestamp"`
+	Agents       []AgentStatusInput `json:"agents"`
+	System       json.RawMessage    `json:"system"`
+	Metadata     json.RawMessage    `json:"metadata"`
 }
 
 type NodeAgentSessionReport struct {
@@ -1603,17 +1605,18 @@ type NodeAgentSessionReport struct {
 }
 
 type AgentStatusInput struct {
-	AgentID       string               `json:"agent_id"`
-	Name          string               `json:"name"`
-	Description   string               `json:"description"`
-	Card          json.RawMessage      `json:"card"`
-	AgentType     string               `json:"agent_type"`
-	Status        string               `json:"status"`
-	Online        bool                 `json:"online"`
-	LastHeartbeat *time.Time           `json:"last_heartbeat"`
-	Capabilities  json.RawMessage      `json:"capabilities"`
-	Metadata      json.RawMessage      `json:"metadata"`
-	Sessions      []SessionStatusInput `json:"sessions"`
+	AgentID         string                `json:"agent_id"`
+	Name            string                `json:"name"`
+	Description     string                `json:"description"`
+	Card            json.RawMessage       `json:"card"`
+	AgentType       string                `json:"agent_type"`
+	Status          string                `json:"status"`
+	Online          bool                  `json:"online"`
+	LastHeartbeat   *time.Time            `json:"last_heartbeat"`
+	Capabilities    json.RawMessage       `json:"capabilities"`
+	Metadata        json.RawMessage       `json:"metadata"`
+	Sessions        []SessionStatusInput  `json:"sessions"`
+	RuntimeIdentity *AgentRuntimeIdentity `json:"-"`
 }
 
 type SessionStatusInput struct {

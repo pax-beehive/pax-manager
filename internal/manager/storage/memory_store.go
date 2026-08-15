@@ -35,6 +35,9 @@ type MemoryStore struct {
 	sessions                     map[string]AgentSession
 	nodeRuntimeFences            map[string]string
 	agentRuntimeSnapshotHeads    map[string]memoryAgentRuntimeSnapshotHead
+	agentRuntimeIdentities       map[string]domain.AgentRuntimeIdentity
+	permissionProfiles           map[string]domain.AgentPermissionProfile
+	permissionObservations       map[string]domain.AgentPermissionObservation
 	projects                     map[string]Project
 	projectTargets               map[string]ProjectTarget
 	mailbox                      map[int64]MailboxMessage
@@ -91,7 +94,7 @@ type MemoryStore struct {
 }
 
 func NewMemoryStore(now func() time.Time) *MemoryStore {
-	return &MemoryStore{
+	store := &MemoryStore{
 		now:                          now,
 		nodes:                        make(map[string]Node),
 		agents:                       make(map[string]Agent),
@@ -110,6 +113,9 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		sessions:                     make(map[string]AgentSession),
 		nodeRuntimeFences:            make(map[string]string),
 		agentRuntimeSnapshotHeads:    make(map[string]memoryAgentRuntimeSnapshotHead),
+		agentRuntimeIdentities:       make(map[string]domain.AgentRuntimeIdentity),
+		permissionProfiles:           make(map[string]domain.AgentPermissionProfile),
+		permissionObservations:       make(map[string]domain.AgentPermissionObservation),
 		projects:                     make(map[string]Project),
 		projectTargets:               make(map[string]ProjectTarget),
 		mailbox:                      make(map[int64]MailboxMessage),
@@ -156,6 +162,8 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		sessionArtifacts:             make(map[string]SessionArtifact),
 		sessionArtifactContents:      make(map[artifactContentKey]ArtifactContent),
 	}
+	store.seedPermissionProfiles()
+	return store
 }
 
 type transportFrameKey struct {
@@ -1042,6 +1050,9 @@ func (s *MemoryStore) UpsertNodeStatus(
 	if !ok {
 		return ErrNotFound
 	}
+	if report.RuntimeFence != "" && s.nodeRuntimeFences[node.NodeID] != report.RuntimeFence {
+		return ErrConflict
+	}
 	now := s.now().UTC()
 	current.Status = "online"
 	current.Online = true
@@ -1070,6 +1081,17 @@ func (s *MemoryStore) UpsertNodeStatus(
 				continue
 			}
 			return err
+		}
+		if input.RuntimeIdentity != nil {
+			identity := *input.RuntimeIdentity
+			identity.AgentID = agent.AgentID
+			if report.RuntimeFence != "" {
+				s.agentRuntimeIdentities[identity.AgentID] = identity
+			} else {
+				if err := s.upsertAgentRuntimeIdentityLocked(identity); err != nil {
+					return err
+				}
+			}
 		}
 		for _, session := range input.Sessions {
 			if session.SessionID == "" {
@@ -1360,7 +1382,8 @@ func (s *MemoryStore) CreateNodeAgentSession(
 	if session.CreatedByUserID == "" {
 		session.CreatedByUserID = createdBy
 	}
-	if req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != "" {
+	if req.PaxConfig.CWD != "" || req.PaxConfig.ApprovalMode != "" ||
+		req.PaxConfig.PermissionChoiceID != "" {
 		session.PaxConfig = req.PaxConfig
 		session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(
 			session.PaxConfig.ApprovalMode,
@@ -1438,6 +1461,7 @@ func (s *MemoryStore) UpdateNodeAgentSession(
 	}
 	if req.PaxConfig.ApprovalMode != "" {
 		session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
+		session.PaxConfig.PermissionChoiceID = ""
 	}
 	if req.Archived != nil {
 		if *req.Archived {
@@ -2584,10 +2608,34 @@ func (s *MemoryStore) SetSessionApprovalMode(
 	key := sessionKey(agentID, sessionID)
 	session, ok := s.sessions[key]
 	if !ok {
-		return nil
+		return ErrNotFound
 	}
 	session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(mode)
+	session.PaxConfig.PermissionChoiceID = ""
+	session.Metadata = paxConfigMetadata(session.Metadata, session.PaxConfig)
 	s.sessions[key] = session
+	return nil
+}
+
+// DeleteProvisionalAgentSession removes an exact session/new binding that
+// never advanced to its first prompt.
+func (s *MemoryStore) DeleteProvisionalAgentSession(
+	_ context.Context,
+	agentID string,
+	sessionID string,
+) error {
+	agentID = strings.TrimSpace(agentID)
+	sessionID = strings.TrimSpace(sessionID)
+	if agentID == "" || sessionID == "" {
+		return ErrNotFound
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := sessionKey(agentID, sessionID)
+	if _, ok := s.sessions[key]; !ok {
+		return ErrNotFound
+	}
+	delete(s.sessions, key)
 	return nil
 }
 
