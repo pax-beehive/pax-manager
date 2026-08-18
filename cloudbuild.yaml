@@ -1,21 +1,12 @@
-# DEPRECATED: Cloud Run deployment is kept only as a manual rollback path.
-# Production CI/CD for pax-manager now uses cloudbuild.vm.yaml to deploy to
-# the single VM backend. Do not attach main-branch triggers to this file.
+# DEPRECATED: archived Cloud Run build/push pipeline. Deployment is intentionally
+# disabled because the old Cloud Run path does not provision the required S3
+# object-storage configuration and credentials. Production CI/CD uses
+# cloudbuild.vm.yaml. Do not attach triggers to this file.
 
 substitutions:
   _REGION: us-west1
   _REPOSITORY: pax-manager
-  _SERVICE: pax-manager
   _IMAGE: pax-manager
-  _ADMIN_EMAILS: ""
-  _REGISTRATION_TOKEN_OWNER_EMAIL: ""
-  _CLOUDFLARE_ACCESS_ISSUER: "https://billowing-dream-9314.cloudflareaccess.com"
-  _CLOUDFLARE_ACCESS_AUD: "1a59397a05310415570607d5dbfa973e1bcfb74a7a4617c9bc859112cfa0efca"
-  _CLOUDFLARE_ACCESS_JWKS_URL: "https://billowing-dream-9314.cloudflareaccess.com/cdn-cgi/access/certs"
-  # ACP tunnels are process-local WebSockets; keep Cloud Run scale low until
-  # manager has a cross-instance tunnel backplane.
-  _MAX_INSTANCES: "2"
-  _TIMEOUT: "300s"
 
 steps:
   - id: build
@@ -37,29 +28,6 @@ steps:
     args:
       - push
       - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
-
-  - id: deploy
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: gcloud
-    args:
-      - run
-      - deploy
-      - ${_SERVICE}
-      - --image
-      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
-      - --region
-      - ${_REGION}
-      - --platform
-      - managed
-      - --allow-unauthenticated
-      - --port
-      - "9879"
-      - --max-instances
-      - ${_MAX_INSTANCES}
-      - --timeout
-      - ${_TIMEOUT}
-      - --update-env-vars
-      - ADMIN_EMAILS=${_ADMIN_EMAILS},REGISTRATION_TOKEN_OWNER_EMAIL=${_REGISTRATION_TOKEN_OWNER_EMAIL},CLOUDFLARE_ACCESS_ISSUER=${_CLOUDFLARE_ACCESS_ISSUER},CLOUDFLARE_ACCESS_AUD=${_CLOUDFLARE_ACCESS_AUD},CLOUDFLARE_ACCESS_JWKS_URL=${_CLOUDFLARE_ACCESS_JWKS_URL}
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}

@@ -93,7 +93,7 @@ func (s *MemoryStore) CompleteArtifactUpload(
 		Bucket:      upload.Bucket,
 		Object:      upload.Object,
 		Generation:  attrs.Generation,
-		StorageURI:  "gs://" + upload.Bucket + "/" + upload.Object,
+		StorageURI:  "s3://" + upload.Bucket + "/" + upload.Object,
 	}
 	artifactReq := CreateSessionArtifactRequest{
 		Kind:          firstNonEmpty(req.Kind, upload.Kind),

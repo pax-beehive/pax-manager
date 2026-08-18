@@ -148,7 +148,7 @@ func newServer(cfg Config, store Store) *Service {
 		)
 	})
 	s.configureTeamMemexExecutor()
-	s.paxdArtifacts = newGCPPaxdArtifactBackend(cfg)
+	s.paxdArtifacts = newS3PaxdArtifactBackend(cfg)
 	return s
 }
 

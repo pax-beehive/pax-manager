@@ -19,6 +19,7 @@ import (
 const (
 	defaultSessionArtifactUploadTTL = 15 * time.Minute
 	sessionArtifactContentRefMain   = "main"
+	maxSinglePutObjectSizeBytes     = int64(5 * 1024 * 1024 * 1024)
 )
 
 var artifactKindPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
@@ -67,20 +68,23 @@ func (s *Service) handleCreateArtifactUpload(c context.Context, ctx *app.Request
 		upload.Bucket,
 		upload.Object,
 		upload.ContentType,
+		upload.SHA256,
 		expiresAt,
 	)
 	if err != nil {
 		writeEndpointError(ctx, err)
 		return
 	}
+	headers := objectUploadHeaders(upload.ContentType, upload.SHA256)
 	writeData(ctx, http.StatusOK, ArtifactUploadTicket{
 		UploadID:   upload.UploadID,
+		Protocol:   "s3_presigned_put",
 		Method:     http.MethodPut,
 		URL:        url,
 		Bucket:     upload.Bucket,
 		Object:     upload.Object,
 		ExpiresAt:  expiresAt,
-		Headers:    map[string]string{"Content-Type": upload.ContentType},
+		Headers:    headers,
 		Upload:     upload,
 		ContentRef: sessionArtifactContentRefMain,
 		CompleteURL: strings.ReplaceAll(strings.ReplaceAll(
@@ -131,11 +135,15 @@ func (s *Service) handleCompleteArtifactUpload(c context.Context, ctx *app.Reque
 		writeEndpointError(ctx, err)
 		return
 	}
-	if attrs.ContentType == "" ||
-		(attrs.ContentType == "application/octet-stream" &&
-			upload.ContentType != "" &&
-			upload.ContentType != "application/octet-stream") {
-		attrs.ContentType = upload.ContentType
+	attrs = normalizeUploadedObjectAttrs(attrs, upload.ContentType)
+	if err := validateUploadedObject(
+		attrs,
+		upload.SizeBytes,
+		upload.ContentType,
+		upload.SHA256,
+	); err != nil {
+		writeEndpointError(ctx, err)
+		return
 	}
 	completed, artifact, err := s.store.CompleteArtifactUpload(
 		c,
@@ -145,7 +153,7 @@ func (s *Service) handleCompleteArtifactUpload(c context.Context, ctx *app.Reque
 			Filename:    upload.Filename,
 			ContentType: attrs.ContentType,
 			SizeBytes:   attrs.SizeBytes,
-			SHA256:      upload.SHA256,
+			SHA256:      attrs.SHA256,
 			Generation:  attrs.Generation,
 		},
 		req,
@@ -236,7 +244,7 @@ func (s *Service) handleGetArtifactContent(c context.Context, ctx *app.RequestCo
 	if content.Bucket == "" || content.Object == "" {
 		writeEndpointError(ctx, apperr.Error{
 			Status:  http.StatusBadRequest,
-			Message: "artifact content is not backed by gcs",
+			Message: "artifact content is not backed by object storage",
 		})
 		return
 	}
@@ -333,6 +341,9 @@ func normalizeCreateArtifactUploadRequest(
 			Message: "size_bytes must be non-negative",
 		}
 	}
+	if err := validateSinglePutObjectSize(req.SizeBytes); err != nil {
+		return CreateArtifactUploadRequest{}, err
+	}
 	if req.SHA256 != "" && !paxdSHA256Pattern.MatchString(req.SHA256) {
 		return CreateArtifactUploadRequest{}, apperr.Error{
 			Status:  http.StatusBadRequest,
@@ -370,7 +381,7 @@ func normalizeCreateSessionArtifactRequest(
 			content.StorageURI != "" || content.Generation != 0 {
 			return CreateSessionArtifactRequest{}, apperr.Error{
 				Status:  http.StatusBadRequest,
-				Message: "gcs-backed artifact contents must be created via artifact uploads",
+				Message: "object-storage-backed artifact contents must be created via artifact uploads",
 			}
 		}
 	}
@@ -400,16 +411,77 @@ func normalizeArtifactKind(kind string) string {
 }
 
 func (s *Service) sessionArtifactBucket() (string, error) {
-	if s.cfg.SessionArtifactGCSBucket != "" {
-		return s.cfg.SessionArtifactGCSBucket, nil
-	}
-	if s.cfg.PaxdArtifactGCSMock {
-		return "mock-session-artifacts", nil
+	if s.cfg.ObjectStorageBucket != "" {
+		return s.cfg.ObjectStorageBucket, nil
 	}
 	return "", apperr.Error{
 		Status:  http.StatusInternalServerError,
-		Message: "session artifact gcs bucket is not configured",
+		Message: "object storage bucket is not configured",
 	}
+}
+
+func objectUploadHeaders(contentType string, objectSHA256 string) map[string]string {
+	headers := map[string]string{
+		"Content-Type":  contentType,
+		"If-None-Match": "*",
+	}
+	if objectSHA256 != "" {
+		headers["x-amz-meta-sha256"] = objectSHA256
+	}
+	if checksum := objectSHA256Checksum(objectSHA256); checksum != "" {
+		headers["x-amz-checksum-sha256"] = checksum
+	}
+	return headers
+}
+
+func validateUploadedObject(
+	attrs paxdArtifactObjectAttrs,
+	expectedSize int64,
+	expectedContentType string,
+	expectedSHA256 string,
+) error {
+	if attrs.Generation <= 0 {
+		return artifactIntegrityConflict("uploaded object generation is missing")
+	}
+	if attrs.SizeBytes != expectedSize {
+		return artifactIntegrityConflict("uploaded object size does not match")
+	}
+	if expectedContentType != "" && attrs.ContentType != expectedContentType {
+		return artifactIntegrityConflict("uploaded object content type does not match")
+	}
+	if expectedSHA256 != "" {
+		if attrs.SHA256 == "" {
+			return artifactIntegrityConflict("uploaded object sha256 metadata is missing")
+		}
+		if !strings.EqualFold(attrs.SHA256, expectedSHA256) {
+			return artifactIntegrityConflict("uploaded object sha256 does not match")
+		}
+	}
+	return nil
+}
+
+func normalizeUploadedObjectAttrs(
+	attrs paxdArtifactObjectAttrs,
+	expectedContentType string,
+) paxdArtifactObjectAttrs {
+	if attrs.ContentType == "" ||
+		(attrs.ContentType == "application/octet-stream" &&
+			expectedContentType != "" &&
+			expectedContentType != "application/octet-stream") {
+		attrs.ContentType = expectedContentType
+	}
+	return attrs
+}
+
+func validateSinglePutObjectSize(sizeBytes int64) error {
+	if sizeBytes > maxSinglePutObjectSizeBytes {
+		return apperr.Error{
+			Status: http.StatusBadRequest,
+			Message: "size_bytes exceeds the 5 GiB single PUT limit; " +
+				"multipart upload is not supported",
+		}
+	}
+	return nil
 }
 
 func (s *Service) sessionArtifactUploadTTL() time.Duration {

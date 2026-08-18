@@ -42,17 +42,9 @@ type paxdArtifactBackend interface {
 		bucket string,
 		object string,
 		contentType string,
-		expiresAt time.Time,
-	) (string, error)
-	SignResumableUploadURL(
-		ctx context.Context,
-		bucket string,
-		object string,
-		contentType string,
 		sha256 string,
 		expiresAt time.Time,
 	) (string, error)
-	VerifyUploader(ctx context.Context, token string, audience string) (string, error)
 	ObjectAttrs(
 		ctx context.Context,
 		bucket string,
@@ -159,7 +151,7 @@ func (s *Service) handlePublishArtifact(
 	ctx *app.RequestContext,
 	routeProduct string,
 ) {
-	principal, err := s.authenticatePaxdArtifactUploader(c, ctx)
+	principal, err := s.authenticateArtifactPublisher(c, ctx)
 	if err != nil {
 		writeEndpointError(ctx, err)
 		return
@@ -175,7 +167,21 @@ func (s *Service) handlePublishArtifact(
 		writeEndpointError(ctx, err)
 		return
 	}
-	attrs, err := s.paxdArtifacts.ObjectAttrs(c, req.Bucket, req.Object, req.Generation)
+	if s.cfg.ObjectStorageBucket == "" {
+		writeEndpointError(ctx, apperr.Error{
+			Status:  http.StatusInternalServerError,
+			Message: "object storage bucket is not configured",
+		})
+		return
+	}
+	if req.Bucket != s.cfg.ObjectStorageBucket {
+		writeEndpointError(ctx, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "bucket must match the configured object storage bucket",
+		})
+		return
+	}
+	attrs, err := s.paxdArtifacts.ObjectAttrs(c, req.Bucket, req.Object, 0)
 	if err != nil {
 		writeEndpointError(ctx, err)
 		return
@@ -185,18 +191,35 @@ func (s *Service) handlePublishArtifact(
 	} else if attrs.Generation != 0 && attrs.Generation != req.Generation {
 		writeEndpointError(ctx, apperr.Error{
 			Status:  http.StatusConflict,
-			Message: "gcs object generation mismatch",
+			Message: "object storage generation mismatch",
 		})
 		return
 	}
 	if req.SizeBytes == 0 {
 		req.SizeBytes = attrs.SizeBytes
+	} else if req.SizeBytes != attrs.SizeBytes {
+		writeEndpointError(ctx, artifactIntegrityConflict("uploaded object size does not match"))
+		return
 	}
 	if req.ContentType == "" {
 		req.ContentType = attrs.ContentType
+	} else if req.ContentType != attrs.ContentType {
+		writeEndpointError(ctx, artifactIntegrityConflict("uploaded object content type does not match"))
+		return
+	}
+	if attrs.SHA256 == "" {
+		writeEndpointError(
+			ctx,
+			artifactIntegrityConflict("uploaded object sha256 metadata is missing"),
+		)
+		return
+	}
+	if !strings.EqualFold(attrs.SHA256, req.SHA256) {
+		writeEndpointError(ctx, artifactIntegrityConflict("uploaded object sha256 does not match"))
+		return
 	}
 
-	artifact, err := s.store.CreatePaxdArtifact(c, req, principal)
+	artifact, err := s.store.CreatePaxdArtifact(c, req, principal.User.Email)
 	writeEndpointResult(ctx, http.StatusOK, map[string]any{"artifact": artifact}, err)
 }
 
@@ -225,30 +248,26 @@ func paxdArtifactDownloadRequest(
 	return FindPaxdArtifactRequest{Product: product, Platform: platform, Tags: tags}, nil
 }
 
-func (s *Service) authenticatePaxdArtifactUploader(
+func (s *Service) authenticateArtifactPublisher(
 	c context.Context,
 	ctx *app.RequestContext,
-) (string, error) {
+) (UserPrincipal, error) {
 	token := bearerToken(string(ctx.Request.Header.Peek("Authorization")))
 	if token == "" {
-		return "", apperr.Error{Status: http.StatusUnauthorized, Message: "missing bearer token"}
-	}
-	principal, err := s.paxdArtifacts.VerifyUploader(
-		c,
-		token,
-		s.cfg.PaxdArtifactUploadAudience,
-	)
-	if err != nil {
-		return "", err
-	}
-	if len(s.cfg.PaxdArtifactUploadPrincipals) == 0 {
-		return "", apperr.Error{
-			Status:  http.StatusForbidden,
-			Message: "paxd artifact upload principals are not configured",
+		return UserPrincipal{}, apperr.Error{
+			Status:  http.StatusUnauthorized,
+			Message: "missing bearer user API key",
 		}
 	}
-	if !s.cfg.PaxdArtifactUploadPrincipals[principal] {
-		return "", apperr.Error{Status: http.StatusForbidden, Message: "principal is not allowed"}
+	principal, err := s.userPrincipal(c, ctx)
+	if err != nil {
+		return UserPrincipal{}, err
+	}
+	if !principal.IsAdmin {
+		return UserPrincipal{}, apperr.Error{
+			Status:  http.StatusForbidden,
+			Message: "an admin user API key is required",
+		}
 	}
 	return principal, nil
 }

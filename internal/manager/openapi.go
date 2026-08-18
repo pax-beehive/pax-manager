@@ -600,11 +600,15 @@ func addACPWebSocketPaths(doc map[string]any) {
 				},
 			},
 			"responses": map[string]any{
-				"202": map[string]string{"description": "Reset accepted; a complete runtime snapshot is pending."},
+				"202": map[string]string{
+					"description": "Reset accepted; a complete runtime snapshot is pending.",
+				},
 				"400": map[string]string{"description": "Expected turn identity is missing."},
 				"401": map[string]string{"description": "User authentication failed."},
 				"404": map[string]string{"description": "Agent or session was not found."},
-				"409": map[string]string{"description": "The active turn changed or runtime mapping is unavailable."},
+				"409": map[string]string{
+					"description": "The active turn changed or runtime mapping is unavailable.",
+				},
 				"503": map[string]string{"description": "Node control tunnel is unavailable."},
 			},
 		},
@@ -617,17 +621,17 @@ func addPaxdArtifactPaths(doc map[string]any) {
 		paths = map[string]any{}
 		doc["paths"] = paths
 	}
-	ensureSecurityScheme(doc, "googleIam", map[string]any{
+	ensureSecurityScheme(doc, "adminUserAPIKey", map[string]any{
 		"type":         "http",
 		"scheme":       "bearer",
-		"bearerFormat": "Google ID token",
-		"description":  "Google-signed identity token for an allowed IAM principal.",
+		"bearerFormat": "pax user API key",
+		"description":  "Platform user API key whose owner is a configured administrator.",
 	})
 	paths[routeDownloadGenericArtifact] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"artifacts"},
 			"summary":     "Get signed artifact download URL",
-			"description": "Returns a short-lived signed GCS URL for the newest binary matching the requested product, platform, and tags.",
+			"description": "Returns a short-lived presigned S3-compatible URL for the newest binary matching the requested product, platform, and tags.",
 			"parameters": []map[string]any{
 				{
 					"name":        "product",
@@ -724,7 +728,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 		"get": map[string]any{
 			"tags":        []string{"paxd"},
 			"summary":     "Redirect to paxd installer script",
-			"description": "Redirects to a short-lived signed GCS URL for the latest stable paxd installer shell script.",
+			"description": "Redirects to a short-lived presigned S3-compatible URL for the latest stable paxd installer shell script.",
 			"responses": map[string]any{
 				"302": map[string]string{"description": "Redirect to signed installer URL."},
 			},
@@ -734,7 +738,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 		"get": map[string]any{
 			"tags":        []string{"paxl"},
 			"summary":     "Redirect to paxl installer script",
-			"description": "Redirects to a short-lived signed GCS URL for the latest stable paxl installer shell script.",
+			"description": "Redirects to a short-lived presigned S3-compatible URL for the latest stable paxl installer shell script.",
 			"responses": map[string]any{
 				"302": map[string]string{"description": "Redirect to signed installer URL."},
 			},
@@ -744,8 +748,8 @@ func addPaxdArtifactPaths(doc map[string]any) {
 		"post": map[string]any{
 			"tags":        []string{"paxd"},
 			"summary":     "Publish paxd artifact metadata",
-			"description": "Compatibility alias for the generic artifact publish endpoint with product=paxd. The caller must present a Google-signed identity token for an allowed IAM principal.",
-			"security":    []map[string][]string{{"googleIam": {}}},
+			"description": "Compatibility alias for the generic artifact publish endpoint with product=paxd. The caller must present an admin user API key as a Bearer token.",
+			"security":    []map[string][]string{{"adminUserAPIKey": {}}},
 			"requestBody": map[string]any{
 				"required": true,
 				"content": map[string]any{
@@ -761,10 +765,8 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			},
 			"responses": map[string]any{
 				"200": map[string]string{"description": "Artifact metadata recorded."},
-				"401": map[string]string{
-					"description": "Missing or invalid Google identity token.",
-				},
-				"403": map[string]string{"description": "IAM principal is not allowed."},
+				"401": map[string]string{"description": "Missing or invalid user API key."},
+				"403": map[string]string{"description": "API key owner is not an admin."},
 			},
 		},
 	}
@@ -772,8 +774,8 @@ func addPaxdArtifactPaths(doc map[string]any) {
 		"post": map[string]any{
 			"tags":        []string{"artifacts"},
 			"summary":     "Publish artifact metadata",
-			"description": "Records metadata for a product binary already uploaded to GCS. The caller must present a Google-signed identity token for an allowed IAM principal.",
-			"security":    []map[string][]string{{"googleIam": {}}},
+			"description": "Records metadata for a product binary already uploaded to the configured S3-compatible bucket. The caller must present an admin user API key as a Bearer token.",
+			"security":    []map[string][]string{{"adminUserAPIKey": {}}},
 			"requestBody": map[string]any{
 				"required": true,
 				"content": map[string]any{
@@ -790,7 +792,7 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			"responses": map[string]any{
 				"200": map[string]string{"description": "Artifact metadata recorded."},
 				"401": map[string]string{"description": "Missing or invalid bearer token."},
-				"403": map[string]string{"description": "Principal is not allowed."},
+				"403": map[string]string{"description": "API key owner is not an admin."},
 			},
 		},
 	}

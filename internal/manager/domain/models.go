@@ -1398,6 +1398,7 @@ type CreateArtifactUploadRequest struct {
 
 type ArtifactUploadTicket struct {
 	UploadID    string            `json:"upload_id"`
+	Protocol    string            `json:"protocol"`
 	Method      string            `json:"method"`
 	URL         string            `json:"url"`
 	Bucket      string            `json:"bucket"`

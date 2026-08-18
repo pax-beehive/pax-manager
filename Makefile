@@ -7,6 +7,19 @@ GOLANGCI_LINT_CACHE ?= /tmp/pax-manager-golangci-lint-cache
 DATABASE_URL ?= postgres://pax:pax@localhost:5432/paxdb?sslmode=disable
 PORT ?= 9879
 INTEGRATION_PORT ?= 19879
+MINIO_PORT ?= 19000
+MINIO_ROOT_USER ?= minioadmin
+MINIO_ROOT_PASSWORD ?= minioadmin
+OBJECT_STORAGE_BUCKET ?= pax-artifacts
+OBJECT_STORAGE_PUBLIC_ENDPOINT ?= http://localhost:9000
+AWS_ACCESS_KEY_ID ?= $(MINIO_ROOT_USER)
+AWS_SECRET_ACCESS_KEY ?= $(MINIO_ROOT_PASSWORD)
+export MINIO_ROOT_USER
+export MINIO_ROOT_PASSWORD
+export OBJECT_STORAGE_BUCKET
+export OBJECT_STORAGE_PUBLIC_ENDPOINT
+export AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY
 CLOUD_BUILD_IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf manual)
 HZ_IDL := api/pax_manager.thrift
 HZ_MODULE := github.com/pax-beehive/pax-manager
@@ -44,12 +57,12 @@ help:
 	@printf "  make fmt            Format Go files\n"
 	@printf "  make tidy           Run go mod tidy\n"
 	@printf "  make docker-build   Build manager Docker image\n"
-	@printf "  make cloud-build    Deprecated: submit Cloud Run rollback build\n"
+	@printf "  make cloud-build    Deprecated: build/push archived Cloud Run image; does not deploy\n"
 	@printf "  make cloud-build-vm Submit Cloud Build using cloudbuild.vm.yaml\n"
 	@printf "  make up             Start Postgres and manager with Docker Compose\n"
-	@printf "  make db-up          Start only Postgres with Docker Compose\n"
+	@printf "  make db-up          Start PostgreSQL and MinIO with Docker Compose\n"
 	@printf "  make db-ensure      Create local paxdb database if missing\n"
-	@printf "  make db-reset       Recreate local Postgres volume and start Postgres\n"
+	@printf "  make db-reset       Recreate only the local Postgres database; preserve MinIO artifacts\n"
 	@printf "  make down           Stop Docker Compose services\n"
 	@printf "  make logs           Tail Docker Compose logs\n"
 	@printf "  make psql           Open psql in the Postgres container\n"
@@ -62,11 +75,11 @@ build:
 
 .PHONY: run
 run:
-	PORT=$(PORT) DATABASE_URL="$(DATABASE_URL)" CLOUDFLARE_ACCESS_DISABLED=true ALLOW_LOCAL_USER_HEADER=true go run ./cmd/manager
+	PORT=$(PORT) DATABASE_URL="$(DATABASE_URL)" CLOUDFLARE_ACCESS_DISABLED=true ALLOW_LOCAL_USER_HEADER=true OBJECT_STORAGE_BUCKET="$(OBJECT_STORAGE_BUCKET)" OBJECT_STORAGE_REGION=us-east-1 OBJECT_STORAGE_ENDPOINT=http://localhost:9000 OBJECT_STORAGE_PUBLIC_ENDPOINT="$(OBJECT_STORAGE_PUBLIC_ENDPOINT)" OBJECT_STORAGE_FORCE_PATH_STYLE=true go run ./cmd/manager
 
 .PHONY: run-memory
 run-memory:
-	PORT=$(PORT) DATABASE_URL= CLOUDFLARE_ACCESS_DISABLED=true ALLOW_LOCAL_USER_HEADER=true go run ./cmd/manager
+	PORT=$(PORT) DATABASE_URL= CLOUDFLARE_ACCESS_DISABLED=true ALLOW_LOCAL_USER_HEADER=true OBJECT_STORAGE_BUCKET="$(OBJECT_STORAGE_BUCKET)" OBJECT_STORAGE_REGION=us-east-1 OBJECT_STORAGE_ENDPOINT=http://localhost:9000 OBJECT_STORAGE_PUBLIC_ENDPOINT="$(OBJECT_STORAGE_PUBLIC_ENDPOINT)" OBJECT_STORAGE_FORCE_PATH_STYLE=true go run ./cmd/manager
 
 .PHONY: test
 test:
@@ -83,13 +96,13 @@ test-race:
 
 .PHONY: integration-test
 integration-test:
-	INTEGRATION_PORT=$(INTEGRATION_PORT) docker compose -f docker-compose.integration.yml -p pax-manager-integration down -v --remove-orphans
-	INTEGRATION_PORT=$(INTEGRATION_PORT) docker compose -f docker-compose.integration.yml -p pax-manager-integration up --build -d postgres manager
-	INTEGRATION_BASE_URL=http://localhost:$(INTEGRATION_PORT) GOCACHE=$(GOCACHE) go test -tags=integration -count=1 ./integration
+	INTEGRATION_PORT=$(INTEGRATION_PORT) MINIO_PORT=$(MINIO_PORT) docker compose -f docker-compose.integration.yml -p pax-manager-integration down -v --remove-orphans
+	INTEGRATION_PORT=$(INTEGRATION_PORT) MINIO_PORT=$(MINIO_PORT) docker compose -f docker-compose.integration.yml -p pax-manager-integration up --build -d postgres manager
+	INTEGRATION_BASE_URL=http://localhost:$(INTEGRATION_PORT) PAX_MANAGER_OBJECT_STORAGE_BUCKET="$(OBJECT_STORAGE_BUCKET)" PAX_MANAGER_OBJECT_STORAGE_PUBLIC_ENDPOINT=http://localhost:$(MINIO_PORT) GOCACHE=$(GOCACHE) go test -tags=integration -count=1 ./integration
 
 .PHONY: integration-down
 integration-down:
-	INTEGRATION_PORT=$(INTEGRATION_PORT) docker compose -f docker-compose.integration.yml -p pax-manager-integration down -v --remove-orphans
+	INTEGRATION_PORT=$(INTEGRATION_PORT) MINIO_PORT=$(MINIO_PORT) docker compose -f docker-compose.integration.yml -p pax-manager-integration down -v --remove-orphans
 
 .PHONY: paxd-integration-up
 paxd-integration-up:
@@ -146,7 +159,7 @@ docker-build:
 
 .PHONY: cloud-build
 cloud-build:
-	@printf "Deprecated: cloudbuild.yaml deploys Cloud Run and is kept only for rollback. Use make cloud-build-vm for VM deployment.\n"
+	@printf "Deprecated: cloudbuild.yaml only builds and pushes; Cloud Run deployment is disabled. Use make cloud-build-vm.\n"
 	gcloud builds submit --config cloudbuild.yaml
 
 .PHONY: cloud-build-vm
@@ -158,7 +171,12 @@ up: db-ensure
 	docker compose up --build -d manager
 
 .PHONY: db-up
-db-up: db-ensure
+db-up: db-ensure object-storage-up
+
+.PHONY: object-storage-up
+object-storage-up:
+	docker compose up --build -d minio-init
+	docker compose wait minio-init
 
 .PHONY: db-ensure
 db-ensure:
@@ -168,8 +186,10 @@ db-ensure:
 
 .PHONY: db-reset
 db-reset:
-	docker compose down -v
-	$(MAKE) db-ensure
+	docker compose stop manager
+	docker compose up --build -d postgres
+	docker compose exec -T postgres sh -c 'until pg_isready -U "$$POSTGRES_USER" -d postgres >/dev/null 2>&1; do sleep 1; done'
+	docker compose exec -T postgres sh -c 'dropdb --force --if-exists -U "$$POSTGRES_USER" "$$POSTGRES_DB" && createdb -U "$$POSTGRES_USER" "$$POSTGRES_DB"'
 
 .PHONY: down
 down:

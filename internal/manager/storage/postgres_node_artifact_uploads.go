@@ -149,7 +149,7 @@ func (s *PostgresStore) CompleteNodeArtifactUpload(
 		Bucket:      upload.Bucket,
 		Object:      upload.Object,
 		Generation:  attrs.Generation,
-		StorageURI:  "gs://" + upload.Bucket + "/" + upload.Object,
+		StorageURI:  "s3://" + upload.Bucket + "/" + upload.Object,
 	}
 	principal := UserPrincipal{User: User{UserID: node.OwnerUserID}}
 	artifact, err := s.createSessionArtifactTx(ctx, tx, principal, CreateSessionArtifactRequest{

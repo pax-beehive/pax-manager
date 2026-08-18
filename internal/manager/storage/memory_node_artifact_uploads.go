@@ -130,7 +130,7 @@ func (s *MemoryStore) CompleteNodeArtifactUpload(
 		Bucket:      upload.Bucket,
 		Object:      upload.Object,
 		Generation:  attrs.Generation,
-		StorageURI:  "gs://" + upload.Bucket + "/" + upload.Object,
+		StorageURI:  "s3://" + upload.Bucket + "/" + upload.Object,
 	}
 	artifact, err := s.createSessionArtifactLocked(principal, CreateSessionArtifactRequest{
 		ArtifactID:    upload.ArtifactID,

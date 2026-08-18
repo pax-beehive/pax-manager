@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -12,37 +13,37 @@ import (
 const DefaultPaxdVerificationBaseURL = "https://ws.paxtech.net"
 
 type Config struct {
-	Port                              string
-	DatabaseURL                       string
-	RegistrationToken                 string
-	RegistrationOwnerEmail            string
-	LocalUserID                       string
-	AllowLocalUserHeader              bool
-	CloudflareAccessDisabled          bool
-	CloudflareAccessIssuer            string
-	CloudflareAccessAud               string
-	CloudflareAccessJWKS              string
-	AdminEmails                       map[string]bool
-	MaxBodyBytes                      int64
-	APIRateLimitPerMinute             int
-	APIRateLimitBurst                 int
-	RegisterLimitPerMinute            int
-	RegisterLimitBurst                int
-	PaxdArtifactDownloadTTL           time.Duration
-	PaxdArtifactUploadAudience        string
-	PaxdArtifactUploadPrincipals      map[string]bool
-	PaxdArtifactSigningServiceAccount string
-	PaxdArtifactGCSMock               bool
-	SessionArtifactGCSBucket          string
-	SessionArtifactUploadTTL          time.Duration
-	PaxdVerificationBaseURL           string
-	TeamMemexExecutor                 string
-	DeepSeekAPIKey                    string
-	DeepSeekBaseURL                   string
-	DeepSeekModel                     string
-	DeepSeekTimeout                   time.Duration
-	DeepSeekMaxTokens                 int
-	DeepSeekTemperature               float64
+	Port                        string
+	DatabaseURL                 string
+	RegistrationToken           string
+	RegistrationOwnerEmail      string
+	LocalUserID                 string
+	AllowLocalUserHeader        bool
+	CloudflareAccessDisabled    bool
+	CloudflareAccessIssuer      string
+	CloudflareAccessAud         string
+	CloudflareAccessJWKS        string
+	AdminEmails                 map[string]bool
+	MaxBodyBytes                int64
+	APIRateLimitPerMinute       int
+	APIRateLimitBurst           int
+	RegisterLimitPerMinute      int
+	RegisterLimitBurst          int
+	PaxdArtifactDownloadTTL     time.Duration
+	ObjectStorageBucket         string
+	ObjectStorageRegion         string
+	ObjectStorageEndpoint       string
+	ObjectStoragePublicEndpoint string
+	ObjectStorageForcePathStyle bool
+	SessionArtifactUploadTTL    time.Duration
+	PaxdVerificationBaseURL     string
+	TeamMemexExecutor           string
+	DeepSeekAPIKey              string
+	DeepSeekBaseURL             string
+	DeepSeekModel               string
+	DeepSeekTimeout             time.Duration
+	DeepSeekMaxTokens           int
+	DeepSeekTemperature         float64
 }
 
 func Load() Config {
@@ -67,16 +68,11 @@ func Load() Config {
 			"PAXD_ARTIFACT_DOWNLOAD_URL_TTL_SECONDS",
 			15*60,
 		)) * time.Second,
-		PaxdArtifactUploadAudience: os.Getenv("PAXD_ARTIFACT_UPLOAD_AUDIENCE"),
-		PaxdArtifactUploadPrincipals: parseStringSet(
-			os.Getenv("PAXD_ARTIFACT_UPLOAD_PRINCIPALS"),
-		),
-		PaxdArtifactSigningServiceAccount: os.Getenv("PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT"),
-		PaxdArtifactGCSMock:               parseBool(os.Getenv("PAXD_ARTIFACT_GCS_MOCK")),
-		SessionArtifactGCSBucket: envDefault(
-			"SESSION_ARTIFACT_GCS_BUCKET",
-			os.Getenv("PAX_ARTIFACT_GCS_BUCKET"),
-		),
+		ObjectStorageBucket:         strings.TrimSpace(os.Getenv("OBJECT_STORAGE_BUCKET")),
+		ObjectStorageRegion:         envDefault("OBJECT_STORAGE_REGION", "us-east-1"),
+		ObjectStorageEndpoint:       strings.TrimSpace(os.Getenv("OBJECT_STORAGE_ENDPOINT")),
+		ObjectStoragePublicEndpoint: objectStoragePublicEndpoint(),
+		ObjectStorageForcePathStyle: parseBool(os.Getenv("OBJECT_STORAGE_FORCE_PATH_STYLE")),
 		SessionArtifactUploadTTL: time.Duration(parseIntEnv(
 			"SESSION_ARTIFACT_UPLOAD_URL_TTL_SECONDS",
 			15*60,
@@ -95,6 +91,17 @@ func Load() Config {
 		DeepSeekMaxTokens:   parseIntEnv("DEEPSEEK_MAX_TOKENS", 384000),
 		DeepSeekTemperature: parseFloatEnv("DEEPSEEK_TEMPERATURE", 0.2),
 	}
+}
+
+func (c Config) Validate() error {
+	if strings.TrimSpace(c.ObjectStorageBucket) == "" {
+		return errors.New("OBJECT_STORAGE_BUCKET is required")
+	}
+	return nil
+}
+
+func objectStoragePublicEndpoint() string {
+	return envDefault("OBJECT_STORAGE_PUBLIC_ENDPOINT", os.Getenv("OBJECT_STORAGE_ENDPOINT"))
 }
 
 func MergeAdminEmails(extra map[string]bool) map[string]bool {
@@ -135,17 +142,6 @@ func ParseEmailSet(raw string) map[string]bool {
 
 func parseEmailSet(raw string) map[string]bool {
 	return ParseEmailSet(raw)
-}
-
-func parseStringSet(raw string) map[string]bool {
-	out := map[string]bool{}
-	for _, part := range strings.Split(raw, ",") {
-		value := strings.TrimSpace(part)
-		if value != "" {
-			out[value] = true
-		}
-	}
-	return out
 }
 
 func parseBool(raw string) bool {
