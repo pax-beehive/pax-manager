@@ -23,6 +23,11 @@ func TestLoad(t *testing.T) {
 			require.False(t, cfg.CloudflareAccessDisabled)
 			require.Equal(t, int64(1<<20), cfg.MaxBodyBytes)
 			require.Equal(t, 15*time.Minute, cfg.PaxdArtifactDownloadTTL)
+			require.Empty(t, cfg.ObjectStorageBucket)
+			require.Equal(t, "us-east-1", cfg.ObjectStorageRegion)
+			require.Empty(t, cfg.ObjectStorageEndpoint)
+			require.Empty(t, cfg.ObjectStoragePublicEndpoint)
+			require.False(t, cfg.ObjectStorageForcePathStyle)
 			require.Equal(t, "https://ws.paxtech.net", cfg.PaxdVerificationBaseURL)
 			require.Equal(t, "dry_run", cfg.TeamMemexExecutor)
 			require.Empty(t, cfg.DeepSeekAPIKey)
@@ -57,16 +62,11 @@ func TestLoad(t *testing.T) {
 			t.Setenv("REGISTER_RATE_LIMIT_PER_MINUTE", "3")
 			t.Setenv("REGISTER_RATE_LIMIT_BURST", "1")
 			t.Setenv("PAXD_ARTIFACT_DOWNLOAD_URL_TTL_SECONDS", "60")
-			t.Setenv("PAXD_ARTIFACT_UPLOAD_AUDIENCE", "https://manager.example.com")
-			t.Setenv(
-				"PAXD_ARTIFACT_UPLOAD_PRINCIPALS",
-				"release-bot@example.iam.gserviceaccount.com",
-			)
-			t.Setenv(
-				"PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT",
-				"signer@example.iam.gserviceaccount.com",
-			)
-			t.Setenv("PAXD_ARTIFACT_GCS_MOCK", "true")
+			t.Setenv("OBJECT_STORAGE_BUCKET", "pax-artifacts")
+			t.Setenv("OBJECT_STORAGE_REGION", "garage")
+			t.Setenv("OBJECT_STORAGE_ENDPOINT", "http://garage:3900")
+			t.Setenv("OBJECT_STORAGE_PUBLIC_ENDPOINT", "https://objects.example.com")
+			t.Setenv("OBJECT_STORAGE_FORCE_PATH_STYLE", "true")
 			t.Setenv("PAXD_VERIFICATION_BASE_URL", "https://app.example.com")
 			t.Setenv("TEAM_MEMEX_EXECUTOR", "deepseek")
 			t.Setenv("DEEPSEEK_API_KEY", "deepseek_test")
@@ -96,17 +96,11 @@ func TestLoad(t *testing.T) {
 			require.Equal(t, 3, cfg.RegisterLimitPerMinute)
 			require.Equal(t, 1, cfg.RegisterLimitBurst)
 			require.Equal(t, time.Minute, cfg.PaxdArtifactDownloadTTL)
-			require.Equal(t, "https://manager.example.com", cfg.PaxdArtifactUploadAudience)
-			require.True(
-				t,
-				cfg.PaxdArtifactUploadPrincipals["release-bot@example.iam.gserviceaccount.com"],
-			)
-			require.Equal(
-				t,
-				"signer@example.iam.gserviceaccount.com",
-				cfg.PaxdArtifactSigningServiceAccount,
-			)
-			require.True(t, cfg.PaxdArtifactGCSMock)
+			require.Equal(t, "pax-artifacts", cfg.ObjectStorageBucket)
+			require.Equal(t, "garage", cfg.ObjectStorageRegion)
+			require.Equal(t, "http://garage:3900", cfg.ObjectStorageEndpoint)
+			require.Equal(t, "https://objects.example.com", cfg.ObjectStoragePublicEndpoint)
+			require.True(t, cfg.ObjectStorageForcePathStyle)
 			require.Equal(t, "https://app.example.com", cfg.PaxdVerificationBaseURL)
 			require.Equal(t, "deepseek", cfg.TeamMemexExecutor)
 			require.Equal(t, "deepseek_test", cfg.DeepSeekAPIKey)
@@ -115,6 +109,20 @@ func TestLoad(t *testing.T) {
 			require.Equal(t, 30*time.Second, cfg.DeepSeekTimeout)
 			require.Equal(t, 4096, cfg.DeepSeekMaxTokens)
 			require.InDelta(t, 0.4, cfg.DeepSeekTemperature, 0.001)
+		},
+	)
+
+	t.Run(
+		"Given only an internal object endpoint when loading config then the public endpoint defaults to it",
+		func(t *testing.T) {
+			clearConfigEnv(t)
+			t.Setenv("OBJECT_STORAGE_BUCKET", "custom-artifacts")
+			t.Setenv("OBJECT_STORAGE_ENDPOINT", "http://minio.internal:9000")
+
+			cfg := config.Load()
+
+			require.Equal(t, "custom-artifacts", cfg.ObjectStorageBucket)
+			require.Equal(t, "http://minio.internal:9000", cfg.ObjectStoragePublicEndpoint)
 		},
 	)
 }
@@ -128,6 +136,26 @@ func TestParseEmailSet(t *testing.T) {
 			require.True(t, admins["one@example.com"])
 			require.True(t, admins["two@example.com"])
 			require.True(t, admins["toddzheng024@gmail.com"])
+		},
+	)
+}
+
+func TestConfigValidate(t *testing.T) {
+	t.Run(
+		"Given no object storage bucket when validating then startup is rejected",
+		func(t *testing.T) {
+			err := (config.Config{}).Validate()
+
+			require.ErrorContains(t, err, "OBJECT_STORAGE_BUCKET")
+		},
+	)
+
+	t.Run(
+		"Given an object storage bucket when validating then config is accepted",
+		func(t *testing.T) {
+			err := (config.Config{ObjectStorageBucket: "pax-artifacts"}).Validate()
+
+			require.NoError(t, err)
 		},
 	)
 }
@@ -152,10 +180,11 @@ func clearConfigEnv(t *testing.T) {
 		"REGISTER_RATE_LIMIT_PER_MINUTE",
 		"REGISTER_RATE_LIMIT_BURST",
 		"PAXD_ARTIFACT_DOWNLOAD_URL_TTL_SECONDS",
-		"PAXD_ARTIFACT_UPLOAD_AUDIENCE",
-		"PAXD_ARTIFACT_UPLOAD_PRINCIPALS",
-		"PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT",
-		"PAXD_ARTIFACT_GCS_MOCK",
+		"OBJECT_STORAGE_BUCKET",
+		"OBJECT_STORAGE_REGION",
+		"OBJECT_STORAGE_ENDPOINT",
+		"OBJECT_STORAGE_PUBLIC_ENDPOINT",
+		"OBJECT_STORAGE_FORCE_PATH_STYLE",
 		"PAXD_VERIFICATION_BASE_URL",
 		"TEAM_MEMEX_EXECUTOR",
 		"DEEPSEEK_API_KEY",

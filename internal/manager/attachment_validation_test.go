@@ -11,7 +11,7 @@ import (
 
 func TestUserAttachmentGivenParentDirectoryFilenameWhenCreatedThenItIsRejected(t *testing.T) {
 	srv, _ := testServer(t, "attachment-path@example.com")
-	srv.cfg.SessionArtifactGCSBucket = "session-artifacts-test"
+	srv.cfg.ObjectStorageBucket = "session-artifacts-test"
 	srv.paxdArtifacts = &fakePaxdArtifactBackend{}
 
 	req := httptest.NewRequest(

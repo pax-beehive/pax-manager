@@ -54,14 +54,107 @@ connection to a machine running paxd.
 | `API_RATE_LIMIT_BURST` | `60` | Per-client burst size for `/api/*` routes. |
 | `REGISTER_RATE_LIMIT_PER_MINUTE` | `30` | Per-client request rate for `/api/agent/register`. |
 | `REGISTER_RATE_LIMIT_BURST` | `10` | Per-client burst size for `/api/agent/register`. |
-| `SESSION_ARTIFACT_GCS_BUCKET` | empty | GCS bucket used for session attachment uploads. Required when attachment APIs are enabled. |
-| `PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT` | empty | Service account used to sign attachment upload and download URLs. |
+| `OBJECT_STORAGE_BUCKET` | none | Required S3-compatible bucket for releases, session artifacts, publications, and attachments. |
+| `OBJECT_STORAGE_REGION` | `us-east-1` | AWS signing region. Non-AWS services may use a configured logical region. |
+| `OBJECT_STORAGE_ENDPOINT` | empty | Optional internal S3 API endpoint used by server-side `HeadObject` calls. Leave empty for AWS S3. |
+| `OBJECT_STORAGE_PUBLIC_ENDPOINT` | `OBJECT_STORAGE_ENDPOINT` | Optional browser- and paxd-reachable endpoint used when creating presigned PUT/GET URLs. Leave empty for AWS S3. |
+| `OBJECT_STORAGE_FORCE_PATH_STYLE` | `false` | Use path-style bucket URLs. Usually required by MinIO and many S3-compatible services. |
 
 Built-in admin emails:
 
 - `toddzheng024@gmail.com`
 - `gengcongkai456789@gmail.com`
 - `zhangjiahang0725@gmail.com`
+
+Object storage credentials use the standard AWS SDK credential chain. Common choices are
+`AWS_ACCESS_KEY_ID` plus `AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`, an ECS task role, or an
+EC2 instance role. pax-manager does not load Google Cloud service-account or ID-token
+credentials for artifact storage.
+
+### AWS S3
+
+For AWS S3, leave both endpoint variables empty:
+
+```bash
+export OBJECT_STORAGE_BUCKET=pax-production-artifacts
+export OBJECT_STORAGE_REGION=us-west-2
+export AWS_PROFILE=pax-production
+```
+
+The IAM identity needs `s3:GetObject` (used for both GET and HEAD requests),
+`s3:GetObjectVersion` (used for version-pinned downloads), and `s3:PutObject` for
+the configured bucket. Browser and paxd uploads use a direct `PUT` ticket with protocol
+`s3_presigned_put`. They must send every returned header, including `Content-Type`,
+`If-None-Match: *`, and, when present, `x-amz-meta-sha256` and
+`x-amz-checksum-sha256`. The latter is the base64 form required by S3, while the API
+continues to accept and store the hex digest. A supporting object store verifies this
+checksum while receiving the body. The precondition makes a ticket write-once: it
+cannot overwrite an object that already exists at the same key.
+
+Enable bucket versioning for generation-pinned downloads. After the manager verifies
+the stored synthetic generation with `HeadObject`, it includes the returned S3
+`VersionId` in the presigned GET, preventing an overwrite between verification and
+download from changing the bytes behind an issued URL. The bundled MinIO Compose
+stacks enable versioning automatically. For AWS S3, enable it once with an account
+allowed to manage the bucket, for example:
+
+```bash
+aws s3api put-bucket-versioning \
+  --bucket "$OBJECT_STORAGE_BUCKET" \
+  --versioning-configuration Status=Enabled
+```
+
+Unversioned S3-compatible buckets remain supported, but can only reject a stale
+generation at signing time; they cannot bind the subsequent GET to that exact object
+version if another credential overwrites the key concurrently.
+
+If the PUT returns HTTP `412 Precondition Failed`, the object may be from an earlier
+successful upload whose response was lost. Clients must continue to the matching
+completion endpoint; pax-manager uses HEAD plus size, content type, and SHA-256
+metadata to decide whether it is the intended object. Do not treat other 4xx responses
+as success. This rule applies to node publications, attachments, and generic artifact
+upload clients.
+
+### MinIO or another S3-compatible service
+
+Use separate internal and public endpoints when pax-manager reaches storage on a private
+Docker or LAN address but clients use a public hostname:
+
+```bash
+export OBJECT_STORAGE_BUCKET=pax-artifacts
+export OBJECT_STORAGE_REGION=us-east-1
+export OBJECT_STORAGE_ENDPOINT=http://minio:9000
+export OBJECT_STORAGE_PUBLIC_ENDPOINT=https://objects.example.com
+export OBJECT_STORAGE_FORCE_PATH_STYLE=true
+export AWS_ACCESS_KEY_ID=pax-manager
+export AWS_SECRET_ACCESS_KEY='replace-with-a-secret'
+```
+
+The public hostname is part of the SigV4 signature and cannot be replaced after a URL is
+created. A reverse proxy in front of the object store must preserve the original `Host`
+header. Alternatively, use the same public endpoint for internal and public access and
+ensure pax-manager can resolve and reach that hostname. Configure object-store CORS to allow
+the dashboard origin to issue `PUT`, `GET`, and `HEAD` requests with `Content-Type`,
+`If-None-Match`, `x-amz-meta-sha256`, and `x-amz-checksum-sha256` headers.
+
+The main Compose stack passes `PAX_CONSOLE_ORIGIN` (development default
+`http://localhost:3000`) to MinIO as `MINIO_API_CORS_ALLOW_ORIGIN`. Set it to the exact
+console origin in production. Open-source MinIO exposes CORS as a server-wide setting,
+not the paid per-bucket CORS API, so use a dedicated instance or account for this stack
+when different buckets need different browser origins. The pinned image is smoke-tested
+with a browser preflight for the signed `PUT` headers above.
+
+The unattended installer and updater use `/api/v1/public/*`; do not place these routes
+behind an interactive Cloudflare Access login. Configure an Access bypass or a
+non-interactive service-auth policy. The same restriction applies to
+`OBJECT_STORAGE_PUBLIC_ENDPOINT`: a `302` redirect to an Access login invalidates the
+presigned request and prevents paxd or the browser from uploading and downloading.
+
+Release publication endpoints require an admin user's existing platform API key as
+`Authorization: Bearer <key>`. The object must already exist in
+`OBJECT_STORAGE_BUCKET`; pax-manager verifies its size, content type, and
+`x-amz-meta-sha256` with `HeadObject` before recording it. A request may send
+`generation: 0`, in which case pax-manager stores a stable positive object fingerprint.
 
 ## Run
 
@@ -106,29 +199,54 @@ transport data and delegate to the service.
 
 ## Local Docker
 
-Start Postgres and pax-manager:
+Start PostgreSQL, MinIO, and pax-manager:
 
 ```bash
+export MINIO_ROOT_USER=pax-local-admin
+export MINIO_ROOT_PASSWORD="$(openssl rand -hex 32)"
+export OBJECT_STORAGE_BUCKET=pax-artifacts
+export OBJECT_STORAGE_PUBLIC_ENDPOINT=http://localhost:9000
+export PAX_CONSOLE_ORIGIN=http://localhost:3000
 make up
 ```
 
-`make up` starts Postgres first and creates the local `paxdb` database if an
-older Docker volume is missing it.
+The `localhost` public endpoint is only correct when the browser and paxd run on the
+same host. For remote clients, set it to an HTTPS hostname they can reach, such as
+`https://objects.example.com`. Running `docker compose` directly requires the MinIO
+credentials and public endpoint above; `make up` supplies `minioadmin` development
+defaults only when they were not exported. Do not use those defaults on a public server.
 
-Start only Postgres for local `go run` development:
+`make up` creates the local `paxdb` database and the configured MinIO bucket
+before starting pax-manager.
+
+The bundled, version-pinned MinIO service is a single-node self-host/development option,
+not a durability boundary. Back up `pax-manager-minio-data` to a different machine and
+test restores, or use AWS S3 or another verified replicated service for production.
+AWS S3 and the pinned MinIO version are supported by this repository. Before using any
+other S3-compatible implementation, verify that it enforces conditional PutObject with
+`If-None-Match: *` and validates `x-amz-checksum-sha256`; basic SigV4, PUT, and HEAD
+compatibility alone is not sufficient.
+For production, provision pax-manager with a separate MinIO service account restricted
+to GetObject and PutObject on `OBJECT_STORAGE_BUCKET`, then export that account as
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` before starting Compose. Compose accepts
+those explicit overrides plus an optional `AWS_SESSION_TOKEN`; it falls back to the
+MinIO root credentials only for the bundled home/development setup.
+
+Start PostgreSQL and MinIO for local `go run` development:
 
 ```bash
 make db-up
 make run
 ```
 
-Reset the local Postgres volume and rerun `db/init.sql`:
+Reset only the local Postgres database and rerun `db/init.sql` on the next manager
+start. This target preserves the MinIO artifact volume:
 
 ```bash
 make db-reset
 ```
 
-Start an isolated manager + Postgres + paxd integration stack:
+Start an isolated manager + PostgreSQL + MinIO + paxd integration stack:
 
 ```bash
 make paxd-integration-up
@@ -138,82 +256,17 @@ make paxd-integration-down
 
 ## Cloud Build
 
-`cloudbuild.yaml` builds the main Dockerfile, pushes the image to Artifact
-Registry, and deploys the new image to an already configured Cloud Run service.
-It does not manage the Cloud SQL mount or the `DATABASE_URL` secret. Configure
-those on the Cloud Run service once, then Cloud Build only rolls forward the
-container image.
+`cloudbuild.vm.yaml` is the active deployment path. It passes the configured
+bucket, internal/public endpoints, path-style flag, and AWS access-key secret
+names to `deploy/vm/deploy.sh`. The VM reads those credentials from Secret
+Manager before starting pax-manager. Configure the substitutions in that file,
+then run `make cloud-build-vm`.
 
-Required setup:
-
-```bash
-gcloud services enable \
-  artifactregistry.googleapis.com \
-  cloudbuild.googleapis.com \
-  run.googleapis.com \
-  secretmanager.googleapis.com \
-  sqladmin.googleapis.com
-
-gcloud artifacts repositories create pax-manager \
-  --repository-format=docker \
-  --location=us-west1
-
-gcloud sql databases create paxdb \
-  --instance=pax-manager-postgres
-
-gcloud sql users create pax \
-  --instance=pax-manager-postgres \
-  --password='REPLACE_WITH_STRONG_PASSWORD'
-```
-
-Create or update the `DATABASE_URL` secret using the Cloud SQL Unix socket path.
-The keyword/value DSN avoids URL-encoding issues in passwords.
-
-```bash
-printf '%s' 'user=pax password=REPLACE_WITH_PASSWORD dbname=paxdb host=/cloudsql/PROJECT_ID:us-west1:pax-manager-postgres sslmode=disable' \
-  > /tmp/pax-manager-database-url.txt
-
-gcloud secrets create pax-manager-database-url \
-  --data-file=/tmp/pax-manager-database-url.txt
-```
-
-If the secret already exists, add a new version instead:
-
-```bash
-gcloud secrets versions add pax-manager-database-url \
-  --data-file=/tmp/pax-manager-database-url.txt
-```
-
-Grant the Cloud Run runtime service account Cloud SQL access. If you use the
-default Compute Engine service account, it is usually:
-`PROJECT_NUMBER-compute@developer.gserviceaccount.com`.
-
-```bash
-gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member='serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com' \
-  --role='roles/cloudsql.client'
-```
-
-Configure the Cloud Run service once with the Cloud SQL mount and database
-secret:
-
-```bash
-gcloud run services update pax-manager \
-  --region=us-west1 \
-  --add-cloudsql-instances=PROJECT_ID:us-west1:pax-manager-postgres \
-  --update-secrets=DATABASE_URL=pax-manager-database-url:latest
-```
-
-Submit a build:
-
-```bash
-gcloud builds submit \
-  --substitutions=_REGION=us-west1,_REPOSITORY=pax-manager,_SERVICE=pax-manager,_MAX_INSTANCES=5,_TIMEOUT=30s,_CLOUDFLARE_ACCESS_ISSUER=https://billowing-dream-9314.cloudflareaccess.com,_CLOUDFLARE_ACCESS_AUD=1a59397a05310415570607d5dbfa973e1bcfb74a7a4617c9bc859112cfa0efca,_CLOUDFLARE_ACCESS_JWKS_URL=https://billowing-dream-9314.cloudflareaccess.com/cdn-cgi/access/certs
-```
-
-The deployed service validates `Cf-Access-Jwt-Assertion` from Cloudflare Access
-by default. Do not set `CLOUDFLARE_ACCESS_DISABLED=true` or
-`ALLOW_LOCAL_USER_HEADER=true` in Cloud Run.
+`cloudbuild.yaml` is an archived Cloud Run build/push pipeline. Its deploy step
+is intentionally disabled because the old Cloud Run rollback path does not
+provision the now-required object-storage configuration and credentials. `make
+cloud-build` does not deploy a service. Reintroducing Cloud Run requires explicit
+`OBJECT_STORAGE_*` environment variables and an AWS credential source first.
 
 ## Database
 

@@ -1,4 +1,32 @@
 services:
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:3000
+    ports:
+      - "${MINIO_PORT:-19000}:9000"
+    volumes:
+      - pax-manager-integration-minio-data:/data
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1
+    depends_on:
+      minio:
+        condition: service_started
+    environment:
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-pax-artifacts}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        until mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null 2>&1; do sleep 1; done
+        mc mb --ignore-existing "local/$$OBJECT_STORAGE_BUCKET"
+        mc version enable "local/$$OBJECT_STORAGE_BUCKET"
+
   postgres:
     build:
       context: ./db
@@ -25,6 +53,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
       PORT: "9879"
       DATABASE_URL: postgres://pax:pax@postgres:5432/paxdb?sslmode=disable
@@ -36,15 +66,21 @@ services:
       API_RATE_LIMIT_BURST: "1000"
       REGISTER_RATE_LIMIT_PER_MINUTE: "6000"
       REGISTER_RATE_LIMIT_BURST: "1000"
-      PAXD_ARTIFACT_GCS_MOCK: "true"
-      PAXD_ARTIFACT_UPLOAD_AUDIENCE: "pax-manager-integration"
-      PAXD_ARTIFACT_UPLOAD_PRINCIPALS: "release-bot@example.iam.gserviceaccount.com"
       PAXD_ARTIFACT_DOWNLOAD_URL_TTL_SECONDS: "60"
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-pax-artifacts}
+      OBJECT_STORAGE_REGION: us-east-1
+      OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      OBJECT_STORAGE_PUBLIC_ENDPOINT: http://localhost:${MINIO_PORT:-19000}
+      OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_EC2_METADATA_DISABLED: "true"
     ports:
       - "${INTEGRATION_PORT:-19879}:9879"
 
 volumes:
   pax-manager-integration-postgres-data:
+  pax-manager-integration-minio-data:
 
 secrets:
   github_token:

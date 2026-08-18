@@ -160,113 +160,119 @@ func TestProjectCRUDHTTPBDD(t *testing.T) {
 		return rec
 	}
 
-	t.Run("given an owner when using the REST contract then project CRUD is available", func(t *testing.T) {
-		createRec := request(
-			http.MethodPost,
-			"/api/v1/user/self/projects",
-			`{"display_name":"Core"}`,
-			"todd@example.com",
-		)
-		require.Equal(t, http.StatusCreated, createRec.Code, createRec.Body.String())
-		created := decodeData[struct {
-			Project domain.Project `json:"project"`
-		}](t, createRec.Body.Bytes()).Project
-		require.NotEmpty(t, created.ProjectID)
+	t.Run(
+		"given an owner when using the REST contract then project CRUD is available",
+		func(t *testing.T) {
+			createRec := request(
+				http.MethodPost,
+				"/api/v1/user/self/projects",
+				`{"display_name":"Core"}`,
+				"todd@example.com",
+			)
+			require.Equal(t, http.StatusCreated, createRec.Code, createRec.Body.String())
+			created := decodeData[struct {
+				Project domain.Project `json:"project"`
+			}](t, createRec.Body.Bytes()).Project
+			require.NotEmpty(t, created.ProjectID)
 
-		getRec := request(
-			http.MethodGet,
-			"/api/v1/user/self/projects/"+created.ProjectID,
-			"",
-			"todd@example.com",
-		)
-		require.Equal(t, http.StatusOK, getRec.Code, getRec.Body.String())
+			getRec := request(
+				http.MethodGet,
+				"/api/v1/user/self/projects/"+created.ProjectID,
+				"",
+				"todd@example.com",
+			)
+			require.Equal(t, http.StatusOK, getRec.Code, getRec.Body.String())
 
-		updateRec := request(
-			http.MethodPatch,
-			"/api/v1/user/self/projects/"+created.ProjectID,
-			`{"display_name":"Core Platform"}`,
-			"todd@example.com",
-		)
-		require.Equal(t, http.StatusOK, updateRec.Code, updateRec.Body.String())
-		updated := decodeData[struct {
-			Project domain.Project `json:"project"`
-		}](t, updateRec.Body.Bytes()).Project
-		assert.Equal(t, "Core Platform", updated.DisplayName)
+			updateRec := request(
+				http.MethodPatch,
+				"/api/v1/user/self/projects/"+created.ProjectID,
+				`{"display_name":"Core Platform"}`,
+				"todd@example.com",
+			)
+			require.Equal(t, http.StatusOK, updateRec.Code, updateRec.Body.String())
+			updated := decodeData[struct {
+				Project domain.Project `json:"project"`
+			}](t, updateRec.Body.Bytes()).Project
+			assert.Equal(t, "Core Platform", updated.DisplayName)
 
-		listRec := request(
-			http.MethodGet,
-			"/api/v1/user/self/projects",
-			"",
-			"todd@example.com",
-		)
-		require.Equal(t, http.StatusOK, listRec.Code, listRec.Body.String())
-		listed := decodeData[struct {
-			Projects []domain.Project `json:"projects"`
-		}](t, listRec.Body.Bytes())
-		require.Len(t, listed.Projects, 1)
+			listRec := request(
+				http.MethodGet,
+				"/api/v1/user/self/projects",
+				"",
+				"todd@example.com",
+			)
+			require.Equal(t, http.StatusOK, listRec.Code, listRec.Body.String())
+			listed := decodeData[struct {
+				Projects []domain.Project `json:"projects"`
+			}](t, listRec.Body.Bytes())
+			require.Len(t, listed.Projects, 1)
 
-		archiveRec := request(
-			http.MethodPost,
-			"/api/v1/user/self/projects/"+created.ProjectID+"/archive",
-			"",
-			"todd@example.com",
-		)
-		require.Equal(t, http.StatusOK, archiveRec.Code, archiveRec.Body.String())
+			archiveRec := request(
+				http.MethodPost,
+				"/api/v1/user/self/projects/"+created.ProjectID+"/archive",
+				"",
+				"todd@example.com",
+			)
+			require.Equal(t, http.StatusOK, archiveRec.Code, archiveRec.Body.String())
 
-		activeRec := request(
-			http.MethodGet,
-			"/api/v1/user/self/projects",
-			"",
-			"todd@example.com",
-		)
-		require.Equal(t, http.StatusOK, activeRec.Code, activeRec.Body.String())
-		active := decodeData[struct {
-			Projects []domain.Project `json:"projects"`
-		}](t, activeRec.Body.Bytes())
-		assert.Empty(t, active.Projects)
+			activeRec := request(
+				http.MethodGet,
+				"/api/v1/user/self/projects",
+				"",
+				"todd@example.com",
+			)
+			require.Equal(t, http.StatusOK, activeRec.Code, activeRec.Body.String())
+			active := decodeData[struct {
+				Projects []domain.Project `json:"projects"`
+			}](t, activeRec.Body.Bytes())
+			assert.Empty(t, active.Projects)
 
-		allRec := request(
-			http.MethodGet,
-			"/api/v1/user/self/projects?include_archived=true",
-			"",
-			"todd@example.com",
-		)
-		require.Equal(t, http.StatusOK, allRec.Code, allRec.Body.String())
-		all := decodeData[struct {
-			Projects []domain.Project `json:"projects"`
-		}](t, allRec.Body.Bytes())
-		require.Len(t, all.Projects, 1)
-		assert.NotNil(t, all.Projects[0].ArchivedAt)
-	})
+			allRec := request(
+				http.MethodGet,
+				"/api/v1/user/self/projects?include_archived=true",
+				"",
+				"todd@example.com",
+			)
+			require.Equal(t, http.StatusOK, allRec.Code, allRec.Body.String())
+			all := decodeData[struct {
+				Projects []domain.Project `json:"projects"`
+			}](t, allRec.Body.Bytes())
+			require.Len(t, all.Projects, 1)
+			assert.NotNil(t, all.Projects[0].ArchivedAt)
+		},
+	)
 
-	t.Run("given another user or invalid query then the API hides ownership and validates input", func(t *testing.T) {
-		createRec := request(
-			http.MethodPost,
-			"/api/v1/user/self/projects",
-			`{"display_name":"Private"}`,
-			"todd@example.com",
-		)
-		require.Equal(t, http.StatusCreated, createRec.Code, createRec.Body.String())
-		created := decodeData[struct {
-			Project domain.Project `json:"project"`
-		}](t, createRec.Body.Bytes()).Project
+	t.Run(
+		"given another user or invalid query then the API hides ownership and validates input",
+		func(t *testing.T) {
+			createRec := request(
+				http.MethodPost,
+				"/api/v1/user/self/projects",
+				`{"display_name":"Private"}`,
+				"todd@example.com",
+			)
+			require.Equal(t, http.StatusCreated, createRec.Code, createRec.Body.String())
+			created := decodeData[struct {
+				Project domain.Project `json:"project"`
+			}](t, createRec.Body.Bytes()).Project
 
-		foreignRec := request(
-			http.MethodGet,
-			"/api/v1/user/self/projects/"+created.ProjectID,
-			"",
-			"mallory@example.com",
-		)
-		assert.Equal(t, http.StatusNotFound, foreignRec.Code, foreignRec.Body.String())
+			foreignRec := request(
+				http.MethodGet,
+				"/api/v1/user/self/projects/"+created.ProjectID,
+				"",
+				"mallory@example.com",
+			)
+			assert.Equal(t, http.StatusNotFound, foreignRec.Code, foreignRec.Body.String())
 
-		invalidRec := request(
-			http.MethodGet,
-			"/api/v1/user/self/projects?include_archived=perhaps",
-			"",
-			"todd@example.com",
-		)
-		assert.Equal(t, http.StatusBadRequest, invalidRec.Code, invalidRec.Body.String())
-	})
+			invalidRec := request(
+				http.MethodGet,
+				"/api/v1/user/self/projects?include_archived=perhaps",
+				"",
+				"todd@example.com",
+			)
+			assert.Equal(t, http.StatusBadRequest, invalidRec.Code, invalidRec.Body.String())
+		},
+	)
 }
 
 func TestProjectTargetCRUDHTTPBDD(t *testing.T) {
@@ -300,88 +306,91 @@ func TestProjectTargetCRUDHTTPBDD(t *testing.T) {
 	}](t, createProjectRec.Body.Bytes()).Project
 	targetsPath := "/api/v1/user/self/projects/" + project.ProjectID + "/targets"
 
-	t.Run("given one agent when configuring multiple paths then CRUD and default selection work", func(t *testing.T) {
-		firstRec := request(
-			http.MethodPost,
-			targetsPath,
-			`{
+	t.Run(
+		"given one agent when configuring multiple paths then CRUD and default selection work",
+		func(t *testing.T) {
+			firstRec := request(
+				http.MethodPost,
+				targetsPath,
+				`{
 				"agent_id":"`+ownerAgentID+`",
 				"display_name":"Mac main",
 				"cwd":"~/pax_workspace/pax-manager",
 				"is_default":true
 			}`,
-		)
-		require.Equal(t, http.StatusCreated, firstRec.Code, firstRec.Body.String())
-		first := decodeData[struct {
-			Target domain.ProjectTarget `json:"target"`
-		}](t, firstRec.Body.Bytes()).Target
-		assert.True(t, first.IsDefault)
+			)
+			require.Equal(t, http.StatusCreated, firstRec.Code, firstRec.Body.String())
+			first := decodeData[struct {
+				Target domain.ProjectTarget `json:"target"`
+			}](t, firstRec.Body.Bytes()).Target
+			assert.True(t, first.IsDefault)
 
-		secondRec := request(
-			http.MethodPost,
-			targetsPath,
-			`{
+			secondRec := request(
+				http.MethodPost,
+				targetsPath,
+				`{
 				"agent_id":"`+ownerAgentID+`",
 				"display_name":"Mac feature",
 				"cwd":"~/worktrees/pax-manager-feature"
 			}`,
-		)
-		require.Equal(t, http.StatusCreated, secondRec.Code, secondRec.Body.String())
-		second := decodeData[struct {
-			Target domain.ProjectTarget `json:"target"`
-		}](t, secondRec.Body.Bytes()).Target
-		assert.NotEqual(t, first.Cwd, second.Cwd)
+			)
+			require.Equal(t, http.StatusCreated, secondRec.Code, secondRec.Body.String())
+			second := decodeData[struct {
+				Target domain.ProjectTarget `json:"target"`
+			}](t, secondRec.Body.Bytes()).Target
+			assert.NotEqual(t, first.Cwd, second.Cwd)
 
-		getRec := request(http.MethodGet, targetsPath+"/"+second.TargetID, "")
-		require.Equal(t, http.StatusOK, getRec.Code, getRec.Body.String())
+			getRec := request(http.MethodGet, targetsPath+"/"+second.TargetID, "")
+			require.Equal(t, http.StatusOK, getRec.Code, getRec.Body.String())
 
-		defaultRec := request(
-			http.MethodPatch,
-			targetsPath+"/"+second.TargetID,
-			`{"is_default":true}`,
-		)
-		require.Equal(t, http.StatusOK, defaultRec.Code, defaultRec.Body.String())
+			defaultRec := request(
+				http.MethodPatch,
+				targetsPath+"/"+second.TargetID,
+				`{"is_default":true}`,
+			)
+			require.Equal(t, http.StatusOK, defaultRec.Code, defaultRec.Body.String())
 
-		listRec := request(http.MethodGet, targetsPath, "")
-		require.Equal(t, http.StatusOK, listRec.Code, listRec.Body.String())
-		listed := decodeData[struct {
-			Targets []domain.ProjectTarget `json:"targets"`
-		}](t, listRec.Body.Bytes()).Targets
-		require.Len(t, listed, 2)
-		defaults := 0
-		for _, target := range listed {
-			if target.IsDefault {
-				defaults++
-				assert.Equal(t, second.TargetID, target.TargetID)
+			listRec := request(http.MethodGet, targetsPath, "")
+			require.Equal(t, http.StatusOK, listRec.Code, listRec.Body.String())
+			listed := decodeData[struct {
+				Targets []domain.ProjectTarget `json:"targets"`
+			}](t, listRec.Body.Bytes()).Targets
+			require.Len(t, listed, 2)
+			defaults := 0
+			for _, target := range listed {
+				if target.IsDefault {
+					defaults++
+					assert.Equal(t, second.TargetID, target.TargetID)
+				}
 			}
-		}
-		assert.Equal(t, 1, defaults)
+			assert.Equal(t, 1, defaults)
 
-		removedSessionEndpointRec := request(
-			http.MethodPost,
-			targetsPath+"/"+second.TargetID+"/sessions",
-			`{"name":"Target session"}`,
-		)
-		assert.Equal(
-			t,
-			http.StatusNotFound,
-			removedSessionEndpointRec.Code,
-			removedSessionEndpointRec.Body.String(),
-		)
+			removedSessionEndpointRec := request(
+				http.MethodPost,
+				targetsPath+"/"+second.TargetID+"/sessions",
+				`{"name":"Target session"}`,
+			)
+			assert.Equal(
+				t,
+				http.StatusNotFound,
+				removedSessionEndpointRec.Code,
+				removedSessionEndpointRec.Body.String(),
+			)
 
-		disableRec := request(
-			http.MethodPatch,
-			targetsPath+"/"+second.TargetID,
-			`{"enabled":false}`,
-		)
-		require.Equal(t, http.StatusOK, disableRec.Code, disableRec.Body.String())
-		disabled := decodeData[struct {
-			Target domain.ProjectTarget `json:"target"`
-		}](t, disableRec.Body.Bytes()).Target
-		assert.False(t, disabled.Enabled)
-		assert.False(t, disabled.IsDefault)
+			disableRec := request(
+				http.MethodPatch,
+				targetsPath+"/"+second.TargetID,
+				`{"enabled":false}`,
+			)
+			require.Equal(t, http.StatusOK, disableRec.Code, disableRec.Body.String())
+			disabled := decodeData[struct {
+				Target domain.ProjectTarget `json:"target"`
+			}](t, disableRec.Body.Bytes()).Target
+			assert.False(t, disabled.Enabled)
+			assert.False(t, disabled.IsDefault)
 
-	})
+		},
+	)
 
 	t.Run("given another users agent then target creation hides it", func(t *testing.T) {
 		_ = registerAdditionalTestAgent(t, srv, "mallory@example.com")
@@ -888,20 +897,18 @@ func TestOpenAPIUI(t *testing.T) {
 
 func TestPaxdArtifactPublishAndDownload(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
-	srv.cfg.PaxdArtifactUploadAudience = "https://manager.example.com"
-	srv.cfg.PaxdArtifactUploadPrincipals = map[string]bool{
-		"release-bot@example.iam.gserviceaccount.com": true,
-	}
+	srv.cfg.ObjectStorageBucket = "paxd-releases"
 	srv.cfg.PaxdArtifactDownloadTTL = time.Minute
 	fakeBackend := &fakePaxdArtifactBackend{
-		principal: "release-bot@example.iam.gserviceaccount.com",
 		attrs: paxdArtifactObjectAttrs{
 			Generation:  12345,
 			SizeBytes:   4096,
 			ContentType: "application/octet-stream",
+			SHA256:      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		},
 	}
 	srv.paxdArtifacts = fakeBackend
+	adminAPIKey := createUserAPIKeyForTest(t, srv, "admin@example.com")
 
 	publishReq := httptest.NewRequest(
 		http.MethodPost,
@@ -917,7 +924,7 @@ func TestPaxdArtifactPublishAndDownload(t *testing.T) {
 		}`)),
 	)
 	setJSON(publishReq)
-	publishReq.Header.Set("Authorization", "Bearer valid-token")
+	publishReq.Header.Set("Authorization", "Bearer "+adminAPIKey)
 	publishRec := httptest.NewRecorder()
 	srv.routes().ServeHTTP(publishRec, publishReq)
 	if publishRec.Code != http.StatusOK {
@@ -966,7 +973,7 @@ func TestPaxdArtifactPublishAndDownload(t *testing.T) {
 
 func TestSessionArtifactUploadCompleteAndContentURL(t *testing.T) {
 	srv, _ := testServer(t, "artifact@example.com")
-	srv.cfg.SessionArtifactGCSBucket = "session-artifacts-test"
+	srv.cfg.ObjectStorageBucket = "session-artifacts-test"
 	srv.cfg.SessionArtifactUploadTTL = time.Minute
 	srv.cfg.PaxdArtifactDownloadTTL = time.Minute
 	srv.paxdArtifacts = &fakePaxdArtifactBackend{
@@ -983,6 +990,7 @@ func TestSessionArtifactUploadCompleteAndContentURL(t *testing.T) {
 		strings.NewReader(`{
 			"filename":"notes.txt",
 			"content_type":"text/plain",
+			"size_bytes":12,
 			"kind":"file",
 			"title":"Notes"
 		}`),
@@ -996,6 +1004,7 @@ func TestSessionArtifactUploadCompleteAndContentURL(t *testing.T) {
 	assert.Equal(t, http.MethodPut, ticket.Method)
 	assert.Contains(t, ticket.URL, "https://upload.example/session-artifacts/")
 	assert.Equal(t, "text/plain", ticket.Headers["Content-Type"])
+	assert.Equal(t, "*", ticket.Headers["If-None-Match"])
 
 	completeReq := httptest.NewRequest(
 		http.MethodPost,
@@ -1014,7 +1023,7 @@ func TestSessionArtifactUploadCompleteAndContentURL(t *testing.T) {
 	assert.Equal(t, int64(99), completed.Artifact.Contents[0].Generation)
 	assert.Equal(
 		t,
-		"gs://session-artifacts-test/"+ticket.Object,
+		"s3://session-artifacts-test/"+ticket.Object,
 		completed.Artifact.Contents[0].StorageURI,
 	)
 
@@ -1047,9 +1056,60 @@ func TestSessionArtifactUploadCompleteAndContentURL(t *testing.T) {
 	assert.Equal(t, "notes.txt", content.Content.Filename)
 }
 
-func TestSessionArtifactRejectsCallerSuppliedGCSContent(t *testing.T) {
+func TestSessionArtifactUploadGivenDeclaredZeroBytesWhenCompletingThenSizeMustMatch(
+	t *testing.T,
+) {
+	tests := []struct {
+		name       string
+		storedSize int64
+		wantStatus int
+	}{
+		{name: "empty object", storedSize: 0, wantStatus: http.StatusOK},
+		{name: "non-empty object", storedSize: 1, wantStatus: http.StatusConflict},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			srv, _ := testServer(t, "artifact-zero@example.com")
+			srv.cfg.ObjectStorageBucket = "session-artifacts-test"
+			srv.paxdArtifacts = &fakePaxdArtifactBackend{attrs: paxdArtifactObjectAttrs{
+				Generation:  99,
+				SizeBytes:   test.storedSize,
+				ContentType: "text/plain",
+			}}
+
+			createReq := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/user/self/artifact-uploads",
+				strings.NewReader(
+					`{"filename":"empty.txt","content_type":"text/plain","size_bytes":0}`,
+				),
+			)
+			createReq.Header.Set("X-User-Email", "artifact-zero@example.com")
+			createRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(createRec, createReq)
+			require.Equal(t, http.StatusOK, createRec.Code, createRec.Body.String())
+			ticket := decodeData[ArtifactUploadTicket](t, createRec.Body.Bytes())
+
+			completeReq := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/user/self/artifact-uploads/"+ticket.UploadID+"/complete",
+				strings.NewReader(`{}`),
+			)
+			completeReq.Header.Set("X-User-Email", "artifact-zero@example.com")
+			completeRec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(completeRec, completeReq)
+
+			require.Equal(t, test.wantStatus, completeRec.Code, completeRec.Body.String())
+			if test.wantStatus == http.StatusConflict {
+				assert.Contains(t, completeRec.Body.String(), "size does not match")
+			}
+		})
+	}
+}
+
+func TestSessionArtifactRejectsCallerSuppliedObjectStorageContent(t *testing.T) {
 	srv, _ := testServer(t, "artifact@example.com")
-	srv.cfg.SessionArtifactGCSBucket = "session-artifacts-test"
+	srv.cfg.ObjectStorageBucket = "session-artifacts-test"
 
 	createReq := httptest.NewRequest(
 		http.MethodPost,
@@ -1067,7 +1127,7 @@ func TestSessionArtifactRejectsCallerSuppliedGCSContent(t *testing.T) {
 
 func TestSessionArtifactContentURLRefusesForeignBucket(t *testing.T) {
 	srv, _ := testServer(t, "artifact@example.com")
-	srv.cfg.SessionArtifactGCSBucket = "session-artifacts-test"
+	srv.cfg.ObjectStorageBucket = "session-artifacts-test"
 
 	user, err := srv.store.GetUserByEmail(context.Background(), "artifact@example.com")
 	require.NoError(t, err)
@@ -1099,13 +1159,9 @@ func TestSessionArtifactContentURLRefusesForeignBucket(t *testing.T) {
 
 func TestGenericArtifactResolverSeparatesProducts(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
-	srv.cfg.PaxdArtifactUploadAudience = "https://manager.example.com"
-	srv.cfg.PaxdArtifactUploadPrincipals = map[string]bool{
-		"release-bot@example.iam.gserviceaccount.com": true,
-	}
+	srv.cfg.ObjectStorageBucket = "pax-tech-bucket"
 	srv.cfg.PaxdArtifactDownloadTTL = time.Minute
 	fakeBackend := &fakePaxdArtifactBackend{
-		principal: "release-bot@example.iam.gserviceaccount.com",
 		attrs: paxdArtifactObjectAttrs{
 			Generation:  12345,
 			SizeBytes:   4096,
@@ -1113,12 +1169,16 @@ func TestGenericArtifactResolverSeparatesProducts(t *testing.T) {
 		},
 	}
 	srv.paxdArtifacts = fakeBackend
+	adminAPIKey := createUserAPIKeyForTest(t, srv, "admin@example.com")
 
 	publish := func(path string, body string) PaxdArtifact {
 		t.Helper()
+		var expected CreatePaxdArtifactRequest
+		require.NoError(t, json.Unmarshal([]byte(body), &expected))
+		fakeBackend.attrs.SHA256 = expected.SHA256
 		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader([]byte(body)))
 		setJSON(req)
-		req.Header.Set("Authorization", "Bearer valid-token")
+		req.Header.Set("Authorization", "Bearer "+adminAPIKey)
 		rec := httptest.NewRecorder()
 		srv.routes().ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
@@ -1291,25 +1351,40 @@ func publishTestArtifact(
 
 func TestPaxdArtifactPublishRequiresBearerToken(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
-	srv.cfg.PaxdArtifactUploadAudience = "https://manager.example.com"
-	srv.cfg.PaxdArtifactUploadPrincipals = map[string]bool{
-		"release-bot@example.iam.gserviceaccount.com": true,
-	}
-	srv.paxdArtifacts = &fakePaxdArtifactBackend{
-		principal: "release-bot@example.iam.gserviceaccount.com",
-	}
+	srv.cfg.ObjectStorageBucket = "paxd-releases"
+	srv.paxdArtifacts = &fakePaxdArtifactBackend{}
 
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v1/admin/paxd/artifacts",
-		bytes.NewReader([]byte(`{}`)),
+	t.Run(
+		"Given no bearer user API key when publishing then it is unauthorized",
+		func(t *testing.T) {
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/admin/paxd/artifacts",
+				bytes.NewReader([]byte(`{}`)),
+			)
+			setJSON(req)
+			rec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(rec, req)
+			require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+		},
 	)
-	setJSON(req)
-	rec := httptest.NewRecorder()
-	srv.routes().ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("missing auth code = %d, body = %s", rec.Code, rec.Body.String())
-	}
+
+	t.Run(
+		"Given a non-admin user API key when publishing then it is forbidden",
+		func(t *testing.T) {
+			userAPIKey := createUserAPIKeyForTest(t, srv, "todd@example.com")
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/admin/paxd/artifacts",
+				bytes.NewReader([]byte(`{}`)),
+			)
+			setJSON(req)
+			req.Header.Set("Authorization", "Bearer "+userAPIKey)
+			rec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(rec, req)
+			require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+		},
+	)
 }
 
 func TestRequestBodyLimit(t *testing.T) {
@@ -3163,31 +3238,37 @@ func TestResolveConversationProjectContextBDD(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	t.Run("given a target without a project then the creation context is rejected", func(t *testing.T) {
-		_, resolveErr := srv.resolveConversationProjectContext(
-			t.Context(),
-			principal,
-			fixture.agentID,
-			conversationRequest{ProjectTargetID: target.TargetID},
-		)
-		require.Error(t, resolveErr)
-		assert.Contains(t, resolveErr.Error(), "primary_project_id is required")
-	})
+	t.Run(
+		"given a target without a project then the creation context is rejected",
+		func(t *testing.T) {
+			_, resolveErr := srv.resolveConversationProjectContext(
+				t.Context(),
+				principal,
+				fixture.agentID,
+				conversationRequest{ProjectTargetID: target.TargetID},
+			)
+			require.Error(t, resolveErr)
+			assert.Contains(t, resolveErr.Error(), "primary_project_id is required")
+		},
+	)
 
-	t.Run("given only a project then caller-selected agent and cwd remain valid", func(t *testing.T) {
-		resolved, resolveErr := srv.resolveConversationProjectContext(
-			t.Context(),
-			principal,
-			fixture.agentID,
-			conversationRequest{
-				CWD:              "~/caller-workspace",
-				PrimaryProjectID: " " + project.ProjectID + " ",
-			},
-		)
-		require.NoError(t, resolveErr)
-		assert.Equal(t, project.ProjectID, resolved.PrimaryProjectID)
-		assert.Equal(t, "~/caller-workspace", resolved.CWD)
-	})
+	t.Run(
+		"given only a project then caller-selected agent and cwd remain valid",
+		func(t *testing.T) {
+			resolved, resolveErr := srv.resolveConversationProjectContext(
+				t.Context(),
+				principal,
+				fixture.agentID,
+				conversationRequest{
+					CWD:              "~/caller-workspace",
+					PrimaryProjectID: " " + project.ProjectID + " ",
+				},
+			)
+			require.NoError(t, resolveErr)
+			assert.Equal(t, project.ProjectID, resolved.PrimaryProjectID)
+			assert.Equal(t, "~/caller-workspace", resolved.CWD)
+		},
+	)
 
 	t.Run("given an unknown project or target then the resource stays hidden", func(t *testing.T) {
 		_, projectErr := srv.resolveConversationProjectContext(
@@ -3210,18 +3291,21 @@ func TestResolveConversationProjectContextBDD(t *testing.T) {
 		require.Error(t, targetErr)
 	})
 
-	t.Run("given a target owned by another route agent then the target stays hidden", func(t *testing.T) {
-		_, resolveErr := srv.resolveConversationProjectContext(
-			t.Context(),
-			principal,
-			"agent_other",
-			conversationRequest{
-				PrimaryProjectID: project.ProjectID,
-				ProjectTargetID:  target.TargetID,
-			},
-		)
-		assert.ErrorIs(t, resolveErr, ErrNotFound)
-	})
+	t.Run(
+		"given a target owned by another route agent then the target stays hidden",
+		func(t *testing.T) {
+			_, resolveErr := srv.resolveConversationProjectContext(
+				t.Context(),
+				principal,
+				"agent_other",
+				conversationRequest{
+					PrimaryProjectID: project.ProjectID,
+					ProjectTargetID:  target.TargetID,
+				},
+			)
+			assert.ErrorIs(t, resolveErr, ErrNotFound)
+		},
+	)
 
 	t.Run("given an archived project then new sessions cannot be attached", func(t *testing.T) {
 		_, archiveErr := srv.store.ArchiveProject(
@@ -6214,7 +6298,11 @@ func TestConversationDeliveryGivenInvalidTargetWhenPostedThenReturnsBadRequest(t
 	srv.routes().ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "target.kind must be representative, agent, or active_invocation")
+	assert.Contains(
+		t,
+		rec.Body.String(),
+		"target.kind must be representative, agent, or active_invocation",
+	)
 }
 
 func listNodeAgentSessions(
@@ -8839,6 +8927,21 @@ func testServer(t *testing.T, ownerEmail string) (*Server, string) {
 	return srv, registered.APIKey
 }
 
+func createUserAPIKeyForTest(t *testing.T, srv *Server, email string) string {
+	t.Helper()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/user/api-keys",
+		strings.NewReader(`{"name":"test publisher"}`),
+	)
+	setJSON(req)
+	req.Header.Set("X-User-Email", email)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	return decodeData[CreateUserAPIKeyResponse](t, rec.Body.Bytes()).Key
+}
+
 func registerAdditionalTestAgent(t *testing.T, srv *Server, ownerEmail string) string {
 	t.Helper()
 	tokenReq := httptest.NewRequest(
@@ -8885,7 +8988,6 @@ func getTestAgent(t *testing.T, srv *Server, userEmail string, agentID string) A
 }
 
 type fakePaxdArtifactBackend struct {
-	principal      string
 	attrs          paxdArtifactObjectAttrs
 	signedArtifact PaxdArtifact
 	expiresAt      time.Time
@@ -8928,33 +9030,11 @@ func (b *fakePaxdArtifactBackend) SignUploadURL(
 	bucket string,
 	object string,
 	contentType string,
-	expiresAt time.Time,
-) (string, error) {
-	b.expiresAt = expiresAt
-	return "https://upload.example/" + object, nil
-}
-
-func (b *fakePaxdArtifactBackend) SignResumableUploadURL(
-	ctx context.Context,
-	bucket string,
-	object string,
-	contentType string,
 	sha256 string,
 	expiresAt time.Time,
 ) (string, error) {
 	b.expiresAt = expiresAt
-	return "https://upload.example/resumable/" + object, nil
-}
-
-func (b *fakePaxdArtifactBackend) VerifyUploader(
-	ctx context.Context,
-	token string,
-	audience string,
-) (string, error) {
-	if token != "valid-token" {
-		return "", ErrUnauthorized
-	}
-	return b.principal, nil
+	return "https://upload.example/" + object, nil
 }
 
 func (b *fakePaxdArtifactBackend) ObjectAttrs(

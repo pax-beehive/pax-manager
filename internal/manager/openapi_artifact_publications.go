@@ -34,7 +34,7 @@ func addArtifactPublicationPaths(doc map[string]any) {
 	nodePublicationPath["post"] = map[string]any{
 		"tags":        []string{"node"},
 		"summary":     "Prepare an agent artifact upload",
-		"description": "Reuses the natural file identity when possible and otherwise returns a resumable GCS upload ticket.",
+		"description": "Reuses the natural file identity when possible and otherwise returns a direct S3-compatible presigned PUT ticket. If PUT returns HTTP 412, the object may be the result of an earlier upload whose response was lost; call the completion endpoint and let its HEAD integrity validation decide. Other 4xx responses are upload failures.",
 		"security":    []map[string][]string{{"nodeBearer": {}}},
 		"parameters":  []map[string]any{publicationPathParam},
 		"responses": map[string]any{
@@ -48,6 +48,7 @@ func addArtifactPublicationPaths(doc map[string]any) {
 		},
 	}
 	paths[openAPINodeArtifactPublication] = nodePublicationPath
+	addUserObjectUploadPaths(paths)
 	paths[openAPINodeArtifactUploadComplete] = map[string]any{
 		"post": map[string]any{
 			"tags":        []string{"node"},
@@ -127,7 +128,10 @@ func addArtifactPublicationPaths(doc map[string]any) {
 				},
 				{
 					"name": "disposition", "in": "query",
-					"schema": map[string]any{"type": "string", "enum": []string{"inline", "attachment"}},
+					"schema": map[string]any{
+						"type": "string",
+						"enum": []string{"inline", "attachment"},
+					},
 				},
 				{
 					"name": "redirect", "in": "query",
@@ -144,6 +148,49 @@ func addArtifactPublicationPaths(doc map[string]any) {
 				"409": map[string]string{
 					"description": "Publication failed or content is not finalized.",
 				},
+			},
+		},
+	}
+}
+
+func addUserObjectUploadPaths(paths map[string]any) {
+	userParameter := map[string]any{
+		"name":        "user_id",
+		"in":          "path",
+		"required":    true,
+		"schema":      map[string]string{"type": "string"},
+		"description": "User ID or self.",
+	}
+	uploadProtocol := "Returns an s3_presigned_put ticket. Send every ticket header with the PUT. HTTP 412 is ambiguous already-exists and must be followed by completion so HEAD integrity validation can decide; other 4xx responses are failures."
+	completeProtocol := "Uses HEAD to validate the object written through the presigned ticket. This is also the recovery step after an ambiguous HTTP 412 from PUT."
+	paths["/api/v1/user/{user_id}/artifact-uploads"] = map[string]any{
+		"post": map[string]any{
+			"tags":        []string{"artifacts"},
+			"summary":     "Prepare a user artifact upload",
+			"description": uploadProtocol,
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  []map[string]any{userParameter},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Presigned PUT ticket."},
+				"400": map[string]string{"description": "Invalid upload metadata."},
+				"401": map[string]string{"description": "User authentication failed."},
+			},
+		},
+	}
+	paths["/api/v1/user/{user_id}/artifact-uploads/{upload_id}/complete"] = map[string]any{
+		"post": map[string]any{
+			"tags":        []string{"artifacts"},
+			"summary":     "Complete a user artifact upload",
+			"description": completeProtocol,
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters": []map[string]any{userParameter, {
+				"name": "upload_id", "in": "path", "required": true,
+				"schema": map[string]string{"type": "string"},
+			}},
+			"responses": map[string]any{
+				"200": map[string]string{"description": "Completed artifact."},
+				"404": map[string]string{"description": "Upload not found."},
+				"409": map[string]string{"description": "Object integrity validation failed."},
 			},
 		},
 	}

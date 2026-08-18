@@ -14,8 +14,6 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
-const gcsResumableChunkAlignment int64 = 256 * 1024
-
 func (s *Service) handleCreateUserAttachment(c context.Context, ctx *app.RequestContext) {
 	principal, err := s.userPrincipal(c, ctx)
 	if err != nil {
@@ -49,7 +47,7 @@ func (s *Service) handleCreateUserAttachment(c context.Context, ctx *app.Request
 		writeEndpointError(ctx, err)
 		return
 	}
-	url, err := s.paxdArtifacts.SignResumableUploadURL(
+	url, err := s.paxdArtifacts.SignUploadURL(
 		c,
 		attachment.Bucket,
 		attachment.Object,
@@ -61,22 +59,14 @@ func (s *Service) handleCreateUserAttachment(c context.Context, ctx *app.Request
 		writeEndpointError(ctx, err)
 		return
 	}
-	headers := map[string]string{
-		"Content-Type":     attachment.ContentType,
-		"x-goog-resumable": "start",
-	}
-	if attachment.SHA256 != "" {
-		headers["x-goog-meta-sha256"] = attachment.SHA256
-	}
 	writeData(ctx, http.StatusOK, UserAttachmentUploadTicket{
 		Attachment: attachment,
 		Upload: UserAttachmentUpload{
-			Protocol:       "gcs_resumable",
-			Method:         http.MethodPost,
-			URL:            url,
-			Headers:        headers,
-			ChunkAlignment: gcsResumableChunkAlignment,
-			ExpiresAt:      expiresAt,
+			Protocol:  "s3_presigned_put",
+			Method:    http.MethodPut,
+			URL:       url,
+			Headers:   objectUploadHeaders(attachment.ContentType, attachment.SHA256),
+			ExpiresAt: expiresAt,
 		},
 		CompleteURL: strings.ReplaceAll(strings.ReplaceAll(
 			routeCompleteUserAttachment,
@@ -106,11 +96,14 @@ func (s *Service) handleCompleteUserAttachment(c context.Context, ctx *app.Reque
 		writeEndpointError(ctx, err)
 		return
 	}
-	if attachment.SizeBytes > 0 && attrs.SizeBytes != attachment.SizeBytes {
-		writeEndpointError(ctx, apperr.Error{
-			Status:  http.StatusConflict,
-			Message: "uploaded attachment size does not match declared size",
-		})
+	attrs = normalizeUploadedObjectAttrs(attrs, attachment.ContentType)
+	if err := validateUploadedObject(
+		attrs,
+		attachment.SizeBytes,
+		attachment.ContentType,
+		attachment.SHA256,
+	); err != nil {
+		writeEndpointError(ctx, err)
 		return
 	}
 	completed, err := s.store.CompleteUserAttachment(
@@ -120,7 +113,7 @@ func (s *Service) handleCompleteUserAttachment(c context.Context, ctx *app.Reque
 		ArtifactContent{
 			ContentType: attrs.ContentType,
 			SizeBytes:   attrs.SizeBytes,
-			SHA256:      attachment.SHA256,
+			SHA256:      attrs.SHA256,
 			Generation:  attrs.Generation,
 		},
 	)
@@ -151,6 +144,9 @@ func normalizeCreateUserAttachmentRequest(
 			Status:  http.StatusBadRequest,
 			Message: "size_bytes must not be negative",
 		}
+	}
+	if err := validateSinglePutObjectSize(req.SizeBytes); err != nil {
+		return CreateUserAttachmentRequest{}, err
 	}
 	req.SHA256 = strings.ToLower(strings.TrimSpace(req.SHA256))
 	if req.SHA256 != "" && !paxdSHA256Pattern.MatchString(req.SHA256) {

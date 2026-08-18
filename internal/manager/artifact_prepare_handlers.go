@@ -89,7 +89,7 @@ func (s *Service) handlePrepareArtifactPublication(
 		})
 		return
 	}
-	url, err := s.paxdArtifacts.SignResumableUploadURL(
+	url, err := s.paxdArtifacts.SignUploadURL(
 		c,
 		upload.Bucket,
 		upload.Object,
@@ -105,17 +105,12 @@ func (s *Service) handlePrepareArtifactPublication(
 		Status:     artifactPrepareStatusUploadRequired,
 		ArtifactID: upload.ArtifactID,
 		Upload: &NodeArtifactUploadTicket{
-			UploadID: upload.UploadID,
-			Protocol: "gcs_resumable",
-			Method:   http.MethodPost,
-			URL:      url,
-			Headers: map[string]string{
-				"Content-Type":       upload.ContentType,
-				"x-goog-resumable":   "start",
-				"x-goog-meta-sha256": upload.SHA256,
-			},
-			ChunkAlignment: gcsResumableChunkAlignment,
-			ExpiresAt:      upload.ExpiresAt,
+			UploadID:  upload.UploadID,
+			Protocol:  "s3_presigned_put",
+			Method:    http.MethodPut,
+			URL:       url,
+			Headers:   objectUploadHeaders(upload.ContentType, upload.SHA256),
+			ExpiresAt: upload.ExpiresAt,
 		},
 	})
 }
@@ -154,33 +149,15 @@ func (s *Service) handleCompleteNodeArtifactUpload(
 		writeEndpointError(ctx, err)
 		return
 	}
-	if attrs.Generation <= 0 {
-		writeEndpointError(
-			ctx,
-			artifactIntegrityConflict("uploaded artifact generation is missing"),
-		)
+	attrs = normalizeUploadedObjectAttrs(attrs, upload.ContentType)
+	if err := validateUploadedObject(
+		attrs,
+		upload.SizeBytes,
+		upload.ContentType,
+		upload.SHA256,
+	); err != nil {
+		writeEndpointError(ctx, err)
 		return
-	}
-	if attrs.SizeBytes != upload.SizeBytes {
-		writeEndpointError(ctx, artifactIntegrityConflict("uploaded artifact size does not match"))
-		return
-	}
-	if attrs.SHA256 == "" {
-		writeEndpointError(
-			ctx,
-			artifactIntegrityConflict("uploaded artifact sha256 metadata is missing"),
-		)
-		return
-	}
-	if !strings.EqualFold(attrs.SHA256, upload.SHA256) {
-		writeEndpointError(
-			ctx,
-			artifactIntegrityConflict("uploaded artifact sha256 does not match"),
-		)
-		return
-	}
-	if attrs.ContentType == "" || attrs.ContentType == "application/octet-stream" {
-		attrs.ContentType = upload.ContentType
 	}
 	completedUpload, artifact, err := s.store.CompleteNodeArtifactUpload(
 		c,
@@ -189,7 +166,7 @@ func (s *Service) handleCompleteNodeArtifactUpload(
 		ArtifactContent{
 			ContentType: attrs.ContentType,
 			SizeBytes:   attrs.SizeBytes,
-			SHA256:      upload.SHA256,
+			SHA256:      attrs.SHA256,
 			Generation:  attrs.Generation,
 		},
 	)
@@ -234,6 +211,9 @@ func normalizePrepareArtifactPublicationRequest(
 		return PrepareArtifactPublicationRequest{}, invalidArtifactPublication(
 			"size_bytes must be non-negative",
 		)
+	}
+	if err := validateSinglePutObjectSize(req.SizeBytes); err != nil {
+		return PrepareArtifactPublicationRequest{}, err
 	}
 	if !paxdSHA256Pattern.MatchString(req.SHA256) {
 		return PrepareArtifactPublicationRequest{}, invalidArtifactPublication(

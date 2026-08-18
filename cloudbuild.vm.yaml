@@ -7,8 +7,14 @@ substitutions:
   _CLOUD_SQL_INSTANCE: pax-tech-499219:us-west1:pax-manager-postgres
   _DB_SECRET: pax-manager-database-url
   _DEPLOY_SCRIPT: /opt/pax-manager/deploy.sh
-  _PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT: 548727007198-compute@developer.gserviceaccount.com
-  _SESSION_ARTIFACT_GCS_BUCKET: pax-tech-bucket
+  _OBJECT_STORAGE_BUCKET: pax-artifacts
+  _OBJECT_STORAGE_REGION: us-east-1
+  _OBJECT_STORAGE_ENDPOINT: ""
+  _OBJECT_STORAGE_PUBLIC_ENDPOINT: ""
+  _OBJECT_STORAGE_FORCE_PATH_STYLE: "false"
+  _AWS_ACCESS_KEY_ID_SECRET: pax-manager-object-storage-access-key-id
+  _AWS_SECRET_ACCESS_KEY_SECRET: pax-manager-object-storage-secret-access-key
+  _AWS_SESSION_TOKEN_SECRET: ""
   _SSH_KEY_FILE: /workspace/.ssh/pax-manager-cloud-build
   _SSH_KEY_TTL: 30m
 
@@ -125,8 +131,14 @@ steps:
         ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}
         ${_DB_SECRET}
         deepseek_api_key
-        ${_SESSION_ARTIFACT_GCS_BUCKET}
-        ${_PAXD_ARTIFACT_SIGNING_SERVICE_ACCOUNT}
+        ${_OBJECT_STORAGE_BUCKET}
+        ${_OBJECT_STORAGE_REGION}
+        '${_OBJECT_STORAGE_ENDPOINT}'
+        '${_OBJECT_STORAGE_PUBLIC_ENDPOINT}'
+        ${_OBJECT_STORAGE_FORCE_PATH_STYLE}
+        ${_AWS_ACCESS_KEY_ID_SECRET}
+        ${_AWS_SECRET_ACCESS_KEY_SECRET}
+        '${_AWS_SESSION_TOKEN_SECRET}'
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE}:${SHORT_SHA}

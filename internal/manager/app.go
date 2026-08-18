@@ -18,6 +18,9 @@ type Config = managerconfig.Config
 
 func Run(ctx context.Context) error {
 	cfg := loadConfig()
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("validate config: %w", err)
+	}
 
 	store, closeStore, err := openStore(ctx, cfg.DatabaseURL)
 	if err != nil {
