@@ -10,7 +10,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
-const DefaultPaxdVerificationBaseURL = "https://ws.paxtech.net"
+const DefaultPaxdVerificationBaseURL = "https://ws.lakeward.net"
 
 type Config struct {
 	Port                        string
