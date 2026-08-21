@@ -88,21 +88,29 @@ type s3PaxdArtifactBackend struct {
 
 func newS3PaxdArtifactBackend(cfg Config) paxdArtifactBackend {
 	return &s3PaxdArtifactBackend{
-		bucket:         strings.TrimSpace(cfg.ObjectStorageBucket),
-		region:         strings.TrimSpace(cfg.ObjectStorageRegion),
-		endpoint:       strings.TrimSpace(cfg.ObjectStorageEndpoint),
-		publicEndpoint: strings.TrimSpace(cfg.ObjectStoragePublicEndpoint),
-		forcePathStyle: cfg.ObjectStorageForcePathStyle,
-		loadAWSConfigFn: func(ctx context.Context, region string) (aws.Config, error) {
-			return awsconfig.LoadDefaultConfig(
-				ctx,
-				awsconfig.WithRegion(region),
-				awsconfig.WithRequestChecksumCalculation(
-					aws.RequestChecksumCalculationWhenRequired,
-				),
-			)
-		},
+		bucket:          strings.TrimSpace(cfg.ObjectStorageBucket),
+		region:          strings.TrimSpace(cfg.ObjectStorageRegion),
+		endpoint:        strings.TrimSpace(cfg.ObjectStorageEndpoint),
+		publicEndpoint:  strings.TrimSpace(cfg.ObjectStoragePublicEndpoint),
+		forcePathStyle:  cfg.ObjectStorageForcePathStyle,
+		loadAWSConfigFn: loadObjectStorageAWSConfig,
 	}
+}
+
+func loadObjectStorageAWSConfig(ctx context.Context, region string) (aws.Config, error) {
+	return awsconfig.LoadDefaultConfig(
+		ctx,
+		awsconfig.WithRegion(region),
+		awsconfig.WithRequestChecksumCalculation(
+			aws.RequestChecksumCalculationWhenRequired,
+		),
+		// A presigned GET is consumed as a URL only. Optional response checksum
+		// validation would bind x-amz-checksum-mode as a header, which URL-only
+		// consumers such as curl and browsers cannot recover from the URL.
+		awsconfig.WithResponseChecksumValidation(
+			aws.ResponseChecksumValidationWhenRequired,
+		),
+	)
 }
 
 func newS3PaxdArtifactBackendWithClients(
@@ -336,15 +344,7 @@ func (b *s3PaxdArtifactBackend) initializeClients(ctx context.Context) error {
 	}
 	loadConfig := b.loadAWSConfigFn
 	if loadConfig == nil {
-		loadConfig = func(ctx context.Context, region string) (aws.Config, error) {
-			return awsconfig.LoadDefaultConfig(
-				ctx,
-				awsconfig.WithRegion(region),
-				awsconfig.WithRequestChecksumCalculation(
-					aws.RequestChecksumCalculationWhenRequired,
-				),
-			)
-		}
+		loadConfig = loadObjectStorageAWSConfig
 	}
 	awsConfig, err := loadConfig(ctx, region)
 	if err != nil {

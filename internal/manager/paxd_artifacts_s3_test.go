@@ -501,6 +501,36 @@ func TestS3ArtifactBackend(t *testing.T) {
 		},
 	)
 
+	t.Run(
+		"Given a public download when production credentials presign it then callers need no checksum header",
+		func(t *testing.T) {
+			t.Setenv("AWS_ACCESS_KEY_ID", "access-key")
+			t.Setenv("AWS_SECRET_ACCESS_KEY", "secret-key")
+			t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+			backend := newS3PaxdArtifactBackend(Config{
+				ObjectStorageBucket:         "pax-artifacts",
+				ObjectStorageRegion:         "us-east-1",
+				ObjectStoragePublicEndpoint: "https://objects.example.com",
+				ObjectStorageForcePathStyle: true,
+			})
+
+			rawURL, err := backend.SignObjectDownloadURL(
+				context.Background(),
+				"pax-artifacts",
+				"releases/paxl/install.sh",
+				0,
+				expiresAt,
+				nil,
+			)
+
+			require.NoError(t, err)
+			parsed, err := url.Parse(rawURL)
+			require.NoError(t, err)
+			assert.Equal(t, "host", parsed.Query().Get("X-Amz-SignedHeaders"))
+			assert.NotContains(t, strings.ToLower(rawURL), "checksum-mode")
+		},
+	)
+
 	t.Run("Given client failures when using storage then they are returned", func(t *testing.T) {
 		wantErr := errors.New("storage unavailable")
 		backend := newS3PaxdArtifactBackendWithClients(
