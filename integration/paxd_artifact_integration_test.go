@@ -63,10 +63,11 @@ func TestPaxdArtifactPublishAndDownloadIntegration(t *testing.T) {
 	testTag := "itest-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 
 	firstObject := "paxd/" + testTag + "/v0.1.0/linux-amd64/paxd"
+	firstPayload := bytes.Repeat([]byte("1"), 4096)
 	firstSHA := putIntegrationArtifact(
 		t,
 		firstObject,
-		bytes.Repeat([]byte("1"), 4096),
+		firstPayload,
 		"application/octet-stream",
 	)
 	first := publishPaxdArtifact(
@@ -84,12 +85,15 @@ func TestPaxdArtifactPublishAndDownloadIntegration(t *testing.T) {
 
 	firstDownload := downloadPaxdArtifact(t, fixture, testTag)
 	assertPaxdArtifactDownload(t, firstDownload, "v0.1.0", firstObject)
+	require.Equal(t, firstSHA, firstDownload.SHA256)
+	assertIntegrationArtifactBody(t, firstDownload.URL, firstPayload, firstDownload.SHA256)
 
 	secondObject := "paxd/" + testTag + "/v0.2.0/linux-amd64/paxd"
+	secondPayload := bytes.Repeat([]byte("2"), 4096)
 	secondSHA := putIntegrationArtifact(
 		t,
 		secondObject,
-		bytes.Repeat([]byte("2"), 4096),
+		secondPayload,
 		"application/octet-stream",
 	)
 	second := publishPaxdArtifact(
@@ -107,9 +111,9 @@ func TestPaxdArtifactPublishAndDownloadIntegration(t *testing.T) {
 
 	secondDownload := downloadPaxdArtifact(t, fixture, testTag)
 	assertPaxdArtifactDownload(t, secondDownload, "v0.2.0", secondObject)
-	if secondDownload.URL == firstDownload.URL {
-		t.Fatalf("download url did not update: %s", secondDownload.URL)
-	}
+	require.Equal(t, secondSHA, secondDownload.SHA256)
+	assertIntegrationArtifactBody(t, secondDownload.URL, secondPayload, secondDownload.SHA256)
+	require.False(t, secondDownload.URL == firstDownload.URL, "download URL did not update")
 }
 
 func TestPaxlInstallerPublishAndRedirectIntegration(t *testing.T) {
@@ -118,10 +122,11 @@ func TestPaxlInstallerPublishAndRedirectIntegration(t *testing.T) {
 	publisherAPIKey := createIntegrationPublisherAPIKey(t, fixture)
 	testTag := "itest-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	object := "paxl/" + testTag + "/v0.1.0/install.sh"
+	installerPayload := []byte("#!/bin/sh\nprintf 'paxl integration installer\\n'\n")
 	objectSHA := putIntegrationArtifact(
 		t,
 		object,
-		bytes.Repeat([]byte("#"), 1024),
+		installerPayload,
 		"text/x-shellscript",
 	)
 
@@ -139,7 +144,7 @@ func TestPaxlInstallerPublishAndRedirectIntegration(t *testing.T) {
 			"object":       object,
 			"generation":   0,
 			"sha256":       objectSHA,
-			"size_bytes":   1024,
+			"size_bytes":   len(installerPayload),
 			"content_type": "text/x-shellscript",
 		},
 		map[string]string{"Authorization": "Bearer " + publisherAPIKey},
@@ -153,20 +158,27 @@ func TestPaxlInstallerPublishAndRedirectIntegration(t *testing.T) {
 	}
 
 	client := *fixture.client
+	redirectCount := 0
+	redirectTarget := ""
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		redirectCount = len(via)
+		if redirectCount == 1 {
+			redirectTarget = req.URL.String()
+			return nil
+		}
 		return http.ErrUseLastResponse
 	}
 	req := fixture.newRequest(t, http.MethodGet, "/api/v1/public/paxl/install.sh", nil)
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("get paxl installer: %v", err)
+		require.FailNow(t, "get paxl installer", "request failed without exposing signed URL")
 	}
 	defer func() { _ = resp.Body.Close() }()
-	_ = readAll(t, resp)
-	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("paxl installer status = %d, want %d", resp.StatusCode, http.StatusFound)
-	}
-	assertIntegrationSignedURL(t, resp.Header.Get("Location"), object)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "paxl installer download status")
+	require.Equal(t, 1, redirectCount, "paxl installer redirect count")
+	assertIntegrationSignedURL(t, redirectTarget, object)
+	require.Equal(t, "text/x-shellscript", resp.Header.Get("Content-Type"))
+	assertIntegrationArtifactPayload(t, readAll(t, resp), installerPayload, objectSHA)
 }
 
 func TestObjectStorageGivenWriteOnceAndChecksumHeadersWhenPuttingThenMinIOEnforcesThem(
@@ -257,13 +269,11 @@ func assertPaxdArtifactDownload(
 	object string,
 ) {
 	t.Helper()
-	if download.Version != version ||
-		download.Artifact.Version != version ||
-		download.Artifact.Object != object ||
-		download.Generation <= 0 ||
-		download.Artifact.Generation != download.Generation {
-		t.Fatalf("unexpected download artifact: %+v", download)
-	}
+	require.Equal(t, version, download.Version)
+	require.Equal(t, version, download.Artifact.Version)
+	require.Equal(t, object, download.Artifact.Object)
+	require.Positive(t, download.Generation)
+	require.Equal(t, download.Generation, download.Artifact.Generation)
 	assertIntegrationSignedURL(t, download.URL, object)
 }
 
@@ -271,17 +281,55 @@ func assertIntegrationSignedURL(t *testing.T, rawURL string, object string) {
 	t.Helper()
 	signedURL, err := url.Parse(rawURL)
 	if err != nil {
-		t.Fatalf("parse signed URL: %v", err)
+		require.FailNow(t, "parse signed URL", "signed artifact URL is invalid")
 	}
 	expectedEndpoint, err := url.Parse(integrationObjectStorageEndpoint())
+	require.NoError(t, err)
+	require.Equal(t, expectedEndpoint.Host, signedURL.Host)
+	require.True(
+		t,
+		strings.HasSuffix(signedURL.Path, "/"+integrationArtifactBucket+"/"+object),
+		"signed artifact path does not match the expected object",
+	)
+	require.NotEmpty(t, signedURL.Query().Get("X-Amz-Signature"))
+}
+
+func assertIntegrationArtifactBody(
+	t *testing.T,
+	rawURL string,
+	wantPayload []byte,
+	wantSHA string,
+) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, rawURL, nil)
 	if err != nil {
-		t.Fatalf("parse integration object storage endpoint: %v", err)
+		require.FailNow(t, "create signed artifact request", "signed artifact URL is invalid")
 	}
-	if signedURL.Host != expectedEndpoint.Host ||
-		!strings.HasSuffix(signedURL.Path, "/"+integrationArtifactBucket+"/"+object) ||
-		signedURL.Query().Get("X-Amz-Signature") == "" {
-		t.Fatalf("unexpected signed URL: %s", rawURL)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
+	resp, err := client.Do(req)
+	if err != nil {
+		require.FailNow(t, "download signed artifact", "request failed without exposing signed URL")
+	}
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode, "signed artifact download status")
+	assertIntegrationArtifactPayload(t, readAll(t, resp), wantPayload, wantSHA)
+}
+
+func assertIntegrationArtifactPayload(
+	t *testing.T,
+	payload []byte,
+	wantPayload []byte,
+	wantSHA string,
+) {
+	t.Helper()
+	require.Equal(t, wantPayload, payload)
+	digest := sha256.Sum256(payload)
+	require.Equal(t, wantSHA, hex.EncodeToString(digest[:]))
 }
 
 func createIntegrationPublisherAPIKey(
