@@ -17,6 +17,10 @@ const (
 type acpHistoryTextSink interface {
 	EnsureMessage(ctx context.Context, msg *domain.Message) error
 	AppendText(ctx context.Context, messageID string, partIndex int, delta string) error
+	// AppendTerminalText appends an unbounded terminal-output delta, rolling it
+	// across bounded part_index chunks so no single message part grows without
+	// limit.
+	AppendTerminalText(ctx context.Context, messageID string, delta string) error
 	Flush(ctx context.Context) error
 }
 
@@ -35,6 +39,19 @@ func (s immediateACPHistoryTextSink) AppendText(
 	delta string,
 ) error {
 	return s.store.AppendMessagePartText(ctx, messageID, partIndex, delta, nil)
+}
+
+func (s immediateACPHistoryTextSink) AppendTerminalText(
+	ctx context.Context,
+	messageID string,
+	delta string,
+) error {
+	if delta == "" {
+		return nil
+	}
+	chunk := terminalChunkStateFromStore(ctx, s.store, messageID)
+	target, _ := terminalChunkTarget(chunk.index, chunk.size, len(delta), defaultACPTerminalChunkMaxBytes)
+	return s.store.AppendMessagePartText(ctx, messageID, target, delta, nil)
 }
 
 func (s immediateACPHistoryTextSink) Flush(ctx context.Context) error {
@@ -216,6 +233,14 @@ func (s acpAgentHistoryTextSink) AppendText(
 	delta string,
 ) error {
 	return s.agent.appendHistoryText(ctx, messageID, partIndex, delta)
+}
+
+func (s acpAgentHistoryTextSink) AppendTerminalText(
+	ctx context.Context,
+	messageID string,
+	delta string,
+) error {
+	return s.agent.appendTerminalHistoryText(ctx, messageID, delta)
 }
 
 func (s acpAgentHistoryTextSink) Flush(ctx context.Context) error {

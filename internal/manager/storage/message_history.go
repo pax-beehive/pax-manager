@@ -28,12 +28,20 @@ func (s *PostgresStore) UpsertMessage(ctx context.Context, msg *Message) error {
 		INSERT INTO messages (
 			message_id, conversation_id, owner_user_id, node_id, agent_id, session_id, source, direction,
 			role, status, message_type, parent_message_id, turn_id, response_id,
-			logical_key, raw_json, created_at, updated_at
+			logical_key, raw_json, session_seq, conversation_seq, created_at, updated_at
 		)
 		VALUES (
 			$1,NULLIF($2,''),NULLIF($3,''),NULLIF($4,''),$5,NULLIF($6,''),$7,$8,
 			NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),NULLIF($13,''),
-			NULLIF($14,''),NULLIF($15,''),$16,$17,$18
+			NULLIF($14,''),NULLIF($15,''),
+			-- First-touch, scope-monotonic ordering key. Assigned here (the single
+			-- assigner) and never derived from the transport offset. Per-agent
+			-- dispatch is serial, so MAX+1 cannot race within a session.
+			CASE WHEN NULLIF($6,'') IS NOT NULL
+				THEN (SELECT COALESCE(MAX(session_seq),0)+1 FROM messages WHERE session_id = $6) END,
+			CASE WHEN NULLIF($2,'') IS NOT NULL
+				THEN (SELECT COALESCE(MAX(conversation_seq),0)+1 FROM messages WHERE conversation_id = $2) END,
+			$16,$17,$18
 		)
 		ON CONFLICT (message_id) DO UPDATE SET
 			conversation_id = COALESCE(EXCLUDED.conversation_id, messages.conversation_id),
@@ -188,6 +196,123 @@ func (s *PostgresStore) ListMessageHistoryPage(
 	}, nil
 }
 
+func (s *PostgresStore) ListMessageHistoryPageBySeq(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	afterSeq int64,
+	beforeSeq int64,
+	limit int,
+) (domain.MessageHistoryPage, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	sessionIDs, err := s.messageHistorySessionIDs(ctx, agentID, sessionID)
+	if err != nil {
+		return domain.MessageHistoryPage{}, err
+	}
+	args := []any{agentID}
+	filter := "agent_id = $1 AND session_seq IS NOT NULL"
+	if sessionID != "" {
+		placeholders := make([]string, 0, len(sessionIDs))
+		for _, id := range sessionIDs {
+			args = append(args, id)
+			placeholders = append(placeholders, "$"+strconvArg(len(args)))
+		}
+		filter += " AND session_id IN (" + strings.Join(placeholders, ",") + ")"
+	}
+
+	headSeq, err := s.messageHeadSeq(ctx, "session_seq", filter, args)
+	if err != nil {
+		return domain.MessageHistoryPage{}, err
+	}
+
+	forward := afterSeq > 0
+	if forward {
+		args = append(args, afterSeq)
+		filter += " AND session_seq > $" + strconvArg(len(args))
+	} else if beforeSeq > 0 {
+		args = append(args, beforeSeq)
+		filter += " AND session_seq < $" + strconvArg(len(args))
+	}
+	order := "DESC"
+	if forward {
+		order = "ASC"
+	}
+	args = append(args, limit+1)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+messageReturningSQL+`
+		FROM messages
+		WHERE `+filter+`
+		ORDER BY session_seq `+order+`
+		LIMIT $`+strconvArg(len(args)), args...)
+	if err != nil {
+		return domain.MessageHistoryPage{}, err
+	}
+	defer func() { _ = rows.Close() }()
+	messages := make([]Message, 0, limit+1)
+	for rows.Next() {
+		msg, err := scanMessage(rows)
+		if err != nil {
+			return domain.MessageHistoryPage{}, err
+		}
+		messages = append(messages, msg)
+	}
+	if err := rows.Err(); err != nil {
+		return domain.MessageHistoryPage{}, err
+	}
+	return buildSeqHistoryPage(messages, headSeq, forward, limit, sessionSeqOf), nil
+}
+
+func (s *PostgresStore) messageHeadSeq(
+	ctx context.Context,
+	column string,
+	filter string,
+	args []any,
+) (int64, error) {
+	var head sql.NullInt64
+	err := s.db.QueryRowContext(ctx,
+		`SELECT MAX(`+column+`) FROM messages WHERE `+filter, args...,
+	).Scan(&head)
+	if err != nil {
+		return 0, err
+	}
+	return head.Int64, nil
+}
+
+func sessionSeqOf(m Message) int64      { return m.SessionSeq }
+func conversationSeqOf(m Message) int64 { return m.ConversationSeq }
+
+// buildSeqHistoryPage normalises a fetched slice into an ascending seq page and
+// fills the cursor metadata. Forward pages arrive ascending; backward pages
+// arrive descending and are reversed. seqOf selects the scope's ordering key
+// (session or conversation). Shared by both stores.
+func buildSeqHistoryPage(messages []Message, headSeq int64, forward bool, limit int, seqOf func(Message) int64) domain.MessageHistoryPage {
+	trimmed := false
+	if len(messages) > limit {
+		trimmed = true
+		messages = messages[:limit]
+	}
+	if !forward {
+		reverseMessages(messages)
+	}
+	page := domain.MessageHistoryPage{Messages: messages, HeadSeq: headSeq}
+	if len(messages) > 0 {
+		page.NextBeforeSeq = seqOf(messages[0])
+		page.NextAfterSeq = seqOf(messages[len(messages)-1])
+		page.HasNewer = seqOf(messages[len(messages)-1]) < headSeq
+	}
+	if forward {
+		// Catching up forward: everything at/below the cursor is older and the
+		// client already holds it, so older content exists by definition.
+		page.HasOlder = true
+		page.HasNewer = page.HasNewer || trimmed
+	} else {
+		page.HasOlder = trimmed
+	}
+	return page
+}
+
 func (s *PostgresStore) listMessagesBefore(
 	ctx context.Context,
 	agentID string,
@@ -288,6 +413,76 @@ func (s *PostgresStore) ListConversationMessages(
 		out = append(out, domain.MessageWithParts{Message: msg, Parts: parts})
 	}
 	return out, rows.Err()
+}
+
+func (s *PostgresStore) ListConversationHistoryPageBySeq(
+	ctx context.Context,
+	principal UserPrincipal,
+	conversationID string,
+	afterSeq int64,
+	beforeSeq int64,
+	limit int,
+) (domain.MessageHistoryPage, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	if conversationID == "" {
+		return domain.MessageHistoryPage{}, domain.ErrNotFound
+	}
+	var canRead bool
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM conversation_members
+			WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL
+		)
+	`, conversationID, principal.User.UserID).Scan(&canRead); err != nil {
+		return domain.MessageHistoryPage{}, err
+	}
+	if !canRead {
+		return domain.MessageHistoryPage{}, ErrNotFound
+	}
+
+	filter := "conversation_id = $1 AND conversation_seq IS NOT NULL"
+	headSeq, err := s.messageHeadSeq(ctx, "conversation_seq", filter, []any{conversationID})
+	if err != nil {
+		return domain.MessageHistoryPage{}, err
+	}
+	args := []any{conversationID}
+	forward := afterSeq > 0
+	if forward {
+		args = append(args, afterSeq)
+		filter += " AND conversation_seq > $" + strconvArg(len(args))
+	} else if beforeSeq > 0 {
+		args = append(args, beforeSeq)
+		filter += " AND conversation_seq < $" + strconvArg(len(args))
+	}
+	order := "DESC"
+	if forward {
+		order = "ASC"
+	}
+	args = append(args, limit+1)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT `+messageReturningSQL+`
+		FROM messages
+		WHERE `+filter+`
+		ORDER BY conversation_seq `+order+`
+		LIMIT $`+strconvArg(len(args)), args...)
+	if err != nil {
+		return domain.MessageHistoryPage{}, err
+	}
+	defer func() { _ = rows.Close() }()
+	messages := make([]Message, 0, limit+1)
+	for rows.Next() {
+		msg, err := scanMessage(rows)
+		if err != nil {
+			return domain.MessageHistoryPage{}, err
+		}
+		messages = append(messages, msg)
+	}
+	if err := rows.Err(); err != nil {
+		return domain.MessageHistoryPage{}, err
+	}
+	return buildSeqHistoryPage(messages, headSeq, forward, limit, conversationSeqOf), nil
 }
 
 func (s *PostgresStore) messageHistorySessionIDs(
@@ -393,7 +588,10 @@ func (s *MemoryStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	if existing, ok := s.messages[msg.MessageID]; ok {
 		msg.ID = existing.ID
 		msg.CreatedAt = existing.CreatedAt
+		msg.SessionSeq = existing.SessionSeq
+		msg.ConversationSeq = existing.ConversationSeq
 	}
+	s.assignMessageSeqLocked(msg)
 	s.messages[msg.MessageID] = cloneMessage(*msg)
 	if msg.Direction == domain.MessageDirectionUserToAgent && msg.Role == "user" {
 		key := sessionKey(msg.AgentID, msg.SessionID)
@@ -403,6 +601,19 @@ func (s *MemoryStore) UpsertMessage(ctx context.Context, msg *Message) error {
 		}
 	}
 	return nil
+}
+
+// assignMessageSeqLocked stamps first-touch, scope-monotonic ordering keys.
+// Callers must hold s.mu. Mirrors PostgresStore.ensureMessageSeq.
+func (s *MemoryStore) assignMessageSeqLocked(msg *Message) {
+	if msg.SessionID != "" && msg.SessionSeq == 0 {
+		s.messageSessionSeq[msg.SessionID]++
+		msg.SessionSeq = s.messageSessionSeq[msg.SessionID]
+	}
+	if msg.ConversationID != "" && msg.ConversationSeq == 0 {
+		s.messageConversationSeq[msg.ConversationID]++
+		msg.ConversationSeq = s.messageConversationSeq[msg.ConversationID]
+	}
 }
 
 func (s *MemoryStore) ListConversationMessages(
@@ -447,6 +658,54 @@ func (s *MemoryStore) ListConversationMessages(
 	return out, nil
 }
 
+func (s *MemoryStore) ListConversationHistoryPageBySeq(
+	ctx context.Context,
+	principal UserPrincipal,
+	conversationID string,
+	afterSeq int64,
+	beforeSeq int64,
+	limit int,
+) (domain.MessageHistoryPage, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	s.mu.Lock()
+	if conversationID == "" || !s.canReadConversationLocked(principal.User.UserID, conversationID) {
+		s.mu.Unlock()
+		return domain.MessageHistoryPage{}, ErrNotFound
+	}
+	scoped := make([]Message, 0)
+	headSeq := int64(0)
+	for _, msg := range s.messages {
+		if msg.ConversationID != conversationID || msg.ConversationSeq == 0 {
+			continue
+		}
+		if msg.ConversationSeq > headSeq {
+			headSeq = msg.ConversationSeq
+		}
+		scoped = append(scoped, cloneMessage(msg))
+	}
+	s.mu.Unlock()
+
+	forward := afterSeq > 0
+	filtered := make([]Message, 0, len(scoped))
+	for _, msg := range scoped {
+		if forward {
+			if msg.ConversationSeq > afterSeq {
+				filtered = append(filtered, msg)
+			}
+		} else if beforeSeq <= 0 || msg.ConversationSeq < beforeSeq {
+			filtered = append(filtered, msg)
+		}
+	}
+	if forward {
+		sort.Slice(filtered, func(i, j int) bool { return filtered[i].ConversationSeq < filtered[j].ConversationSeq })
+	} else {
+		sort.Slice(filtered, func(i, j int) bool { return filtered[i].ConversationSeq > filtered[j].ConversationSeq })
+	}
+	return buildSeqHistoryPage(filtered, headSeq, forward, limit, conversationSeqOf), nil
+}
+
 func (s *MemoryStore) ListMessages(
 	ctx context.Context,
 	agentID string,
@@ -486,6 +745,65 @@ func (s *MemoryStore) ListMessageHistoryPage(
 		NextBeforeID: nextBeforeID,
 		HasMore:      hasMore,
 	}, nil
+}
+
+func (s *MemoryStore) ListMessageHistoryPageBySeq(
+	ctx context.Context,
+	agentID string,
+	sessionID string,
+	afterSeq int64,
+	beforeSeq int64,
+	limit int,
+) (domain.MessageHistoryPage, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	s.mu.Lock()
+	sessionIDs := map[string]struct{}{}
+	if sessionID != "" {
+		managerID := s.virtualSessionIDLocked(agentID, sessionID)
+		nativeID := s.nativeSessionIDLocked(agentID, managerID)
+		for _, id := range uniqueNonEmptyStrings(sessionID, managerID, nativeID) {
+			sessionIDs[id] = struct{}{}
+		}
+	}
+	scoped := make([]Message, 0)
+	headSeq := int64(0)
+	for _, msg := range s.messages {
+		if msg.AgentID != agentID || msg.SessionSeq == 0 {
+			continue
+		}
+		if len(sessionIDs) > 0 {
+			if _, ok := sessionIDs[msg.SessionID]; !ok {
+				continue
+			}
+		} else if sessionID != "" {
+			continue
+		}
+		if msg.SessionSeq > headSeq {
+			headSeq = msg.SessionSeq
+		}
+		scoped = append(scoped, cloneMessage(msg))
+	}
+	s.mu.Unlock()
+
+	forward := afterSeq > 0
+	filtered := make([]Message, 0, len(scoped))
+	for _, msg := range scoped {
+		if forward {
+			if msg.SessionSeq > afterSeq {
+				filtered = append(filtered, msg)
+			}
+		} else if beforeSeq <= 0 || msg.SessionSeq < beforeSeq {
+			filtered = append(filtered, msg)
+		}
+	}
+	if forward {
+		sort.Slice(filtered, func(i, j int) bool { return filtered[i].SessionSeq < filtered[j].SessionSeq })
+	} else {
+		sort.Slice(filtered, func(i, j int) bool { return filtered[i].SessionSeq > filtered[j].SessionSeq })
+	}
+	return buildSeqHistoryPage(filtered, headSeq, forward, limit, sessionSeqOf), nil
 }
 
 func (s *MemoryStore) listMessagesBefore(
@@ -661,6 +979,7 @@ const messageReturningSQL = `
 	COALESCE(session_id, ''), source, direction, COALESCE(role, ''), COALESCE(status, ''),
 	COALESCE(message_type, ''), COALESCE(parent_message_id, ''), COALESCE(turn_id, ''),
 	COALESCE(response_id, ''), COALESCE(logical_key, ''), COALESCE(raw_json, '{}'::jsonb),
+	COALESCE(session_seq, 0), COALESCE(conversation_seq, 0),
 	created_at, updated_at`
 
 const messagePartReturningSQL = `
@@ -687,6 +1006,8 @@ func scanMessage(row interface{ Scan(dest ...any) error }) (Message, error) {
 		&msg.ResponseID,
 		&msg.LogicalKey,
 		&msg.RawJSON,
+		&msg.SessionSeq,
+		&msg.ConversationSeq,
 		&msg.CreatedAt,
 		&msg.UpdatedAt,
 	); err != nil {

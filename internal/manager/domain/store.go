@@ -413,6 +413,16 @@ type Store interface {
 		conversationID string,
 		limit int,
 	) ([]MessageWithParts, error)
+	// ListConversationHistoryPageBySeq paginates a conversation by its
+	// conversation-scoped ordering key, mirroring ListMessageHistoryPageBySeq.
+	ListConversationHistoryPageBySeq(
+		ctx context.Context,
+		principal UserPrincipal,
+		conversationID string,
+		afterSeq int64,
+		beforeSeq int64,
+		limit int,
+	) (MessageHistoryPage, error)
 	ListSessionMessages(
 		ctx context.Context,
 		principal UserPrincipal,
@@ -513,6 +523,18 @@ type Store interface {
 		agentID string,
 		sessionID string,
 		beforeID int64,
+		limit int,
+	) (MessageHistoryPage, error)
+	// ListMessageHistoryPageBySeq paginates by the session-scoped ordering key.
+	// afterSeq>0 catches up forward (items with seq>afterSeq, ascending);
+	// otherwise it scrolls back from beforeSeq (0 = latest page). The returned
+	// page includes HeadSeq/HasOlder/HasNewer and next-cursor hints.
+	ListMessageHistoryPageBySeq(
+		ctx context.Context,
+		agentID string,
+		sessionID string,
+		afterSeq int64,
+		beforeSeq int64,
 		limit int,
 	) (MessageHistoryPage, error)
 	ListMessageParts(ctx context.Context, messageID string) ([]MessagePart, error)

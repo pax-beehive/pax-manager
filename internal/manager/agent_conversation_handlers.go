@@ -389,17 +389,64 @@ func ListAgentConversationMessages(c context.Context, ctx *app.RequestContext) {
 		writeEndpointError(ctx, err)
 		return
 	}
+	conversationID := ctx.Param("conversation_id")
+	debug := strings.TrimSpace(string(ctx.Query("view"))) == "debug"
+	afterSeq, validAfter := queryOptionalPositiveInt64(ctx, "after_seq")
+	beforeSeq, validBefore := queryOptionalPositiveInt64(ctx, "before_seq")
+	if !validAfter || !validBefore {
+		writeError(ctx, http.StatusBadRequest, "after_seq and before_seq must be positive integers")
+		return
+	}
+
+	// seq cursor path: shared TranscriptItem/page envelope, conversation-scoped.
+	if afterSeq > 0 || beforeSeq > 0 {
+		page, err := service.store.ListConversationHistoryPageBySeq(
+			c, principal, conversationID, afterSeq, beforeSeq, queryInt(ctx, "limit"),
+		)
+		if err != nil {
+			writeEndpointError(ctx, err)
+			return
+		}
+		ids := make([]string, 0, len(page.Messages))
+		for _, m := range page.Messages {
+			ids = append(ids, m.MessageID)
+		}
+		partsByID, err := service.store.ListMessagePartsByMessageIDs(c, ids)
+		if err != nil {
+			writeEndpointError(ctx, err)
+			return
+		}
+		items := make([]domain.MessageWithParts, 0, len(page.Messages))
+		for _, m := range page.Messages {
+			items = append(items, domain.MessageWithParts{Message: m, Parts: partsByID[m.MessageID]})
+		}
+		if !debug {
+			items = domain.NormalTranscriptMessages(items)
+		}
+		writeData(ctx, http.StatusOK, map[string]any{
+			"messages": items,
+			"pagination": domain.MessageHistoryPagination{
+				HeadSeq:       page.HeadSeq,
+				HasOlder:      page.HasOlder,
+				HasNewer:      page.HasNewer,
+				NextBeforeSeq: page.NextBeforeSeq,
+				NextAfterSeq:  page.NextAfterSeq,
+			},
+		})
+		return
+	}
+
 	messages, err := service.store.ListConversationMessages(
 		c,
 		principal,
-		ctx.Param("conversation_id"),
+		conversationID,
 		queryInt(ctx, "limit"),
 	)
 	if err != nil {
 		writeEndpointError(ctx, err)
 		return
 	}
-	if strings.TrimSpace(string(ctx.Query("view"))) != "debug" {
+	if !debug {
 		messages = domain.NormalTranscriptMessages(messages)
 	}
 	writeData(ctx, http.StatusOK, map[string]any{"messages": messages})
