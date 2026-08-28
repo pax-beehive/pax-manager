@@ -8601,25 +8601,54 @@ func TestAgentSessionHistoryPaginatesOlderMessages(t *testing.T) {
 	}
 
 	basePath := "/api/v1/user/self/agents/" + agentID + "/sessions/" + sessionID + "/history"
+
+	// Default (no cursor) uses the seq path: latest page, ascending, with a
+	// head_seq staleness marker and a backward seq cursor.
 	latest := requestPage(basePath + "?limit=2")
 	require.Len(t, latest.Messages, 2)
 	require.Equal(t, []string{"msg_history_page_3", "msg_history_page_4"}, []string{
 		latest.Messages[0].MessageID,
 		latest.Messages[1].MessageID,
 	})
-	require.True(t, latest.Pagination.HasMore)
-	require.Equal(t, latest.Messages[0].ID, latest.Pagination.NextBeforeID)
+	require.Equal(t, int64(4), latest.Pagination.HeadSeq)
+	require.True(t, latest.Pagination.HasOlder)
+	require.False(t, latest.Pagination.HasNewer)
+	require.Equal(t, latest.Messages[0].SessionSeq, latest.Pagination.NextBeforeSeq)
 
+	// Scroll back via before_seq.
 	older := requestPage(
-		basePath + "?limit=2&before_id=" + strconv.FormatInt(latest.Pagination.NextBeforeID, 10),
+		basePath + "?limit=2&before_seq=" + strconv.FormatInt(latest.Pagination.NextBeforeSeq, 10),
 	)
 	require.Len(t, older.Messages, 2)
 	require.Equal(t, []string{"msg_history_page_1", "msg_history_page_2"}, []string{
 		older.Messages[0].MessageID,
 		older.Messages[1].MessageID,
 	})
-	require.False(t, older.Pagination.HasMore)
-	require.Zero(t, older.Pagination.NextBeforeID)
+	require.False(t, older.Pagination.HasOlder)
+	require.True(t, older.Pagination.HasNewer)
+
+	// Catch up forward via after_seq: everything newer than msg_2.
+	newer := requestPage(
+		basePath + "?limit=10&after_seq=" + strconv.FormatInt(older.Messages[1].SessionSeq, 10),
+	)
+	require.Equal(t, []string{"msg_history_page_3", "msg_history_page_4"}, []string{
+		newer.Messages[0].MessageID,
+		newer.Messages[1].MessageID,
+	})
+
+	// Legacy before_id path still works (id-ordered, HasMore/NextBeforeID).
+	legacyLatest := requestPage(basePath + "?limit=2&before_id=" + strconv.FormatInt(latest.Messages[1].ID+1, 10))
+	require.Len(t, legacyLatest.Messages, 2)
+	require.True(t, legacyLatest.Pagination.HasMore)
+	require.Equal(t, legacyLatest.Messages[0].ID, legacyLatest.Pagination.NextBeforeID)
+	legacyOlder := requestPage(
+		basePath + "?limit=2&before_id=" + strconv.FormatInt(legacyLatest.Pagination.NextBeforeID, 10),
+	)
+	require.Equal(t, []string{"msg_history_page_1", "msg_history_page_2"}, []string{
+		legacyOlder.Messages[0].MessageID,
+		legacyOlder.Messages[1].MessageID,
+	})
+	require.False(t, legacyOlder.Pagination.HasMore)
 }
 
 func TestAgentSessionHistoryRejectsInvalidBeforeID(t *testing.T) {

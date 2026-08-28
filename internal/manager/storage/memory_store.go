@@ -60,6 +60,8 @@ type MemoryStore struct {
 	nextPartID                   int64
 	messages                     map[string]Message
 	messageLogical               map[string]string
+	messageSessionSeq            map[string]int64
+	messageConversationSeq       map[string]int64
 	messageParts                 map[messagePartKey]MessagePart
 	knowledgeCapsules            map[string]KnowledgeCapsule
 	knowledgeInjections          map[string]SessionKnowledgeInjection
@@ -131,6 +133,8 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		agentConnectionEpochs:        make(map[string]int64),
 		messages:                     make(map[string]Message),
 		messageLogical:               make(map[string]string),
+		messageSessionSeq:            make(map[string]int64),
+		messageConversationSeq:       make(map[string]int64),
 		messageParts:                 make(map[messagePartKey]MessagePart),
 		knowledgeCapsules:            make(map[string]KnowledgeCapsule),
 		knowledgeInjections:          make(map[string]SessionKnowledgeInjection),

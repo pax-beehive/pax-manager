@@ -203,6 +203,15 @@ CREATE TABLE IF NOT EXISTS e2ee_messages (
 CREATE INDEX IF NOT EXISTS idx_e2ee_messages_session_page
     ON e2ee_messages(owner_user_id, session_id, id DESC);
 
+-- Transcript ordering key for e2ee, mirroring plaintext messages. Cleartext so
+-- ordering/cursor works without decryption. conversation_seq is reserved for
+-- future e2ee conversations (none today).
+ALTER TABLE e2ee_messages ADD COLUMN IF NOT EXISTS session_seq BIGINT;
+ALTER TABLE e2ee_messages ADD COLUMN IF NOT EXISTS conversation_seq BIGINT;
+CREATE INDEX IF NOT EXISTS idx_e2ee_messages_session_seq
+    ON e2ee_messages(owner_user_id, session_id, session_seq)
+    WHERE session_seq IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS e2ee_message_parts (
     id BIGSERIAL PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -610,6 +619,40 @@ CREATE INDEX IF NOT EXISTS idx_messages_agent_session_id ON messages(agent_id, s
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at, id)
     WHERE conversation_id IS NOT NULL AND conversation_id <> '';
 CREATE INDEX IF NOT EXISTS idx_message_parts_message ON message_parts(message_id, part_index);
+
+-- Transcript ordering key (seq refactor). session_seq / conversation_seq are
+-- scope-monotonic, assigned once at row creation and immutable. They are the
+-- single ordering/cursor key for history/conversation/events and are decoupled
+-- from the reliablemq transport offset.
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS session_seq BIGINT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS conversation_seq BIGINT;
+CREATE INDEX IF NOT EXISTS idx_messages_session_seq ON messages(session_id, session_seq)
+    WHERE session_seq IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_seq ON messages(conversation_id, conversation_seq)
+    WHERE conversation_id IS NOT NULL AND conversation_id <> '' AND conversation_seq IS NOT NULL;
+
+-- One-time backfill: assign session_seq to existing rows in ascending id order
+-- (historical receipt order). New rows compute MAX(seq)+1 at insert time, so no
+-- counter table is needed. Idempotent: only fills NULLs.
+WITH ranked AS (
+    SELECT id, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY id) AS rn
+    FROM messages
+    WHERE session_seq IS NULL AND session_id IS NOT NULL AND session_id <> ''
+)
+UPDATE messages AS m
+SET session_seq = ranked.rn
+FROM ranked
+WHERE m.id = ranked.id;
+
+WITH ranked AS (
+    SELECT id, ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY id) AS rn
+    FROM messages
+    WHERE conversation_seq IS NULL AND conversation_id IS NOT NULL AND conversation_id <> ''
+)
+UPDATE messages AS m
+SET conversation_seq = ranked.rn
+FROM ranked
+WHERE m.id = ranked.id;
 
 -- Existing agents may already have manager-generated ACP request IDs recorded
 -- in prompt history. Start above that high-water mark so the first request

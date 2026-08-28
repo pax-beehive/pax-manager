@@ -59,6 +59,8 @@ type ACPTunnelAgent struct {
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
 	live              *acpTunnelLiveState
+	sessionAliasMu    sync.RWMutex
+	sessionAliases    map[string]acpSessionAliases
 	connectionEpoch   int64
 	commandWake       chan struct{}
 	e2eeReady         chan struct{}
@@ -74,6 +76,7 @@ type acpTunnelLiveState struct {
 	historyGroups            acpHistoryGroups
 	projectedHistoryMessages map[string]struct{}
 	historyTextBatcher       *acpHistoryTextBatcher
+	terminalChunks           map[string]*acpTerminalChunk
 	pendingSessionNew        acpPendingSessionNews
 }
 

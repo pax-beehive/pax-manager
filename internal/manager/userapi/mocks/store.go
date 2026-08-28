@@ -3283,6 +3283,61 @@ func (_c *MockStore_ListMessageHistoryPage_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// ListMessageHistoryPageBySeq provides a mock function with given fields: ctx, agentID, sessionID, afterSeq, beforeSeq, limit
+func (_m *MockStore) ListMessageHistoryPageBySeq(ctx context.Context, agentID string, sessionID string, afterSeq int64, beforeSeq int64, limit int) (domain.MessageHistoryPage, error) {
+	ret := _m.Called(ctx, agentID, sessionID, afterSeq, beforeSeq, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListMessageHistoryPageBySeq")
+	}
+
+	var r0 domain.MessageHistoryPage
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, int64, int) (domain.MessageHistoryPage, error)); ok {
+		return rf(ctx, agentID, sessionID, afterSeq, beforeSeq, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, int64, int) domain.MessageHistoryPage); ok {
+		r0 = rf(ctx, agentID, sessionID, afterSeq, beforeSeq, limit)
+	} else {
+		r0 = ret.Get(0).(domain.MessageHistoryPage)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int64, int64, int) error); ok {
+		r1 = rf(ctx, agentID, sessionID, afterSeq, beforeSeq, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListMessageHistoryPageBySeq_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListMessageHistoryPageBySeq'
+type MockStore_ListMessageHistoryPageBySeq_Call struct {
+	*mock.Call
+}
+
+// ListMessageHistoryPageBySeq is a helper method to define mock.On call
+func (_e *MockStore_Expecter) ListMessageHistoryPageBySeq(ctx interface{}, agentID interface{}, sessionID interface{}, afterSeq interface{}, beforeSeq interface{}, limit interface{}) *MockStore_ListMessageHistoryPageBySeq_Call {
+	return &MockStore_ListMessageHistoryPageBySeq_Call{Call: _e.mock.On("ListMessageHistoryPageBySeq", ctx, agentID, sessionID, afterSeq, beforeSeq, limit)}
+}
+
+func (_c *MockStore_ListMessageHistoryPageBySeq_Call) Run(run func(ctx context.Context, agentID string, sessionID string, afterSeq int64, beforeSeq int64, limit int)) *MockStore_ListMessageHistoryPageBySeq_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int64), args[4].(int64), args[5].(int))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListMessageHistoryPageBySeq_Call) Return(_a0 domain.MessageHistoryPage, _a1 error) *MockStore_ListMessageHistoryPageBySeq_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListMessageHistoryPageBySeq_Call) RunAndReturn(run func(context.Context, string, string, int64, int64, int) (domain.MessageHistoryPage, error)) *MockStore_ListMessageHistoryPageBySeq_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListMessageParts provides a mock function with given fields: ctx, messageID
 func (_m *MockStore) ListMessageParts(ctx context.Context, messageID string) ([]domain.MessagePart, error) {
 	ret := _m.Called(ctx, messageID)

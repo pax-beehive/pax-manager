@@ -174,6 +174,14 @@ type SessionHistoryStore interface {
 		beforeID int64,
 		limit int,
 	) (domain.MessageHistoryPage, error)
+	ListMessageHistoryPageBySeq(
+		ctx context.Context,
+		agentID string,
+		sessionID string,
+		afterSeq int64,
+		beforeSeq int64,
+		limit int,
+	) (domain.MessageHistoryPage, error)
 	ListMessageParts(ctx context.Context, messageID string) ([]domain.MessagePart, error)
 	ListMessagePartsByMessageIDs(
 		ctx context.Context,
@@ -2500,6 +2508,8 @@ func (s *Service) ListAgentSessionHistory(
 	sessionID string,
 	limit int,
 	beforeID int64,
+	afterSeq int64,
+	beforeSeq int64,
 ) (int, any, error) {
 	principal, err := s.principal.Principal(c, meta)
 	if err != nil {
@@ -2521,7 +2531,7 @@ func (s *Service) ListAgentSessionHistory(
 			return 0, nil, agentErr
 		}
 	}
-	return s.listSessionHistory(c, agentID, sessionID, limit, beforeID)
+	return s.listSessionHistory(c, agentID, sessionID, limit, beforeID, afterSeq, beforeSeq)
 }
 
 func (s *Service) ListSessionHistory(
@@ -2530,6 +2540,8 @@ func (s *Service) ListSessionHistory(
 	sessionID string,
 	limit int,
 	beforeID int64,
+	afterSeq int64,
+	beforeSeq int64,
 ) (int, any, error) {
 	principal, err := s.principal.Principal(c, meta)
 	if err != nil {
@@ -2545,7 +2557,7 @@ func (s *Service) ListSessionHistory(
 	if err != nil {
 		return 0, nil, err
 	}
-	return s.listSessionHistory(c, session.AgentID, session.SessionID, limit, beforeID)
+	return s.listSessionHistory(c, session.AgentID, session.SessionID, limit, beforeID, afterSeq, beforeSeq)
 }
 
 func (s *Service) listSessionHistory(
@@ -2554,6 +2566,8 @@ func (s *Service) listSessionHistory(
 	sessionID string,
 	limit int,
 	beforeID int64,
+	afterSeq int64,
+	beforeSeq int64,
 ) (int, any, error) {
 	if limit <= 0 {
 		limit = defaultHistoryPageSize
@@ -2567,12 +2581,27 @@ func (s *Service) listSessionHistory(
 			Message: "before_id must be non-negative",
 		}
 	}
+	if afterSeq < 0 || beforeSeq < 0 {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "before_seq and after_seq must be non-negative",
+		}
+	}
 	if s.historyReconciler != nil {
 		if err := s.historyReconciler(c, agentID, sessionID); err != nil {
 			return 0, nil, err
 		}
 	}
-	page, err := s.store.ListMessageHistoryPage(c, agentID, sessionID, beforeID, limit)
+	// Prefer the seq cursor unless the caller is a legacy client that passed an
+	// explicit before_id (which forces the id-ordered path).
+	useSeq := beforeID == 0 || afterSeq > 0 || beforeSeq > 0
+	var page domain.MessageHistoryPage
+	var err error
+	if useSeq {
+		page, err = s.store.ListMessageHistoryPageBySeq(c, agentID, sessionID, afterSeq, beforeSeq, limit)
+	} else {
+		page, err = s.store.ListMessageHistoryPage(c, agentID, sessionID, beforeID, limit)
+	}
 	if err != nil {
 		return 0, nil, err
 	}
@@ -2595,8 +2624,13 @@ func (s *Service) listSessionHistory(
 	return http.StatusOK, map[string]any{
 		"messages": history,
 		"pagination": domain.MessageHistoryPagination{
-			NextBeforeID: page.NextBeforeID,
-			HasMore:      page.HasMore,
+			NextBeforeID:  page.NextBeforeID,
+			HasMore:       page.HasMore,
+			HeadSeq:       page.HeadSeq,
+			HasOlder:      page.HasOlder,
+			HasNewer:      page.HasNewer,
+			NextBeforeSeq: page.NextBeforeSeq,
+			NextAfterSeq:  page.NextAfterSeq,
 		},
 	}, nil
 }

@@ -347,7 +347,7 @@ func TestPostgresListMessagesQueriesLatestAndReturnsChronologically(t *testing.T
 				"id", "message_id", "conversation_id", "owner_user_id", "node_id",
 				"agent_id", "session_id", "source", "direction", "role", "status",
 				"message_type", "parent_message_id", "turn_id", "response_id",
-				"logical_key", "raw_json", "created_at", "updated_at",
+				"logical_key", "raw_json", "session_seq", "conversation_seq", "created_at", "updated_at",
 			},
 			values: [][]driver.Value{
 				scriptedMessageHistoryRow(4, "msg_4", now),
@@ -384,7 +384,7 @@ func TestPostgresListMessageHistoryPageUsesBeforeIDAndProbesForMore(t *testing.T
 				"id", "message_id", "conversation_id", "owner_user_id", "node_id",
 				"agent_id", "session_id", "source", "direction", "role", "status",
 				"message_type", "parent_message_id", "turn_id", "response_id",
-				"logical_key", "raw_json", "created_at", "updated_at",
+				"logical_key", "raw_json", "session_seq", "conversation_seq", "created_at", "updated_at",
 			},
 			values: [][]driver.Value{
 				scriptedMessageHistoryRow(3, "msg_3", now),
@@ -432,6 +432,8 @@ func scriptedMessageHistoryRow(id int64, messageID string, now time.Time) []driv
 		"",
 		messageID,
 		[]byte(`{}`),
+		int64(0),
+		int64(0),
 		now,
 		now,
 	}
@@ -498,6 +500,8 @@ func TestScanMessageAndMessagePartRows(t *testing.T) {
 		"resp_1",
 		"logic_1",
 		[]byte(`{"event":"completed"}`),
+		int64(11),
+		int64(3),
 		now,
 		updated,
 	})
@@ -507,6 +511,8 @@ func TestScanMessageAndMessagePartRows(t *testing.T) {
 	if msg.ID != 7 ||
 		msg.ConversationID != "conv_1" ||
 		msg.Direction != domain.MessageDirectionAgentToUser ||
+		msg.SessionSeq != 11 ||
+		msg.ConversationSeq != 3 ||
 		string(msg.RawJSON) != `{"event":"completed"}` {
 		t.Fatalf("message = %+v", msg)
 	}

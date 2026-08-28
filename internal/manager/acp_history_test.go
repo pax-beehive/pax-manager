@@ -395,6 +395,63 @@ func TestACPHistoryGivenTerminalOutputDeltasThenAggregatesByToolAndTerminal(t *t
 	assert.Equal(t, " M first.go\n M second.go\n", parts[0].Text)
 }
 
+func TestACPHistoryGivenToolCallUpdatesThenCollapsesIntoOneRowPerToolCallID(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStore(func() time.Time {
+		return time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	})
+	project := func(seq int64, raw string) {
+		require.NoError(t, projectACPTransportMessage(
+			ctx,
+			store,
+			"agent_tc",
+			"user_tc",
+			"node_tc",
+			domain.TransportStreamPaxdToManager,
+			seq,
+			"",
+			json.RawMessage(raw),
+		))
+	}
+
+	project(1, `{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call","toolCallId":"tc-1","title":"Read file","kind":"read","rawInput":{"path":"a.go"}}},"jsonrpc":"2.0"}`)
+	project(2, `{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call_update","toolCallId":"tc-1","status":"in_progress"}},"jsonrpc":"2.0"}`)
+	project(3, `{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call_update","toolCallId":"tc-1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"done"}}]}},"jsonrpc":"2.0"}`)
+	// A different toolCallId must remain a separate row.
+	project(4, `{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call","toolCallId":"tc-2","title":"List dir","kind":"read"}},"jsonrpc":"2.0"}`)
+	// reliablemq redelivers frames in order (exactly-once dispatch), so the
+	// realistic replay is the latest frame arriving twice. It must not duplicate
+	// rows or regress the merged state.
+	project(3, `{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call_update","toolCallId":"tc-1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"done"}}]}},"jsonrpc":"2.0"}`)
+
+	messages, err := store.ListMessages(ctx, "agent_tc", "sess_tc", 100)
+	require.NoError(t, err)
+	require.Len(t, messages, 2, "tc-1 collapses to one row; tc-2 is its own row")
+
+	byToolCall := map[string]domain.Message{}
+	for _, message := range messages {
+		assert.Equal(t, "tool_call", message.MessageType, "collapsed rows use the canonical tool_call type")
+		byToolCall[acpHistoryToolCallIDFromRaw(message.RawJSON)] = message
+	}
+
+	tc1 := byToolCall["tc-1"]
+	require.NotEmpty(t, tc1.MessageID)
+	raw := string(tc1.RawJSON)
+	assert.Contains(t, raw, `"title":"Read file"`, "title from first frame survives")
+	assert.Contains(t, raw, `"kind":"read"`, "kind from first frame survives")
+	assert.Contains(t, raw, `"path":"a.go"`, "rawInput from first frame survives")
+	assert.Contains(t, raw, `"status":"completed"`, "status advances to the terminal value")
+	assert.Contains(t, raw, `"done"`, "latest output content is present")
+
+	parts, err := store.ListMessageParts(ctx, tc1.MessageID)
+	require.NoError(t, err)
+	require.Len(t, parts, 1, "one raw part per collapsed tool call")
+	assert.Equal(t, domain.MessagePartRawJSON, parts[0].PartType)
+	assert.JSONEq(t, string(tc1.RawJSON), string(parts[0].PayloadJSON), "message raw and part payload stay in sync")
+
+	assert.NotEmpty(t, byToolCall["tc-2"].MessageID)
+}
+
 func TestACPHistoryGivenUserFrameBetweenAgentChunksThenStartsNewAgentMessage(t *testing.T) {
 	ctx := context.Background()
 	store := storage.NewMemoryStore(func() time.Time {
@@ -814,28 +871,28 @@ func TestACPHistoryGivenPendingInvocationWhenTerminalToolUpdateArrivesThenProjec
 
 	messages, err = store.ListMessages(ctx, "agent_source", "sess_source", 100)
 	require.NoError(t, err)
-	var toolUpdate domain.Message
-	var toolProgress domain.Message
+	// tool_call + both tool_call_update frames now collapse into a single
+	// toolCallId row (message_type "tool_call") whose merged raw keeps the
+	// original title yet advances to the terminal "completed" status.
+	var toolMessage domain.Message
 	var display domain.Message
 	for _, message := range messages {
 		switch message.MessageType {
-		case "tool_call_update":
-			if acpHistoryTerminalToolCallUpdate(message.RawJSON) {
-				toolUpdate = message
-			} else {
-				toolProgress = message
+		case "tool_call":
+			if acpHistoryToolCallIDFromRaw(message.RawJSON) == "tool_1" {
+				toolMessage = message
 			}
 		case domain.MessageTypePaxInvocation:
 			display = message
 		}
 	}
-	require.NotEmpty(t, toolProgress.MessageID)
-	require.NotEmpty(t, toolUpdate.MessageID)
+	require.NotEmpty(t, toolMessage.MessageID)
 	require.NotEmpty(t, display.MessageID)
-	assert.Equal(t, toolUpdate.MessageID, display.ParentMessageID)
+	assert.Equal(t, toolCallMessageID, toolMessage.MessageID, "updates merge into the first tool_call row")
+	assert.Contains(t, string(toolMessage.RawJSON), `"title":"pax conversation"`, "title survives the merge")
+	assert.True(t, acpHistoryTerminalToolCallUpdate(toolMessage.RawJSON), "merged status advanced to completed")
+	assert.Equal(t, toolMessage.MessageID, display.ParentMessageID)
 	assert.Contains(t, string(display.RawJSON), `"`+toolCallMessageID+`"`)
-	assert.Contains(t, string(display.RawJSON), `"`+toolProgress.MessageID+`"`)
-	assert.Contains(t, string(display.RawJSON), `"`+toolUpdate.MessageID+`"`)
 	assert.Contains(t, string(display.RawJSON), `"msg_prompt"`)
 	assert.Contains(t, string(display.RawJSON), `"msg_pending"`)
 	parts, err := store.ListMessageParts(ctx, display.MessageID)
@@ -1278,6 +1335,17 @@ func (s *countingACPHistoryTextSink) AppendText(
 ) error {
 	s.appendCalls++
 	return s.store.AppendMessagePartText(ctx, messageID, partIndex, delta, nil)
+}
+
+func (s *countingACPHistoryTextSink) AppendTerminalText(
+	ctx context.Context,
+	messageID string,
+	delta string,
+) error {
+	s.appendCalls++
+	chunk := terminalChunkStateFromStore(ctx, s.store, messageID)
+	target, _ := terminalChunkTarget(chunk.index, chunk.size, len(delta), defaultACPTerminalChunkMaxBytes)
+	return s.store.AppendMessagePartText(ctx, messageID, target, delta, nil)
 }
 
 func (s *countingACPHistoryTextSink) Flush(ctx context.Context) error {

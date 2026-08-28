@@ -122,8 +122,14 @@ func reconcileArtifactPublicationDisplay(
 }
 
 func isArtifactPublicationTerminal(terminal domain.Message) bool {
-	return terminal.MessageType == "tool_call_update" &&
-		strings.ToLower(acpHistoryToolCallUpdateStatus(terminal.RawJSON)) == "completed" &&
+	// tool_call and tool_call_update frames collapse into one toolCallId row
+	// (canonical message_type "tool_call") whose merged raw carries the latest
+	// status and output, so the completed-status + publication-id check on the
+	// raw is the real gate rather than the message_type.
+	if terminal.MessageType != "tool_call" && terminal.MessageType != "tool_call_update" {
+		return false
+	}
+	return strings.ToLower(acpHistoryToolCallUpdateStatus(terminal.RawJSON)) == "completed" &&
 		artifactPublicationIDFromTerminal(terminal.RawJSON) != ""
 }
 

@@ -45,6 +45,17 @@ func (h *acpHistoryGroups) groupID(
 		h.groups = nil
 		return ""
 	}
+	if fields.ToolCallID != "" && fields.TerminalID != "" {
+		// Terminal output is text-projected but is a distinct tool block. It
+		// must break the surrounding message/thought grouping so an answer
+		// emitted after it starts a fresh row instead of folding back into a
+		// pre-tool message — which would freeze that answer at an early id and
+		// bury it beneath the turn's tool rows in long turns. Terminal deltas
+		// key their own history row by session/tool/terminal and ignore this
+		// group id, so returning "" is safe.
+		h.groups = nil
+		return ""
+	}
 	key := firstNonEmpty(fields.SessionID, sessionID) + "\x00" +
 		firstNonEmpty(fields.SessionUpdate, "_") + "\x00" +
 		firstNonEmpty(fields.Role, "_")
