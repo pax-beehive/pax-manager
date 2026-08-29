@@ -95,13 +95,22 @@ func TestPostgresUserPromptUpsertTouchesSessionInSameStatement(t *testing.T) {
 	message := Message{
 		MessageID: "msg_prompt", ConversationID: "conv_1", AgentID: "agent_1", SessionID: "sess_1",
 		Source: domain.MessageSourceACPTunnel, Direction: domain.MessageDirectionUserToAgent,
-		Role: "user", CreatedAt: now,
+		Role: "user", RawJSON: json.RawMessage(`{"input":"hello"}`), CreatedAt: now,
 	}
 
 	require.NoError(t, store.UpsertMessage(context.Background(), &message))
 	require.Len(t, script.queryTexts, 1)
-	assert.Contains(t, script.queryTexts[0], "last_user_message_at")
-	assert.Contains(t, script.queryTexts[0], "UPDATE agent_sessions")
+	query := strings.Join(strings.Fields(script.queryTexts[0]), " ")
+	assert.Contains(t, query, "last_user_message_at")
+	assert.Contains(t, query, "UPDATE agent_sessions")
+	assert.Contains(t, query, "NULLIF($14,''),NULLIF($15,''),$16,")
+	assert.Contains(t, query, "WHERE conversation_id = $2) END, $17,$18")
+
+	require.Len(t, script.queryArgs, 1)
+	require.Len(t, script.queryArgs[0], 18)
+	rawJSON, ok := script.queryArgs[0][15].Value.([]byte)
+	require.True(t, ok, "argument $16 should be raw JSON bytes")
+	assert.JSONEq(t, `{"input":"hello"}`, string(rawJSON))
 }
 
 func TestMemoryMailboxWritesMessageHistory(t *testing.T) {

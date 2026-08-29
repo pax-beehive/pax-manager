@@ -33,7 +33,7 @@ func (s *PostgresStore) UpsertMessage(ctx context.Context, msg *Message) error {
 		VALUES (
 			$1,NULLIF($2,''),NULLIF($3,''),NULLIF($4,''),$5,NULLIF($6,''),$7,$8,
 			NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),NULLIF($13,''),
-			NULLIF($14,''),NULLIF($15,''),
+			NULLIF($14,''),NULLIF($15,''),$16,
 			-- First-touch, scope-monotonic ordering key. Assigned here (the single
 			-- assigner) and never derived from the transport offset. Per-agent
 			-- dispatch is serial, so MAX+1 cannot race within a session.
@@ -41,7 +41,7 @@ func (s *PostgresStore) UpsertMessage(ctx context.Context, msg *Message) error {
 				THEN (SELECT COALESCE(MAX(session_seq),0)+1 FROM messages WHERE session_id = $6) END,
 			CASE WHEN NULLIF($2,'') IS NOT NULL
 				THEN (SELECT COALESCE(MAX(conversation_seq),0)+1 FROM messages WHERE conversation_id = $2) END,
-			$16,$17,$18
+			$17,$18
 		)
 		ON CONFLICT (message_id) DO UPDATE SET
 			conversation_id = COALESCE(EXCLUDED.conversation_id, messages.conversation_id),
