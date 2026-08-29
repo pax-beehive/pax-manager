@@ -121,6 +121,7 @@ func projectACPTransportMessageWithTextSink(
 	)
 }
 
+//nolint:gocyclo // Transcript projection intentionally keeps message classification in one path.
 func projectACPTransportMessageWithTextSinkForTurn(
 	ctx context.Context,
 	store domain.Store,

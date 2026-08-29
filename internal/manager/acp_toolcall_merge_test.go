@@ -133,10 +133,14 @@ func TestACPHistoryIsMergeableToolCall(t *testing.T) {
 
 func TestAppendTerminalHistoryTextGuards(t *testing.T) {
 	var nilAgent *ACPTunnelAgent
-	assert.NoError(t, nilAgent.appendTerminalHistoryText(nil, "msg", "data"))
+	assert.NoError(t, nilAgent.appendTerminalHistoryText(t.Context(), "msg", "data"))
 
 	agent := &ACPTunnelAgent{agentID: "a"}
-	assert.NoError(t, agent.appendTerminalHistoryText(nil, "msg", ""), "empty delta is a no-op")
+	assert.NoError(
+		t,
+		agent.appendTerminalHistoryText(t.Context(), "msg", ""),
+		"empty delta is a no-op",
+	)
 }
 
 func updateObject(t *testing.T, frame json.RawMessage) map[string]any {

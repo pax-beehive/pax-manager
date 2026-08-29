@@ -242,32 +242,6 @@ func (h *ACPTunnelHub) wakeAllAgents() {
 	}
 }
 
-func (h *ACPTunnelHub) interruptSession(agentID string, sessionID string, err error) int {
-	if h == nil || agentID == "" || sessionID == "" || err == nil {
-		return 0
-	}
-	h.mu.RLock()
-	muxes := make(map[*acpSessionMux]struct{})
-	for key, state := range h.states {
-		if key.agentID != agentID || state == nil {
-			continue
-		}
-		state.mu.Lock()
-		mux := state.sessionMux
-		state.mu.Unlock()
-		if mux != nil {
-			muxes[mux] = struct{}{}
-		}
-	}
-	h.mu.RUnlock()
-
-	interrupted := 0
-	for mux := range muxes {
-		interrupted += mux.interruptSession(sessionID, err)
-	}
-	return interrupted
-}
-
 func (h *ACPTunnelHub) deferIdleSessionInterrupt(
 	agentID string,
 	sessionID string,
