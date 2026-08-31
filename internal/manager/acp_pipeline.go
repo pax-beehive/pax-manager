@@ -175,6 +175,9 @@ func (m acpSessionLifecycleMiddleware) bindNativeSessionID(
 		NativeID:  nativeSessionID,
 		Source:    domain.MessageSourceACPTunnel,
 	}
+	// Prime the alias cache so the first inbound frame after session/new is a
+	// cache hit rather than a ListAgentSessions read.
+	agent.primeSessionAliases(managerSessionID, nativeSessionID)
 	principal := domain.UserPrincipal{User: domain.User{UserID: agent.ownerUserID}}
 	if agent.nodeID != "" {
 		if _, err := m.store.CreateNodeAgentSession(ctx, principal, req); err == nil {
@@ -263,21 +266,8 @@ func (m acpSessionIDMiddleware) managerSessionID(
 	if m.store == nil {
 		return frameSessionID, nil
 	}
-	sessions, err := m.store.ListAgentSessions(
-		ctx,
-		domain.UserPrincipal{User: domain.User{UserID: agent.ownerUserID}},
-		agent.agentID,
-	)
-	if err != nil {
-		return frameSessionID, nil
-	}
-	for _, session := range sessions {
-		if frameSessionID == session.SessionID {
-			return session.SessionID, nil
-		}
-		if frameSessionID == session.NativeID {
-			return session.SessionID, nil
-		}
+	if aliases, ok := agent.resolveSessionAliases(ctx, m.store, frameSessionID); ok {
+		return aliases.managerID, nil
 	}
 	return frameSessionID, nil
 }
@@ -290,21 +280,8 @@ func (m acpSessionIDMiddleware) nativeSessionID(
 	if m.store == nil {
 		return frameSessionID, nil
 	}
-	sessions, err := m.store.ListAgentSessions(
-		ctx,
-		domain.UserPrincipal{User: domain.User{UserID: agent.ownerUserID}},
-		agent.agentID,
-	)
-	if err != nil {
-		return frameSessionID, nil
-	}
-	for _, session := range sessions {
-		if frameSessionID == session.SessionID {
-			return firstNonEmpty(session.NativeID, session.SessionID), nil
-		}
-		if frameSessionID == session.NativeID {
-			return firstNonEmpty(session.NativeID, session.SessionID), nil
-		}
+	if aliases, ok := agent.resolveSessionAliases(ctx, m.store, frameSessionID); ok {
+		return firstNonEmpty(aliases.nativeID, frameSessionID), nil
 	}
 	return frameSessionID, nil
 }
@@ -986,6 +963,12 @@ func acpRuntimeEventFromUpdate(raw json.RawMessage) (acpRuntimeEvent, bool) {
 	if updateType != "tool_call" && updateType != "tool_call_update" {
 		return acpRuntimeEvent{}, false
 	}
+	// A terminal-output-only delta streams bytes; it is not a tool status
+	// transition and must not synthesize a pending event that churns runtime
+	// state on every frame of a verbose command.
+	if stringField(update, "status", "") == "" && acpUpdateHasTerminalOutput(update) {
+		return acpRuntimeEvent{}, false
+	}
 	toolCall := runtimeToolCallFromUpdate(update)
 	switch toolCall.Status {
 	case "pending":
@@ -1000,6 +983,14 @@ func acpRuntimeEventFromUpdate(raw json.RawMessage) (acpRuntimeEvent, bool) {
 		}
 		return acpRuntimeEvent{}, false
 	}
+}
+
+// acpUpdateHasTerminalOutput reports whether a session/update carries streamed
+// terminal output (a _meta.terminal_output_delta payload) rather than a tool
+// status change.
+func acpUpdateHasTerminalOutput(update map[string]any) bool {
+	terminalID, data := terminalOutputDeltaFromValue(update)
+	return terminalID != "" || data != ""
 }
 
 func runtimeToolCallFromPermission(params map[string]any) domain.RuntimeToolCall {

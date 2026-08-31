@@ -121,6 +121,7 @@ func projectACPTransportMessageWithTextSink(
 	)
 }
 
+//nolint:gocyclo // Transcript projection intentionally keeps message classification in one path.
 func projectACPTransportMessageWithTextSinkForTurn(
 	ctx context.Context,
 	store domain.Store,
@@ -167,9 +168,10 @@ func projectACPTransportMessageWithTextSinkForTurn(
 	if fields.SessionID == "" && strings.EqualFold(fields.StopReason, "end_turn") {
 		return nil
 	}
-	fields.SessionID = canonicalACPHistorySessionID(
+	fields.SessionID = canonicalACPHistorySessionIDCached(
 		ctx,
 		store,
+		textSink,
 		ownerUserID,
 		agentID,
 		fields.SessionID,
@@ -185,8 +187,18 @@ func projectACPTransportMessageWithTextSinkForTurn(
 		"acp",
 	)
 	logicalKey := acpHistoryLogicalKey(agentID, stream, seq, historyGroupID, fields)
+	mergeableToolCall := false
 	if !textProjection {
-		logicalKey = acpHistoryRawLogicalKey(agentID, stream, seq, fields)
+		if acpHistoryIsMergeableToolCall(fields) {
+			logicalKey = acpHistoryToolCallLogicalKey(agentID, stream, fields.SessionID, fields.ToolCallID)
+			// Canonicalise so the collapsed row keeps a stable message_type and
+			// never trips the client's terminal-output aggregation, which keys
+			// off "tool_call_update" message rows that carry text parts.
+			messageType = "tool_call"
+			mergeableToolCall = true
+		} else {
+			logicalKey = acpHistoryRawLogicalKey(agentID, stream, seq, fields)
+		}
 	}
 	messageID := acpHistoryMessageID(logicalKey)
 	msg := domain.Message{
@@ -204,15 +216,28 @@ func projectACPTransportMessageWithTextSinkForTurn(
 		ResponseID:  fields.ResponseID,
 		LogicalKey:  logicalKey,
 	}
+	rawPayload := cloneRawJSON(payload)
+	if mergeableToolCall {
+		rawPayload = mergeACPToolCallFrames(
+			existingACPToolCallRawJSON(ctx, store, messageID),
+			payload,
+		)
+	}
 	if !textProjection {
-		msg.RawJSON = append(json.RawMessage(nil), payload...)
+		msg.RawJSON = cloneRawJSON(rawPayload)
 	}
 	if textProjection {
-		if fields.ToolCallID != "" && fields.TerminalID != "" {
+		terminalOutput := fields.ToolCallID != "" && fields.TerminalID != ""
+		if terminalOutput {
 			msg.RawJSON = append(json.RawMessage(nil), payload...)
 		}
 		if err := textSink.EnsureMessage(ctx, &msg); err != nil {
 			return err
+		}
+		if terminalOutput {
+			// Terminal output is an unbounded stream; roll it across bounded
+			// part_index chunks instead of appending forever to part 0.
+			return textSink.AppendTerminalText(ctx, msg.MessageID, fields.Content)
 		}
 		return textSink.AppendText(ctx, msg.MessageID, 0, fields.Content)
 	}
@@ -223,7 +248,7 @@ func projectACPTransportMessageWithTextSinkForTurn(
 		MessageID:   msg.MessageID,
 		PartIndex:   0,
 		PartType:    domain.MessagePartRawJSON,
-		PayloadJSON: append(json.RawMessage(nil), payload...),
+		PayloadJSON: cloneRawJSON(rawPayload),
 	}); err != nil {
 		return err
 	}
@@ -393,8 +418,14 @@ func projectACPPaxInvocationPendingDisplay(
 	store domain.Store,
 	terminal domain.Message,
 ) error {
-	if terminal.MessageType != "tool_call_update" ||
-		!acpHistoryTerminalToolCallUpdate(terminal.RawJSON) {
+	// tool_call and tool_call_update frames collapse into a single toolCallId row
+	// (message_type "tool_call") whose merged raw carries the latest status, so
+	// the terminal-status check on the raw — not the message_type — is what gates
+	// the display replacement.
+	if terminal.MessageType != "tool_call" && terminal.MessageType != "tool_call_update" {
+		return nil
+	}
+	if !acpHistoryTerminalToolCallUpdate(terminal.RawJSON) {
 		return nil
 	}
 	toolCallID := acpHistoryToolCallIDFromRaw(terminal.RawJSON)
@@ -660,6 +691,27 @@ func acpHistoryContentHash(content string) string {
 	return fmt.Sprintf("%x", sum[:8])
 }
 
+// canonicalACPHistorySessionIDCached resolves the session ID via the agent's
+// alias cache when the text sink is agent-backed (the live pipeline), avoiding a
+// per-frame ListAgentSessions read. Non-agent sinks (immediate projection used
+// by tests and repair paths) fall back to the direct store lookup.
+func canonicalACPHistorySessionIDCached(
+	ctx context.Context,
+	store domain.Store,
+	textSink acpHistoryTextSink,
+	ownerUserID string,
+	agentID string,
+	sessionID string,
+) string {
+	if sessionID == "" {
+		return ""
+	}
+	if sink, ok := textSink.(acpAgentHistoryTextSink); ok && sink.agent != nil {
+		return sink.agent.canonicalSessionID(ctx, store, sessionID)
+	}
+	return canonicalACPHistorySessionID(ctx, store, ownerUserID, agentID, sessionID)
+}
+
 func canonicalACPHistorySessionID(
 	ctx context.Context,
 	store domain.Store,
@@ -737,6 +789,61 @@ func acpHistoryLogicalKey(
 		)
 	}
 	return fmt.Sprintf("acp:%s:%s:text:%d", agentID, stream, seq)
+}
+
+// acpHistoryIsMergeableToolCall reports whether a raw-projected frame is a
+// non-terminal tool_call / tool_call_update that should collapse into a single
+// history row keyed by toolCallId. Terminal output deltas are excluded: they
+// carry their own terminal-scoped text aggregation and never mutate the tool
+// call envelope.
+// existingACPToolCallRawJSON returns the accumulated tool_call frame already
+// stored for messageID (part 0), or nil when this is the first frame for the
+// toolCallId. It is the merge base for the next partial update.
+func existingACPToolCallRawJSON(
+	ctx context.Context,
+	store domain.Store,
+	messageID string,
+) json.RawMessage {
+	parts, err := store.ListMessageParts(ctx, messageID)
+	if err != nil {
+		return nil
+	}
+	for _, part := range parts {
+		if part.PartIndex == 0 {
+			return part.PayloadJSON
+		}
+	}
+	return nil
+}
+
+func acpHistoryIsMergeableToolCall(fields acpHistoryFields) bool {
+	if fields.ToolCallID == "" || fields.TerminalID != "" {
+		return false
+	}
+	switch fields.SessionUpdate {
+	case "tool_call", "tool_call_update":
+		return true
+	default:
+		return false
+	}
+}
+
+// acpHistoryToolCallLogicalKey groups every tool_call / tool_call_update frame
+// for one toolCallId onto the same message row so partial updates field-merge
+// into a single record instead of exploding into one raw row per transport seq.
+func acpHistoryToolCallLogicalKey(
+	agentID string,
+	stream string,
+	sessionID string,
+	toolCallID string,
+) string {
+	return fmt.Sprintf(
+		"acp:%s:%s:%s:tool:%s",
+		agentID,
+		stream,
+		firstNonEmpty(sessionID, "_"),
+		toolCallID,
+	)
 }
 
 func acpHistoryRawLogicalKey(

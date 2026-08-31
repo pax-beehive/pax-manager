@@ -59,6 +59,8 @@ type ACPTunnelAgent struct {
 	historyGroups     acpHistoryGroups
 	pendingSessionNew acpPendingSessionNews
 	live              *acpTunnelLiveState
+	sessionAliasMu    sync.RWMutex
+	sessionAliases    map[string]acpSessionAliases
 	connectionEpoch   int64
 	commandWake       chan struct{}
 	e2eeReady         chan struct{}
@@ -74,6 +76,7 @@ type acpTunnelLiveState struct {
 	historyGroups            acpHistoryGroups
 	projectedHistoryMessages map[string]struct{}
 	historyTextBatcher       *acpHistoryTextBatcher
+	terminalChunks           map[string]*acpTerminalChunk
 	pendingSessionNew        acpPendingSessionNews
 }
 
@@ -237,32 +240,6 @@ func (h *ACPTunnelHub) wakeAllAgents() {
 		default:
 		}
 	}
-}
-
-func (h *ACPTunnelHub) interruptSession(agentID string, sessionID string, err error) int {
-	if h == nil || agentID == "" || sessionID == "" || err == nil {
-		return 0
-	}
-	h.mu.RLock()
-	muxes := make(map[*acpSessionMux]struct{})
-	for key, state := range h.states {
-		if key.agentID != agentID || state == nil {
-			continue
-		}
-		state.mu.Lock()
-		mux := state.sessionMux
-		state.mu.Unlock()
-		if mux != nil {
-			muxes[mux] = struct{}{}
-		}
-	}
-	h.mu.RUnlock()
-
-	interrupted := 0
-	for mux := range muxes {
-		interrupted += mux.interruptSession(sessionID, err)
-	}
-	return interrupted
 }
 
 func (h *ACPTunnelHub) deferIdleSessionInterrupt(

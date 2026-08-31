@@ -51,6 +51,13 @@ type conversationEvent struct {
 	Approval   *AgentApproval  `json:"approval,omitempty"`
 	Message    string          `json:"message,omitempty"`
 	Reason     string          `json:"reason,omitempty"`
+	// Transcript ordering (seq refactor). Seq is the session-scoped ordering key
+	// for a replayed durable item; HeadSeq is the session's current max seq,
+	// carried on "head"/"resync" control frames so the client knows if it is
+	// behind. Item is the durable transcript row for "history_item" catch-up.
+	Seq     int64                    `json:"seq,omitempty"`
+	HeadSeq int64                    `json:"head_seq,omitempty"`
+	Item    *domain.MessageWithParts `json:"item,omitempty"`
 }
 
 type conversationSession struct {

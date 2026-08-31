@@ -547,8 +547,10 @@ func ListNodeAgentSessionMessages(c context.Context, ctx *app.RequestContext) {
 
 func ListAgentSessionHistory(c context.Context, ctx *app.RequestContext) {
 	beforeID, validBeforeID := queryOptionalPositiveInt64(ctx, "before_id")
-	if !validBeforeID {
-		writeError(ctx, http.StatusBadRequest, "before_id must be a positive integer")
+	afterSeq, validAfterSeq := queryOptionalPositiveInt64(ctx, "after_seq")
+	beforeSeq, validBeforeSeq := queryOptionalPositiveInt64(ctx, "before_seq")
+	if !validBeforeID || !validAfterSeq || !validBeforeSeq {
+		writeError(ctx, http.StatusBadRequest, "before_id, after_seq and before_seq must be positive integers")
 		return
 	}
 	status, data, err := serviceFromContext(ctx).userapi.ListAgentSessionHistory(
@@ -558,14 +560,18 @@ func ListAgentSessionHistory(c context.Context, ctx *app.RequestContext) {
 		firstString(ctx.Param("sessionId"), ctx.Param("session_id"), ctx.Param("sessionID")),
 		queryInt(ctx, "limit"),
 		beforeID,
+		afterSeq,
+		beforeSeq,
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
 
 func ListSessionHistory(c context.Context, ctx *app.RequestContext) {
 	beforeID, validBeforeID := queryOptionalPositiveInt64(ctx, "before_id")
-	if !validBeforeID {
-		writeError(ctx, http.StatusBadRequest, "before_id must be a positive integer")
+	afterSeq, validAfterSeq := queryOptionalPositiveInt64(ctx, "after_seq")
+	beforeSeq, validBeforeSeq := queryOptionalPositiveInt64(ctx, "before_seq")
+	if !validBeforeID || !validAfterSeq || !validBeforeSeq {
+		writeError(ctx, http.StatusBadRequest, "before_id, after_seq and before_seq must be positive integers")
 		return
 	}
 	status, data, err := serviceFromContext(ctx).userapi.ListSessionHistory(
@@ -574,6 +580,8 @@ func ListSessionHistory(c context.Context, ctx *app.RequestContext) {
 		firstString(ctx.Param("sessionId"), ctx.Param("session_id"), ctx.Param("sessionID")),
 		queryInt(ctx, "limit"),
 		beforeID,
+		afterSeq,
+		beforeSeq,
 	)
 	writeEndpointResult(ctx, status, data, err)
 }

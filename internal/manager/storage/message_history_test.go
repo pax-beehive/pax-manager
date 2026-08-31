@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,13 +95,22 @@ func TestPostgresUserPromptUpsertTouchesSessionInSameStatement(t *testing.T) {
 	message := Message{
 		MessageID: "msg_prompt", ConversationID: "conv_1", AgentID: "agent_1", SessionID: "sess_1",
 		Source: domain.MessageSourceACPTunnel, Direction: domain.MessageDirectionUserToAgent,
-		Role: "user", CreatedAt: now,
+		Role: "user", RawJSON: json.RawMessage(`{"input":"hello"}`), CreatedAt: now,
 	}
 
 	require.NoError(t, store.UpsertMessage(context.Background(), &message))
 	require.Len(t, script.queryTexts, 1)
-	assert.Contains(t, script.queryTexts[0], "last_user_message_at")
-	assert.Contains(t, script.queryTexts[0], "UPDATE agent_sessions")
+	query := strings.Join(strings.Fields(script.queryTexts[0]), " ")
+	assert.Contains(t, query, "last_user_message_at")
+	assert.Contains(t, query, "UPDATE agent_sessions")
+	assert.Contains(t, query, "NULLIF($14,''),NULLIF($15,''),$16,")
+	assert.Contains(t, query, "WHERE conversation_id = $2) END, $17,$18")
+
+	require.Len(t, script.queryArgs, 1)
+	require.Len(t, script.queryArgs[0], 18)
+	rawJSON, ok := script.queryArgs[0][15].Value.([]byte)
+	require.True(t, ok, "argument $16 should be raw JSON bytes")
+	assert.JSONEq(t, `{"input":"hello"}`, string(rawJSON))
 }
 
 func TestMemoryMailboxWritesMessageHistory(t *testing.T) {
@@ -347,7 +357,7 @@ func TestPostgresListMessagesQueriesLatestAndReturnsChronologically(t *testing.T
 				"id", "message_id", "conversation_id", "owner_user_id", "node_id",
 				"agent_id", "session_id", "source", "direction", "role", "status",
 				"message_type", "parent_message_id", "turn_id", "response_id",
-				"logical_key", "raw_json", "created_at", "updated_at",
+				"logical_key", "raw_json", "session_seq", "conversation_seq", "created_at", "updated_at",
 			},
 			values: [][]driver.Value{
 				scriptedMessageHistoryRow(4, "msg_4", now),
@@ -384,7 +394,7 @@ func TestPostgresListMessageHistoryPageUsesBeforeIDAndProbesForMore(t *testing.T
 				"id", "message_id", "conversation_id", "owner_user_id", "node_id",
 				"agent_id", "session_id", "source", "direction", "role", "status",
 				"message_type", "parent_message_id", "turn_id", "response_id",
-				"logical_key", "raw_json", "created_at", "updated_at",
+				"logical_key", "raw_json", "session_seq", "conversation_seq", "created_at", "updated_at",
 			},
 			values: [][]driver.Value{
 				scriptedMessageHistoryRow(3, "msg_3", now),
@@ -432,6 +442,8 @@ func scriptedMessageHistoryRow(id int64, messageID string, now time.Time) []driv
 		"",
 		messageID,
 		[]byte(`{}`),
+		int64(0),
+		int64(0),
 		now,
 		now,
 	}
@@ -498,6 +510,8 @@ func TestScanMessageAndMessagePartRows(t *testing.T) {
 		"resp_1",
 		"logic_1",
 		[]byte(`{"event":"completed"}`),
+		int64(11),
+		int64(3),
 		now,
 		updated,
 	})
@@ -507,6 +521,8 @@ func TestScanMessageAndMessagePartRows(t *testing.T) {
 	if msg.ID != 7 ||
 		msg.ConversationID != "conv_1" ||
 		msg.Direction != domain.MessageDirectionAgentToUser ||
+		msg.SessionSeq != 11 ||
+		msg.ConversationSeq != 3 ||
 		string(msg.RawJSON) != `{"event":"completed"}` {
 		t.Fatalf("message = %+v", msg)
 	}

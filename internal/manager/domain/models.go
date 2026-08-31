@@ -506,8 +506,15 @@ type Message struct {
 	ResponseID      string          `json:"response_id,omitempty"`
 	LogicalKey      string          `json:"logical_key,omitempty"`
 	RawJSON         json.RawMessage `json:"raw_json,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	// SessionSeq is a session-scoped monotonic ordering key for the transcript,
+	// assigned once at row creation and immutable thereafter. It is the single
+	// ordering/cursor key shared by history, conversation and live-event views,
+	// and is decoupled from the reliablemq transport offset. ConversationSeq is
+	// the analogous key scoped to the message's conversation (0 when none).
+	SessionSeq      int64     `json:"session_seq,omitempty"`
+	ConversationSeq int64     `json:"conversation_seq,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // MessagePart stores message content or artifacts. Streaming text deltas append
@@ -533,11 +540,23 @@ type MessageHistoryPage struct {
 	Messages     []Message
 	NextBeforeID int64
 	HasMore      bool
+	// seq-based cursor fields (transcript ordering refactor). HeadSeq is the
+	// scope's current max seq so a client can tell whether it is behind.
+	HeadSeq       int64
+	HasOlder      bool
+	HasNewer      bool
+	NextBeforeSeq int64
+	NextAfterSeq  int64
 }
 
 type MessageHistoryPagination struct {
-	NextBeforeID int64 `json:"next_before_id,omitempty"`
-	HasMore      bool  `json:"has_more"`
+	NextBeforeID  int64 `json:"next_before_id,omitempty"`
+	HasMore       bool  `json:"has_more"`
+	HeadSeq       int64 `json:"head_seq"`
+	HasOlder      bool  `json:"has_older"`
+	HasNewer      bool  `json:"has_newer"`
+	NextBeforeSeq int64 `json:"next_before_seq,omitempty"`
+	NextAfterSeq  int64 `json:"next_after_seq,omitempty"`
 }
 
 const (
