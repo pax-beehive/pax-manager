@@ -1777,7 +1777,7 @@ func (s *PostgresStore) UpdateNodeAgentSession(
 	if req.PaxConfig.ApprovalMode != "" {
 		config := session.PaxConfig
 		config.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
-		config.PermissionChoiceID = ""
+		config.PermissionChoiceID = req.PaxConfig.PermissionChoiceID
 		if err := updateSessionPaxConfig(
 			ctx,
 			dbExecer{s.db},

@@ -232,6 +232,18 @@ func TestPermissionChoiceGivenLegacyApprovalOverrideWhenStoredThenClearsChoiceAn
 	assert.Equal(t, "/workspace-2", updated.PaxConfig.CWD)
 	assert.Equal(t, domain.SessionApprovalModeAutoApproveAll, updated.PaxConfig.ApprovalMode)
 	assert.Empty(t, updated.PaxConfig.PermissionChoiceID)
+	updated, err = store.UpdateNodeAgentSession(ctx, principal, UpdateSessionRequest{
+		NodeID:    node.NodeID,
+		AgentID:   agent.AgentID,
+		SessionID: "session-2",
+		PaxConfig: SessionPaxConfig{
+			ApprovalMode:       domain.SessionApprovalModeManual,
+			PermissionChoiceID: "agent:mode:read-only",
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, domain.SessionApprovalModeManual, updated.PaxConfig.ApprovalMode)
+	assert.Equal(t, "agent:mode:read-only", updated.PaxConfig.PermissionChoiceID)
 	require.ErrorIs(t, store.SetSessionApprovalMode(
 		ctx,
 		agent.AgentID,

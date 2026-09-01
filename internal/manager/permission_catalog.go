@@ -682,6 +682,165 @@ func applyResolvedPermissionChoice(
 	return err
 }
 
+type setSessionPermissionRequest struct {
+	PermissionChoiceID string `json:"permission_choice_id"`
+}
+
+func (s *Service) resolveStoredPermissionChoice(
+	ctx context.Context,
+	agent domain.Agent,
+	choiceID string,
+) (domain.ResolvedPermissionChoice, error) {
+	if choiceID == domain.PermissionChoicePAXAutoApprove {
+		return domain.ResolvedPermissionChoice{
+			ChoiceID:     choiceID,
+			ApprovalMode: domain.SessionApprovalModeAutoApproveAll,
+		}, nil
+	}
+	identity, err := s.store.GetAgentRuntimeIdentity(ctx, agent.AgentID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.ResolvedPermissionChoice{}, apperr.Error{
+				Status:  http.StatusConflict,
+				Message: "agent runtime identity is unavailable",
+			}
+		}
+		return domain.ResolvedPermissionChoice{}, err
+	}
+	if !strings.EqualFold(identity.PoolConsistency, "consistent") {
+		return domain.ResolvedPermissionChoice{}, apperr.Error{
+			Status:  http.StatusConflict,
+			Message: "native permission choices are unavailable for a mixed ACP worker pool",
+		}
+	}
+	observation, err := s.store.GetPermissionObservation(
+		ctx,
+		agent.AgentID,
+		identity.IdentityFingerprint,
+	)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.ResolvedPermissionChoice{}, apperr.Error{
+				Status:  http.StatusConflict,
+				Message: "permission catalog observation is unavailable",
+			}
+		}
+		return domain.ResolvedPermissionChoice{}, err
+	}
+	if !observation.ExpiresAt.After(s.clock().UTC()) {
+		return domain.ResolvedPermissionChoice{}, apperr.Error{
+			Status:  http.StatusConflict,
+			Message: "permission catalog observation is stale",
+		}
+	}
+	profiles, err := s.store.ListActivePermissionProfiles(
+		ctx,
+		agent.OwnerUserID,
+		agent.AgentType,
+	)
+	if err != nil {
+		return domain.ResolvedPermissionChoice{}, err
+	}
+	profile, profileFound, _ := selectPermissionProfile(profiles, identity, true)
+	if profileFound {
+		if err := validatePermissionProfileDefinition(profile.Definition); err != nil {
+			return domain.ResolvedPermissionChoice{}, apperr.Error{
+				Status:  http.StatusBadGateway,
+				Message: "matched permission profile is invalid",
+			}
+		}
+	}
+	return resolvePermissionChoiceFromLive(
+		choiceID,
+		observation.Catalog,
+		profile,
+		profileFound,
+	)
+}
+
+func (s *Service) handleSetSessionPermission(c context.Context, ctx *app.RequestContext) {
+	principal, err := s.userPrincipal(c, ctx)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	routeUserID := strings.TrimSpace(ctx.Param("user_id"))
+	if routeUserID != "" && routeUserID != "self" && routeUserID != principal.User.UserID {
+		writeEndpointError(ctx, domain.ErrNotFound)
+		return
+	}
+	nodeID := strings.TrimSpace(ctx.Param("node_id"))
+	agentID := strings.TrimSpace(ctx.Param("agent_id"))
+	sessionID := strings.TrimSpace(ctx.Param("session_id"))
+	agent, err := s.store.GetAgent(c, principal, agentID)
+	if err != nil || agent.NodeID != nodeID {
+		if err == nil {
+			err = domain.ErrNotFound
+		}
+		writeEndpointError(ctx, err)
+		return
+	}
+	session, err := s.resolveConversationSession(c, principal, nodeID, agentID, sessionID)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	var req setSessionPermissionRequest
+	decodeBody(ctx, &req)
+	req.PermissionChoiceID = strings.TrimSpace(req.PermissionChoiceID)
+	if req.PermissionChoiceID == "" {
+		writeEndpointError(ctx, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "permission_choice_id is required",
+		})
+		return
+	}
+	resolved, err := s.resolveStoredPermissionChoice(c, agent, req.PermissionChoiceID)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	if resolved.Value != "" {
+		claimSessionIDs := []string{session.managerID, session.nativeID, ""}
+		agentConn, release, err := s.acpTunnels.claimStructuredAnyWait(
+			c,
+			conversationTunnelClaimTimeout,
+			conversationTunnelClaimTick,
+			agentID,
+			session.managerID,
+			claimSessionIDs...,
+		)
+		if err != nil {
+			writeEndpointError(ctx, err)
+			return
+		}
+		defer release()
+		runner := conversationRunner{
+			service:          s,
+			agentConn:        agentConn,
+			managerSessionID: session.managerID,
+		}
+		if err := applyResolvedPermissionChoice(c, &runner, session.managerID, resolved); err != nil {
+			writeEndpointError(ctx, err)
+			return
+		}
+	}
+	updated, err := s.store.UpdateNodeAgentSession(c, principal, domain.UpdateSessionRequest{
+		NodeID:    nodeID,
+		AgentID:   agentID,
+		SessionID: session.managerID,
+		PaxConfig: domain.SessionPaxConfig{
+			ApprovalMode:       resolved.ApprovalMode,
+			PermissionChoiceID: resolved.ChoiceID,
+		},
+	})
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	writeData(ctx, http.StatusOK, updated)
+}
+
 func (s *Service) handleGetAgentPermissionCatalog(
 	c context.Context,
 	ctx *app.RequestContext,
