@@ -2621,6 +2621,78 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	}
 }
 
+func TestConversationGivenInitializeOnlyWhenSessionNewSucceedsThenCreatesEmptySession(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/tunnel", srv.handleAgentACPTunnel)
+	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
+	httpServer := httptest.NewServer(mux)
+	defer httpServer.Close()
+	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+
+	agentWS, _, err := websocket.DefaultDialer.Dial(
+		baseWS+"/api/v1/agent/tunnel?agent_id="+fixture.agentID,
+		http.Header{"X-Pax-Key": []string{fixture.nodeAPIKey}},
+	)
+	require.NoError(t, err)
+	defer func() { _ = agentWS.Close() }()
+	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
+	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+
+	respCh := make(chan *http.Response, 1)
+	errCh := make(chan error, 1)
+	go postConversation(
+		t,
+		httpServer.URL,
+		fixture,
+		`{"initialize_only":true,"cwd":"~/work","approval_mode":"manual"}`,
+		respCh,
+		errCh,
+	)
+
+	sessionNewEnv := readNextManagerToAgentData(t, agentWS)
+	assertACPMethod(t, sessionNewEnv.Payload, "session/new")
+	assertACPParamString(t, sessionNewEnv.Payload, "cwd", "~/work")
+	writeAgentDataFrame(
+		t,
+		agentWS,
+		sessionNewEnv.QueueID,
+		1,
+		json.RawMessage(`{"jsonrpc":"2.0","id":1,"result":{"sessionId":"native-empty-1"}}`),
+	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	sessionEvent := requireConversationEvent(t, events, "session")
+	requireConversationEvent(t, events, "done")
+	requireNoConversationEvent(t, events, "turn_started")
+	requireNoConversationEvent(t, events, "turn_done")
+	requireNoConversationEvent(t, events, "acp")
+
+	storedSession, err := srv.store.GetSession(
+		t.Context(),
+		testUserPrincipal(t, srv, fixture.userEmail),
+		sessionEvent.SessionID,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "native-empty-1", storedSession.NativeID)
+	assert.Equal(t, "~/work", storedSession.PaxConfig.CWD)
+	messages, err := srv.store.ListMessages(
+		t.Context(),
+		fixture.agentID,
+		sessionEvent.SessionID,
+		10,
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	for _, message := range messages {
+		assert.Equal(t, "acp_session_new", message.MessageType)
+		assert.Empty(t, message.TurnID)
+	}
+}
+
 func TestConversationTurnStopSendsSessionCancelForActivePrompt(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
