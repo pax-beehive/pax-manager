@@ -241,6 +241,7 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.GET(routeUserAgent, GetAgent)
 	h.DELETE(routeUserAgent, DeleteAgent)
 	h.GET(routeUserAgentPermissionCatalog, s.handleGetAgentPermissionCatalog)
+	h.POST(routeUserSessionPermission, s.handleSetSessionPermission)
 	h.GET(routeLegacyListAgentSessions, ListAgentSessions)
 	h.GET(routeLegacyGetAgentSession, GetAgentSession)
 	h.GET(routeLegacyAgentMessages, ListAgentMessages)

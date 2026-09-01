@@ -1465,7 +1465,7 @@ func (s *MemoryStore) UpdateNodeAgentSession(
 	}
 	if req.PaxConfig.ApprovalMode != "" {
 		session.PaxConfig.ApprovalMode = normalizeSessionApprovalMode(req.PaxConfig.ApprovalMode)
-		session.PaxConfig.PermissionChoiceID = ""
+		session.PaxConfig.PermissionChoiceID = req.PaxConfig.PermissionChoiceID
 	}
 	if req.Archived != nil {
 		if *req.Archived {

@@ -223,6 +223,19 @@ func TestPermissionCatalogGivenProfileAndObservationsWhenResolvedThenUsesSafePri
 		assert.True(t, catalog.Choices[3].RequiresConfirmation)
 	})
 
+	t.Run("given an existing session choice then resolves the current observed binding", func(t *testing.T) {
+		resolved, err := srv.resolveStoredPermissionChoice(
+			t.Context(),
+			agent,
+			"agent:mode:read-only",
+		)
+		require.NoError(t, err)
+		assert.Equal(t, domain.SessionApprovalModeManual, resolved.ApprovalMode)
+		assert.Equal(t, domain.PermissionBindingConfigOption, resolved.Binding.Kind)
+		assert.Equal(t, "mode", resolved.Binding.ConfigID)
+		assert.Equal(t, "read-only", resolved.Value)
+	})
+
 	t.Run("given a current observation with a missing runtime version then marks it stale", func(t *testing.T) {
 		identity.ReportGeneration++
 		identity.RuntimeVersion = ""

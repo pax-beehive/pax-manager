@@ -14,6 +14,7 @@ const (
 	routeUserAgents                 = "/api/v1/user/:user_id/agents"
 	routeUserAgent                  = "/api/v1/user/:user_id/agents/:agent_id"
 	routeUserAgentPermissionCatalog = "/api/v1/user/:user_id/agents/:agent_id/permission-catalog"
+	routeUserSessionPermission      = "/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/sessions/:session_id/permission"
 	routeLegacyListAgentSessions    = "/api/user/agents/:agentId/sessions"
 	routeLegacyGetAgentSession      = "/api/user/agents/:agentId/sessions/:sessionId"
 	routeLegacyAgentMessages        = "/api/user/agents/:agentId/messages"
