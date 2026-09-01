@@ -27,6 +27,7 @@ var provisionalConversationCleanupTimeout = time.Second
 
 type conversationRequest struct {
 	SessionID          string                     `json:"session_id,omitempty"`
+	InitializeOnly     bool                       `json:"initialize_only,omitempty"`
 	Input              string                     `json:"input"`
 	Content            []conversationContentBlock `json:"content,omitempty"`
 	Resume             json.RawMessage            `json:"resume,omitempty"`
@@ -129,7 +130,7 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var prompt []map[string]any
-	if !resumeReq.Requested {
+	if !resumeReq.Requested && !req.InitializeOnly {
 		prompt, err = s.resolveConversationPrompt(
 			r.Context(),
 			principal,
@@ -210,10 +211,46 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		return
 	}
+	s.completeConversationRequest(
+		r.Context(),
+		w,
+		flusher,
+		&runner,
+		agent,
+		session,
+		principal,
+		req,
+		resumeReq,
+		prompt,
+	)
+}
+
+func (s *Service) completeConversationRequest(
+	ctx context.Context,
+	w http.ResponseWriter,
+	flusher http.Flusher,
+	runner *conversationRunner,
+	agent Agent,
+	session conversationSession,
+	principal UserPrincipal,
+	req conversationRequest,
+	resumeReq conversationResumeRequest,
+	prompt []map[string]any,
+) {
+	if req.InitializeOnly {
+		_ = s.writeConversationEvent(w, flusher, conversationEvent{
+			Type:      "done",
+			NodeID:    agent.NodeID,
+			AgentID:   agent.AgentID,
+			SessionID: session.managerID,
+		})
+		return
+	}
+	var err error
 	if resumeReq.Requested {
-		err = s.resumeConversation(r.Context(), w, flusher, &runner, session, principal, resumeReq)
+		err = s.resumeConversation(ctx, w, flusher, runner, session, principal, resumeReq)
 	} else {
-		err = s.promptConversation(r.Context(), w, flusher, &runner, session, prompt)
+		err = s.promptConversation(ctx, w, flusher, runner, session, prompt)
 	}
 	if err != nil {
 		status, _ := endpointErrorStatus(err)
@@ -324,6 +361,18 @@ func validateConversationPromptState(
 	req conversationRequest,
 	resumeReq conversationResumeRequest,
 ) error {
+	if req.InitializeOnly {
+		if req.SessionID != "" {
+			return errors.New("initialize_only can only create a new session")
+		}
+		if resumeReq.Requested {
+			return errors.New("initialize_only and resume are mutually exclusive")
+		}
+		if req.Input != "" || len(req.Content) > 0 {
+			return errors.New("initialize_only cannot include input or content")
+		}
+		return nil
+	}
 	if resumeReq.Requested && req.SessionID == "" {
 		return errors.New("session_id is required for resume")
 	}

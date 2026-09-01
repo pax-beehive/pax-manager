@@ -116,4 +116,25 @@ func TestConversationRequestValidationBDD(t *testing.T) {
 			conversationResumeRequest{Requested: true},
 		))
 	})
+
+	t.Run("given initialize only then prompt and existing session combinations are rejected", func(t *testing.T) {
+		require.NoError(t, validateConversationPromptState(
+			conversationRequest{InitializeOnly: true},
+			conversationResumeRequest{},
+		))
+		for _, test := range []struct {
+			name   string
+			req    conversationRequest
+			resume conversationResumeRequest
+		}{
+			{name: "input", req: conversationRequest{InitializeOnly: true, Input: "hello"}},
+			{name: "content", req: conversationRequest{InitializeOnly: true, Content: []conversationContentBlock{{Type: "text", Text: "hello"}}}},
+			{name: "existing session", req: conversationRequest{InitializeOnly: true, SessionID: "sess_1"}},
+			{name: "resume", req: conversationRequest{InitializeOnly: true, SessionID: "sess_1"}, resume: conversationResumeRequest{Requested: true}},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				require.Error(t, validateConversationPromptState(test.req, test.resume))
+			})
+		}
+	})
 }
