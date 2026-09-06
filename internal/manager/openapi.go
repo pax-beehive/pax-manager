@@ -62,6 +62,7 @@ func openAPIDocument(serverURL string) ([]byte, error) {
 	doc["servers"] = []map[string]string{{"url": serverURL}}
 	addACPWebSocketPaths(doc)
 	addAgentFleetPaths(doc)
+	addSessionConfigurationPaths(doc)
 	addSessionHistoryPath(doc)
 	addNodeConversationDeliveryPath(doc)
 	addArtifactPublicationPaths(doc)
@@ -140,6 +141,92 @@ func addAgentFleetPaths(doc map[string]any) {
 				"401": map[string]string{"description": "User authentication failed."},
 				"404": map[string]string{"description": "Owned agent not found."},
 			},
+		},
+	}
+}
+func addSessionConfigurationPaths(doc map[string]any) {
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		paths = map[string]any{}
+		doc["paths"] = paths
+	}
+	pathParam := func(name, description string) map[string]any {
+		return map[string]any{
+			"name":        name,
+			"in":          "path",
+			"required":    true,
+			"schema":      map[string]string{"type": "string"},
+			"description": description,
+		}
+	}
+	parameters := []map[string]any{
+		pathParam("user_id", "User ID or self."),
+		pathParam("node_id", "Node identifier."),
+		pathParam("agent_id", "Agent identifier."),
+		pathParam("session_id", "Session identifier."),
+	}
+	responses := map[string]any{
+		"200": map[string]string{"description": "Current durable ACP session configuration."},
+		"401": map[string]string{"description": "User authentication failed."},
+		"404": map[string]string{"description": "Session not found."},
+		"409": map[string]string{
+			"description": "Configuration is unavailable or cannot be changed.",
+		},
+		"502": map[string]string{
+			"description": "Agent rejected or returned an incomplete configuration response.",
+		},
+	}
+	paths[openAPIUserSessionConfig] = map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "Get session configuration",
+			"description": "Returns the latest standard ACP config options and any legacy read-only model list observed for a plaintext session.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  parameters,
+			"responses":   responses,
+		},
+	}
+	paths[openAPIUserSessionConfigRefresh] = map[string]any{
+		"post": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "Refresh session configuration",
+			"description": "Re-applies the current non-permission config value so the ACP agent returns a complete fresh configOptions snapshot. This is not a read-only operation.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  parameters,
+			"responses":   responses,
+		},
+	}
+	optionParameters := append(
+		append([]map[string]any(nil), parameters...),
+		pathParam("config_id", "ACP session config option identifier."),
+	)
+	paths[openAPIUserSessionConfigOption] = map[string]any{
+		"patch": map[string]any{
+			"tags":        []string{"user"},
+			"summary":     "Set session configuration option",
+			"description": "Applies one currently advertised non-permission select or boolean option and persists the complete returned configOptions snapshot.",
+			"security":    []map[string][]string{{"cloudflareAccess": {}}},
+			"parameters":  optionParameters,
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{
+							"type":     "object",
+							"required": []string{"value"},
+							"properties": map[string]any{
+								"value": map[string]any{
+									"oneOf": []map[string]string{
+										{"type": "string"},
+										{"type": "boolean"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"responses": responses,
 		},
 	}
 }

@@ -23,6 +23,7 @@ type OwnerAgentFilter = domain.OwnerAgentFilter
 type AgentSession = domain.AgentSession
 type ListSessionsFilter = domain.ListSessionsFilter
 type SessionPaxConfig = domain.SessionPaxConfig
+type SessionACPConfig = domain.SessionACPConfig
 type SessionRuntimeState = domain.SessionRuntimeState
 type MailboxMessage = domain.MailboxMessage
 type ApprovalOption = domain.ApprovalOption

@@ -240,6 +240,7 @@ func scanSession(row rowScanner) (AgentSession, error) {
 	session.Metadata = json.RawMessage(metadata)
 	session.RuntimeState = runtimeStateFromMetadata(metadata)
 	session.PaxConfig = paxConfigFromMetadata(metadata)
+	session.ACPConfig = sessionACPConfigFromMetadata(metadata)
 	return session, nil
 }
 

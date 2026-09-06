@@ -2694,7 +2694,9 @@ func (s *MemoryStore) upsertSessionLocked(
 	existing.TokenInput = input.TokenUsage.Input
 	existing.TokenOutput = input.TokenUsage.Output
 	existing.TokenTotal = input.TokenUsage.Total
-	existing.Model = input.Model
+	if input.Model != "" || !exists {
+		existing.Model = input.Model
+	}
 	existing.RunID = input.RunID
 	existing.RunStatus = input.RunStatus
 	head := s.agentRuntimeSnapshotHeads[agentID]

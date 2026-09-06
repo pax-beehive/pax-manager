@@ -323,6 +323,29 @@ func TestACPTunnelHubStructuredTurnsAllowDifferentSessions(t *testing.T) {
 	require.Zero(t, agentConn.liveState().sessionMux.activeTurnCount())
 }
 
+func TestACPTunnelHubSessionControlRunsAlongsidePromptAndSerializesControls(t *testing.T) {
+	hub := NewACPTunnelHub()
+	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
+	hub.add("agent-1", "", agentConn)
+
+	_, releaseTurn, err := hub.claimStructuredAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	claimed, releaseControl, err := hub.claimSessionControlAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	require.Same(t, agentConn, claimed)
+	require.Equal(t, 2, agentConn.liveState().sessionMux.activeTurnCount())
+
+	_, _, err = hub.claimSessionControlAny("agent-1", "sess-1", "")
+	require.Error(t, err)
+
+	releaseControl()
+	_, releaseNextControl, err := hub.claimSessionControlAny("agent-1", "sess-1", "")
+	require.NoError(t, err)
+	releaseNextControl()
+	releaseTurn()
+	require.Zero(t, agentConn.liveState().sessionMux.activeTurnCount())
+}
+
 func TestACPTunnelHubStructuredTurnsSerializeSameSession(t *testing.T) {
 	hub := NewACPTunnelHub()
 	agentConn := &ACPTunnelAgent{agentID: "agent-1"}
