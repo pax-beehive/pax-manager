@@ -132,6 +132,7 @@ type AgentSession struct {
 	Metadata              json.RawMessage      `json:"metadata,omitempty"`
 	RuntimeState          *SessionRuntimeState `json:"runtime_state,omitempty"`
 	PaxConfig             SessionPaxConfig     `json:"pax_config,omitempty"`
+	ACPConfig             SessionACPConfig     `json:"-"`
 }
 
 type ListSessionsFilter struct {

@@ -3324,7 +3324,7 @@ func upsertSessionTx(
 			estimated_cost_usd = EXCLUDED.estimated_cost_usd,
 			actual_cost_usd = EXCLUDED.actual_cost_usd,
 			cost_usd = EXCLUDED.cost_usd,
-			model = EXCLUDED.model,
+			model = COALESCE(NULLIF(EXCLUDED.model, ''), agent_sessions.model),
 			run_id = EXCLUDED.run_id,
 			run_status = EXCLUDED.run_status,
 			updated_at = EXCLUDED.updated_at

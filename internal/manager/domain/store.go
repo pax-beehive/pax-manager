@@ -53,6 +53,7 @@ type ReliableTransportJournal interface {
 type Store interface {
 	ReliableTransportJournal
 	PermissionCatalogStore
+	SessionACPConfigStore
 	E2EETransportStore
 	E2EEKeyDistributionStore
 

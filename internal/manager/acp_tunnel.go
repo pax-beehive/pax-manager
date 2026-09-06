@@ -431,6 +431,48 @@ func (h *ACPTunnelHub) claimStructuredAnyMode(
 	}, nil
 }
 
+// claimSessionControlAny serializes session config requests with each other
+// while allowing them to run alongside a prompt. ACP explicitly permits config
+// changes while an agent is generating a response, so these requests must not
+// compete for the turn-admission key.
+func (h *ACPTunnelHub) claimSessionControlAny(
+	agentID string,
+	managerSessionID string,
+	sessionIDs ...string,
+) (*ACPTunnelAgent, func(), error) {
+	if managerSessionID == "" {
+		return nil, func() {}, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "manager session id is required",
+		}
+	}
+	conn, err := h.findAny(agentID, sessionIDs...)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	state := conn.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.paired {
+		return nil, func() {}, apperr.Error{
+			Status:  http.StatusConflict,
+			Message: "agent tunnel already in use",
+		}
+	}
+	if state.sessionMux == nil {
+		state.sessionMux = newACPSessionMux()
+		conn.sessionMux = state.sessionMux
+	}
+	token, ok := state.sessionMux.admitTurn("\x00session-control:" + managerSessionID)
+	if !ok {
+		return nil, func() {}, apperr.Error{
+			Status:  http.StatusConflict,
+			Message: "session config request already in progress",
+		}
+	}
+	return conn, func() { state.sessionMux.releaseTurn("\x00session-control:"+managerSessionID, token) }, nil
+}
+
 func (h *ACPTunnelHub) claimStructuredAnyWait(
 	ctx context.Context,
 	waitFor time.Duration,
@@ -941,6 +983,7 @@ func (s *Service) agentACPFramePipeline() acpFramePipeline {
 		acpSessionLifecycleMiddleware{store: s.store},
 		acpSessionIDMiddleware{store: s.store},
 		acpSessionMuxMiddleware{},
+		sessionConfigObservationMiddleware{service: s},
 		permissionObservationMiddleware{service: s},
 		acpApprovalMiddleware{store: s.store, runtime: s.acpRuntime},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
@@ -952,6 +995,7 @@ func (s *Service) userACPFramePipeline() acpFramePipeline {
 		acpSessionLifecycleMiddleware{store: s.store},
 		acpSessionIDMiddleware{store: s.store},
 		acpSessionMuxMiddleware{},
+		sessionConfigObservationMiddleware{service: s},
 		permissionObservationMiddleware{service: s},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
 	)
