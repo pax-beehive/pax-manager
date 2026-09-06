@@ -718,7 +718,11 @@ ALTER TABLE transport_journal ALTER COLUMN direction SET NOT NULL;
 ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'data';
 ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS error_message TEXT NOT NULL DEFAULT '';
-UPDATE transport_journal SET error_message = COALESCE(error, '') WHERE error_message = '';
+UPDATE transport_journal
+SET error_message = error
+WHERE error_message = ''
+  AND error IS NOT NULL
+  AND error <> '';
 ALTER TABLE transport_journal ALTER COLUMN payload_json DROP NOT NULL;
 UPDATE transport_journal
 SET stream = 'acp'
