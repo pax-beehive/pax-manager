@@ -1,12 +1,14 @@
 package manager
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -192,4 +194,70 @@ func TestSessionConfigurationGivenOpenAPIDocumentWhenGeneratedThenEndpointsAreDo
 	assert.Contains(t, document.Paths, openAPIUserSessionConfig)
 	assert.Contains(t, document.Paths, openAPIUserSessionConfigRefresh)
 	assert.Contains(t, document.Paths, openAPIUserSessionConfigOption)
+}
+
+func TestResumedConfigurationAndCommandsAreReadableTogether(t *testing.T) {
+	srv, _ := testServer(t, "owner@example.com")
+	fixture := testNodeAgent(t, srv, "owner@example.com")
+	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	session, err := srv.store.CreateNodeAgentSession(
+		t.Context(),
+		principal,
+		domain.CreateSessionRequest{
+			NodeID: fixture.nodeID, AgentID: fixture.agentID, SessionID: "sess_resumed", NativeID: "native_resumed", Source: domain.MessageSourceACPTunnel,
+		},
+	)
+	require.NoError(t, err)
+	pipeline := newACPFramePipeline(
+		acpSessionIDMiddleware{store: srv.store},
+		sessionConfigObservationMiddleware{service: srv},
+		sessionCommandsObservationMiddleware{service: srv},
+	)
+	agent := &ACPTunnelAgent{
+		agentID:     fixture.agentID,
+		store:       srv.store,
+		ownerUserID: principal.User.UserID,
+		nodeID:      fixture.nodeID,
+	}
+	for _, raw := range []string{
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native_resumed","update":{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"status","description":"Status"}]}}}`,
+		`{"jsonrpc":"2.0","method":"_pax/session_resumed","params":{"sessionId":"native_resumed","result":{"configOptions":[{"id":"model","name":"Model","category":"model","type":"select","currentValue":"restored-model","options":[{"value":"restored-model","name":"Restored"}]}],"models":{"currentModelId":"restored-model","availableModels":[{"modelId":"restored-model","name":"Restored"}]}}}}`,
+	} {
+		frame := newACPFrameContext(agent, acpAgentToUser, websocket.TextMessage, []byte(raw))
+		frame.transportMetadata = map[string]string{"manager_session_id": session.SessionID}
+		require.NoError(
+			t,
+			pipeline.Handle(
+				t.Context(),
+				frame,
+				func(_ context.Context, frame *acpFrameContext) error {
+					assert.Equal(t, session.SessionID, frame.managerSessionID)
+					assert.Equal(t, session.SessionID, frameSessionID(frame.frame))
+					return nil
+				},
+			),
+		)
+	}
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/user/self/nodes/"+fixture.nodeID+"/agents/"+fixture.agentID+"/sessions/"+session.SessionID+"/configuration",
+		nil,
+	)
+	req.Header.Set("X-User-Email", fixture.userEmail)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	response := decodeData[sessionConfigResponse](t, rec.Body.Bytes())
+	require.Len(t, response.Options, 1)
+	assert.Equal(t, "restored-model", response.Options[0].CurrentValue)
+	assert.Equal(t, "session/resume", response.Source)
+	require.NotNil(t, response.LegacyModels)
+	assert.Equal(t, "restored-model", response.LegacyModels.CurrentModelID)
+	require.NotNil(t, response.Commands)
+	require.Len(t, response.Commands.AvailableCommands, 1)
+	assert.JSONEq(
+		t,
+		`{"name":"status","description":"Status"}`,
+		string(response.Commands.AvailableCommands[0]),
+	)
 }

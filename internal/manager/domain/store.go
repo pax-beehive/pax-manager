@@ -54,6 +54,7 @@ type Store interface {
 	ReliableTransportJournal
 	PermissionCatalogStore
 	SessionACPConfigStore
+	SessionACPCommandsStore
 	E2EETransportStore
 	E2EEKeyDistributionStore
 

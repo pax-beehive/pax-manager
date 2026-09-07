@@ -7,6 +7,7 @@ import (
 
 const (
 	SessionConfigSourceNew       = "session/new"
+	SessionConfigSourceResume    = "session/resume"
 	SessionConfigSourceSet       = "session/set_config_option"
 	SessionConfigSourceUpdate    = "config_option_update"
 	SessionConfigSourceResponse  = "session/response"
