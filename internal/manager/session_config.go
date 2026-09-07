@@ -16,6 +16,8 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
 
+const acpSessionResumedMethod = "_pax/session_resumed"
+
 type sessionConfigObservationMiddleware struct {
 	service *Service
 }
@@ -37,6 +39,15 @@ func (m sessionConfigObservationMiddleware) HandleACPFrame(
 	case "session/set_config_option":
 		source = domain.SessionConfigSourceSet
 		payload = frame.frame.Result
+	}
+	if frame.frame.Method == acpSessionResumedMethod {
+		var params struct {
+			Result json.RawMessage `json:"result"`
+		}
+		if json.Unmarshal(frame.frame.Params, &params) == nil {
+			source = domain.SessionConfigSourceResume
+			payload = params.Result
+		}
 	}
 	if frame.frame.Method == "session/update" {
 		var params struct {
@@ -261,6 +272,7 @@ type setSessionConfigOptionRequest struct {
 }
 
 type sessionConfigResponse struct {
+	Commands         *domain.SessionACPCommands   `json:"commands,omitempty"`
 	SessionID        string                       `json:"session_id"`
 	Options          []domain.SessionConfigOption `json:"options"`
 	LegacyModels     *domain.SessionLegacyModels  `json:"legacy_models,omitempty"`
@@ -277,6 +289,7 @@ func sessionConfigAPIResponse(session domain.AgentSession) sessionConfigResponse
 		options = make([]domain.SessionConfigOption, 0)
 	}
 	response := sessionConfigResponse{
+		Commands:     domain.SessionACPCommandsFromMetadata(session.Metadata),
 		SessionID:    session.SessionID,
 		Options:      options,
 		LegacyModels: session.ACPConfig.LegacyModels,

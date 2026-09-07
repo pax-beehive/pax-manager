@@ -984,6 +984,7 @@ func (s *Service) agentACPFramePipeline() acpFramePipeline {
 		acpSessionIDMiddleware{store: s.store},
 		acpSessionMuxMiddleware{},
 		sessionConfigObservationMiddleware{service: s},
+		sessionCommandsObservationMiddleware{service: s},
 		permissionObservationMiddleware{service: s},
 		acpApprovalMiddleware{store: s.store, runtime: s.acpRuntime},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
@@ -996,6 +997,7 @@ func (s *Service) userACPFramePipeline() acpFramePipeline {
 		acpSessionIDMiddleware{store: s.store},
 		acpSessionMuxMiddleware{},
 		sessionConfigObservationMiddleware{service: s},
+		sessionCommandsObservationMiddleware{service: s},
 		permissionObservationMiddleware{service: s},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
 	)

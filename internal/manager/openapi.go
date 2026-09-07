@@ -180,7 +180,7 @@ func addSessionConfigurationPaths(doc map[string]any) {
 		"get": map[string]any{
 			"tags":        []string{"user"},
 			"summary":     "Get session configuration",
-			"description": "Returns the latest standard ACP config options and any legacy read-only model list observed for a plaintext session.",
+			"description": "Returns the latest standard ACP config options, legacy read-only model list, and commands snapshot observed for a plaintext session. The optional commands object contains available_commands (the complete ACP command objects, including input and _meta) and observed_at. It is absent until available_commands_update is received; an empty array means the agent cleared the list. No historical backfill or active ACP command query is performed.",
 			"security":    []map[string][]string{{"cloudflareAccess": {}}},
 			"parameters":  parameters,
 			"responses":   responses,
