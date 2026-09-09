@@ -41,6 +41,46 @@ type scriptedRows struct {
 	values  [][]driver.Value
 }
 
+func TestPostgresStoreUpsertNodeStatusPersistsOnlyNonEmptyPaxdVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		reported   string
+		wantSQLArg string
+	}{
+		{name: "version", reported: " 0.1.31 ", wantSQLArg: "0.1.31"},
+		{name: "empty version", reported: " 	 ", wantSQLArg: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			script := &scriptedPostgresScript{}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+
+			err := store.UpsertNodeStatus(
+				context.Background(),
+				Node{
+					NodeID:      "node_1",
+					PaxdVersion: "0.1.29",
+				},
+				NodeStatusReport{
+					NodeID: "node_1", PaxdVersion: tc.reported,
+				},
+			)
+
+			require.NoError(t, err)
+			require.Len(t, script.execTexts, 1)
+			assert.Contains(
+				t,
+				script.execTexts[0],
+				"paxd_version = COALESCE(NULLIF($8, ''), paxd_version)",
+			)
+			require.Len(t, script.execArgs[0], 8)
+			assert.Equal(t, tc.wantSQLArg, script.execArgs[0][7].Value)
+			assert.True(t, script.committed)
+			assert.False(t, script.rolled)
+		})
+	}
+}
+
 func TestPostgresStoreUpsertAgentSessions(t *testing.T) {
 	t.Run(
 		"Given a node-owned agent when upserting sessions then it commits the session upsert",
