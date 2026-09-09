@@ -140,6 +140,7 @@ type RestartNodeDaemonRequest = domain.RestartNodeDaemonRequest
 type UpgradeNodeDaemonRequest = domain.UpgradeNodeDaemonRequest
 type CancelNodeDaemonMaintenanceRequest = domain.CancelNodeDaemonMaintenanceRequest
 type NodeDaemonAgentConnectionActionRequest = domain.NodeDaemonAgentConnectionActionRequest
+type PushNodeDaemonSecretChannelRequest = domain.PushNodeDaemonSecretChannelRequest
 type UpdateNodeRequest = domain.UpdateNodeRequest
 type DeleteNodeRequest = domain.DeleteNodeRequest
 type UpdateAgentProfileRequest = domain.UpdateAgentProfileRequest

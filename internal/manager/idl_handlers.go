@@ -195,6 +195,8 @@ var generatedNodeDaemonHandlerBridge = map[string]generatedHandlerFunc{
 	"GetNodeDaemonCommand":             GetNodeDaemonCommand,
 	"ListNodeDaemonAgentConnections":   ListNodeDaemonAgentConnections,
 	"ListNodeDaemonHarnesses":          ListNodeDaemonHarnesses,
+	"OpenNodeDaemonSecretChannel":      OpenNodeDaemonSecretChannel,
+	"PushNodeDaemonSecretChannel":      PushNodeDaemonSecretChannel,
 	"RemoveNodeDaemonAgentConnection":  RemoveNodeDaemonAgentConnection,
 	"RestartNodeDaemon":                RestartNodeDaemon,
 	"RestartNodeDaemonAgentConnection": RestartNodeDaemonAgentConnection,
