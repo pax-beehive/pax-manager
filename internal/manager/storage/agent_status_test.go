@@ -21,6 +21,40 @@ func TestReportedAgentStatusUsesOnlineFlagWhenStatusIsEmpty(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreUpsertNodeStatusPersistsOnlyNonEmptyPaxdVersion(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 28, 12, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(func() time.Time { return now })
+	owner, err := store.EnsureUser(ctx, "owner@example.com", "Owner", "user")
+	require.NoError(t, err)
+	node, err := store.RegisterNode(
+		ctx,
+		owner,
+		RegisterNodeRequest{
+			Name: "node-a", Hostname: "node-a", OS: "linux", PaxdVersion: "0.1.29",
+		},
+		"hash_node_a",
+	)
+	require.NoError(t, err)
+	principal := UserPrincipal{User: owner}
+
+	require.NoError(t, store.UpsertNodeStatus(ctx, node, NodeStatusReport{
+		NodeID: node.NodeID, PaxdVersion: " 0.1.31 ",
+	}))
+	updated, err := store.GetNode(ctx, principal, node.NodeID)
+	require.NoError(t, err)
+	require.Equal(t, "0.1.31", updated.PaxdVersion)
+
+	staleNode := node
+	staleNode.PaxdVersion = "0.1.29"
+	require.NoError(t, store.UpsertNodeStatus(ctx, staleNode, NodeStatusReport{
+		NodeID: node.NodeID, PaxdVersion: " 	 ",
+	}))
+	updated, err = store.GetNode(ctx, principal, node.NodeID)
+	require.NoError(t, err)
+	require.Equal(t, "0.1.31", updated.PaxdVersion)
+}
+
 func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 	t.Run(
 		"Given a node-owned agent when upserting sessions then it writes and updates sessions only",

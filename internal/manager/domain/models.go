@@ -1615,6 +1615,7 @@ type NodeStatusReport struct {
 	MachineType  string             `json:"machine_type"`
 	OS           string             `json:"os"`
 	Arch         string             `json:"arch"`
+	PaxdVersion  string             `json:"-"`
 	Timestamp    time.Time          `json:"timestamp"`
 	Agents       []AgentStatusInput `json:"agents"`
 	System       json.RawMessage    `json:"system"`

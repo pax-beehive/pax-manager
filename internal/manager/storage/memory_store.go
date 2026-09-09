@@ -1073,6 +1073,9 @@ func (s *MemoryStore) UpsertNodeStatus(
 	if report.Arch != "" {
 		current.Arch = report.Arch
 	}
+	if version := strings.TrimSpace(report.PaxdVersion); version != "" {
+		current.PaxdVersion = version
+	}
 	if len(report.Metadata) > 0 {
 		current.Metadata = report.Metadata
 	}

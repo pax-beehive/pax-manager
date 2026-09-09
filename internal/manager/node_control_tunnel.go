@@ -288,7 +288,9 @@ func (s *Server) handleNodeControlTunnelFrameWithFence(
 		}
 		s.nodeControls.ObserveHeartbeat(node.NodeID, heartbeat)
 		return s.store.UpsertNodeStatus(ctx, node, domain.NodeStatusReport{
-			NodeID: node.NodeID, Timestamp: observedAt,
+			NodeID:      node.NodeID,
+			PaxdVersion: heartbeat.PaxdVersion,
+			Timestamp:   observedAt,
 		})
 	case "runtime.snapshot":
 		return s.upsertRuntimeSnapshotReport(ctx, node, connectionFence, frame.Report)

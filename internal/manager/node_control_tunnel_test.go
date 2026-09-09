@@ -47,6 +47,55 @@ func TestNodeControlHeartbeatReportRefreshesNodeLease(t *testing.T) {
 	}
 }
 
+func TestNodeControlHeartbeatPersistsPaxdVersionWithoutRuntimeSnapshotRollback(t *testing.T) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{
+		"kind":"report",
+		"version":1,
+		"report_id":"rpt_heartbeat_version",
+		"report":{
+			"type":"heartbeat",
+			"remote_id":"remote_prod",
+			"node_id":"`+registered.NodeID+`",
+			"heartbeat":{
+				"boot_id":"boot_current",
+				"paxd_version":"0.1.31",
+				"daemon_phase":"running"
+			}
+		}
+	}`)))
+
+	node := waitNode(t, srv, registered.APIKey, func(node Node) bool {
+		return node.PaxdVersion == "0.1.31"
+	})
+	require.Equal(t, "0.1.31", node.PaxdVersion)
+
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{
+		"kind":"report",
+		"version":1,
+		"report_id":"rpt_snapshot_after_heartbeat",
+		"report":{
+			"type":"runtime.snapshot",
+			"remote_id":"remote_prod",
+			"node_id":"`+registered.NodeID+`",
+			"runtime_snapshot":{
+				"snapshot_id":"snap_after_heartbeat",
+				"host":{"machine_name":"MacBook Pro","os":"darwin","arch":"amd64"},
+				"agents":[]
+			}
+		}
+	}`)))
+
+	node = waitNode(t, srv, registered.APIKey, func(node Node) bool {
+		return strings.Contains(string(node.Metadata), "snap_after_heartbeat")
+	})
+	require.Equal(t, "0.1.31", node.PaxdVersion)
+}
+
 func TestNodeControlTunnelRoutesQueryResponseWhileProcessingReport(t *testing.T) {
 	srv, registered := testNodeControlServer(t, "todd@example.com")
 	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
@@ -1208,7 +1257,7 @@ func testNodeControlServer(t *testing.T, ownerEmail string) (*Server, RegisterNo
 		http.MethodPost,
 		"/api/v1/node/agents/register",
 		bytes.NewReader([]byte(`{
-			"node":{"name":"node-control","hostname":"node-control","os":"linux","arch":"arm64"},
+			"node":{"name":"node-control","hostname":"node-control","os":"linux","arch":"arm64","paxd_version":"0.1.29"},
 			"agent":{"name":"pending-main","agent_type":"codex"}
 		}`)),
 	)
