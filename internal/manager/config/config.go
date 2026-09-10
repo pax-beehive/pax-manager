@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"fmt"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -24,6 +26,7 @@ type Config struct {
 	CloudflareAccessAud         string
 	CloudflareAccessJWKS        string
 	AdminEmails                 map[string]bool
+	TrustedCloudflareProxyCIDRs string
 	MaxBodyBytes                int64
 	APIRateLimitPerMinute       int
 	APIRateLimitBurst           int
@@ -48,22 +51,23 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		Port:                     envDefault("PORT", "9879"),
-		DatabaseURL:              os.Getenv("DATABASE_URL"),
-		RegistrationToken:        os.Getenv("REGISTRATION_TOKEN"),
-		RegistrationOwnerEmail:   os.Getenv("REGISTRATION_TOKEN_OWNER_EMAIL"),
-		LocalUserID:              envDefault("LOCAL_USER_ID", "local@example.local"),
-		AllowLocalUserHeader:     parseBool(os.Getenv("ALLOW_LOCAL_USER_HEADER")),
-		CloudflareAccessDisabled: parseBool(os.Getenv("CLOUDFLARE_ACCESS_DISABLED")),
-		CloudflareAccessIssuer:   os.Getenv("CLOUDFLARE_ACCESS_ISSUER"),
-		CloudflareAccessAud:      os.Getenv("CLOUDFLARE_ACCESS_AUD"),
-		CloudflareAccessJWKS:     os.Getenv("CLOUDFLARE_ACCESS_JWKS_URL"),
-		AdminEmails:              parseEmailSet(os.Getenv("ADMIN_EMAILS")),
-		MaxBodyBytes:             parseInt64Env("MAX_BODY_BYTES", 1<<20),
-		APIRateLimitPerMinute:    parseIntEnv("API_RATE_LIMIT_PER_MINUTE", 300),
-		APIRateLimitBurst:        parseIntEnv("API_RATE_LIMIT_BURST", 60),
-		RegisterLimitPerMinute:   parseIntEnv("REGISTER_RATE_LIMIT_PER_MINUTE", 30),
-		RegisterLimitBurst:       parseIntEnv("REGISTER_RATE_LIMIT_BURST", 10),
+		Port:                        envDefault("PORT", "9879"),
+		DatabaseURL:                 os.Getenv("DATABASE_URL"),
+		RegistrationToken:           os.Getenv("REGISTRATION_TOKEN"),
+		RegistrationOwnerEmail:      os.Getenv("REGISTRATION_TOKEN_OWNER_EMAIL"),
+		LocalUserID:                 envDefault("LOCAL_USER_ID", "local@example.local"),
+		AllowLocalUserHeader:        parseBool(os.Getenv("ALLOW_LOCAL_USER_HEADER")),
+		CloudflareAccessDisabled:    parseBool(os.Getenv("CLOUDFLARE_ACCESS_DISABLED")),
+		CloudflareAccessIssuer:      os.Getenv("CLOUDFLARE_ACCESS_ISSUER"),
+		CloudflareAccessAud:         os.Getenv("CLOUDFLARE_ACCESS_AUD"),
+		CloudflareAccessJWKS:        os.Getenv("CLOUDFLARE_ACCESS_JWKS_URL"),
+		AdminEmails:                 parseEmailSet(os.Getenv("ADMIN_EMAILS")),
+		TrustedCloudflareProxyCIDRs: os.Getenv("TRUSTED_CLOUDFLARE_PROXY_CIDRS"),
+		MaxBodyBytes:                parseInt64Env("MAX_BODY_BYTES", 1<<20),
+		APIRateLimitPerMinute:       parseIntEnv("API_RATE_LIMIT_PER_MINUTE", 300),
+		APIRateLimitBurst:           parseIntEnv("API_RATE_LIMIT_BURST", 60),
+		RegisterLimitPerMinute:      parseIntEnv("REGISTER_RATE_LIMIT_PER_MINUTE", 30),
+		RegisterLimitBurst:          parseIntEnv("REGISTER_RATE_LIMIT_BURST", 10),
 		PaxdArtifactDownloadTTL: time.Duration(parseIntEnv(
 			"PAXD_ARTIFACT_DOWNLOAD_URL_TTL_SECONDS",
 			15*60,
@@ -94,6 +98,9 @@ func Load() Config {
 }
 
 func (c Config) Validate() error {
+	if _, err := c.CloudflareProxyPrefixes(); err != nil {
+		return err
+	}
 	if strings.TrimSpace(c.ObjectStorageBucket) == "" {
 		return errors.New("OBJECT_STORAGE_BUCKET is required")
 	}
@@ -187,4 +194,22 @@ func parseFloatEnv(key string, fallback float64) float64 {
 		return fallback
 	}
 	return v
+}
+
+// CloudflareProxyPrefixes returns only explicitly configured proxy networks.
+func (c Config) CloudflareProxyPrefixes() ([]netip.Prefix, error) {
+	if strings.TrimSpace(c.TrustedCloudflareProxyCIDRs) == "" {
+		return nil, nil
+	}
+	var prefixes []netip.Prefix
+	for _, raw := range strings.Split(c.TrustedCloudflareProxyCIDRs, ",") {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(raw))
+		if err != nil || prefix.Bits() == 0 || prefix.Addr().Is4In6() {
+			return nil, fmt.Errorf(
+				"TRUSTED_CLOUDFLARE_PROXY_CIDRS contains an invalid or unrestricted CIDR",
+			)
+		}
+		prefixes = append(prefixes, prefix.Masked())
+	}
+	return prefixes, nil
 }

@@ -30,7 +30,7 @@ func StartNodeRegistration(c context.Context, ctx *app.RequestContext) {
 		c,
 		req,
 		verificationBaseURL(service.cfg, ctx),
-		nodeRegistrationNetwork(ctx),
+		service.nodeRegistrationNetwork(ctx),
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
@@ -268,10 +268,15 @@ func verificationBaseURL(cfg Config, ctx *app.RequestContext) string {
 	return proto + "://" + host
 }
 
-func nodeRegistrationNetwork(ctx *app.RequestContext) domain.NodeRegistrationNetworkPreview {
-	ipAddress := clientAddress(ctx)
+func (s *Service) nodeRegistrationNetwork(
+	ctx *app.RequestContext,
+) domain.NodeRegistrationNetworkPreview {
+	ipAddress := s.clientAddress(ctx)
 	if ipAddress == "unknown" {
 		ipAddress = ""
+	}
+	if !s.trustedCloudflareRequest(ctx) {
+		return domain.NodeRegistrationNetworkPreview{IPAddress: ipAddress}
 	}
 	return domain.NodeRegistrationNetworkPreview{
 		IPAddress: ipAddress,

@@ -126,3 +126,9 @@ cannot distinguish missing records from records owned by another user.
 - ACP tunnel WebSockets are tracked in process memory. Verify routing and
   recovery before scaling to multiple instances. Distributed rate limits and
   edge policy must be verified separately from the application route manifest.
+
+## Proxy client identity
+
+Forwarded client IP and location headers require an explicitly trusted
+Cloudflare connector peer. See [trusted proxy deployment](trusted_proxy.md)
+for `TRUSTED_CLOUDFLARE_PROXY_CIDRS`, safe defaults and rollout requirements.
