@@ -1775,7 +1775,7 @@ func (s *Service) authorizeNodeDaemonSecretChannelPush(
 		req.SenderPublicKey == "" || req.Nonce == "" || req.Ciphertext == "" {
 		return domain.Node{}, "", apperr.Error{
 			Status:  http.StatusBadRequest,
-			Message: "node_id, command_id, channel_id, sender_public_key, nonce, and ciphertext are required",
+			Message: "all secret channel push fields are required",
 		}
 	}
 	node, err := s.store.GetNode(c, principal, req.NodeID)

@@ -1227,7 +1227,12 @@ func TestPushNodeDaemonSecretChannel(t *testing.T) {
 			"ok":true,
 			"status":"applied",
 			"target_id":"chan_1",
-			"result": {"secret_channel_push": {"file_ref": "file:/tmp/x", "expires_at": "2026-01-01T00:10:00Z"}}
+			"result": {
+				"secret_channel_push": {
+					"file_ref": "file:/tmp/x",
+					"expires_at": "2026-01-01T00:10:00Z"
+				}
+			}
 		}`),
 	}
 
