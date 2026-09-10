@@ -776,6 +776,22 @@ func (s *Service) GetNodeDaemonStatus(
 	})
 }
 
+// OpenNodeDaemonSecretChannel forwards a secret_channel.open query to the
+// connected paxd control tunnel. The response carries a short-lived,
+// single-use public key that paxd generated in memory; pax-manager never
+// holds the corresponding private key, so it has no way to decrypt whatever
+// a browser later seals against this key.
+func (s *Service) OpenNodeDaemonSecretChannel(
+	c context.Context,
+	meta auth.RequestMetadata,
+	nodeID string,
+) (int, any, error) {
+	return s.queryNodeDaemon(c, meta, nodeID, map[string]any{
+		"type":                "secret_channel.open",
+		"open_secret_channel": map[string]any{},
+	})
+}
+
 func (s *Service) ListNodeDaemonHarnesses(
 	c context.Context,
 	meta auth.RequestMetadata,
@@ -1701,6 +1717,79 @@ func (s *Service) RemoveNodeDaemonAgentConnection(
 			"connection_id": req.ConnectionID,
 		},
 	}, data)
+}
+
+// PushNodeDaemonSecretChannel forwards an already-sealed secret to the
+// connected paxd control tunnel. req's byte fields are base64 ciphertext
+// produced by a browser encrypting against the public key returned from
+// OpenNodeDaemonSecretChannel; this method (and pax-manager generally)
+// never decrypts them, it only relays opaque bytes.
+func (s *Service) PushNodeDaemonSecretChannel(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req domain.PushNodeDaemonSecretChannelRequest,
+) (int, any, error) {
+	node, _, err := s.authorizeNodeDaemonSecretChannelPush(c, meta, &req)
+	if err != nil {
+		return 0, nil, err
+	}
+	data := map[string]any{
+		"channel_id":      req.ChannelID,
+		"command_id":      req.CommandID,
+		"dispatch_status": "unknown",
+	}
+	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+		"command_id": req.CommandID,
+		"type":       "secret_channel.push",
+		"push_secret_channel": map[string]any{
+			"channel_id":        req.ChannelID,
+			"sender_public_key": req.SenderPublicKey,
+			"nonce":             req.Nonce,
+			"ciphertext":        req.Ciphertext,
+		},
+	}, data)
+}
+
+func (s *Service) authorizeNodeDaemonSecretChannelPush(
+	c context.Context,
+	meta auth.RequestMetadata,
+	req *domain.PushNodeDaemonSecretChannelRequest,
+) (domain.Node, string, error) {
+	principal, err := s.principal.Principal(c, meta)
+	if err != nil {
+		return domain.Node{}, "", err
+	}
+	if req == nil {
+		return domain.Node{}, "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "command request is required",
+		}
+	}
+	req.NodeID = strings.TrimSpace(req.NodeID)
+	req.CommandID = strings.TrimSpace(req.CommandID)
+	req.ChannelID = strings.TrimSpace(req.ChannelID)
+	req.SenderPublicKey = strings.TrimSpace(req.SenderPublicKey)
+	req.Nonce = strings.TrimSpace(req.Nonce)
+	req.Ciphertext = strings.TrimSpace(req.Ciphertext)
+	if req.NodeID == "" || req.CommandID == "" || req.ChannelID == "" ||
+		req.SenderPublicKey == "" || req.Nonce == "" || req.Ciphertext == "" {
+		return domain.Node{}, "", apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "all secret channel push fields are required",
+		}
+	}
+	node, err := s.store.GetNode(c, principal, req.NodeID)
+	if err != nil {
+		return domain.Node{}, "", err
+	}
+	if s.nodeControl == nil {
+		return domain.Node{}, "", nodeControlUnavailableError()
+	}
+	remoteID, err := s.nodeControl.RemoteID(node.NodeID)
+	if err != nil {
+		return domain.Node{}, "", nodeControlUnavailableError()
+	}
+	return node, remoteID, nil
 }
 
 func (s *Service) authorizeNodeDaemonAgentConnectionCommand(

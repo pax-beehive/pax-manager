@@ -1179,6 +1179,138 @@ func TestStopNodeDaemonAgentConnection(t *testing.T) {
 	}, client.command)
 }
 
+func TestOpenNodeDaemonSecretChannel(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+	store := userapimocks.NewMockStore(t)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	secrets := userapimocks.NewMockSecretIssuer(t)
+	client := &fakeNodeControlClient{
+		result: json.RawMessage(`{
+			"type": "secret_channel.open",
+			"secret_channel_open": {
+				"channel_id": "chan_1",
+				"public_key": "cGxhY2Vob2xkZXI=",
+				"expires_at": "2026-01-01T00:05:00Z"
+			}
+		}`),
+	}
+
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+	secrets.EXPECT().New("ctlq").Return("ctlq_1", nil).Once()
+
+	svc := userapi.NewService(store, fixedUserClock, principals, secrets)
+	svc.SetNodeControlClient(client)
+	status, data, err := svc.OpenNodeDaemonSecretChannel(ctx, auth.RequestMetadata{}, "node_1")
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	require.JSONEq(t, string(client.result), string(data.(json.RawMessage)))
+	require.Equal(t, map[string]any{
+		"type":                "secret_channel.open",
+		"open_secret_channel": map[string]any{},
+	}, client.query)
+}
+
+func TestPushNodeDaemonSecretChannel(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	node := domain.Node{NodeID: "node_1", OwnerUserID: "usr_self"}
+	store := userapimocks.NewMockStore(t)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	client := &fakeNodeControlClient{
+		remoteID: "remote_prod",
+		commandAck: json.RawMessage(`{
+			"command_id":"cmd_push_1",
+			"ok":true,
+			"status":"applied",
+			"target_id":"chan_1",
+			"result": {
+				"secret_channel_push": {
+					"file_ref": "file:/tmp/x",
+					"expires_at": "2026-01-01T00:10:00Z"
+				}
+			}
+		}`),
+	}
+
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
+	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+
+	svc := userapi.NewService(
+		store,
+		fixedUserClock,
+		principals,
+		userapimocks.NewMockSecretIssuer(t),
+	)
+	svc.SetNodeControlClient(client)
+	status, rawData, err := svc.PushNodeDaemonSecretChannel(
+		ctx,
+		auth.RequestMetadata{},
+		domain.PushNodeDaemonSecretChannelRequest{
+			NodeID:          "node_1",
+			CommandID:       "cmd_push_1",
+			ChannelID:       "chan_1",
+			SenderPublicKey: "c2VuZGVy",
+			Nonce:           "bm9uY2U=",
+			Ciphertext:      "Y2lwaGVydGV4dA==",
+		},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusAccepted, status)
+	data := rawData.(map[string]any)
+	require.Equal(t, "applied", data["command_status"])
+	require.Equal(t, map[string]any{
+		"command_id": "cmd_push_1",
+		"type":       "secret_channel.push",
+		"push_secret_channel": map[string]any{
+			"channel_id":        "chan_1",
+			"sender_public_key": "c2VuZGVy",
+			"nonce":             "bm9uY2U=",
+			"ciphertext":        "Y2lwaGVydGV4dA==",
+		},
+	}, client.command)
+}
+
+func TestPushNodeDaemonSecretChannelRejectsIncompleteRequest(t *testing.T) {
+	ctx := context.Background()
+	principal := userPrincipal("usr_self", false)
+	principals := userapimocks.NewMockPrincipalResolver(t)
+	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Times(4)
+	client := &fakeNodeControlClient{remoteID: "remote_prod"}
+
+	svc := userapi.NewService(
+		userapimocks.NewMockStore(t),
+		fixedUserClock,
+		principals,
+		userapimocks.NewMockSecretIssuer(t),
+	)
+	svc.SetNodeControlClient(client)
+
+	base := domain.PushNodeDaemonSecretChannelRequest{
+		NodeID: "node_1", CommandID: "cmd_1", ChannelID: "chan_1",
+		SenderPublicKey: "sender", Nonce: "nonce", Ciphertext: "ciphertext",
+	}
+	cases := []func(*domain.PushNodeDaemonSecretChannelRequest){
+		func(r *domain.PushNodeDaemonSecretChannelRequest) { r.ChannelID = "" },
+		func(r *domain.PushNodeDaemonSecretChannelRequest) { r.SenderPublicKey = "" },
+		func(r *domain.PushNodeDaemonSecretChannelRequest) { r.Nonce = "" },
+		func(r *domain.PushNodeDaemonSecretChannelRequest) { r.Ciphertext = "" },
+	}
+	for _, mutate := range cases {
+		req := base
+		mutate(&req)
+		_, _, err := svc.PushNodeDaemonSecretChannel(ctx, auth.RequestMetadata{}, req)
+		var appErr apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, http.StatusBadRequest, appErr.Status)
+	}
+	require.Zero(t, client.commandCalls)
+}
+
 func TestRestartNodeDaemon(t *testing.T) {
 	ctx := context.Background()
 	principal := userPrincipal("usr_self", false)

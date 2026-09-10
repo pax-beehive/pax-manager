@@ -48,6 +48,8 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id/restart", RestartNodeDaemonAgentConnection)
 	h.DELETE("/api/v1/user/:user_id/nodes/:node_id/daemon/agent-connections/:connection_id", RemoveNodeDaemonAgentConnection)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/daemon/commands/:command_id", GetNodeDaemonCommand)
+	h.GET("/api/v1/user/:user_id/nodes/:node_id/daemon/secret-channel/open", OpenNodeDaemonSecretChannel)
+	h.POST("/api/v1/user/:user_id/nodes/:node_id/daemon/secret-channel/push", PushNodeDaemonSecretChannel)
 	h.PATCH("/api/v1/user/:user_id/nodes/:node_id", UpdateNode)
 	h.DELETE("/api/v1/user/:user_id/nodes/:node_id", DeleteNode)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/agents", ListNodeAgents)

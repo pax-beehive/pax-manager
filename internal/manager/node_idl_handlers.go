@@ -339,6 +339,28 @@ func RemoveNodeDaemonAgentConnection(c context.Context, ctx *app.RequestContext)
 	writeEndpointResult(ctx, status, data, err)
 }
 
+func OpenNodeDaemonSecretChannel(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.OpenNodeDaemonSecretChannel(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("node_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
+func PushNodeDaemonSecretChannel(c context.Context, ctx *app.RequestContext) {
+	var req PushNodeDaemonSecretChannelRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	status, data, err := serviceFromContext(ctx).userapi.PushNodeDaemonSecretChannel(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func GetNodeDaemonCommand(c context.Context, ctx *app.RequestContext) {
 	status, data, err := serviceFromContext(ctx).userapi.GetNodeDaemonCommand(
 		c,

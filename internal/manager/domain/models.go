@@ -1868,6 +1868,21 @@ type NodeDaemonAgentConnectionActionRequest struct {
 	CommandID    string `json:"command_id"`
 }
 
+// PushNodeDaemonSecretChannelRequest carries an already-sealed secret: the
+// browser encrypted it client-side against a public key obtained from
+// OpenNodeDaemonSecretChannel, so pax-manager only ever forwards these
+// base64 fields as opaque bytes to the paxd control tunnel. It never has a
+// decryption key and never sees the plaintext.
+type PushNodeDaemonSecretChannelRequest struct {
+	UserID          string `json:"user_id"`
+	NodeID          string `json:"node_id"`
+	CommandID       string `json:"command_id"`
+	ChannelID       string `json:"channel_id"`
+	SenderPublicKey string `json:"sender_public_key"`
+	Nonce           string `json:"nonce"`
+	Ciphertext      string `json:"ciphertext"`
+}
+
 type UpdateNodeRequest struct {
 	UserID       string          `json:"user_id"`
 	NodeID       string          `json:"node_id"`
