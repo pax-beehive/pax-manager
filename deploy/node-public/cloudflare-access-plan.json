@@ -1,0 +1,79 @@
+{
+  "status": "draft-not-applied",
+  "purpose": "Allow customer paxd through interactive Access while retaining Manager authentication.",
+  "preconditions": [
+    "Inspect existing Access applications and policies, including more-specific overrides; record IDs for rollback.",
+    "Deploy and verify the 28-route Manager method/template guard before any path bypass.",
+    "Keep production local-auth flags false and published ports on loopback."
+  ],
+  "applications": [
+    {
+      "name": "PAX machine api node",
+      "type": "Self-hosted",
+      "hostname": "api.lakeward.net",
+      "path": "/api/v1/node/*",
+      "policy": {
+        "action": "Bypass",
+        "include": {
+          "selector": "Everyone"
+        }
+      }
+    },
+    {
+      "name": "PAX machine api acp",
+      "type": "Self-hosted",
+      "hostname": "api.lakeward.net",
+      "path": "/api/v1/agent/tunnel",
+      "policy": {
+        "action": "Bypass",
+        "include": {
+          "selector": "Everyone"
+        }
+      }
+    },
+    {
+      "name": "PAX machine wsapi node",
+      "type": "Self-hosted",
+      "hostname": "wsapi.lakeward.net",
+      "path": "/api/v1/node/*",
+      "policy": {
+        "action": "Bypass",
+        "include": {
+          "selector": "Everyone"
+        }
+      }
+    },
+    {
+      "name": "PAX machine wsapi acp",
+      "type": "Self-hosted",
+      "hostname": "wsapi.lakeward.net",
+      "path": "/api/v1/agent/tunnel",
+      "policy": {
+        "action": "Bypass",
+        "include": {
+          "selector": "Everyone"
+        }
+      }
+    }
+  ],
+  "preserve_protection": [
+    "ws.lakeward.net (Console)",
+    "api.lakeward.net and wsapi.lakeward.net outside the listed machine scopes",
+    "/api/v1/user/* and /api/user/*",
+    "/api/v1/admin/*",
+    "/openapi and /openapi.json",
+    "/api/echo and all legacy /api/agent/* routes"
+  ],
+  "notes": [
+    "This is a review checklist, not a Cloudflare API request payload.",
+    "Access wildcard path matching is coarser than the Manager method/template guard; the guard is mandatory.",
+    "A more-specific Access application overrides the broader application and does not inherit its policies.",
+    "No shared Access service token is distributed to customer nodes.",
+    "Public installer and object-storage delivery are separate scopes; do not infer their bypass from this plan.",
+    "KEV-36 through KEV-40 track additional hardening separately from this scoped CF client removal."
+  ],
+  "rollback": "Remove only the newly added bypass apps/policies using recorded IDs; retain existing applications. No tunnel or container restart is required for an Access-policy-only rollback.",
+  "references": [
+    "https://developers.cloudflare.com/cloudflare-one/access-controls/policies/app-paths/"
+  ]
+}
