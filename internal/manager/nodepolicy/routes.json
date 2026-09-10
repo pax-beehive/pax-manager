@@ -1,0 +1,226 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/v1/node/registration/start",
+    "auth": "anonymous",
+    "owner_boundary": "Creates pending registration only; browser approval required",
+    "rate_class": "bootstrap-start",
+    "caller": "paxd onboarding"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/registration/poll",
+    "auth": "poll-token",
+    "owner_boundary": "Registration ID and hashed poll token; approval and one-time consumption",
+    "rate_class": "bootstrap-poll",
+    "caller": "paxd onboarding"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/register",
+    "auth": "registration-token",
+    "owner_boundary": "Owner resolved from registration token",
+    "rate_class": "registration",
+    "caller": "paxd token onboarding"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/agents/register",
+    "auth": "node-key-or-registration-token",
+    "owner_boundary": "Authenticated node owner; new node owner from registration token",
+    "rate_class": "registration",
+    "caller": "paxd agent registration"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/status",
+    "auth": "node-key",
+    "owner_boundary": "Authenticated node; reported agents must belong to that node",
+    "rate_class": "status",
+    "caller": "paxd status reporter"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/agents/:agent_id/sessions",
+    "auth": "node-key",
+    "owner_boundary": "Authenticated node and node-owned agent",
+    "rate_class": "status",
+    "caller": "paxd session reporter"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/node/mailbox",
+    "auth": "node-key",
+    "owner_boundary": "Authenticated node",
+    "rate_class": "mailbox",
+    "caller": "paxd HTTP mailbox fallback"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/node/agents/:agent_id/mailbox",
+    "auth": "node-key",
+    "owner_boundary": "Authenticated node and node-owned agent",
+    "rate_class": "mailbox",
+    "caller": "paxd HTTP mailbox fallback"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/node/agents/:agent_id/sessions/:session_id/mailbox",
+    "auth": "node-key",
+    "owner_boundary": "Authenticated node, node-owned agent and session",
+    "rate_class": "mailbox",
+    "caller": "paxd HTTP mailbox fallback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/messages/offset",
+    "auth": "node-key",
+    "owner_boundary": "Authenticated node mailbox",
+    "rate_class": "mailbox-write",
+    "caller": "paxd HTTP message delivery"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/messages/:message_id/result",
+    "auth": "node-key",
+    "owner_boundary": "Message belongs to authenticated node",
+    "rate_class": "mailbox-write",
+    "caller": "paxd HTTP message delivery"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/messages/:message_id/delivered",
+    "auth": "node-key",
+    "owner_boundary": "Message belongs to authenticated node",
+    "rate_class": "mailbox-write",
+    "caller": "paxd HTTP message delivery"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/messages/outbound",
+    "auth": "node-key",
+    "owner_boundary": "Source agent/session belongs to authenticated node",
+    "rate_class": "mailbox-write",
+    "caller": "paxd HTTP message delivery"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/secrets/resolve",
+    "auth": "node-key",
+    "owner_boundary": "Authenticated node owner and requested agent/session scope",
+    "rate_class": "secrets",
+    "caller": "paxd secret resolution"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/secrets/:secret_id/versions",
+    "auth": "node-key",
+    "owner_boundary": "Secret belongs to authenticated node owner",
+    "rate_class": "secrets",
+    "caller": "paxd secret writer"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/agents/:agent_id/approvals",
+    "auth": "node-key",
+    "owner_boundary": "Authenticated node, node-owned agent and session",
+    "rate_class": "approvals",
+    "caller": "paxd approval integration"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/node/agents/:agent_id/approvals/:approval_id",
+    "auth": "node-key",
+    "owner_boundary": "Approval belongs to authenticated node and agent",
+    "rate_class": "approvals",
+    "caller": "paxd approval polling"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/node/agents",
+    "auth": "node-key",
+    "owner_boundary": "Calling agent belongs to node; results may include authorized owner/team/friend targets",
+    "rate_class": "discovery",
+    "caller": "paxd A2A discovery"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/conversation/deliver",
+    "auth": "node-key",
+    "owner_boundary": "Source belongs to node; target authorized by conversation delivery policy",
+    "rate_class": "conversation",
+    "caller": "paxd A2A delivery"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/agents/:agent_id/conversations",
+    "auth": "node-key",
+    "owner_boundary": "Source agent belongs to node; target authorized by conversation policy",
+    "rate_class": "conversation",
+    "caller": "agent conversation client"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/node/agents/:agent_id/e2ee/pairings/:pairing_id",
+    "auth": "node-key",
+    "owner_boundary": "Pairing belongs to node-owned agent",
+    "rate_class": "e2ee",
+    "caller": "paxd E2EE pairing"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/agents/:agent_id/e2ee/pairings/:pairing_id/package",
+    "auth": "node-key",
+    "owner_boundary": "Pairing belongs to node-owned agent",
+    "rate_class": "e2ee",
+    "caller": "paxd E2EE pairing"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/node/artifact-publications/:publication_id",
+    "auth": "node-key",
+    "owner_boundary": "Publication/upload and associated agent/session belong to node",
+    "rate_class": "artifacts",
+    "caller": "paxd artifact publisher"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/artifact-publications/:publication_id/prepare",
+    "auth": "node-key",
+    "owner_boundary": "Publication/upload and associated agent/session belong to node",
+    "rate_class": "artifacts",
+    "caller": "paxd artifact publisher"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/artifact-publications/:publication_id/failed",
+    "auth": "node-key",
+    "owner_boundary": "Publication/upload and associated agent/session belong to node",
+    "rate_class": "artifacts",
+    "caller": "paxd artifact publisher"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/node/artifact-uploads/:upload_id/complete",
+    "auth": "node-key",
+    "owner_boundary": "Publication/upload and associated agent/session belong to node",
+    "rate_class": "artifacts",
+    "caller": "paxd artifact publisher"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/node/control",
+    "auth": "node-key",
+    "owner_boundary": "Query node ID must match authenticated node; runtime fence",
+    "rate_class": "tunnel-handshake",
+    "caller": "paxd control WebSocket"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/agent/tunnel",
+    "auth": "node-key-or-agent-key",
+    "owner_boundary": "Agent belongs to authenticated node, or agent key matches requested agent",
+    "rate_class": "tunnel-handshake",
+    "caller": "paxd ACP WebSocket"
+  }
+]

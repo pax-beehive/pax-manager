@@ -1,0 +1,62 @@
+{
+  "status": "applied-2026-09-10",
+  "purpose": "Allow customer paxd through interactive Access while retaining Manager authentication.",
+  "preconditions": [
+    "Inspect existing Access applications and policies, including more-specific overrides; record IDs for rollback.",
+    "Deploy and verify the 28-route Manager method/template guard before any path bypass.",
+    "Keep production local-auth flags false and published ports on loopback."
+  ],
+  "applications": [
+    {
+      "name": "PAX machine API",
+      "id": "67ce24f5-ad5c-40d2-bd9e-8251e135df52",
+      "type": "Self-hosted",
+      "destinations": [
+        {
+          "hostname": "api.lakeward.net",
+          "path": "/api/v1/node/*"
+        },
+        {
+          "hostname": "api.lakeward.net",
+          "path": "/api/v1/agent/tunnel"
+        },
+        {
+          "hostname": "wsapi.lakeward.net",
+          "path": "/api/v1/node/*"
+        },
+        {
+          "hostname": "wsapi.lakeward.net",
+          "path": "/api/v1/agent/tunnel"
+        }
+      ],
+      "policy": {
+        "name": "PAX machine routes - Manager auth",
+        "id": "3ac11dfb-24c6-479b-ae95-d7c5f3a1c86b",
+        "action": "Bypass",
+        "include": {
+          "selector": "Everyone"
+        }
+      }
+    }
+  ],
+  "preserve_protection": [
+    "ws.lakeward.net (Console)",
+    "api.lakeward.net and wsapi.lakeward.net outside the listed machine scopes",
+    "/api/v1/user/* and /api/user/*",
+    "/api/v1/admin/*",
+    "/openapi and /openapi.json",
+    "/api/echo and all legacy /api/agent/* routes"
+  ],
+  "notes": [
+    "This is a review checklist, not a Cloudflare API request payload.",
+    "Access wildcard path matching is coarser than the Manager method/template guard; the guard is mandatory.",
+    "A more-specific Access application overrides the broader application and does not inherit its policies.",
+    "No shared Access service token is distributed to customer nodes.",
+    "Public installer and object-storage delivery are separate scopes; do not infer their bypass from this plan.",
+    "KEV-36 through KEV-40 track additional hardening separately from this scoped CF client removal."
+  ],
+  "rollback": "Remove only application 67ce24f5-ad5c-40d2-bd9e-8251e135df52, then its dedicated policy 3ac11dfb-24c6-479b-ae95-d7c5f3a1c86b if unused. Keep the existing user/TWA applications and service-token policy unchanged.",
+  "references": [
+    "https://developers.cloudflare.com/cloudflare-one/access-controls/policies/app-paths/"
+  ]
+}

@@ -1,18 +1,23 @@
 # Security Plan
 
-pax-manager is intended to run on Google Cloud Run behind Cloudflare Access.
+The owner-confirmed production deployment uses Cloudflare Tunnel to a home
+Ubuntu host under `lakeward.net`. The checked-in GCP VM pipeline is not the
+source of truth for that host; the archived Cloud Run pipeline does not deploy
+a service. Verify the running tunnel and origin before changing public access.
+See [the Node rollout guide](node_public_rollout.md) and
+[reviewed machine route matrix](node_api_routes.md).
 
 ## Transport
 
-Cloud Run terminates TLS for the public service. The application does not manage
-certificates directly.
+The public ingress must terminate TLS and restrict access to the application
+origin. The application does not manage certificates directly.
 
 ## Dashboard Authentication
 
 Cloudflare Access is the authentication layer for browser users.
 
 - Cloudflare validates the identity provider login.
-- Cloudflare forwards authenticated requests to Cloud Run.
+- Cloudflare forwards authenticated requests to the configured origin.
 - pax-manager validates `Cf-Access-Jwt-Assertion` against the configured
   Cloudflare Access issuer, audience, expiry, and JWKS signature.
 - Local development can opt out of Cloudflare JWT validation with
@@ -110,14 +115,14 @@ cannot distinguish missing records from records owned by another user.
 
 ## Operational Notes
 
-- Keep Cloud Run ingress restricted when relying on Cloudflare headers.
+- Restrict origin access and verify trusted proxy headers before relying on
+  Cloudflare client identity. See the remaining KEV-36 gaps in the rollout guide.
 - Rotate registration tokens after bootstrapping a fleet.
 - Prefer short mailbox TTLs for steer messages because they are time-sensitive.
 - API routes enforce a configurable request body cap with `MAX_BODY_BYTES`.
 - API routes use per-client in-memory rate limits. Defaults are 300 requests per
   minute with burst 60 for `/api/*`, and 30 requests per minute with burst 10
-  for `/api/agent/register`.
-- Cloud Build deploys set Cloud Run `max-instances` to 2 as an operational
-  compromise because ACP tunnel WebSockets are tracked in process memory. Keep
-  pax-manager scale low until ACP tunnels have a cross-instance backplane. Use
-  Cloud Armor in front of Cloud Run for network-edge rate limits and path rules.
+  for `/api/agent/register` and `/api/v1/node/registration/*`.
+- ACP tunnel WebSockets are tracked in process memory. Verify routing and
+  recovery before scaling to multiple instances. Distributed rate limits and
+  edge policy must be verified separately from the application route manifest.

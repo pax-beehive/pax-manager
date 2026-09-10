@@ -21,3 +21,9 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 015 | resolved | [ACP request ID reuse corrupts long session history](015-acp-request-id-reuse-corrupts-history.md) | high | session / storage |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
+
+## Launch readiness
+
+| # | Status | Title | Severity | Component |
+|---|---|---|---|---|
+| 016 | resolved | [Public Node API exposure needs a reviewed launch boundary](016-public-node-api-launch-boundary.md) | blocker | deployment / auth |

@@ -9,10 +9,19 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/nodepolicy"
 )
 
 func (s *Service) protect() app.HandlerFunc {
 	return func(c context.Context, ctx *app.RequestContext) {
+		path := string(ctx.Path())
+		if nodepolicy.Managed(path) &&
+			!nodepolicy.Allowed(string(ctx.Method()), ctx.FullPath()) {
+			writeError(ctx, http.StatusNotFound, "not found")
+			return
+		}
+
 		if s.maxBodyBytes > 0 {
 			contentLength := ctx.Request.Header.ContentLength()
 			if contentLength > int(s.maxBodyBytes) ||
@@ -22,7 +31,6 @@ func (s *Service) protect() app.HandlerFunc {
 			}
 		}
 
-		path := string(ctx.Path())
 		if strings.HasPrefix(path, "/api/") {
 			limiter := s.apiLimiter
 			if path == "/api/agent/register" ||

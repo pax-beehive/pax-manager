@@ -256,6 +256,11 @@ make paxd-integration-down
 
 ## Cloud Build
 
+Before opening customer Node access, follow the
+[Node API rollout guide](docs/node_public_rollout.md) and its
+[reviewed route matrix](docs/node_api_routes.md). The application manifest
+does not apply Cloudflare policy or prove origin isolation.
+
 `cloudbuild.vm.yaml` is the active deployment path. It passes the configured
 bucket, internal/public endpoints, path-style flag, and AWS access-key secret
 names to `deploy/vm/deploy.sh`. The VM reads those credentials from Secret
