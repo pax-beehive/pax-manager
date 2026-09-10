@@ -1,10 +1,10 @@
 # [ISSUE-016] Public Node API exposure needs a reviewed launch boundary
 
-**Status:** partial
+**Status:** resolved
 **Severity:** blocker
 **Component:** deployment / auth
 **Found:** 2026-09-09
-**Resolved:** -
+**Resolved:** 2026-09-10
 
 ## Summary
 
@@ -13,36 +13,29 @@ access while preserving browser/admin boundaries. The existing launch tasks
 assume Cloud Run; production was confirmed to use a home Ubuntu host and
 Cloudflare Tunnel.
 
-## Current note
+## Resolution
 
-The current v1 machine API now has a 28-route manifest, a method/template gate,
-route parity and missing/invalid credential regression tests, a generated route
-matrix, and a credential-free ingress probe. New unreviewed machine handlers
-fail closed. Existing endpoint authentication is preserved.
+Resolved on 2026-09-10 for the current v1 node API and ACP tunnel.
 
-This is a partial implementation: no live edge policy was changed or verified.
-SSH inspection of `home_dev` confirmed loopback-only application bindings,
-production authentication enabled, and a private Docker-network tunnel to
-Manager on `api.lakeward.net` and `wsapi.lakeward.net`. `ws.lakeward.net` is the
-Console, not Manager. Origin health returns 200 and protected origin endpoints
-return 401. Both public Manager hostnames redirect machine requests to Access
-login (302). A four-application Access change plan is prepared, contingent on
-deploying and verifying the method/template guard. The correct dashboard
-account was previously confirmed, but browser control is currently timing out.
+- The 28-route method/template guard is deployed and unknown node routes fail
+  closed. No database schema or user-auth defaults changed.
+- The four reviewed machine path scopes are bypassed by a dedicated Access
+  app. User/admin/OpenAPI and Console routes retain their existing login.
+- paxd no longer requires, resolves or sends CF service-token credentials.
+  The Ubuntu daemon runs `0.1.36+kev35`, based on its verified 0.1.36 source,
+  with the existing remote configured as auth `none` and connected.
+- Real fresh paxd registration, browser approval, Node Key control connection,
+  ACP 101 upgrades, missing/invalid key rejection and user login were verified.
+- Both public hostnames pass all 31 edge-aware rejection probes. The isolated
+  test node, agent, local secret, daemon and Docker test volumes were cleaned up.
+- Manager received the new daemon version heartbeat. The existing hosted agent
+  is running, and the tunnel showed zero recent origin connection errors.
 
-On September 10, paxd CF service-token removal was committed locally as
-`1fa5392`; its full test suite and CLI builds passed. The Manager guard passed
-full tests and Linux compilation against an isolated copy of the deployed
-`e0814a28eb65` baseline. Changed-file formatting and integration lint passed;
-repository-wide checks still report existing formatting and nine lint findings.
-The legacy `/api/agent/*` API remains registered and is not included in the
-current Node exposure policy; its existing local issues are not resolved here.
+Detailed rollout, test limitations, exact policy IDs and rollback records are
+in `docs/handoff_20260910_081500.md` and the remote deployment runbook.
+Original production backups and legacy secret files remain for rollback.
 
-## Remaining KEV-35 acceptance
-
-- Apply exact machine bypass rules and retain user/admin protection (KEV-35).
-- Run a real customer paxd registration, connection, and publication flow.
-
-KEV-36 through KEV-40 track additional launch hardening separately.
-
-See `docs/node_public_rollout.md` for code evidence, commands, and policy scope.
+KEV-36 through KEV-40 track additional launch hardening separately. The legacy
+`/api/agent/*` API remains outside this exposure policy; its legacy issues are
+not resolved by this change. Global Manager formatting/lint findings predate
+this change. Source changes are committed locally, not published as a release.

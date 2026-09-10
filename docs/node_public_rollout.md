@@ -2,6 +2,20 @@
 
 ## Status
 
+Production update, September 10: the guarded Manager is deployed. The scoped
+Access application is applied on both Manager hostnames. Fresh paxd login,
+browser approval, Node Key control connection and ACP upgrades succeeded
+without CF service tokens. Browser user APIs work directly and through the
+Console proxy; anonymous user/admin/OpenAPI requests retain Access login.
+Both public probe runs pass with `--access-edge`; the unlisted ACP sibling
+correctly stays behind Access while unknown node routes return 404. Unknown
+Node Keys return 404 with the current PostgreSQL store, while missing keys
+return 401. These are both rejection responses; broader error normalization
+is outside this change. The temporary test node and agent were cleaned up.
+See `handoff_20260910_081500.md` for exact deployment and rollback records.
+
+### Initial audit and implementation context
+
 Code review baseline: 2026-09-09. The current client requires 28 reviewed machine
 routes, including the ACP WebSocket at `/api/v1/agent/tunnel`.
 

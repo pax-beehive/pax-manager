@@ -26,4 +26,4 @@ See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 | # | Status | Title | Severity | Component |
 |---|---|---|---|---|
-| 016 | partial | [Public Node API exposure needs a reviewed launch boundary](016-public-node-api-launch-boundary.md) | blocker | deployment / auth |
+| 016 | resolved | [Public Node API exposure needs a reviewed launch boundary](016-public-node-api-launch-boundary.md) | blocker | deployment / auth |

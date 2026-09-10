@@ -46,7 +46,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def probe(base, routes, delay):
+def probe(base, routes, delay, access_edge=False):
     parsed = urllib.parse.urlsplit(base)
     if (parsed.scheme not in ("http", "https") or not parsed.hostname
             or parsed.username or parsed.password or parsed.query or parsed.fragment
@@ -64,7 +64,7 @@ def probe(base, routes, delay):
         cases.append((route["method"], path, payload, expected))
     cases.extend([
         ("GET", "/api/v1/node/unreviewed", {}, 404),
-        ("GET", "/api/v1/agent/unreviewed", {}, 404),
+        ("GET", "/api/v1/agent/unreviewed", {}, 302 if access_edge else 404),
         ("DELETE", "/api/v1/node/status", {}, 404),
     ])
     failures = 0
@@ -73,15 +73,21 @@ def probe(base, routes, delay):
         request = urllib.request.Request(base.rstrip("/") + path, data=data, method=method)
         request.add_header("Content-Type", "application/json")
         request.add_header("User-Agent", "pax-node-ingress-probe/1")
+        location = ""
         try:
             with opener.open(request, timeout=15) as response:
                 status = response.status
         except urllib.error.HTTPError as error:
             status = error.code
+            location = error.headers.get("Location", "")
             error.close()
         except (urllib.error.URLError, TimeoutError):
             status = "connection-failed"
         passed = status == expected
+        if expected == 302:
+            # The unlisted ACP sibling stays behind the existing user app.
+            host = urllib.parse.urlsplit(location).hostname or ""
+            passed = passed and host.endswith(".cloudflareaccess.com")
         failures += not passed
         print(f"{'PASS' if passed else 'FAIL'} {method} {path}: {status}, expected {expected}")
         time.sleep(delay)
@@ -93,6 +99,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write-matrix", action="store_true")
     parser.add_argument("--probe", metavar="BASE_URL")
+    parser.add_argument("--access-edge", action="store_true",
+                        help="expect the unlisted ACP sibling to retain Access login")
     parser.add_argument("--delay", type=float, default=1.0, help="seconds between probes")
     args = parser.parse_args()
     if args.delay < 0:
@@ -105,7 +113,7 @@ def main():
         print("Route matrix is stale; run with --write-matrix", file=sys.stderr)
         return 1
     if args.probe:
-        return probe(args.probe, routes, args.delay)
+        return probe(args.probe, routes, args.delay, args.access_edge)
     print(f"Route matrix is current ({len(routes)} routes).")
     return 0
 
