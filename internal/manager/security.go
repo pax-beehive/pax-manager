@@ -2,8 +2,8 @@ package manager
 
 import (
 	"context"
-	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +37,7 @@ func (s *Service) protect() app.HandlerFunc {
 				strings.HasPrefix(path, "/api/v1/node/registration/") {
 				limiter = s.registerLimiter
 			}
-			if limiter != nil && !limiter.allow(clientAddress(ctx)) {
+			if limiter != nil && !limiter.allow(s.clientAddress(ctx)) {
 				ctx.Header("Retry-After", "60")
 				writeError(ctx, http.StatusTooManyRequests, "rate limit exceeded")
 				return
@@ -48,28 +48,45 @@ func (s *Service) protect() app.HandlerFunc {
 	}
 }
 
-func clientAddress(ctx *app.RequestContext) string {
-	if v := string(ctx.GetHeader("CF-Connecting-IP")); v != "" {
-		return strings.TrimSpace(v)
+// Forwarded headers are not connection evidence. Only explicitly trusted
+// Cloudflare connectors may supply a single, valid CF-Connecting-IP value.
+func (s *Service) clientAddress(ctx *app.RequestContext) string {
+	peer, err := netip.ParseAddrPort(ctx.RemoteAddr().String())
+	if err != nil {
+		return "unknown"
 	}
-	if v := string(ctx.GetHeader("X-Forwarded-For")); v != "" {
-		parts := strings.Split(v, ",")
-		if len(parts) > 0 {
-			return strings.TrimSpace(parts[0])
+	address := peer.Addr().Unmap()
+	if address.IsUnspecified() {
+		return "unknown"
+	}
+	if s.trustedCloudflarePeer(address) {
+		raw := strings.TrimSpace(string(ctx.GetHeader("CF-Connecting-IP")))
+		forwarded, err := netip.ParseAddr(raw)
+		forwarded = forwarded.Unmap()
+		if err == nil && forwarded.Zone() == "" &&
+			!forwarded.IsUnspecified() && !forwarded.IsMulticast() {
+			return forwarded.Unmap().String()
 		}
 	}
-	remote := ""
-	if ctx.RemoteAddr() != nil {
-		remote = ctx.RemoteAddr().String()
+	return address.String()
+}
+
+func (s *Service) trustedCloudflarePeer(peer netip.Addr) bool {
+	prefixes, err := s.cfg.CloudflareProxyPrefixes()
+	if err != nil {
+		return false
 	}
-	host, _, err := net.SplitHostPort(remote)
-	if err == nil && host != "" {
-		return host
+	for _, prefix := range prefixes {
+		if prefix.Contains(peer.Unmap()) {
+			return true
+		}
 	}
-	if remote != "" {
-		return remote
-	}
-	return "unknown"
+	return false
+}
+
+func (s *Service) trustedCloudflareRequest(ctx *app.RequestContext) bool {
+	peer, err := netip.ParseAddrPort(ctx.RemoteAddr().String())
+	return err == nil && s.trustedCloudflarePeer(peer.Addr())
 }
 
 type rateLimiter struct {

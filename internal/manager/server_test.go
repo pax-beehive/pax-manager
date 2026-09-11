@@ -845,9 +845,10 @@ func TestNodeRegistrationPreviewShowsRequestedIdentity(t *testing.T) {
 		preview.Request.APIEndpoint != "http://localhost:8642" {
 		t.Fatalf("preview request = %+v", preview.Request)
 	}
-	if preview.Network.IPAddress != "203.0.113.10" ||
-		preview.Network.City != "San Francisco" ||
-		preview.Network.Country != "United States" {
+	// The HTTP test adaptor has no trusted connection peer.
+	if preview.Network.IPAddress != "" ||
+		preview.Network.City != "" ||
+		preview.Network.Country != "" {
 		t.Fatalf("preview network = %+v", preview.Network)
 	}
 }
