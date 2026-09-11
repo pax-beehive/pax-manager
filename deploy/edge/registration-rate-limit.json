@@ -1,0 +1,14 @@
+{
+  "zone": "lakeward.net",
+  "rule_id": "668a294c41b84a6d9a9622d5180bd092",
+  "name": "PAX registration start burst protection",
+  "expression": "(http.request.uri.path eq \"/api/v1/node/registration/start\")",
+  "characteristic": "IP",
+  "requests": 3,
+  "period_seconds": 10,
+  "action": "block",
+  "mitigation_timeout_seconds": 10,
+  "enabled": true,
+  "plan": "Free",
+  "note": "Human-reviewable dashboard configuration, not an API request body. Exact path applies to all proxied hostnames in this zone."
+}
