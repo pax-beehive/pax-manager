@@ -20,7 +20,8 @@ Regression tests cover trust, parsing, registration metadata and rate limiting.
 
 ## Current note
 
-Code only; production migration, stable connector addressing, privileged ingress
-inspection and independent external-origin tests remain outstanding. See
+Code and production migration are complete, with stable connector addressing
+and real-request identity verification. Privileged ingress inspection and
+independent external-origin tests remain outstanding. See
 [deployment guidance](../docs/trusted_proxy.md). Existing user authentication
 and Node Key checks remain in force.

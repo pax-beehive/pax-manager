@@ -40,7 +40,8 @@ header-trust behavior; retain network restrictions throughout.
 
 ## Remaining KEV-36 work
 
-This code change does not establish firewall or router rules and has not been
-deployed. Privileged firewall inspection, router forwarding review, independent
+The trusted-proxy change was deployed on 2026-09-11. See
+[production handoff](handoff_20260911_002500.md). This change does not establish
+firewall or router rules. Privileged firewall inspection, router forwarding review, independent
 external-origin rejection tests and durable automated edge/origin smoke checks
 remain necessary before KEV-36 can close.
