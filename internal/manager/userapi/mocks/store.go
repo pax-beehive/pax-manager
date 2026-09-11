@@ -3317,6 +3317,12 @@ type MockStore_ListMessageHistoryPageBySeq_Call struct {
 }
 
 // ListMessageHistoryPageBySeq is a helper method to define mock.On call
+//   - ctx context.Context
+//   - agentID string
+//   - sessionID string
+//   - afterSeq int64
+//   - beforeSeq int64
+//   - limit int
 func (_e *MockStore_Expecter) ListMessageHistoryPageBySeq(ctx interface{}, agentID interface{}, sessionID interface{}, afterSeq interface{}, beforeSeq interface{}, limit interface{}) *MockStore_ListMessageHistoryPageBySeq_Call {
 	return &MockStore_ListMessageHistoryPageBySeq_Call{Call: _e.mock.On("ListMessageHistoryPageBySeq", ctx, agentID, sessionID, afterSeq, beforeSeq, limit)}
 }

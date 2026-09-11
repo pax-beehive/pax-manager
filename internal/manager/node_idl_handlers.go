@@ -572,7 +572,11 @@ func ListAgentSessionHistory(c context.Context, ctx *app.RequestContext) {
 	afterSeq, validAfterSeq := queryOptionalPositiveInt64(ctx, "after_seq")
 	beforeSeq, validBeforeSeq := queryOptionalPositiveInt64(ctx, "before_seq")
 	if !validBeforeID || !validAfterSeq || !validBeforeSeq {
-		writeError(ctx, http.StatusBadRequest, "before_id, after_seq and before_seq must be positive integers")
+		writeError(
+			ctx,
+			http.StatusBadRequest,
+			"before_id, after_seq and before_seq must be positive integers",
+		)
 		return
 	}
 	status, data, err := serviceFromContext(ctx).userapi.ListAgentSessionHistory(
@@ -593,7 +597,11 @@ func ListSessionHistory(c context.Context, ctx *app.RequestContext) {
 	afterSeq, validAfterSeq := queryOptionalPositiveInt64(ctx, "after_seq")
 	beforeSeq, validBeforeSeq := queryOptionalPositiveInt64(ctx, "before_seq")
 	if !validBeforeID || !validAfterSeq || !validBeforeSeq {
-		writeError(ctx, http.StatusBadRequest, "before_id, after_seq and before_seq must be positive integers")
+		writeError(
+			ctx,
+			http.StatusBadRequest,
+			"before_id, after_seq and before_seq must be positive integers",
+		)
 		return
 	}
 	status, data, err := serviceFromContext(ctx).userapi.ListSessionHistory(
@@ -841,4 +849,16 @@ func firstString(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func NodeBrowserControl(c context.Context, ctx *app.RequestContext) {
+	var req struct {
+		Operation string          `json:"operation"`
+		Payload   json.RawMessage `json:"payload"`
+	}
+	decodeBody(ctx, &req)
+	status, data, err := serviceFromContext(ctx).userapi.NodeBrowserControl(
+		c, requestMetadata(ctx), ctx.Param("node_id"), req.Operation, req.Payload,
+	)
+	writeEndpointResult(ctx, status, data, err)
 }

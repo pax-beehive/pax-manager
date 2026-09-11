@@ -2646,7 +2646,15 @@ func (s *Service) ListSessionHistory(
 	if err != nil {
 		return 0, nil, err
 	}
-	return s.listSessionHistory(c, session.AgentID, session.SessionID, limit, beforeID, afterSeq, beforeSeq)
+	return s.listSessionHistory(
+		c,
+		session.AgentID,
+		session.SessionID,
+		limit,
+		beforeID,
+		afterSeq,
+		beforeSeq,
+	)
 }
 
 func (s *Service) listSessionHistory(
@@ -2687,7 +2695,14 @@ func (s *Service) listSessionHistory(
 	var page domain.MessageHistoryPage
 	var err error
 	if useSeq {
-		page, err = s.store.ListMessageHistoryPageBySeq(c, agentID, sessionID, afterSeq, beforeSeq, limit)
+		page, err = s.store.ListMessageHistoryPageBySeq(
+			c,
+			agentID,
+			sessionID,
+			afterSeq,
+			beforeSeq,
+			limit,
+		)
 	} else {
 		page, err = s.store.ListMessageHistoryPage(c, agentID, sessionID, beforeID, limit)
 	}
@@ -3029,4 +3044,35 @@ func (s *Service) RevokeUserAPIKey(
 		return 0, nil, err
 	}
 	return http.StatusOK, map[string]bool{"ok": true}, nil
+}
+
+func (s *Service) NodeBrowserControl(
+	c context.Context, meta auth.RequestMetadata, nodeID, operation string, payload json.RawMessage,
+) (int, any, error) {
+	if len(payload) > 16384 {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "browser payload is too large",
+		}
+	}
+	switch operation {
+	case "state",
+		"policy",
+		"decide",
+		"revoke",
+		"secret",
+		"resume_sensitive",
+		"view",
+		"vnc_open",
+		"vnc_exchange",
+		"vnc_close":
+	default:
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "unsupported browser operation",
+		}
+	}
+	return s.queryNodeDaemon(c, meta, nodeID, map[string]any{
+		"type": "browser.control", "browser_control": map[string]any{"operation": operation, "payload": payload},
+	})
 }

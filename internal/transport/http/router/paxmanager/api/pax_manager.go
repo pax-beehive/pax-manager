@@ -139,6 +139,7 @@ func Register(r *server.Hertz) {
 								_daemon := _node_id.Group("/daemon", _daemonMw()...)
 								_daemon.GET("/agent-connections", append(_listnodedaemonagentconnectionsMw(), handler.ListNodeDaemonAgentConnections)...)
 								_daemon.POST("/agent-connections", append(_createnodedaemonagentconnectionMw(), handler.CreateNodeDaemonAgentConnection)...)
+								_daemon.POST("/browser", append(_nodebrowsercontrolMw(), handler.NodeBrowserControl)...)
 								_daemon.GET("/harnesses", append(_listnodedaemonharnessesMw(), handler.ListNodeDaemonHarnesses)...)
 								_daemon.POST("/restart", append(_restartnodedaemonMw(), handler.RestartNodeDaemon)...)
 								_daemon.GET("/status", append(_getnodedaemonstatusMw(), handler.GetNodeDaemonStatus)...)
@@ -167,6 +168,11 @@ func Register(r *server.Hertz) {
 										_maintenance_command_id := _maintenance.Group("/:maintenance_command_id", _maintenance_command_idMw()...)
 										_maintenance_command_id.POST("/cancel", append(_cancelnodedaemonmaintenanceMw(), handler.CancelNodeDaemonMaintenance)...)
 									}
+								}
+								{
+									_secret_channel := _daemon.Group("/secret-channel", _secret_channelMw()...)
+									_secret_channel.GET("/open", append(_opennodedaemonsecretchannelMw(), handler.OpenNodeDaemonSecretChannel)...)
+									_secret_channel.POST("/push", append(_pushnodedaemonsecretchannelMw(), handler.PushNodeDaemonSecretChannel)...)
 								}
 							}
 						}

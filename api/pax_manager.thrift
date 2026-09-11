@@ -1268,6 +1268,13 @@ struct GetNodeDaemonCommandRequest {
   3: optional string command_id (api.path = "command_id")
 }
 
+struct NodeBrowserControlRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string operation
+  4: optional JSON payload
+}
+
 struct OpenNodeDaemonSecretChannelRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
@@ -1791,6 +1798,18 @@ service PaxManagerAPI {
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier.",
     openapi.path.command_id = "Command identifier."
+  )
+
+  NodeDaemonQueryResponse NodeBrowserControl(
+    1: optional NodeBrowserControlRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/browser",
+    openapi.tag = "user",
+    openapi.summary = "Operate node browser permissions",
+    openapi.description = "Owner-authorized, transient browser operator requests. Credentials remain on the node. No arbitrary proxy routes are accepted.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
   )
 
   NodeDaemonQueryResponse OpenNodeDaemonSecretChannel(
