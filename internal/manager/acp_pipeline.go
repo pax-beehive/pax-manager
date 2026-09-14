@@ -455,6 +455,20 @@ func (m acpApprovalMiddleware) HandleACPFrame(
 			return err
 		}
 	}
+	_, payload, err := createPendingACPApproval(
+		ctx,
+		m.store,
+		frame.agent,
+		frame.managerSessionID,
+		frame.payload,
+	)
+	if err != nil {
+		return err
+	}
+	frame.payload = payload
+	if err := json.Unmarshal(payload, &frame.frame); err != nil {
+		return err
+	}
 	return next(ctx, frame)
 }
 
@@ -793,6 +807,7 @@ type acpRuntimeEvent struct {
 	errorText   string
 	toolCall    domain.RuntimeToolCall
 	approvalRef string
+	approvalID  string
 }
 
 func (p *acpRuntimeProjector) eventFromFrame(frame *acpFrameContext) (acpRuntimeEvent, bool) {
@@ -822,6 +837,7 @@ func (p *acpRuntimeProjector) eventFromFrame(frame *acpFrameContext) (acpRuntime
 				kind:        "permission_requested",
 				requestID:   acpRequestID(frame.frame.ID),
 				approvalRef: acpToolCallID(params),
+				approvalID:  conversationPermissionRequestApprovalID(frame.payload),
 				toolCall:    runtimeToolCallFromPermission(params),
 			}, true
 		}
@@ -902,7 +918,7 @@ func (p *acpRuntimeProjector) apply(
 		state.Lifecycle = domain.RuntimeLifecycleWaitingApproval
 		state.BlockedReason = domain.RuntimeBlockedReasonToolApproval
 		state.BlockedRef = firstNonEmpty(event.approvalRef, event.requestID)
-		state.PendingApprovalID = event.requestID
+		state.PendingApprovalID = firstNonEmpty(event.approvalID, event.requestID)
 		state.ActiveToolCalls = upsertRuntimeToolCall(state.ActiveToolCalls, event.toolCall)
 		if event.requestID != "" {
 			session.permissionRequests[event.requestID] = state.BlockedRef

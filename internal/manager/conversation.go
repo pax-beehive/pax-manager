@@ -1158,7 +1158,12 @@ func (s *Service) writeConversationACPEvent(
 	payload []byte,
 ) (bool, error) {
 	if isConversationPermissionRequest(payload) {
-		if conversationPermissionRequestApprovalID(payload) != "" {
+		if conversationPermissionRequestApprovalID(payload) != "" &&
+			s.conversationApprovalMode(
+				ctx,
+				runner,
+				session,
+			) == domain.SessionApprovalModeAutoApproveAll {
 			return false, s.writeConversationEvent(w, flusher, conversationEvent{
 				Type:      "acp",
 				NodeID:    runner.agentConn.nodeID,
@@ -1307,6 +1312,49 @@ func (s *Service) createConversationApproval(
 	session conversationSession,
 	payload []byte,
 ) (AgentApproval, json.RawMessage, error) {
+	approval, forwarded, err := createPendingACPApproval(
+		ctx,
+		s.store,
+		runner.agentConn,
+		session.managerID,
+		payload,
+	)
+	if err != nil {
+		return AgentApproval{}, nil, err
+	}
+	if conversationPermissionRequestApprovalID(payload) != "" {
+		return approval, forwarded, nil
+	}
+	var frame acpJSONRPCMessage
+	if err := json.Unmarshal(payload, &frame); err != nil {
+		return AgentApproval{}, nil, err
+	}
+	if err := s.persistConversationApprovalHistory(ctx, runner, session, frame, forwarded); err != nil {
+		logging.Warn(
+			ctx,
+			"conversation approval history update failed",
+			logging.Err(err),
+		)
+	}
+	if err := s.markConversationWaitingApproval(ctx, runner, session.managerID, approval); err != nil {
+		return AgentApproval{}, nil, err
+	}
+	return approval, forwarded, nil
+}
+
+func createPendingACPApproval(
+	ctx context.Context,
+	store Store,
+	agent *ACPTunnelAgent,
+	sessionID string,
+	payload []byte,
+) (AgentApproval, json.RawMessage, error) {
+	if approvalID := conversationPermissionRequestApprovalID(payload); approvalID != "" {
+		approval, err := store.GetApproval(ctx, UserPrincipal{
+			User: User{UserID: agent.ownerUserID},
+		}, approvalID)
+		return approval, append(json.RawMessage(nil), payload...), err
+	}
 	var frame acpJSONRPCMessage
 	if err := json.Unmarshal(payload, &frame); err != nil {
 		return AgentApproval{}, nil, err
@@ -1320,12 +1368,12 @@ func (s *Service) createConversationApproval(
 		return AgentApproval{}, nil, err
 	}
 	nativeID := acpRequestID(frame.ID)
-	approval, err := s.store.CreateApproval(ctx, Node{
-		NodeID:      runner.agentConn.nodeID,
-		OwnerUserID: runner.agentConn.ownerUserID,
+	approval, err := store.CreateApproval(ctx, Node{
+		NodeID:      agent.nodeID,
+		OwnerUserID: agent.ownerUserID,
 	}, CreateApprovalRequest{
-		AgentID:      runner.agentConn.agentID,
-		SessionID:    session.managerID,
+		AgentID:      agent.agentID,
+		SessionID:    sessionID,
 		NativeID:     nativeID,
 		Domain:       stringField(params, "domain", "agent_action"),
 		Operation:    stringField(params, "operation", "session/request_permission"),
@@ -1349,16 +1397,6 @@ func (s *Service) createConversationApproval(
 	}
 	forwarded, err := injectConversationApprovalID(payload, approval.ApprovalID)
 	if err != nil {
-		return AgentApproval{}, nil, err
-	}
-	if err := s.persistConversationApprovalHistory(ctx, runner, session, frame, forwarded); err != nil {
-		logging.Warn(
-			ctx,
-			"conversation approval history update failed",
-			logging.Err(err),
-		)
-	}
-	if err := s.markConversationWaitingApproval(ctx, runner, session.managerID, approval); err != nil {
 		return AgentApproval{}, nil, err
 	}
 	return approval, forwarded, nil
