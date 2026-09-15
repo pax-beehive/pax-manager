@@ -19,7 +19,6 @@ import (
 )
 
 var sessionRuntimeIdleInterruptGrace = 5 * time.Second
-var sessionRuntimeDisconnectGrace = 60 * time.Second
 
 func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request) {
 	ctx, logID := httpRequestLogContext(r.Context(), r)
@@ -81,7 +80,6 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 		conn.Fail(ErrNodeControlDisconnected)
 		s.nodeControls.Remove(node.NodeID, conn)
 		_ = ws.Close()
-		s.scheduleNodeRuntimeStale(node, connectionFence)
 		logging.Info(ctx, "node control tunnel disconnected")
 	}()
 
@@ -133,28 +131,6 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func (s *Server) scheduleNodeRuntimeStale(node Node, connectionFence string) {
-	time.AfterFunc(sessionRuntimeDisconnectGrace, func() {
-		runtimeStore, ok := s.store.(domain.SessionRuntimeSnapshotStore)
-		if !ok {
-			return
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		applied, err := runtimeStore.MarkNodeRuntimeStale(ctx, node, connectionFence)
-		if err != nil {
-			logging.Error(ctx, "mark disconnected node runtime stale failed",
-				slog.String("node_id", node.NodeID), logging.Err(err))
-			return
-		}
-		if applied {
-			logging.Warn(ctx, "node runtime reports became stale after disconnect grace",
-				slog.String("node_id", node.NodeID),
-				slog.Duration("disconnect_grace", sessionRuntimeDisconnectGrace))
-		}
-	})
-}
-
 type nodeControlFrame struct {
 	Kind     string            `json:"kind"`
 	Version  int               `json:"version"`
@@ -183,6 +159,7 @@ type nodeControlSessionRuntimeSnapshot struct {
 }
 
 type nodeControlSessionRuntimeActiveTurn struct {
+	TurnID            string          `json:"turn_id,omitempty"`
 	NativeSessionID   string          `json:"native_session_id"`
 	TurnInstanceID    string          `json:"turn_instance_id"`
 	PromptRequestID   json.RawMessage `json:"prompt_request_id"`
@@ -320,13 +297,19 @@ func (s *Server) replaceSessionRuntimeSnapshot(
 		return errors.New("session_runtime.snapshot report missing session_runtime_snapshot")
 	}
 	if report.SessionRuntimeSnapshot.SchemaVersion != 1 {
-		return fmt.Errorf("unsupported session runtime schema version %d", report.SessionRuntimeSnapshot.SchemaVersion)
+		return fmt.Errorf(
+			"unsupported session runtime schema version %d",
+			report.SessionRuntimeSnapshot.SchemaVersion,
+		)
 	}
 	turns := make([]domain.ActiveTurnSnapshot, 0, len(report.SessionRuntimeSnapshot.ActiveTurns))
 	for _, turn := range report.SessionRuntimeSnapshot.ActiveTurns {
+		if turn.TurnID != "" && turn.TurnInstanceID != "" && turn.TurnID != turn.TurnInstanceID {
+			return fmt.Errorf("snapshot turn id aliases disagree")
+		}
 		turns = append(turns, domain.ActiveTurnSnapshot{
 			NativeSessionID:   turn.NativeSessionID,
-			TurnInstanceID:    turn.TurnInstanceID,
+			TurnInstanceID:    firstNonEmpty(turn.TurnID, turn.TurnInstanceID),
 			PromptRequestID:   cloneRawJSON(turn.PromptRequestID),
 			RuntimeStatus:     turn.RuntimeStatus,
 			PendingApprovalID: domain.RuntimePromptRequestID(turn.PendingApprovalID),
@@ -351,7 +334,7 @@ func (s *Server) replaceSessionRuntimeSnapshot(
 		return errors.New("session runtime snapshot came from a fenced connection")
 	}
 	if result.Status == domain.RuntimeSnapshotApplied && s.acpTunnels != nil {
-		for _, change := range result.Changes {
+		for _, change := range s.snapshotReceiverChanges(snapshot, result.Changes) {
 			if change.RuntimeStatus != domain.RuntimeStatusIdle {
 				s.acpTunnels.cancelIdleSessionInterrupt(snapshot.AgentID, change.SessionID)
 				continue
@@ -377,6 +360,28 @@ func (s *Server) replaceSessionRuntimeSnapshot(
 		}
 	}
 	return nil
+}
+
+// Reconcile in-flight readers even when no earlier running snapshot was received.
+func (s *Server) snapshotReceiverChanges(
+	snapshot domain.AgentRuntimeSnapshot,
+	changes []domain.RuntimeStatusChange,
+) []domain.RuntimeStatusChange {
+	activeRequests := make(map[string]bool, len(snapshot.ActiveTurns))
+	for _, turn := range snapshot.ActiveTurns {
+		activeRequests[domain.RuntimePromptRequestID(turn.PromptRequestID)] = true
+	}
+	for _, local := range s.acpRuntime.ActiveCorrelations(snapshot.AgentID) {
+		status := domain.RuntimeStatusIdle
+		if activeRequests[local.ActivePromptRequestID] {
+			status = domain.RuntimeStatusRunning
+		}
+		changes = append(
+			changes,
+			domain.RuntimeStatusChange{SessionID: local.SessionID, RuntimeStatus: status},
+		)
+	}
+	return changes
 }
 
 func (s *Server) upsertRuntimeSnapshotReport(

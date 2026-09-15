@@ -99,7 +99,6 @@ type ReplaceAgentActiveTurnsResult struct {
 
 type SessionRuntimeSnapshotStore interface {
 	ActivateNodeRuntimeFence(ctx context.Context, node Node, fence string) error
-	MarkNodeRuntimeStale(ctx context.Context, node Node, fence string) (bool, error)
 	ReplaceAgentActiveTurns(
 		ctx context.Context,
 		node Node,

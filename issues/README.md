@@ -20,6 +20,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 014 | resolved | [ACP user tunnel claim races agent tunnel registration](014-acp-user-tunnel-claim-race.md) | medium | session / api |
 | 015 | resolved | [ACP request ID reuse corrupts long session history](015-acp-request-id-reuse-corrupts-history.md) | high | session / storage |
 | 018 | resolved | [Detached permission requests have no actionable approval ID](018-detached-permission-requests.md) | high | session |
+| 019 | resolved | [Message persistence deadlocks with runtime snapshots](019-message-runtime-deadlock.md) | high | storage |
+| 020 | resolved | [ACP transport loses the Manager turn identity](020-acp-turn-identity.md) | high | session / storage |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 

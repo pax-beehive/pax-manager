@@ -39,7 +39,9 @@ func (c *countingListSessionsStore) count() int {
 	return c.calls
 }
 
-func newAliasTestAgent(t *testing.T) (*ACPTunnelAgent, *countingListSessionsStore, domain.AgentSession) {
+func newAliasTestAgent(
+	t *testing.T,
+) (*ACPTunnelAgent, *countingListSessionsStore, domain.AgentSession) {
 	t.Helper()
 	ctx := context.Background()
 	base := storage.NewMemoryStore(func() time.Time {
@@ -47,14 +49,23 @@ func newAliasTestAgent(t *testing.T) (*ACPTunnelAgent, *countingListSessionsStor
 	})
 	user, err := base.EnsureUser(ctx, "t@example.com", "T", "user")
 	require.NoError(t, err)
-	agentModel, err := base.RegisterAgent(ctx, user, domain.RegisterAgentRequest{Name: "a", OS: "darwin"}, "hash")
+	agentModel, err := base.RegisterAgent(
+		ctx,
+		user,
+		domain.RegisterAgentRequest{Name: "a", OS: "darwin"},
+		"hash",
+	)
 	require.NoError(t, err)
-	session, err := base.CreateNodeAgentSession(ctx, domain.UserPrincipal{User: user}, domain.CreateSessionRequest{
-		NodeID:    agentModel.NodeID,
-		AgentID:   agentModel.AgentID,
-		SessionID: "sess_manager",
-		NativeID:  "native-1",
-	})
+	session, err := base.CreateNodeAgentSession(
+		ctx,
+		domain.UserPrincipal{User: user},
+		domain.CreateSessionRequest{
+			NodeID:    agentModel.NodeID,
+			AgentID:   agentModel.AgentID,
+			SessionID: "sess_manager",
+			NativeID:  "native-1",
+		},
+	)
 	require.NoError(t, err)
 
 	store := &countingListSessionsStore{Store: base}
@@ -124,7 +135,14 @@ func TestCanonicalACPHistorySessionIDCachedUsesAgentCache(t *testing.T) {
 	agent.primeSessionAliases(session.SessionID, "native-1")
 
 	sink := acpAgentHistoryTextSink{agent: agent}
-	got := canonicalACPHistorySessionIDCached(ctx, store, sink, agent.ownerUserID, agent.agentID, "native-1")
+	got := canonicalACPHistorySessionIDCached(
+		ctx,
+		store,
+		sink,
+		agent.ownerUserID,
+		agent.agentID,
+		"native-1",
+	)
 	assert.Equal(t, session.SessionID, got)
 	assert.Equal(t, 0, store.count(), "agent-backed sink resolves via cache")
 
@@ -164,8 +182,7 @@ func TestResolveSessionAliasesNilStore(t *testing.T) {
 
 func TestACPRuntimeProjectorSkipsPureTerminalDelta(t *testing.T) {
 	ctx := context.Background()
-	recorder := &runtimeStateRecorder{}
-	projector := newACPRuntimeProjector(recorder, func() time.Time {
+	projector := newACPRuntimeProjector(func() time.Time {
 		return time.Date(2026, 8, 25, 10, 0, 0, 0, time.UTC)
 	})
 	agent := &ACPTunnelAgent{agentID: "a", nodeID: "n", ownerUserID: "u", sessionID: "s"}
@@ -179,10 +196,18 @@ func TestACPRuntimeProjectorSkipsPureTerminalDelta(t *testing.T) {
 
 	// A pure terminal-output delta (no status) must not churn runtime state.
 	observe(terminalDeltaFrame("s", "call_1", " M first.go\n"))
-	assert.Empty(t, recorder.states, "terminal output is not a tool status transition")
+	assert.Empty(t, projector.sessions, "terminal output is not a tool status transition")
 
-	// A real status transition on the same tool still writes runtime state.
-	observe([]byte(`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"tool_call_update","toolCallId":"call_1","status":"completed"}}}`))
-	require.Len(t, recorder.states, 1)
-	assert.Equal(t, "call_1", recorder.last().ActiveToolCalls[0].ToolCallID)
+	// A real status transition updates local correlation only.
+	observe(
+		[]byte(
+			`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"tool_call_update","toolCallId":"call_1","status":"completed"}}}`,
+		),
+	)
+	require.Len(t, projector.sessions, 1)
+	assert.Equal(
+		t,
+		"call_1",
+		testACPRuntimeState(projector, "a", "s").ActiveToolCalls[0].ToolCallID,
+	)
 }

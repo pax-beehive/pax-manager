@@ -2115,7 +2115,7 @@ func (s *PostgresStore) UpdateSessionRuntimeState(
 	defer func() { _ = tx.Rollback() }()
 	var lockedAgentID string
 	if err := tx.QueryRowContext(ctx, `
-		SELECT agent_id FROM agents WHERE agent_id = $1 AND deleted_at IS NULL FOR UPDATE
+		SELECT agent_id FROM agents WHERE agent_id = $1 AND deleted_at IS NULL FOR NO KEY UPDATE
 	`, state.AgentID).Scan(&lockedAgentID); err != nil {
 		return mapSQLError(err)
 	}

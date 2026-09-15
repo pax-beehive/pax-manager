@@ -881,7 +881,9 @@ func TestNodeControlRuntimeSnapshotPersistsACPPoolCapabilityReport(t *testing.T)
 	require.Equal(t, "fingerprint_1", report.CommandFingerprint)
 }
 
-func TestNodeControlSessionRuntimeSnapshotDefersUnknownUntilCanonicalBindingThenReconcilesAbsent(t *testing.T) {
+func TestNodeControlSessionRuntimeSnapshotDefersUnknownUntilCanonicalBindingThenReconcilesAbsent(
+	t *testing.T,
+) {
 	srv, registered := testNodeControlServer(t, "todd@example.com")
 	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
 	defer closeServer()
@@ -909,7 +911,7 @@ func TestNodeControlSessionRuntimeSnapshotDefersUnknownUntilCanonicalBindingThen
 	}
 
 	writeSessionRuntimeReport(1, `[{
-		"native_session_id":"native_1","turn_instance_id":"turn_1",
+		"native_session_id":"native_1","turn_id":"turn_1",
 		"prompt_request_id":1,"runtime_status":"running"
 	}]`)
 	require.Eventually(t, func() bool {
@@ -924,7 +926,7 @@ func TestNodeControlSessionRuntimeSnapshotDefersUnknownUntilCanonicalBindingThen
 		SessionID: canonical.SessionID, NativeID: "native_1", Status: "idle",
 	}}))
 	writeSessionRuntimeReport(2, `[{
-		"native_session_id":"native_1","turn_instance_id":"turn_1",
+		"native_session_id":"native_1","turn_id":"turn_1",
 		"prompt_request_id":1,"runtime_status":"running"
 	}]`)
 	require.Eventually(t, func() bool {
@@ -942,6 +944,26 @@ func TestNodeControlSessionRuntimeSnapshotDefersUnknownUntilCanonicalBindingThen
 			sessions[0].RuntimeStatus == domain.RuntimeStatusIdle &&
 			sessions[0].RuntimeTurnInstanceID == ""
 	}, time.Second, 10*time.Millisecond)
+	writeSessionRuntimeReport(4, `[{
+  "native_session_id":"native_1","turn_id":"turn_2",
+  "prompt_request_id":2,"runtime_status":"running"
+ }]`)
+	require.Eventually(t, func() bool {
+		session, err := srv.store.GetSession(t.Context(), principal, canonical.SessionID)
+		return err == nil && session.RuntimeTurnInstanceID == "turn_2"
+	}, time.Second, 10*time.Millisecond)
+	beforeDisconnect, err := srv.store.GetSession(t.Context(), principal, canonical.SessionID)
+	require.NoError(t, err)
+	require.NoError(t, ws.Close())
+	require.Eventually(t, func() bool {
+		_, err := srv.nodeControls.Connection(registered.NodeID)
+		return err != nil
+	}, time.Second, 10*time.Millisecond)
+	afterDisconnect, err := srv.store.GetSession(t.Context(), principal, canonical.SessionID)
+	require.NoError(t, err)
+	require.Equal(t, beforeDisconnect.RuntimeState, afterDisconnect.RuntimeState)
+	require.Equal(t, domain.RuntimeStatusRunning, afterDisconnect.RuntimeStatus)
+
 }
 
 func TestSessionRuntimeResetEndpointForwardsCanonicalCompareIdentity(t *testing.T) {
@@ -1045,7 +1067,11 @@ func TestNodeControlSessionRuntimeSnapshotRejectsInvalidOrFencedReports(t *testi
 			nodeControlReport{},
 		)
 
-		require.EqualError(t, err, "session_runtime.snapshot report missing session_runtime_snapshot")
+		require.EqualError(
+			t,
+			err,
+			"session_runtime.snapshot report missing session_runtime_snapshot",
+		)
 	})
 
 	t.Run("Given the schema version is unsupported then it is rejected", func(t *testing.T) {
@@ -1053,7 +1079,9 @@ func TestNodeControlSessionRuntimeSnapshotRejectsInvalidOrFencedReports(t *testi
 			context.Background(),
 			Node{NodeID: "node_1", OwnerUserID: "user_1"},
 			"fence_1",
-			nodeControlReport{SessionRuntimeSnapshot: &nodeControlSessionRuntimeSnapshot{SchemaVersion: 2}},
+			nodeControlReport{
+				SessionRuntimeSnapshot: &nodeControlSessionRuntimeSnapshot{SchemaVersion: 2},
+			},
 		)
 
 		require.EqualError(t, err, "unsupported session runtime schema version 2")

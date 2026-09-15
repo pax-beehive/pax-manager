@@ -432,24 +432,6 @@ func (s *Service) stopConversationTurn(
 	if err := runner.sendCancelRaw(ctx, payload); err != nil {
 		return "", err
 	}
-	state := domain.SessionRuntimeState{
-		OwnerUserID:           control.principal.User.UserID,
-		NodeID:                control.agent.NodeID,
-		AgentID:               control.agent.AgentID,
-		SessionID:             control.session.SessionID,
-		Lifecycle:             domain.RuntimeLifecycleCancelling,
-		ActivePromptRequestID: conversationActivePromptRequestID(control.session),
-		ActiveTurnID:          conversationActiveTurnID(control.session),
-		UpdatedAt:             s.clock().UTC(),
-	}
-	if control.session.RuntimeState != nil {
-		state = *control.session.RuntimeState
-		state.Lifecycle = domain.RuntimeLifecycleCancelling
-		state.UpdatedAt = s.clock().UTC()
-	}
-	if err := s.store.UpdateSessionRuntimeState(ctx, state); err != nil {
-		return "", err
-	}
 	return turnStopEffectCancelling, nil
 }
 
@@ -486,6 +468,17 @@ func (s *Service) resolveConversationTurnControlSession(
 	}
 	if session.AgentID != agent.AgentID || session.NodeID != agent.NodeID {
 		return conversationTurnControlSession{}, ErrNotFound
+	}
+
+	// Address a live request before its snapshot arrives, without persisting local state.
+	local := s.acpRuntime.CurrentCorrelation(agentID, sessionID)
+	if local.ActivePromptRequestID != "" {
+		if conn, err := s.acpTunnels.findAny(agentID, sessionID, session.NativeID, ""); err == nil {
+			waiterSession, _, waiting := conn.responseWaiterContext(local.ActivePromptRequestID)
+			if waiting && waiterSession == sessionID {
+				session.RuntimeState = &local
+			}
+		}
 	}
 	return conversationTurnControlSession{principal: principal, agent: agent, session: session}, nil
 }
@@ -592,7 +585,11 @@ func (r *conversationRunner) sendCancelRaw(ctx context.Context, payload []byte) 
 		frame,
 		func(_ context.Context, frame *acpFrameContext) error {
 			return r.agentConn.writeSessionFrame(
-				ctx, frame.managerSessionID, frame.nativeSessionID, frame.messageType, frame.payload,
+				ctx,
+				frame.managerSessionID,
+				frame.nativeSessionID,
+				frame.messageType,
+				frame.payload,
 			)
 		},
 	)

@@ -15,34 +15,21 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/storage"
 )
 
-type runtimeStateRecorder struct {
-	mu     sync.Mutex
-	states []domain.SessionRuntimeState
-}
-
-func (r *runtimeStateRecorder) UpdateSessionRuntimeState(
-	ctx context.Context,
-	state domain.SessionRuntimeState,
-) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.states = append(r.states, state)
-	return nil
-}
-
-func (r *runtimeStateRecorder) last() domain.SessionRuntimeState {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if len(r.states) == 0 {
-		return domain.SessionRuntimeState{}
+func testACPRuntimeState(
+	p *acpRuntimeProjector,
+	agentID, sessionID string,
+) domain.SessionRuntimeState {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if session := p.sessions[acpSessionKey(agentID, sessionID)]; session != nil {
+		return session.state
 	}
-	return r.states[len(r.states)-1]
+	return domain.SessionRuntimeState{}
 }
 
 func TestACPRuntimeProjectorTracksPromptPermissionAndCompletion(t *testing.T) {
-	recorder := &runtimeStateRecorder{}
 	now := time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
-	projector := newACPRuntimeProjector(recorder, func() time.Time { return now })
+	projector := newACPRuntimeProjector(func() time.Time { return now })
 	agent := &ACPTunnelAgent{
 		agentID:     "agent_1",
 		nodeID:      "node_1",
@@ -65,7 +52,7 @@ func TestACPRuntimeProjectorTracksPromptPermissionAndCompletion(t *testing.T) {
 		"method":"session/prompt",
 		"params":{"sessionId":"sess_1","turn_id":"turn_business","prompt":[{"type":"text","text":"hi"}]}
 	}`)
-	state := recorder.last()
+	state := testACPRuntimeState(projector, "agent_1", "sess_1")
 	if state.Lifecycle != domain.RuntimeLifecycleRunning ||
 		state.ActivePromptRequestID != "1" ||
 		state.ActiveTurnID != "turn_business" {
@@ -86,7 +73,7 @@ func TestACPRuntimeProjectorTracksPromptPermissionAndCompletion(t *testing.T) {
 			}
 		}
 	}`)
-	state = recorder.last()
+	state = testACPRuntimeState(projector, "agent_1", "sess_1")
 	if len(state.ActiveToolCalls) != 1 ||
 		state.ActiveToolCalls[0].ToolCallID != "call_1" ||
 		state.ActiveToolCalls[0].Status != "pending" {
@@ -108,7 +95,7 @@ func TestACPRuntimeProjectorTracksPromptPermissionAndCompletion(t *testing.T) {
 			"options":[{"optionId":"allow","kind":"allow_once"}]
 		}
 	}`)
-	state = recorder.last()
+	state = testACPRuntimeState(projector, "agent_1", "sess_1")
 	if state.Lifecycle != domain.RuntimeLifecycleWaitingApproval ||
 		state.BlockedReason != domain.RuntimeBlockedReasonToolApproval ||
 		state.PendingApprovalID != "perm_1" {
@@ -120,7 +107,7 @@ func TestACPRuntimeProjectorTracksPromptPermissionAndCompletion(t *testing.T) {
 		"id":"perm_1",
 		"result":{"optionId":"allow","kind":"allow_once"}
 	}`)
-	state = recorder.last()
+	state = testACPRuntimeState(projector, "agent_1", "sess_1")
 	if state.Lifecycle != domain.RuntimeLifecycleRunning ||
 		state.BlockedReason != "" ||
 		state.PendingApprovalID != "" {
@@ -132,7 +119,7 @@ func TestACPRuntimeProjectorTracksPromptPermissionAndCompletion(t *testing.T) {
 		"id":1,
 		"result":{"stopReason":"end_turn"}
 	}`)
-	state = recorder.last()
+	state = testACPRuntimeState(projector, "agent_1", "sess_1")
 	if state.Lifecycle != domain.RuntimeLifecycleIdle ||
 		state.LastStopReason != "end_turn" ||
 		state.ActivePromptRequestID != "" ||
@@ -142,8 +129,7 @@ func TestACPRuntimeProjectorTracksPromptPermissionAndCompletion(t *testing.T) {
 }
 
 func TestACPRuntimeProjectorIsConcurrentSafe(t *testing.T) {
-	recorder := &runtimeStateRecorder{}
-	projector := newACPRuntimeProjector(recorder, time.Now)
+	projector := newACPRuntimeProjector(time.Now)
 	agent := &ACPTunnelAgent{
 		agentID:     "agent_1",
 		nodeID:      "node_1",
@@ -174,7 +160,7 @@ func TestACPRuntimeProjectorIsConcurrentSafe(t *testing.T) {
 	}
 	wg.Wait()
 
-	if state := recorder.last(); state.AgentID != "agent_1" ||
+	if state := testACPRuntimeState(projector, "agent_1", "sess_1"); state.AgentID != "agent_1" ||
 		state.SessionID != "sess_1" ||
 		state.Lifecycle != domain.RuntimeLifecycleRunning {
 		t.Fatalf("last state = %+v", state)

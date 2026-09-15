@@ -190,7 +190,12 @@ func projectACPTransportMessageWithTextSinkForTurn(
 	mergeableToolCall := false
 	if !textProjection {
 		if acpHistoryIsMergeableToolCall(fields) {
-			logicalKey = acpHistoryToolCallLogicalKey(agentID, stream, fields.SessionID, fields.ToolCallID)
+			logicalKey = acpHistoryToolCallLogicalKey(
+				agentID,
+				stream,
+				fields.SessionID,
+				fields.ToolCallID,
+			)
 			// Canonicalise so the collapsed row keeps a stable message_type and
 			// never trips the client's terminal-output aggregation, which keys
 			// off "tool_call_update" message rows that carry text parts.
@@ -199,6 +204,11 @@ func projectACPTransportMessageWithTextSinkForTurn(
 		} else {
 			logicalKey = acpHistoryRawLogicalKey(agentID, stream, seq, fields)
 		}
+	}
+	// Worker tool/terminal IDs may be reused after a failed execution.
+	// Tagged turns must never merge those rows into another execution's history.
+	if businessTurnID != "" && fields.ToolCallID != "" {
+		logicalKey += ":turn:" + businessTurnID
 	}
 	messageID := acpHistoryMessageID(logicalKey)
 	msg := domain.Message{

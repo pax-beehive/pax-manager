@@ -121,7 +121,7 @@ func newServer(cfg Config, store Store) *Service {
 		},
 	}
 	s.conversationTurns = newConversationTurnQueue(func() time.Time { return s.clock().UTC() })
-	s.acpRuntime = newACPRuntimeProjector(store, func() time.Time { return s.clock() })
+	s.acpRuntime = newACPRuntimeProjector(func() time.Time { return s.clock() })
 	authService := auth.NewService(store, store, serviceAdminPolicy{s: s}, secrets, auth.Config{
 		RegistrationToken:      cfg.RegistrationToken,
 		RegistrationOwnerEmail: cfg.RegistrationOwnerEmail,

@@ -66,9 +66,10 @@ func TestPendingApprovalIsPersistedWithoutConversationSubscriber(t *testing.T) {
 		"sess-existing",
 	)
 	require.NoError(t, err)
-	require.NotNil(t, session.RuntimeState)
-	assert.Equal(t, domain.RuntimeLifecycleWaitingApproval, session.RuntimeState.Lifecycle)
-	assert.Equal(t, approvalID, session.RuntimeState.PendingApprovalID)
+	require.Nil(t, session.RuntimeState, "ACP must not persist runtime state")
+	local := testACPRuntimeState(srv.acpRuntime, fixture.agentID, "sess-existing")
+	assert.Equal(t, domain.RuntimeLifecycleWaitingApproval, local.Lifecycle)
+	assert.Equal(t, approvalID, local.PendingApprovalID)
 	var params map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(frame.frame.Params, &params))
 	assert.Contains(t, params, "approval_id")

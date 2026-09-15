@@ -39,40 +39,6 @@ func (s *MemoryStore) ActivateNodeRuntimeFence(
 	return nil
 }
 
-func (s *MemoryStore) MarkNodeRuntimeStale(
-	ctx context.Context,
-	node Node,
-	fence string,
-) (bool, error) {
-	_ = ctx
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.nodeRuntimeFences[node.NodeID] != fence {
-		return false, nil
-	}
-	now := s.now().UTC()
-	for key, session := range s.sessions {
-		if session.NodeID != node.NodeID || session.RuntimeAuthority != domain.RuntimeAuthoritySnapshot ||
-			session.RuntimeStatus != domain.RuntimeStatusRunning &&
-				session.RuntimeStatus != domain.RuntimeStatusWaitingApproval {
-			continue
-		}
-		session.RuntimeStatus = domain.RuntimeStatusUnknown
-		session.RunStatus = domain.RuntimeStatusUnknown
-		session.Status = domain.RuntimeStatusUnknown
-		session.UpdatedAt = now
-		if session.RuntimeState != nil {
-			state := *session.RuntimeState
-			state.Lifecycle = domain.RuntimeLifecycleUnknown
-			state.UpdatedAt = now
-			session.RuntimeState = &state
-			session.Metadata = runtimeMetadata(session.Metadata, state)
-		}
-		s.sessions[key] = session
-	}
-	return true, nil
-}
-
 func (s *MemoryStore) ReplaceAgentActiveTurns(
 	ctx context.Context,
 	node Node,
@@ -100,7 +66,9 @@ func (s *MemoryStore) ReplaceAgentActiveTurns(
 	if head.ConnectionFence == snapshot.ConnectionFence && head.HasSequence {
 		switch {
 		case snapshot.Sequence == head.LastSequence:
-			return domain.ReplaceAgentActiveTurnsResult{Status: domain.RuntimeSnapshotDuplicate}, nil
+			return domain.ReplaceAgentActiveTurnsResult{
+				Status: domain.RuntimeSnapshotDuplicate,
+			}, nil
 		case snapshot.Sequence < head.LastSequence:
 			return domain.ReplaceAgentActiveTurnsResult{Status: domain.RuntimeSnapshotStale}, nil
 		}
@@ -125,7 +93,11 @@ func (s *MemoryStore) ReplaceAgentActiveTurns(
 		s.sessions[key] = session
 	}
 
-	changes := make([]domain.RuntimeStatusChange, 0, len(snapshot.ActiveTurns)+len(previouslyActive))
+	changes := make(
+		[]domain.RuntimeStatusChange,
+		0,
+		len(snapshot.ActiveTurns)+len(previouslyActive),
+	)
 	for _, turn := range snapshot.ActiveTurns {
 		entry, reportable := resolved[turn.NativeSessionID]
 		if !reportable {
@@ -143,7 +115,13 @@ func (s *MemoryStore) ReplaceAgentActiveTurns(
 		session.RunStatus = turn.RuntimeStatus
 		session.Status = turn.RuntimeStatus
 		session.UpdatedAt = now
-		session.RuntimeState = runtimeStateFromTurn(node, snapshot.AgentID, session.SessionID, turn, now)
+		session.RuntimeState = runtimeStateFromTurn(
+			node,
+			snapshot.AgentID,
+			session.SessionID,
+			turn,
+			now,
+		)
 		session.Metadata = runtimeMetadata(session.Metadata, *session.RuntimeState)
 		s.sessions[entry.key] = session
 		delete(previouslyActive, entry.key)

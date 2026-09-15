@@ -2622,7 +2622,9 @@ func TestConversationCreatesSessionAndStreamsRewrittenACPFrames(t *testing.T) {
 	}
 }
 
-func TestConversationGivenInitializeOnlyWhenSessionNewSucceedsThenCreatesEmptySession(t *testing.T) {
+func TestConversationGivenInitializeOnlyWhenSessionNewSucceedsThenCreatesEmptySession(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 
@@ -2750,7 +2752,7 @@ func TestConversationTurnStopSendsSessionCancelForActivePrompt(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, updated.RuntimeState)
-	assert.Equal(t, domain.RuntimeLifecycleCancelling, updated.RuntimeState.Lifecycle)
+	assert.Equal(t, domain.RuntimeLifecycleRunning, updated.RuntimeState.Lifecycle)
 	assert.Equal(t, "42", updated.RuntimeState.ActivePromptRequestID)
 }
 
@@ -3021,6 +3023,14 @@ func TestSessionObserverGivenBusinessTurnWhenStreamingThenKeepsExistingEnvelopeP
 	)
 	promptEnv := readNextManagerToAgentData(t, agentWS)
 	promptID := acpPayloadRequestID(t, promptEnv.Payload)
+	applyConversationTestSnapshot(
+		t,
+		srv,
+		fixture,
+		"native-observer",
+		promptEnv.Metadata["turn_id"],
+		promptID,
+	)
 	storedSession, err := srv.store.GetSession(
 		t.Context(),
 		testUserPrincipal(t, srv, fixture.userEmail),
@@ -3660,9 +3670,10 @@ func TestConversationGivenManualApprovalRequiredThenCreatesApprovalAndInterrupts
 		"sess-existing",
 	)
 	require.NoError(t, err)
-	require.NotNil(t, session.RuntimeState)
-	assert.Equal(t, requiredEvent.ApprovalID, session.RuntimeState.PendingApprovalID)
-	assert.Equal(t, turnStartedEvent.TurnID, session.RuntimeState.ActiveTurnID)
+	assert.Nil(t, session.RuntimeState)
+	local := testACPRuntimeState(srv.acpRuntime, fixture.agentID, "sess-existing")
+	assert.Equal(t, requiredEvent.ApprovalID, local.PendingApprovalID)
+	assert.Equal(t, turnStartedEvent.TurnID, local.ActiveTurnID)
 
 	historyReq := httptest.NewRequest(
 		http.MethodGet,
@@ -3783,10 +3794,11 @@ func TestConversationGivenAutoApproveAllThenAllowsPermissionRequest(t *testing.T
 		"sess-existing",
 	)
 	require.NoError(t, err)
-	require.NotNil(t, autoApprovedSession.RuntimeState)
-	autoApprovedTurnID := autoApprovedSession.RuntimeState.ActiveTurnID
+	assert.Nil(t, autoApprovedSession.RuntimeState)
+	local := testACPRuntimeState(srv.acpRuntime, fixture.agentID, "sess-existing")
+	autoApprovedTurnID := local.ActiveTurnID
 	require.True(t, strings.HasPrefix(autoApprovedTurnID, "turn_"))
-	assert.Equal(t, domain.RuntimeLifecycleRunning, autoApprovedSession.RuntimeState.Lifecycle)
+	assert.Equal(t, domain.RuntimeLifecycleRunning, local.Lifecycle)
 
 	writeAgentDataFrame(
 		t,
@@ -3897,8 +3909,12 @@ func TestConversationGivenDecidedApprovalWhenResumingThenSendsNativePermissionRe
 		"sess-existing",
 	)
 	require.NoError(t, err)
-	require.NotNil(t, pausedSession.RuntimeState)
-	pausedTurnID := pausedSession.RuntimeState.ActiveTurnID
+	assert.Nil(t, pausedSession.RuntimeState)
+	pausedTurnID := testACPRuntimeState(
+		srv.acpRuntime,
+		fixture.agentID,
+		"sess-existing",
+	).ActiveTurnID
 	require.True(t, strings.HasPrefix(pausedTurnID, "turn_"))
 	decideTestApproval(t, srv, approval.ApprovalID, "allow_once")
 
@@ -4124,6 +4140,16 @@ func TestConversationGivenDecidedApprovalWhenResumeTrueThenInfersPendingApproval
 
 	approval := createConversationApprovalInterrupt(t, srv, fixture, httpServer.URL, agentWS)
 	decideTestApproval(t, srv, approval.ApprovalID, "allow_once")
+	local := testACPRuntimeState(srv.acpRuntime, fixture.agentID, "sess-existing")
+	applyConversationTestSnapshot(
+		t,
+		srv,
+		fixture,
+		"native-existing",
+		local.ActiveTurnID,
+		local.ActivePromptRequestID,
+		approval.NativeID,
+	)
 
 	respCh := make(chan *http.Response, 1)
 	errCh := make(chan error, 1)
@@ -8710,12 +8736,17 @@ func TestAgentSessionHistoryPaginatesOlderMessages(t *testing.T) {
 	})
 
 	// Legacy before_id path still works (id-ordered, HasMore/NextBeforeID).
-	legacyLatest := requestPage(basePath + "?limit=2&before_id=" + strconv.FormatInt(latest.Messages[1].ID+1, 10))
+	legacyLatest := requestPage(
+		basePath + "?limit=2&before_id=" + strconv.FormatInt(latest.Messages[1].ID+1, 10),
+	)
 	require.Len(t, legacyLatest.Messages, 2)
 	require.True(t, legacyLatest.Pagination.HasMore)
 	require.Equal(t, legacyLatest.Messages[0].ID, legacyLatest.Pagination.NextBeforeID)
 	legacyOlder := requestPage(
-		basePath + "?limit=2&before_id=" + strconv.FormatInt(legacyLatest.Pagination.NextBeforeID, 10),
+		basePath + "?limit=2&before_id=" + strconv.FormatInt(
+			legacyLatest.Pagination.NextBeforeID,
+			10,
+		),
 	)
 	require.Equal(t, []string{"msg_history_page_1", "msg_history_page_2"}, []string{
 		legacyOlder.Messages[0].MessageID,
@@ -9324,4 +9355,43 @@ func setJSON(req *http.Request) {
 
 func int64String(v int64) string {
 	return strconv.FormatInt(v, 10)
+}
+
+func applyConversationTestSnapshot(
+	t *testing.T,
+	srv *Server,
+	fixture conversationTestFixture,
+	nativeID, turnID, requestID string,
+	pendingApprovalIDs ...string,
+) {
+	t.Helper()
+	node, err := srv.store.GetNode(
+		t.Context(),
+		testUserPrincipal(t, srv, fixture.userEmail),
+		fixture.nodeID,
+	)
+	require.NoError(t, err)
+	runtimeStore := srv.store.(domain.SessionRuntimeSnapshotStore)
+	require.NoError(t, runtimeStore.ActivateNodeRuntimeFence(t.Context(), node, "test-fence"))
+
+	turn := domain.ActiveTurnSnapshot{
+		NativeSessionID: nativeID,
+		TurnInstanceID:  turnID,
+		PromptRequestID: json.RawMessage(requestID),
+		RuntimeStatus:   domain.RuntimeStatusRunning,
+	}
+	if len(pendingApprovalIDs) > 0 {
+		turn.PendingApprovalID = pendingApprovalIDs[0]
+		turn.RuntimeStatus = domain.RuntimeStatusWaitingApproval
+	}
+	result, err := runtimeStore.ReplaceAgentActiveTurns(
+		t.Context(),
+		node,
+		domain.AgentRuntimeSnapshot{
+			AgentID: fixture.agentID, ConnectionFence: "test-fence", Sequence: 1, GeneratedAt: time.Now().UTC(),
+			ActiveTurns: []domain.ActiveTurnSnapshot{turn},
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, domain.RuntimeSnapshotApplied, result.Status)
 }

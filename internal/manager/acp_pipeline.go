@@ -546,6 +546,7 @@ func (m acpApprovalMiddleware) autoApproveSessionPolicy(
 		frame.nativeSessionID,
 		websocket.TextMessage,
 		response,
+		m.businessTurnID(ctx, frame),
 	); err != nil {
 		return true, err
 	}
@@ -633,6 +634,7 @@ func (m acpApprovalMiddleware) autoApproveReusableGrant(
 		frame.nativeSessionID,
 		websocket.TextMessage,
 		response,
+		m.businessTurnID(ctx, frame),
 	); err != nil {
 		return err
 	}
@@ -730,6 +732,14 @@ func (m acpRuntimeStateMiddleware) HandleACPFrame(
 	frame *acpFrameContext,
 	next acpFrameHandler,
 ) error {
+	if frame.direction == acpUserToAgent && frame.frame.Method == "session/prompt" &&
+		frame.businessTurnID == "" {
+		turnID, err := newConversationTurnID()
+		if err != nil {
+			return err
+		}
+		frame.businessTurnID = turnID
+	}
 	if m.projector != nil {
 		if frame.businessTurnID == "" {
 			frame.businessTurnID = m.projector.CurrentTurnID(
@@ -743,15 +753,10 @@ func (m acpRuntimeStateMiddleware) HandleACPFrame(
 }
 
 type acpRuntimeProjector struct {
-	store acpRuntimeStateStore
 	clock func() time.Time
 
 	mu       sync.Mutex
 	sessions map[string]*acpRuntimeSession
-}
-
-type acpRuntimeStateStore interface {
-	UpdateSessionRuntimeState(context.Context, domain.SessionRuntimeState) error
 }
 
 type acpRuntimeSession struct {
@@ -761,11 +766,9 @@ type acpRuntimeSession struct {
 }
 
 func newACPRuntimeProjector(
-	store acpRuntimeStateStore,
 	clock func() time.Time,
 ) *acpRuntimeProjector {
 	return &acpRuntimeProjector{
-		store:    store,
 		clock:    clock,
 		sessions: make(map[string]*acpRuntimeSession),
 	}
@@ -779,8 +782,8 @@ func (p *acpRuntimeProjector) Observe(ctx context.Context, frame *acpFrameContex
 	if !ok {
 		return nil
 	}
-	state := p.apply(frame.agent, frame.managerSessionID, event)
-	return p.store.UpdateSessionRuntimeState(ctx, state)
+	p.apply(frame.agent, frame.managerSessionID, event, frame.transportMetadata["turn_id"])
+	return nil
 }
 
 func (p *acpRuntimeProjector) CurrentTurnID(
@@ -790,13 +793,37 @@ func (p *acpRuntimeProjector) CurrentTurnID(
 	if p == nil || agent == nil || agent.agentID == "" || managerSessionID == "" {
 		return ""
 	}
+	return p.CurrentCorrelation(agent.agentID, managerSessionID).ActiveTurnID
+}
+
+// CurrentCorrelation is local request bookkeeping, never a persisted runtime projection.
+func (p *acpRuntimeProjector) CurrentCorrelation(
+	agentID, sessionID string,
+) domain.SessionRuntimeState {
+	if p == nil {
+		return domain.SessionRuntimeState{}
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	session := p.sessions[acpSessionKey(agent.agentID, managerSessionID)]
-	if session == nil {
-		return ""
+	if session := p.sessions[acpSessionKey(agentID, sessionID)]; session != nil {
+		return session.state
 	}
-	return session.state.ActiveTurnID
+	return domain.SessionRuntimeState{}
+}
+
+func (p *acpRuntimeProjector) ActiveCorrelations(agentID string) []domain.SessionRuntimeState {
+	if p == nil {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var states []domain.SessionRuntimeState
+	for _, session := range p.sessions {
+		if session.state.AgentID == agentID && session.state.ActivePromptRequestID != "" {
+			states = append(states, session.state)
+		}
+	}
+	return states
 }
 
 type acpRuntimeEvent struct {
@@ -874,7 +901,8 @@ func (p *acpRuntimeProjector) apply(
 	agent *ACPTunnelAgent,
 	managerSessionID string,
 	event acpRuntimeEvent,
-) domain.SessionRuntimeState {
+	envelopeTurnID string,
+) {
 	key := acpSessionKey(agent.agentID, managerSessionID)
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -892,6 +920,11 @@ func (p *acpRuntimeProjector) apply(
 			permissionRequests: make(map[string]string),
 		}
 		p.sessions[key] = session
+	}
+	// The envelope identity is fixed before journaling, unlike the current turn.
+	if envelopeTurnID != "" && event.kind != "prompt_started" &&
+		session.state.ActiveTurnID != envelopeTurnID {
+		return
 	}
 	state := session.state
 	state.OwnerUserID = agent.ownerUserID
@@ -963,7 +996,6 @@ func (p *acpRuntimeProjector) apply(
 		}
 	}
 	session.state = state
-	return state
 }
 
 func acpRuntimeEventFromUpdate(raw json.RawMessage) (acpRuntimeEvent, bool) {

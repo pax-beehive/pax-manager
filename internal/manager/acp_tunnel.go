@@ -853,6 +853,7 @@ func (a *ACPTunnelAgent) writeWorkerResponse(
 	nativeSessionID string,
 	messageType int,
 	payload []byte,
+	turnIDs ...string,
 ) error {
 	if strings.TrimSpace(managerSessionID) == "" {
 		return errors.New("manager session id is required for worker response")
@@ -864,10 +865,13 @@ func (a *ACPTunnelAgent) writeWorkerResponse(
 			return err
 		}
 	}
-	return a.writeToAgentWithMetadata(ctx, messageType, payload, reliablemq.Metadata{
-		"manager_session_id": managerSessionID,
-		"native_session_id":  nativeSessionID,
-	})
+	return a.writeSessionFrame(
+		ctx,
+		managerSessionID,
+		nativeSessionID,
+		messageType,
+		payload,
+		turnIDs...)
 }
 
 func (a *ACPTunnelAgent) writeSessionFrame(
@@ -876,8 +880,12 @@ func (a *ACPTunnelAgent) writeSessionFrame(
 	nativeSessionID string,
 	messageType int,
 	payload []byte,
+	turnIDs ...string,
 ) error {
 	metadata := reliablemq.Metadata{}
+	if len(turnIDs) > 0 && turnIDs[0] != "" {
+		metadata["turn_id"] = turnIDs[0]
+	}
 	if strings.TrimSpace(managerSessionID) != "" {
 		metadata["manager_session_id"] = managerSessionID
 	}
@@ -1846,7 +1854,7 @@ func relayUserFramesToAgent(
 				}
 				write := func(ctx context.Context, messageType int, payload []byte) error {
 					return agentConn.writeSessionFrame(
-						ctx, frame.managerSessionID, frame.nativeSessionID, messageType, payload,
+						ctx, frame.managerSessionID, frame.nativeSessionID, messageType, payload, frame.businessTurnID,
 					)
 				}
 				if isACPJSONRPCResponse(frame.frame) {
@@ -1857,6 +1865,7 @@ func relayUserFramesToAgent(
 							frame.nativeSessionID,
 							messageType,
 							payload,
+							frame.businessTurnID,
 						)
 					}
 				}
@@ -1864,10 +1873,11 @@ func relayUserFramesToAgent(
 					cancelResponseContext()
 					return err
 				}
-				return projectACPUserPromptForSession(
+				return projectACPUserPromptForSessionTurn(
 					ctx,
 					agentConn,
 					frame.managerSessionID,
+					frame.businessTurnID,
 					frame.payload,
 				)
 			},
@@ -2010,6 +2020,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 		frame.transportMetadata[key] = value
 	}
 	frame.nativeSessionID = frame.transportMetadata["native_session_id"]
+	frame.businessTurnID = frame.transportMetadata["turn_id"]
 	err := pipeline.Handle(ctx, frame, func(_ context.Context, frame *acpFrameContext) error {
 		if err := projectACPTransportMessageWithTextSinkForTurn(
 			ctx,

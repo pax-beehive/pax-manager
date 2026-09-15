@@ -845,27 +845,15 @@ func (s *Service) ensureConversationResumeTurnID(
 	if turnID := conversationActiveTurnID(stored); turnID != "" {
 		return turnID, nil
 	}
-	turnID, err := newConversationTurnID()
-	if err != nil {
-		return "", err
+	if agent, err := s.acpTunnels.findAny(stored.AgentID, session.managerID, session.nativeID, ""); err == nil {
+		if turnID := s.acpRuntime.CurrentTurnID(agent, session.managerID); turnID != "" {
+			return turnID, nil
+		}
 	}
-	state := domain.SessionRuntimeState{
-		OwnerUserID: principal.User.UserID,
-		NodeID:      stored.NodeID,
-		AgentID:     stored.AgentID,
-		SessionID:   stored.SessionID,
-		Lifecycle:   domain.RuntimeLifecycleWaitingApproval,
-		UpdatedAt:   s.clock().UTC(),
+	return "", apperr.Error{
+		Status:  http.StatusConflict,
+		Message: "active turn is not available; wait for a runtime snapshot",
 	}
-	if stored.RuntimeState != nil {
-		state = *stored.RuntimeState
-		state.UpdatedAt = s.clock().UTC()
-	}
-	state.ActiveTurnID = turnID
-	if err := s.store.UpdateSessionRuntimeState(ctx, state); err != nil {
-		return "", err
-	}
-	return turnID, nil
 }
 
 func (r *conversationRunner) request(
@@ -1012,7 +1000,7 @@ func (r *conversationRunner) sendRawForTurn(
 		frame,
 		func(_ context.Context, frame *acpFrameContext) error {
 			if err := r.agentConn.writeSessionFrame(
-				ctx, frame.managerSessionID, frame.nativeSessionID, frame.messageType, frame.payload,
+				ctx, frame.managerSessionID, frame.nativeSessionID, frame.messageType, frame.payload, frame.businessTurnID,
 			); err != nil {
 				return err
 			}
@@ -1041,6 +1029,7 @@ func (r *conversationRunner) sendWorkerResponseRaw(ctx context.Context, payload 
 				frame.nativeSessionID,
 				frame.messageType,
 				frame.payload,
+				frame.businessTurnID,
 			); err != nil {
 				return err
 			}
@@ -1336,9 +1325,6 @@ func (s *Service) createConversationApproval(
 			logging.Err(err),
 		)
 	}
-	if err := s.markConversationWaitingApproval(ctx, runner, session.managerID, approval); err != nil {
-		return AgentApproval{}, nil, err
-	}
 	return approval, forwarded, nil
 }
 
@@ -1524,39 +1510,6 @@ func conversationHistoryMessageMatchesPermissionResponse(
 	return acpRequestID(frame.ID) == requestID
 }
 
-func (s *Service) markConversationWaitingApproval(
-	ctx context.Context,
-	runner *conversationRunner,
-	sessionID string,
-	approval AgentApproval,
-) error {
-	state := domain.SessionRuntimeState{
-		OwnerUserID:       runner.agentConn.ownerUserID,
-		NodeID:            runner.agentConn.nodeID,
-		AgentID:           runner.agentConn.agentID,
-		SessionID:         sessionID,
-		Lifecycle:         domain.RuntimeLifecycleWaitingApproval,
-		BlockedReason:     domain.RuntimeBlockedReasonToolApproval,
-		BlockedRef:        firstNonEmpty(approval.ResourceRef, approval.ApprovalID),
-		PendingApprovalID: approval.ApprovalID,
-		UpdatedAt:         s.clock().UTC(),
-	}
-	session, err := s.store.GetSession(
-		ctx,
-		UserPrincipal{User: User{UserID: runner.agentConn.ownerUserID}},
-		sessionID,
-	)
-	if err == nil && session.RuntimeState != nil {
-		state = *session.RuntimeState
-		state.PendingApprovalID = approval.ApprovalID
-		state.BlockedRef = firstNonEmpty(approval.ResourceRef, approval.ApprovalID)
-		state.BlockedReason = domain.RuntimeBlockedReasonToolApproval
-		state.Lifecycle = domain.RuntimeLifecycleWaitingApproval
-		state.UpdatedAt = s.clock().UTC()
-	}
-	return s.store.UpdateSessionRuntimeState(ctx, state)
-}
-
 func (s *Service) resolveConversationResumeApproval(
 	ctx context.Context,
 	principal UserPrincipal,
@@ -1567,9 +1520,13 @@ func (s *Service) resolveConversationResumeApproval(
 	if err != nil {
 		return AgentApproval{}, "", err
 	}
+	local := s.acpRuntime.CurrentCorrelation(gotSession.AgentID, session.managerID)
 	approvalID := req.ApprovalID
 	if approvalID == "" && gotSession.RuntimeState != nil {
 		approvalID = gotSession.RuntimeState.PendingApprovalID
+	}
+	if approvalID == "" {
+		approvalID = local.PendingApprovalID
 	}
 	if approvalID == "" {
 		return AgentApproval{}, "", apperr.Error{
@@ -1577,7 +1534,13 @@ func (s *Service) resolveConversationResumeApproval(
 			Message: "session has no pending approval",
 		}
 	}
-	approval, err := s.store.GetApproval(ctx, principal, approvalID)
+	approval, err := s.conversationResumeApproval(
+		ctx,
+		principal,
+		gotSession,
+		approvalID,
+		req.ApprovalID == "",
+	)
 	if err != nil {
 		return AgentApproval{}, "", err
 	}
@@ -1604,12 +1567,42 @@ func (s *Service) resolveConversationResumeApproval(
 		promptRequestID = gotSession.RuntimeState.ActivePromptRequestID
 	}
 	if promptRequestID == "" {
+		promptRequestID = local.ActivePromptRequestID
+	}
+	if promptRequestID == "" {
 		return AgentApproval{}, "", apperr.Error{
 			Status:  http.StatusConflict,
 			Message: "session has no active prompt",
 		}
 	}
 	return approval, promptRequestID, nil
+}
+
+// Snapshots carry the native permission ID; API callers use Manager approval IDs.
+func (s *Service) conversationResumeApproval(
+	ctx context.Context,
+	principal UserPrincipal,
+	session AgentSession,
+	id string,
+	inferred bool,
+) (AgentApproval, error) {
+	approval, err := s.store.GetApproval(ctx, principal, id)
+	if !inferred || !errors.Is(err, ErrNotFound) {
+		return approval, err
+	}
+	approvals, err := s.store.ListApprovals(ctx, domain.ApprovalFilter{
+		Principal: principal, RequestNodeID: session.NodeID, RequestAgentID: session.AgentID,
+	})
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	for _, candidate := range approvals {
+		if candidate.NativeID == id && candidate.RespondedAt == nil &&
+			(candidate.RequestSessionID == session.SessionID || candidate.RequestSessionID == session.NativeID) {
+			return candidate, nil
+		}
+	}
+	return AgentApproval{}, ErrNotFound
 }
 
 func parseConversationResume(raw json.RawMessage) (conversationResumeRequest, error) {

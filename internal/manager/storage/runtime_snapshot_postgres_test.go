@@ -132,6 +132,7 @@ func TestPostgresRuntimeSnapshotReconciliation(t *testing.T) {
 		assert.Contains(t, script.execTexts[1], "UPDATE agent_runtime_snapshot_heads")
 		assert.Contains(t, script.execTexts[1], "runtime_authority = 'snapshot'")
 		assert.Contains(t, strings.Join(script.queryTexts, "\n"), "FOR UPDATE")
+		assert.Contains(t, script.queryTexts[1], "FOR NO KEY UPDATE")
 	})
 
 	t.Run("Given the same sequence then it is duplicate and does not mutate sessions", func(t *testing.T) {
@@ -349,7 +350,7 @@ func TestPostgresFrameRuntimeProjectionHonorsSnapshotAuthority(t *testing.T) {
 		assert.Empty(t, script.execTexts)
 		assert.True(t, script.committed)
 		assert.Contains(t, strings.Join(script.queryTexts, "\n"), "FROM agents")
-		assert.Contains(t, strings.Join(script.queryTexts, "\n"), "FOR UPDATE")
+		assert.Contains(t, strings.Join(script.queryTexts, "\n"), "FOR NO KEY UPDATE")
 	})
 
 	t.Run("Given frame authority when a frame projection arrives then it updates canonical runtime columns", func(t *testing.T) {

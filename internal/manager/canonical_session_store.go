@@ -14,24 +14,16 @@ func newCanonicalSessionStore(store domain.Store) domain.Store {
 	return canonicalSessionStore{Store: store}
 }
 
-func (s canonicalSessionStore) ActivateNodeRuntimeFence(ctx context.Context, node domain.Node, fence string) error {
+func (s canonicalSessionStore) ActivateNodeRuntimeFence(
+	ctx context.Context,
+	node domain.Node,
+	fence string,
+) error {
 	runtimeStore, ok := s.Store.(domain.SessionRuntimeSnapshotStore)
 	if !ok {
 		return domain.ErrConflict
 	}
 	return runtimeStore.ActivateNodeRuntimeFence(ctx, node, fence)
-}
-
-func (s canonicalSessionStore) MarkNodeRuntimeStale(
-	ctx context.Context,
-	node domain.Node,
-	fence string,
-) (bool, error) {
-	runtimeStore, ok := s.Store.(domain.SessionRuntimeSnapshotStore)
-	if !ok {
-		return false, domain.ErrConflict
-	}
-	return runtimeStore.MarkNodeRuntimeStale(ctx, node, fence)
 }
 
 func (s canonicalSessionStore) ReplaceAgentActiveTurns(
