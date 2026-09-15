@@ -17,6 +17,64 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestS3PresignedObjectPathSignature(t *testing.T) {
+	ctx := context.Background()
+	creds := aws.Credentials{AccessKeyID: "access-key", SecretAccessKey: "secret-key"}
+	client := newObjectStorageS3Client(aws.Config{
+		Region: "us-east-1",
+		Credentials: credentials.NewStaticCredentialsProvider(
+			creds.AccessKeyID, creds.SecretAccessKey, "",
+		),
+		RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired,
+	}, "https://objects.example.com", true)
+	presigner := newObjectStorageS3Presigner(client)
+	for _, filename := range []string{
+		"report.txt", "my report.txt", "two  spaces.txt", "a+b.txt",
+		"100%.txt", "literal%20space.txt", "a#b?.txt", "\u4e2d\u6587.txt",
+	} {
+		for _, method := range []string{http.MethodPut, http.MethodGet} {
+			t.Run(method+"/"+filename, func(t *testing.T) {
+				object := userAttachmentObjectName("user-1", "object-1", filename)
+				var signed *awsv4.PresignedHTTPRequest
+				var err error
+				if method == http.MethodPut {
+					signed, err = presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+						Bucket: aws.String("pax-artifacts"), Key: aws.String(object),
+						ContentType: aws.String("text/plain"), IfNoneMatch: aws.String("*"),
+					})
+				} else {
+					signed, err = presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+						Bucket: aws.String("pax-artifacts"), Key: aws.String(object),
+					})
+				}
+				require.NoError(t, err)
+				request, err := http.NewRequestWithContext(ctx, method, signed.URL, nil)
+				require.NoError(t, err)
+				assert.Equal(t, "/pax-artifacts/"+object, request.URL.Path)
+				request.Header = signed.SignedHeader.Clone()
+				query := request.URL.Query()
+				signature := query.Get("X-Amz-Signature")
+				signingTime, err := time.Parse("20060102T150405Z", query.Get("X-Amz-Date"))
+				require.NoError(t, err)
+				query.Del("X-Amz-Signature")
+				request.URL.RawQuery = query.Encode()
+				// S3 verifies the escaped wire path without another URI encoding pass.
+				verifier := awsv4.NewSigner(func(options *awsv4.SignerOptions) {
+					options.DisableURIPathEscaping = true
+					options.DisableHeaderHoisting = true
+				})
+				expectedURL, _, err := verifier.PresignHTTP(
+					ctx, creds, request, "UNSIGNED-PAYLOAD", "s3", "us-east-1", signingTime,
+				)
+				require.NoError(t, err)
+				expected, err := url.Parse(expectedURL)
+				require.NoError(t, err)
+				assert.Equal(t, expected.Query().Get("X-Amz-Signature"), signature)
+			})
+		}
+	}
+}
+
 func TestS3ArtifactBackend(t *testing.T) {
 	expiresAt := time.Now().UTC().Add(10 * time.Minute)
 	validSHA256 := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

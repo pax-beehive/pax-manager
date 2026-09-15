@@ -61,6 +61,8 @@ func (p headerBoundS3Presigner) PresignHTTP(
 ) (string, http.Header, error) {
 	optFns = append(optFns, func(options *awsv4.SignerOptions) {
 		options.DisableHeaderHoisting = true
+		// S3 signs the already escaped object path without double encoding it.
+		options.DisableURIPathEscaping = true
 	})
 	return p.signer.PresignHTTP(
 		ctx,
