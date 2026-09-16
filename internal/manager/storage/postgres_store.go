@@ -1117,17 +1117,7 @@ func (s *PostgresStore) UpsertNodeStatus(
 	}
 	defer func() { _ = tx.Rollback() }()
 	if report.RuntimeFence != "" {
-		var currentFence string
-		err = tx.QueryRowContext(ctx, `
-			SELECT connection_fence
-			FROM node_runtime_fences
-			WHERE node_id = $1
-			FOR UPDATE
-		`, node.NodeID).Scan(&currentFence)
-		if errors.Is(err, sql.ErrNoRows) || err == nil && currentFence != report.RuntimeFence {
-			return ErrConflict
-		}
-		if err != nil {
+		if err := checkNodeRuntimeFence(ctx, tx, node.NodeID, report.RuntimeFence); err != nil {
 			return err
 		}
 	}
@@ -1698,19 +1688,9 @@ func (s *PostgresStore) CreateNodeAgentSession(
 	if err := s.validateSessionReferences(ctx, principal, req); err != nil {
 		return AgentSession{}, err
 	}
-	createdBy := strings.TrimSpace(req.CreatedByUserID)
-	if createdBy != principal.User.UserID {
-		createdByMember := false
-		if req.ConversationID != "" {
-			member, err := s.hasActiveConversationMembership(ctx, req.ConversationID, createdBy)
-			if err != nil {
-				return AgentSession{}, err
-			}
-			createdByMember = member
-		}
-		if !createdByMember {
-			createdBy = principal.User.UserID
-		}
+	createdBy, err := s.resolveSessionCreator(ctx, principal, req)
+	if err != nil {
+		return AgentSession{}, err
 	}
 	if req.ConversationID != "" || req.ProfileID != "" ||
 		req.RepresentativeAgentID != "" || createdBy != "" {
@@ -3529,4 +3509,43 @@ func approvalDecisionGrant(
 		}
 		return "allow", "custom", req.GrantNodeID, req.GrantAgentID, req.GrantSessionID, nil
 	}
+}
+
+func checkNodeRuntimeFence(ctx context.Context, tx *sql.Tx, nodeID, fence string) error {
+	var currentFence string
+	err := tx.QueryRowContext(ctx, `
+			SELECT connection_fence
+			FROM node_runtime_fences
+			WHERE node_id = $1
+			FOR UPDATE
+		`, nodeID).Scan(&currentFence)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && currentFence != fence {
+		return ErrConflict
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *PostgresStore) resolveSessionCreator(
+	ctx context.Context,
+	principal UserPrincipal,
+	req CreateSessionRequest,
+) (string, error) {
+	createdBy := strings.TrimSpace(req.CreatedByUserID)
+	if createdBy != principal.User.UserID {
+		createdByMember := false
+		if req.ConversationID != "" {
+			member, err := s.hasActiveConversationMembership(ctx, req.ConversationID, createdBy)
+			if err != nil {
+				return "", err
+			}
+			createdByMember = member
+		}
+		if !createdByMember {
+			createdBy = principal.User.UserID
+		}
+	}
+	return createdBy, nil
 }

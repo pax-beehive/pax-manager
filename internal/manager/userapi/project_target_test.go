@@ -41,83 +41,86 @@ func TestProjectTargetCRUDServiceBDD(t *testing.T) {
 		Enabled:     true,
 	}
 
-	t.Run("given a target when creating listing getting and updating then wire data stays nested", func(t *testing.T) {
-		enabled := true
-		store.EXPECT().
-			CreateProjectTarget(
+	t.Run(
+		"given a target when creating listing getting and updating then wire data stays nested",
+		func(t *testing.T) {
+			enabled := true
+			store.EXPECT().
+				CreateProjectTarget(
+					ctx,
+					principal,
+					"proj_1",
+					domain.CreateProjectTargetRequest{
+						AgentID:     "agent_1",
+						DisplayName: "Mac main",
+						Cwd:         "~/pax_workspace/pax-manager",
+						Enabled:     &enabled,
+					},
+				).
+				Return(target, nil).
+				Once()
+
+			status, data, err := svc.CreateProjectTarget(
 				ctx,
-				principal,
-				"proj_1",
+				meta,
+				" proj_1 ",
 				domain.CreateProjectTargetRequest{
-					AgentID:     "agent_1",
-					DisplayName: "Mac main",
-					Cwd:         "~/pax_workspace/pax-manager",
+					AgentID:     " agent_1 ",
+					DisplayName: " Mac main ",
+					Cwd:         " ~/pax_workspace/pax-manager ",
 					Enabled:     &enabled,
 				},
-			).
-			Return(target, nil).
-			Once()
+			)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusCreated, status)
+			assert.Equal(t, target, data.(map[string]any)["target"])
 
-		status, data, err := svc.CreateProjectTarget(
-			ctx,
-			meta,
-			" proj_1 ",
-			domain.CreateProjectTargetRequest{
-				AgentID:     " agent_1 ",
-				DisplayName: " Mac main ",
-				Cwd:         " ~/pax_workspace/pax-manager ",
-				Enabled:     &enabled,
-			},
-		)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusCreated, status)
-		assert.Equal(t, target, data.(map[string]any)["target"])
+			store.EXPECT().
+				ListProjectTargets(ctx, principal, "proj_1").
+				Return([]domain.ProjectTarget{target}, nil).
+				Once()
+			status, data, err = svc.ListProjectTargets(ctx, meta, "proj_1")
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, status)
+			assert.Equal(t, []domain.ProjectTarget{target}, data.(map[string]any)["targets"])
 
-		store.EXPECT().
-			ListProjectTargets(ctx, principal, "proj_1").
-			Return([]domain.ProjectTarget{target}, nil).
-			Once()
-		status, data, err = svc.ListProjectTargets(ctx, meta, "proj_1")
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, status)
-		assert.Equal(t, []domain.ProjectTarget{target}, data.(map[string]any)["targets"])
+			store.EXPECT().
+				GetProjectTarget(ctx, principal, "proj_1", "ptgt_1").
+				Return(target, nil).
+				Once()
+			status, data, err = svc.GetProjectTarget(ctx, meta, "proj_1", "ptgt_1")
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, status)
+			assert.Equal(t, target, data.(map[string]any)["target"])
 
-		store.EXPECT().
-			GetProjectTarget(ctx, principal, "proj_1", "ptgt_1").
-			Return(target, nil).
-			Once()
-		status, data, err = svc.GetProjectTarget(ctx, meta, "proj_1", "ptgt_1")
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, status)
-		assert.Equal(t, target, data.(map[string]any)["target"])
-
-		name := " Mac feature "
-		cwd := " ~/worktrees/feature "
-		normalizedName := "Mac feature"
-		normalizedCwd := "~/worktrees/feature"
-		store.EXPECT().
-			UpdateProjectTarget(
+			name := " Mac feature "
+			cwd := " ~/worktrees/feature "
+			normalizedName := "Mac feature"
+			normalizedCwd := "~/worktrees/feature"
+			store.EXPECT().
+				UpdateProjectTarget(
+					ctx,
+					principal,
+					"proj_1",
+					"ptgt_1",
+					domain.UpdateProjectTargetRequest{
+						DisplayName: &normalizedName,
+						Cwd:         &normalizedCwd,
+					},
+				).
+				Return(target, nil).
+				Once()
+			status, _, err = svc.UpdateProjectTarget(
 				ctx,
-				principal,
+				meta,
 				"proj_1",
 				"ptgt_1",
-				domain.UpdateProjectTargetRequest{
-					DisplayName: &normalizedName,
-					Cwd:         &normalizedCwd,
-				},
-			).
-			Return(target, nil).
-			Once()
-		status, _, err = svc.UpdateProjectTarget(
-			ctx,
-			meta,
-			"proj_1",
-			"ptgt_1",
-			domain.UpdateProjectTargetRequest{DisplayName: &name, Cwd: &cwd},
-		)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, status)
-	})
+				domain.UpdateProjectTargetRequest{DisplayName: &name, Cwd: &cwd},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, status)
+		},
+	)
 }
 
 func TestCreateProjectTargetDefaultNameBDD(t *testing.T) {

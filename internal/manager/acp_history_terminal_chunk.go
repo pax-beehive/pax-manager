@@ -112,7 +112,12 @@ func (a *ACPTunnelAgent) reserveTerminalChunk(
 	} else {
 		state.terminalChunks[messageID] = chunk
 	}
-	target, nextSize := terminalChunkTarget(chunk.index, chunk.size, deltaLen, defaultACPTerminalChunkMaxBytes)
+	target, nextSize := terminalChunkTarget(
+		chunk.index,
+		chunk.size,
+		deltaLen,
+		defaultACPTerminalChunkMaxBytes,
+	)
 	chunk.index = target
 	chunk.size = nextSize
 	return target

@@ -36,62 +36,77 @@ func TestProjectCRUDServiceBDD(t *testing.T) {
 		userapimocks.NewMockSecretIssuer(t),
 	)
 
-	t.Run("given an owner when creating a hierarchy then CRUD responses preserve it", func(t *testing.T) {
-		status, data, err := svc.CreateProject(ctx, auth.RequestMetadata{}, domain.CreateProjectRequest{
-			DisplayName: " Root ",
-		})
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusCreated, status)
-		root := data.(map[string]any)["project"].(domain.Project)
-		assert.Equal(t, "Root", root.DisplayName)
-		assert.Equal(t, principal.User.UserID, root.OwnerUserID)
+	t.Run(
+		"given an owner when creating a hierarchy then CRUD responses preserve it",
+		func(t *testing.T) {
+			status, data, err := svc.CreateProject(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateProjectRequest{
+					DisplayName: " Root ",
+				},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusCreated, status)
+			root := data.(map[string]any)["project"].(domain.Project)
+			assert.Equal(t, "Root", root.DisplayName)
+			assert.Equal(t, principal.User.UserID, root.OwnerUserID)
 
-		status, data, err = svc.CreateProject(ctx, auth.RequestMetadata{}, domain.CreateProjectRequest{
-			DisplayName:     "Child",
-			ParentProjectID: root.ProjectID,
-		})
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusCreated, status)
-		child := data.(map[string]any)["project"].(domain.Project)
-		assert.Equal(t, root.ProjectID, child.ParentProjectID)
+			status, data, err = svc.CreateProject(
+				ctx,
+				auth.RequestMetadata{},
+				domain.CreateProjectRequest{
+					DisplayName:     "Child",
+					ParentProjectID: root.ProjectID,
+				},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusCreated, status)
+			child := data.(map[string]any)["project"].(domain.Project)
+			assert.Equal(t, root.ProjectID, child.ParentProjectID)
 
-		status, data, err = svc.ListProjects(ctx, auth.RequestMetadata{}, false)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, status)
-		assert.Len(t, data.(map[string]any)["projects"], 2)
+			status, data, err = svc.ListProjects(ctx, auth.RequestMetadata{}, false)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, status)
+			assert.Len(t, data.(map[string]any)["projects"], 2)
 
-		status, data, err = svc.GetProject(ctx, auth.RequestMetadata{}, child.ProjectID)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, status)
-		assert.Equal(t, child.ProjectID, data.(map[string]any)["project"].(domain.Project).ProjectID)
+			status, data, err = svc.GetProject(ctx, auth.RequestMetadata{}, child.ProjectID)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, status)
+			assert.Equal(
+				t,
+				child.ProjectID,
+				data.(map[string]any)["project"].(domain.Project).ProjectID,
+			)
 
-		name := " Renamed "
-		rootParent := ""
-		status, data, err = svc.UpdateProject(
-			ctx,
-			auth.RequestMetadata{},
-			child.ProjectID,
-			domain.UpdateProjectRequest{DisplayName: &name, ParentProjectID: &rootParent},
-		)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, status)
-		updated := data.(map[string]any)["project"].(domain.Project)
-		assert.Equal(t, "Renamed", updated.DisplayName)
-		assert.Empty(t, updated.ParentProjectID)
+			name := " Renamed "
+			rootParent := ""
+			status, data, err = svc.UpdateProject(
+				ctx,
+				auth.RequestMetadata{},
+				child.ProjectID,
+				domain.UpdateProjectRequest{DisplayName: &name, ParentProjectID: &rootParent},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, status)
+			updated := data.(map[string]any)["project"].(domain.Project)
+			assert.Equal(t, "Renamed", updated.DisplayName)
+			assert.Empty(t, updated.ParentProjectID)
 
-		status, data, err = svc.ArchiveProject(ctx, auth.RequestMetadata{}, root.ProjectID)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, status)
-		assert.NotNil(t, data.(map[string]any)["project"].(domain.Project).ArchivedAt)
+			status, data, err = svc.ArchiveProject(ctx, auth.RequestMetadata{}, root.ProjectID)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, status)
+			assert.NotNil(t, data.(map[string]any)["project"].(domain.Project).ArchivedAt)
 
-		_, data, err = svc.ListProjects(ctx, auth.RequestMetadata{}, false)
-		require.NoError(t, err)
-		assert.Len(t, data.(map[string]any)["projects"], 1)
+			_, data, err = svc.ListProjects(ctx, auth.RequestMetadata{}, false)
+			require.NoError(t, err)
+			assert.Len(t, data.(map[string]any)["projects"], 1)
 
-		_, data, err = svc.ListProjects(ctx, auth.RequestMetadata{}, true)
-		require.NoError(t, err)
-		assert.Len(t, data.(map[string]any)["projects"], 2)
-	})
+			_, data, err = svc.ListProjects(ctx, auth.RequestMetadata{}, true)
+			require.NoError(t, err)
+			assert.Len(t, data.(map[string]any)["projects"], 2)
+		},
+	)
 }
 
 func TestProjectServiceValidationBDD(t *testing.T) {
@@ -172,7 +187,10 @@ func TestProjectServiceErrorsBDD(t *testing.T) {
 
 	t.Run("given a get storage failure then the error is propagated", func(t *testing.T) {
 		svc, store := newService(t)
-		store.EXPECT().GetProject(ctx, principal, "proj_1").Return(domain.Project{}, storeErr).Once()
+		store.EXPECT().
+			GetProject(ctx, principal, "proj_1").
+			Return(domain.Project{}, storeErr).
+			Once()
 
 		_, _, err := svc.GetProject(ctx, meta, "proj_1")
 		require.ErrorIs(t, err, storeErr)
@@ -202,21 +220,24 @@ func TestProjectServiceErrorsBDD(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, apiErr.Status)
 	})
 
-	t.Run("given names over the limit then create and update return bad request", func(t *testing.T) {
-		longName := strings.Repeat("p", 101)
-		svc, _ := newService(t)
-		_, _, err := svc.CreateProject(ctx, meta, domain.CreateProjectRequest{
-			DisplayName: longName,
-		})
-		var apiErr apperr.Error
-		require.ErrorAs(t, err, &apiErr)
-		assert.Equal(t, http.StatusBadRequest, apiErr.Status)
+	t.Run(
+		"given names over the limit then create and update return bad request",
+		func(t *testing.T) {
+			longName := strings.Repeat("p", 101)
+			svc, _ := newService(t)
+			_, _, err := svc.CreateProject(ctx, meta, domain.CreateProjectRequest{
+				DisplayName: longName,
+			})
+			var apiErr apperr.Error
+			require.ErrorAs(t, err, &apiErr)
+			assert.Equal(t, http.StatusBadRequest, apiErr.Status)
 
-		svc, _ = newService(t)
-		_, _, err = svc.UpdateProject(ctx, meta, "proj_1", domain.UpdateProjectRequest{
-			DisplayName: &longName,
-		})
-		require.ErrorAs(t, err, &apiErr)
-		assert.Equal(t, http.StatusBadRequest, apiErr.Status)
-	})
+			svc, _ = newService(t)
+			_, _, err = svc.UpdateProject(ctx, meta, "proj_1", domain.UpdateProjectRequest{
+				DisplayName: &longName,
+			})
+			require.ErrorAs(t, err, &apiErr)
+			assert.Equal(t, http.StatusBadRequest, apiErr.Status)
+		},
+	)
 }

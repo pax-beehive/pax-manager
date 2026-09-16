@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestE2EEKeyDistributionGivenNewBrowserWhenNodeCompletesPairingThenBrowserLoadsOpaquePackage(t *testing.T) {
+func TestE2EEKeyDistributionGivenNewBrowserWhenNodeCompletesPairingThenBrowserLoadsOpaquePackage(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "e2ee-keys@example.com")
 	fixture := testNodeAgent(t, srv, "e2ee-keys@example.com")
 	pairingPath := "/api/v1/user/self/agents/" + fixture.agentID + "/e2ee/pairings"
@@ -22,19 +24,39 @@ func TestE2EEKeyDistributionGivenNewBrowserWhenNodeCompletesPairingThenBrowserLo
 		"recipient_public_key": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{4}, 65)),
 		"secret_commitment":    base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{5}, 32)),
 	}
-	create := e2eeKeyRequest(t, srv, http.MethodPost, pairingPath, fixture.userEmail, "", createBody)
+	create := e2eeKeyRequest(
+		t,
+		srv,
+		http.MethodPost,
+		pairingPath,
+		fixture.userEmail,
+		"",
+		createBody,
+	)
 	require.Equal(t, http.StatusCreated, create.Code, create.Body.String())
 
 	nodePairingPath := "/api/v1/node/agents/" + fixture.agentID + "/e2ee/pairings/pair_browser_1"
-	loadedRequest := e2eeKeyRequest(t, srv, http.MethodGet, nodePairingPath, "", fixture.nodeAPIKey, nil)
+	loadedRequest := e2eeKeyRequest(
+		t,
+		srv,
+		http.MethodGet,
+		nodePairingPath,
+		"",
+		fixture.nodeAPIKey,
+		nil,
+	)
 	require.Equal(t, http.StatusOK, loadedRequest.Code, loadedRequest.Body.String())
 	requestData := decodeData[e2eePairingResponse](t, loadedRequest.Body.Bytes())
 	assert.Equal(t, createBody["secret_commitment"], requestData.SecretCommitment)
 
 	packageBody := map[string]any{
-		"sender_ephemeral_public_key": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{6}, 65)),
-		"nonce":                       base64.StdEncoding.EncodeToString([]byte("123456789012")),
-		"ciphertext":                  base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 48)),
+		"sender_ephemeral_public_key": base64.StdEncoding.EncodeToString(
+			bytes.Repeat([]byte{6}, 65),
+		),
+		"nonce": base64.StdEncoding.EncodeToString([]byte("123456789012")),
+		"ciphertext": base64.StdEncoding.EncodeToString(
+			bytes.Repeat([]byte{7}, 48),
+		),
 	}
 	complete := e2eeKeyRequest(
 		t, srv, http.MethodPost, nodePairingPath+"/package", "", fixture.nodeAPIKey, packageBody,
@@ -55,11 +77,19 @@ func TestE2EEKeyDistributionGivenDifferentNodeWhenReadingPairingThenItCannotAcce
 	owner := testNodeAgent(t, srv, "e2ee-owner@example.com")
 	other := testNodeAgent(t, srv, "e2ee-other@example.com")
 	pairingPath := "/api/v1/user/self/agents/" + owner.agentID + "/e2ee/pairings"
-	create := e2eeKeyRequest(t, srv, http.MethodPost, pairingPath, owner.userEmail, "", map[string]any{
-		"pairing_id": "pair_owner_1", "device_id": "device_owner_1", "key_epoch": 1,
-		"recipient_public_key": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{4}, 65)),
-		"secret_commitment":    base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{5}, 32)),
-	})
+	create := e2eeKeyRequest(
+		t,
+		srv,
+		http.MethodPost,
+		pairingPath,
+		owner.userEmail,
+		"",
+		map[string]any{
+			"pairing_id": "pair_owner_1", "device_id": "device_owner_1", "key_epoch": 1,
+			"recipient_public_key": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{4}, 65)),
+			"secret_commitment":    base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{5}, 32)),
+		},
+	)
 	require.Equal(t, http.StatusCreated, create.Code, create.Body.String())
 
 	path := "/api/v1/node/agents/" + owner.agentID + "/e2ee/pairings/pair_owner_1"
@@ -67,11 +97,21 @@ func TestE2EEKeyDistributionGivenDifferentNodeWhenReadingPairingThenItCannotAcce
 	assert.Equal(t, http.StatusNotFound, response.Code, response.Body.String())
 }
 
-func TestE2EEKeyDistributionGivenExistingBrowserWhenItApprovesRequestThenNewBrowserLoadsPackage(t *testing.T) {
+func TestE2EEKeyDistributionGivenExistingBrowserWhenItApprovesRequestThenNewBrowserLoadsPackage(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "e2ee-browser-approval@example.com")
 	fixture := testNodeAgent(t, srv, "e2ee-browser-approval@example.com")
 	pairingPath := "/api/v1/user/self/agents/" + fixture.agentID + "/e2ee/pairings"
-	create := e2eeKeyRequest(t, srv, http.MethodPost, pairingPath, fixture.userEmail, "", validCreatePairingBody("pair_browser_approval"))
+	create := e2eeKeyRequest(
+		t,
+		srv,
+		http.MethodPost,
+		pairingPath,
+		fixture.userEmail,
+		"",
+		validCreatePairingBody("pair_browser_approval"),
+	)
 	require.Equal(t, http.StatusCreated, create.Code, create.Body.String())
 
 	listed := e2eeKeyRequest(t, srv, http.MethodGet, pairingPath, fixture.userEmail, "", nil)
@@ -81,15 +121,32 @@ func TestE2EEKeyDistributionGivenExistingBrowserWhenItApprovesRequestThenNewBrow
 	assert.Equal(t, "pair_browser_approval", requests[0].PairingID)
 
 	completePath := pairingPath + "/pair_browser_approval/package"
-	complete := e2eeKeyRequest(t, srv, http.MethodPost, completePath, fixture.userEmail, "", validKeyPackageBody())
+	complete := e2eeKeyRequest(
+		t,
+		srv,
+		http.MethodPost,
+		completePath,
+		fixture.userEmail,
+		"",
+		validKeyPackageBody(),
+	)
 	require.Equal(t, http.StatusCreated, complete.Code, complete.Body.String())
 
-	loaded := e2eeKeyRequest(t, srv, http.MethodGet,
+	loaded := e2eeKeyRequest(
+		t,
+		srv,
+		http.MethodGet,
 		"/api/v1/user/self/agents/"+fixture.agentID+"/e2ee/key-packages/device_browser_1?key_epoch=1",
-		fixture.userEmail, "", nil,
+		fixture.userEmail,
+		"",
+		nil,
 	)
 	require.Equal(t, http.StatusOK, loaded.Code, loaded.Body.String())
-	assert.Equal(t, "pair_browser_approval", decodeData[e2eeKeyPackageResponse](t, loaded.Body.Bytes()).PairingID)
+	assert.Equal(
+		t,
+		"pair_browser_approval",
+		decodeData[e2eeKeyPackageResponse](t, loaded.Body.Bytes()).PairingID,
+	)
 }
 
 func TestE2EEKeyDistributionGivenMalformedBrowserRequestWhenCreatedThenItFailsClosed(t *testing.T) {
@@ -105,21 +162,42 @@ func TestE2EEKeyDistributionGivenMalformedBrowserRequestWhenCreatedThenItFailsCl
 		{name: "bad commitment", body: withCreatePairingField("secret_commitment", "bad")},
 		{name: "unsafe identifier", body: withCreatePairingField("pairing_id", "pair/unsafe")},
 		{name: "invalid epoch", body: withCreatePairingField("key_epoch", -1)},
-		{name: "oversized device name", body: withCreatePairingField("device_name", string(bytes.Repeat([]byte{'x'}, 257)))},
+		{
+			name: "oversized device name",
+			body: withCreatePairingField("device_name", string(bytes.Repeat([]byte{'x'}, 257))),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			response := e2eeKeyRequest(t, srv, http.MethodPost, path, fixture.userEmail, "", test.body)
+			response := e2eeKeyRequest(
+				t,
+				srv,
+				http.MethodPost,
+				path,
+				fixture.userEmail,
+				"",
+				test.body,
+			)
 			assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
 		})
 	}
 }
 
-func TestE2EEKeyDistributionGivenMalformedWrappedPackageWhenCompletedThenItFailsClosed(t *testing.T) {
+func TestE2EEKeyDistributionGivenMalformedWrappedPackageWhenCompletedThenItFailsClosed(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "e2ee-package-validation@example.com")
 	fixture := testNodeAgent(t, srv, "e2ee-package-validation@example.com")
 	pairingPath := "/api/v1/user/self/agents/" + fixture.agentID + "/e2ee/pairings"
-	create := e2eeKeyRequest(t, srv, http.MethodPost, pairingPath, fixture.userEmail, "", validCreatePairingBody("pair_package_validation"))
+	create := e2eeKeyRequest(
+		t,
+		srv,
+		http.MethodPost,
+		pairingPath,
+		fixture.userEmail,
+		"",
+		validCreatePairingBody("pair_package_validation"),
+	)
 	require.Equal(t, http.StatusCreated, create.Code, create.Body.String())
 	completePath := pairingPath + "/pair_package_validation/package"
 	tests := []struct {
@@ -129,23 +207,44 @@ func TestE2EEKeyDistributionGivenMalformedWrappedPackageWhenCompletedThenItFails
 		{name: "malformed JSON", body: json.RawMessage(`{"nonce"`)},
 		{name: "bad sender key", body: withKeyPackageField("sender_ephemeral_public_key", "bad")},
 		{name: "bad nonce", body: withKeyPackageField("nonce", "bad")},
-		{name: "short ciphertext", body: withKeyPackageField("ciphertext", base64.StdEncoding.EncodeToString([]byte("short")))},
+		{
+			name: "short ciphertext",
+			body: withKeyPackageField(
+				"ciphertext",
+				base64.StdEncoding.EncodeToString([]byte("short")),
+			),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			response := e2eeKeyRequest(t, srv, http.MethodPost, completePath, fixture.userEmail, "", test.body)
+			response := e2eeKeyRequest(
+				t,
+				srv,
+				http.MethodPost,
+				completePath,
+				fixture.userEmail,
+				"",
+				test.body,
+			)
 			assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
 		})
 	}
 
-	badEpoch := e2eeKeyRequest(t, srv, http.MethodGet,
+	badEpoch := e2eeKeyRequest(
+		t,
+		srv,
+		http.MethodGet,
 		"/api/v1/user/self/agents/"+fixture.agentID+"/e2ee/key-packages/device_browser_1?key_epoch=bad",
-		fixture.userEmail, "", nil,
+		fixture.userEmail,
+		"",
+		nil,
 	)
 	assert.Equal(t, http.StatusBadRequest, badEpoch.Code, badEpoch.Body.String())
 }
 
-func TestE2EEKeyDistributionGivenUnownedOrMissingRouteWhenAccessedThenItDoesNotLeakPairingState(t *testing.T) {
+func TestE2EEKeyDistributionGivenUnownedOrMissingRouteWhenAccessedThenItDoesNotLeakPairingState(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "e2ee-route-owner@example.com")
 	fixture := testNodeAgent(t, srv, "e2ee-route-owner@example.com")
 	base := "/api/v1/user/self/agents/" + fixture.agentID + "/e2ee/pairings"
@@ -163,7 +262,9 @@ func TestE2EEKeyDistributionGivenUnownedOrMissingRouteWhenAccessedThenItDoesNotL
 	assert.Equal(t, http.StatusNotFound, missingPairing.Code, missingPairing.Body.String())
 }
 
-func TestE2EEKeyDistributionIdentifiersGivenUnsafeValuesWhenValidatedThenTheyAreRejected(t *testing.T) {
+func TestE2EEKeyDistributionIdentifiersGivenUnsafeValuesWhenValidatedThenTheyAreRejected(
+	t *testing.T,
+) {
 	t.Parallel()
 	assert.True(t, validE2EEKeyIdentifier("pair_safe-1"))
 	assert.False(t, validE2EEKeyIdentifier(""))
@@ -188,9 +289,13 @@ func withCreatePairingField(key string, value any) map[string]any {
 
 func validKeyPackageBody() map[string]any {
 	return map[string]any{
-		"sender_ephemeral_public_key": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{6}, 65)),
-		"nonce":                       base64.StdEncoding.EncodeToString([]byte("123456789012")),
-		"ciphertext":                  base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 48)),
+		"sender_ephemeral_public_key": base64.StdEncoding.EncodeToString(
+			bytes.Repeat([]byte{6}, 65),
+		),
+		"nonce": base64.StdEncoding.EncodeToString([]byte("123456789012")),
+		"ciphertext": base64.StdEncoding.EncodeToString(
+			bytes.Repeat([]byte{7}, 48),
+		),
 	}
 }
 

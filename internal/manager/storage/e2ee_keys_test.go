@@ -13,7 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPostgresSchemaGivenBrowserKeyDistributionThenManagerPersistsOnlyOpaquePackages(t *testing.T) {
+func TestPostgresSchemaGivenBrowserKeyDistributionThenManagerPersistsOnlyOpaquePackages(
+	t *testing.T,
+) {
 	t.Parallel()
 	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "init.sql"))
 	require.NoError(t, err)
@@ -33,7 +35,9 @@ func TestPostgresSchemaGivenBrowserKeyDistributionThenManagerPersistsOnlyOpaqueP
 	assert.NotContains(t, packageSchema, "root_key")
 }
 
-func TestMemoryE2EEKeysGivenBrowserPairingWhenPaxdPublishesPackageThenDeviceCanLoadOpaqueRoot(t *testing.T) {
+func TestMemoryE2EEKeysGivenBrowserPairingWhenPaxdPublishesPackageThenDeviceCanLoadOpaqueRoot(
+	t *testing.T,
+) {
 	t.Parallel()
 	now := time.Date(2026, 8, 8, 2, 0, 0, 0, time.UTC)
 	store := NewMemoryStore(func() time.Time { return now })
@@ -58,7 +62,9 @@ func TestMemoryE2EEKeysGivenBrowserPairingWhenPaxdPublishesPackageThenDeviceCanL
 		AgentID: "agent_1", DeviceID: "device_1", KeyEpoch: 1,
 		RecipientPublicKey:       []byte("recipient-public"),
 		SenderEphemeralPublicKey: []byte("sender-public"),
-		Nonce:                    []byte("123456789012"), Ciphertext: []byte("opaque-root-ciphertext"),
+		Nonce: []byte(
+			"123456789012",
+		), Ciphertext: []byte("opaque-root-ciphertext"),
 	}
 	stored, err := store.CompleteE2EEPairing(ctx, request, keyPackage)
 	require.NoError(t, err)
@@ -108,7 +114,9 @@ func TestMemoryE2EEKeysGivenAmbiguousRetriesThenCreationAndCompletionStayIdempot
 	require.NoError(t, err)
 }
 
-func TestMemoryE2EEKeysGivenRequestsWhenReadAndLimitedThenOnlyOwnedPendingRequestsReturn(t *testing.T) {
+func TestMemoryE2EEKeysGivenRequestsWhenReadAndLimitedThenOnlyOwnedPendingRequestsReturn(
+	t *testing.T,
+) {
 	t.Parallel()
 	now := time.Date(2026, 8, 8, 2, 0, 0, 0, time.UTC)
 	store := NewMemoryStore(func() time.Time { return now })
@@ -150,20 +158,35 @@ func TestMemoryE2EEKeysGivenInvalidOrConflictingRecordsWhenStoredThenTheyFailClo
 	conflicting.DeviceID = "other_device"
 	_, err = store.CreateE2EEPairingRequest(ctx, conflicting)
 	assert.ErrorIs(t, err, ErrConflict)
-	_, err = store.CompleteE2EEPairing(ctx, E2EEPairingRequest{PairingID: "missing"}, testE2EEKeyPackage(now))
+	_, err = store.CompleteE2EEPairing(
+		ctx,
+		E2EEPairingRequest{PairingID: "missing"},
+		testE2EEKeyPackage(now),
+	)
 	assert.ErrorIs(t, err, ErrNotFound)
 }
 
-func TestPostgresE2EEKeysGivenBrowserPairingWhenPackagePublishedThenOpaquePackageIsDurable(t *testing.T) {
+func TestPostgresE2EEKeysGivenBrowserPairingWhenPackagePublishedThenOpaquePackageIsDurable(
+	t *testing.T,
+) {
 	now := time.Date(2026, 8, 8, 2, 0, 0, 0, time.UTC)
 	request := testE2EEPairingRequest(now)
 	keyPackage := testE2EEKeyPackage(now)
 	script := &scriptedPostgresScript{queries: []scriptedRows{
 		{columns: []string{"created_at"}, values: [][]driver.Value{{now}}},
-		{columns: e2eePairingRequestColumns(), values: [][]driver.Value{e2eePairingRequestValues(request)}},
-		{columns: e2eePairingRequestColumns(), values: [][]driver.Value{e2eePairingRequestValues(request)}},
+		{
+			columns: e2eePairingRequestColumns(),
+			values:  [][]driver.Value{e2eePairingRequestValues(request)},
+		},
+		{
+			columns: e2eePairingRequestColumns(),
+			values:  [][]driver.Value{e2eePairingRequestValues(request)},
+		},
 		{columns: []string{"created_at"}, values: [][]driver.Value{{now}}},
-		{columns: e2eeKeyPackageColumns(), values: [][]driver.Value{e2eeKeyPackageValues(keyPackage)}},
+		{
+			columns: e2eeKeyPackageColumns(),
+			values:  [][]driver.Value{e2eeKeyPackageValues(keyPackage)},
+		},
 	}}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
@@ -188,12 +211,17 @@ func TestPostgresE2EEKeysGivenBrowserPairingWhenPackagePublishedThenOpaquePackag
 	assert.Contains(t, script.execTexts[0], "completed_at")
 }
 
-func TestPostgresE2EEKeysGivenExpiredRequestWhenPackagePublishedThenTransactionRollsBack(t *testing.T) {
+func TestPostgresE2EEKeysGivenExpiredRequestWhenPackagePublishedThenTransactionRollsBack(
+	t *testing.T,
+) {
 	now := time.Date(2026, 8, 8, 2, 0, 0, 0, time.UTC)
 	request := testE2EEPairingRequest(now)
 	request.ExpiresAt = now.Add(-time.Second)
 	script := &scriptedPostgresScript{queries: []scriptedRows{
-		{columns: e2eePairingRequestColumns(), values: [][]driver.Value{e2eePairingRequestValues(request)}},
+		{
+			columns: e2eePairingRequestColumns(),
+			values:  [][]driver.Value{e2eePairingRequestValues(request)},
+		},
 	}}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
@@ -205,12 +233,17 @@ func TestPostgresE2EEKeysGivenExpiredRequestWhenPackagePublishedThenTransactionR
 	assert.False(t, script.committed)
 }
 
-func TestPostgresE2EEKeysGivenCreationRetryWhenRecordMatchesThenReturnsExistingRequest(t *testing.T) {
+func TestPostgresE2EEKeysGivenCreationRetryWhenRecordMatchesThenReturnsExistingRequest(
+	t *testing.T,
+) {
 	now := time.Date(2026, 8, 8, 2, 0, 0, 0, time.UTC)
 	request := testE2EEPairingRequest(now)
 	script := &scriptedPostgresScript{queries: []scriptedRows{
 		{columns: []string{"created_at"}},
-		{columns: e2eePairingRequestColumns(), values: [][]driver.Value{e2eePairingRequestValues(request)}},
+		{
+			columns: e2eePairingRequestColumns(),
+			values:  [][]driver.Value{e2eePairingRequestValues(request)},
+		},
 	}}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
@@ -225,28 +258,53 @@ func TestPostgresE2EEKeysGivenExistingRecordsWhenReadThenOwnedValuesAreReturned(
 	request := testE2EEPairingRequest(now)
 	keyPackage := testE2EEKeyPackage(now)
 	script := &scriptedPostgresScript{queries: []scriptedRows{
-		{columns: e2eePairingRequestColumns(), values: [][]driver.Value{e2eePairingRequestValues(request)}},
-		{columns: e2eeKeyPackageColumns(), values: [][]driver.Value{e2eeKeyPackageValues(keyPackage)}},
+		{
+			columns: e2eePairingRequestColumns(),
+			values:  [][]driver.Value{e2eePairingRequestValues(request)},
+		},
+		{
+			columns: e2eeKeyPackageColumns(),
+			values:  [][]driver.Value{e2eeKeyPackageValues(keyPackage)},
+		},
 	}}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
 
-	loadedRequest, err := store.GetE2EEPairingRequest(context.Background(), "user_1", "agent_1", "pair_1")
+	loadedRequest, err := store.GetE2EEPairingRequest(
+		context.Background(),
+		"user_1",
+		"agent_1",
+		"pair_1",
+	)
 	require.NoError(t, err)
 	assert.Equal(t, request, loadedRequest)
-	loadedPackage, err := store.GetE2EEKeyPackage(context.Background(), "user_1", "agent_1", "device_1", 1)
+	loadedPackage, err := store.GetE2EEKeyPackage(
+		context.Background(),
+		"user_1",
+		"agent_1",
+		"device_1",
+		1,
+	)
 	require.NoError(t, err)
 	assert.Equal(t, keyPackage, loadedPackage)
 }
 
-func TestPostgresE2EEKeysGivenCompletedPairingRetryWhenPackageMatchesThenCommitIsIdempotent(t *testing.T) {
+func TestPostgresE2EEKeysGivenCompletedPairingRetryWhenPackageMatchesThenCommitIsIdempotent(
+	t *testing.T,
+) {
 	now := time.Date(2026, 8, 8, 2, 0, 0, 0, time.UTC)
 	request := testE2EEPairingRequest(now)
 	request.CompletedAt = &now
 	keyPackage := testE2EEKeyPackage(now)
 	script := &scriptedPostgresScript{queries: []scriptedRows{
-		{columns: e2eePairingRequestColumns(), values: [][]driver.Value{e2eePairingRequestValues(request)}},
-		{columns: e2eeKeyPackageColumns(), values: [][]driver.Value{e2eeKeyPackageValues(keyPackage)}},
+		{
+			columns: e2eePairingRequestColumns(),
+			values:  [][]driver.Value{e2eePairingRequestValues(request)},
+		},
+		{
+			columns: e2eeKeyPackageColumns(),
+			values:  [][]driver.Value{e2eeKeyPackageValues(keyPackage)},
+		},
 	}}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()

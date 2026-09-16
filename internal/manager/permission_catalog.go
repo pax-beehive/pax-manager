@@ -178,7 +178,9 @@ func parseObservedPermissionCatalog(result json.RawMessage) domain.ObservedPermi
 	return catalog
 }
 
-func normalizeObservedConfigOptions(option acpSessionConfigOption) []domain.ObservedPermissionOption {
+func normalizeObservedConfigOptions(
+	option acpSessionConfigOption,
+) []domain.ObservedPermissionOption {
 	seen := make(map[string]bool)
 	out := make([]domain.ObservedPermissionOption, 0, len(option.Options))
 	for _, item := range option.Options {
@@ -422,7 +424,10 @@ func catalogFromObservation(
 	choices := []domain.PermissionCatalogChoice{paxAutoApproveCatalogChoice()}
 	for _, option := range observation.Catalog.Options {
 		choice := domain.PermissionCatalogChoice{
-			ChoiceID:             observedPermissionChoiceID(observation.Catalog.Binding, option.Value),
+			ChoiceID: observedPermissionChoiceID(
+				observation.Catalog.Binding,
+				option.Value,
+			),
 			Label:                option.Name,
 			Description:          option.Description,
 			Kind:                 domain.PermissionChoiceKindAgent,

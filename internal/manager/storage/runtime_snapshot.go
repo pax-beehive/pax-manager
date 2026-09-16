@@ -79,19 +79,7 @@ func (s *MemoryStore) ReplaceAgentActiveTurns(
 		return domain.ReplaceAgentActiveTurnsResult{}, err
 	}
 	now := s.now().UTC()
-	previouslyActive := make(map[string]AgentSession)
-	for key, session := range s.sessions {
-		if session.AgentID != snapshot.AgentID {
-			continue
-		}
-		if session.RuntimeStatus == domain.RuntimeStatusRunning ||
-			session.RuntimeStatus == domain.RuntimeStatusWaitingApproval ||
-			session.RuntimeStatus == domain.RuntimeStatusUnknown {
-			previouslyActive[key] = session
-		}
-		session.RuntimeAuthority = domain.RuntimeAuthoritySnapshot
-		s.sessions[key] = session
-	}
+	previouslyActive := s.claimSnapshotAuthorityLocked(snapshot.AgentID)
 
 	changes := make(
 		[]domain.RuntimeStatusChange,
@@ -208,4 +196,22 @@ func runtimeStatusChange(session AgentSession) domain.RuntimeStatusChange {
 		SessionID: session.SessionID, NativeSessionID: session.NativeID,
 		RuntimeStatus: session.RuntimeStatus, TurnInstanceID: session.RuntimeTurnInstanceID,
 	}
+}
+
+func (s *MemoryStore) claimSnapshotAuthorityLocked(agentID string) map[string]AgentSession {
+	previouslyActive := make(map[string]AgentSession)
+	for key, session := range s.sessions {
+		if session.AgentID != agentID {
+			continue
+		}
+		if session.RuntimeStatus == domain.RuntimeStatusRunning ||
+			session.RuntimeStatus == domain.RuntimeStatusWaitingApproval ||
+			session.RuntimeStatus == domain.RuntimeStatusUnknown {
+			previouslyActive[key] = session
+		}
+		session.RuntimeAuthority = domain.RuntimeAuthoritySnapshot
+		s.sessions[key] = session
+	}
+
+	return previouslyActive
 }

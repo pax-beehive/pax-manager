@@ -324,12 +324,28 @@ func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 			olderPrompt := latestPrompt.Add(-time.Hour)
 			laterAssistantMessage := latestPrompt.Add(time.Hour)
 
-			require.NoError(t, store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{
-				{SessionID: "codex:latest-prompt", NativeID: "latest-prompt", LastUserMessageAt: &latestPrompt},
-				{SessionID: "codex:later-output", NativeID: "later-output", LastUserMessageAt: &olderPrompt, LastMessageAt: &laterAssistantMessage},
-			}))
+			require.NoError(
+				t,
+				store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{
+					{
+						SessionID:         "codex:latest-prompt",
+						NativeID:          "latest-prompt",
+						LastUserMessageAt: &latestPrompt,
+					},
+					{
+						SessionID:         "codex:later-output",
+						NativeID:          "later-output",
+						LastUserMessageAt: &olderPrompt,
+						LastMessageAt:     &laterAssistantMessage,
+					},
+				}),
+			)
 
-			sessions, err := store.ListAgentSessions(ctx, UserPrincipal{User: User{UserID: node.OwnerUserID}}, agent.AgentID)
+			sessions, err := store.ListAgentSessions(
+				ctx,
+				UserPrincipal{User: User{UserID: node.OwnerUserID}},
+				agent.AgentID,
+			)
 			require.NoError(t, err)
 			var latestIndex, outputIndex = -1, -1
 			for i := range sessions {
@@ -385,11 +401,18 @@ func TestMemoryStoreUpsertAgentSessions(t *testing.T) {
 			newer := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
 			older := newer.Add(-time.Hour)
 			for _, promptAt := range []*time.Time{&newer, &older, nil} {
-				require.NoError(t, store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
-					SessionID: "codex:prompt", LastUserMessageAt: promptAt,
-				}}))
+				require.NoError(
+					t,
+					store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
+						SessionID: "codex:prompt", LastUserMessageAt: promptAt,
+					}}),
+				)
 			}
-			sessions, err := store.ListAgentSessions(ctx, UserPrincipal{User: User{UserID: node.OwnerUserID}}, agent.AgentID)
+			sessions, err := store.ListAgentSessions(
+				ctx,
+				UserPrincipal{User: User{UserID: node.OwnerUserID}},
+				agent.AgentID,
+			)
 			require.NoError(t, err)
 			require.Len(t, sessions, 1)
 			require.NotNil(t, sessions[0].LastUserMessageAt)

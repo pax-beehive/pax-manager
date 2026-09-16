@@ -1279,29 +1279,8 @@ func (s *Service) RestartNodeDaemon(
 			Status: http.StatusBadRequest, Message: "mode must be immediate or when_idle",
 		}
 	}
-	if req.ShutdownGraceSeconds != nil &&
-		(*req.ShutdownGraceSeconds < 1 || *req.ShutdownGraceSeconds > 60) {
-		return 0, nil, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "shutdown_grace_seconds must be between 1 and 60",
-		}
-	}
-	if req.IdleGraceSeconds != nil && (*req.IdleGraceSeconds < 1 || *req.IdleGraceSeconds > 60) {
-		return 0, nil, apperr.Error{
-			Status: http.StatusBadRequest, Message: "idle_grace_seconds must be between 1 and 60",
-		}
-	}
-	if req.DrainTimeoutSeconds != nil &&
-		(*req.DrainTimeoutSeconds < 1 || *req.DrainTimeoutSeconds > 3600) {
-		return 0, nil, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "drain_timeout_seconds must be between 1 and 3600",
-		}
-	}
-	if len(req.Reason) > 512 {
-		return 0, nil, apperr.Error{
-			Status: http.StatusBadRequest, Message: "reason must not exceed 512 bytes",
-		}
+	if err := validateDaemonMaintenanceOptions(req.ShutdownGraceSeconds, req.IdleGraceSeconds, req.DrainTimeoutSeconds, req.Reason); err != nil {
+		return 0, nil, err
 	}
 	node, err := s.store.GetNode(c, principal, req.NodeID)
 	if err != nil {
@@ -1370,31 +1349,8 @@ func (s *Service) UpgradeNodeDaemon(
 			Message: "mode must be immediate, when_idle, or opportunistic",
 		}
 	}
-	if req.ShutdownGraceSeconds != nil &&
-		(*req.ShutdownGraceSeconds < 1 || *req.ShutdownGraceSeconds > 60) {
-		return 0, nil, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "shutdown_grace_seconds must be between 1 and 60",
-		}
-	}
-	if req.IdleGraceSeconds != nil &&
-		(*req.IdleGraceSeconds < 1 || *req.IdleGraceSeconds > 60) {
-		return 0, nil, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "idle_grace_seconds must be between 1 and 60",
-		}
-	}
-	if req.DrainTimeoutSeconds != nil &&
-		(*req.DrainTimeoutSeconds < 1 || *req.DrainTimeoutSeconds > 3600) {
-		return 0, nil, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "drain_timeout_seconds must be between 1 and 3600",
-		}
-	}
-	if len(req.Reason) > 512 {
-		return 0, nil, apperr.Error{
-			Status: http.StatusBadRequest, Message: "reason must not exceed 512 bytes",
-		}
+	if err := validateDaemonMaintenanceOptions(req.ShutdownGraceSeconds, req.IdleGraceSeconds, req.DrainTimeoutSeconds, req.Reason); err != nil {
+		return 0, nil, err
 	}
 	node, err := s.store.GetNode(c, principal, req.NodeID)
 	if err != nil {
@@ -2223,45 +2179,7 @@ func (s *Service) ResetSessionRuntime(
 	if err != nil {
 		return 0, nil, nodeControlUnavailableError()
 	}
-	var ack struct {
-		OK     bool   `json:"ok"`
-		Status string `json:"status"`
-		Error  *struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-		Result *struct {
-			SessionRuntimeReset *struct {
-				Status             string `json:"status"`
-				ProjectionRevision uint64 `json:"projection_revision"`
-			} `json:"session_runtime_reset"`
-		} `json:"result"`
-	}
-	if err := json.Unmarshal(ackRaw, &ack); err != nil {
-		return 0, nil, apperr.Error{
-			Status: http.StatusBadGateway, Message: "invalid session runtime reset acknowledgement",
-		}
-	}
-	if !ack.OK || ack.Result == nil || ack.Result.SessionRuntimeReset == nil {
-		message := "session runtime reset was rejected"
-		if ack.Error != nil && strings.TrimSpace(ack.Error.Message) != "" {
-			message = ack.Error.Message
-		}
-		return 0, nil, apperr.Error{Status: http.StatusConflict, Message: message}
-	}
-	reset := ack.Result.SessionRuntimeReset
-	if reset.Status == "conflict" {
-		return 0, nil, apperr.Error{
-			Status: http.StatusConflict, Message: "session runtime turn has changed",
-		}
-	}
-	return http.StatusAccepted, map[string]any{
-		"status":                    "accepted_pending",
-		"reset_status":              reset.Status,
-		"projection_revision":       reset.ProjectionRevision,
-		"expected_turn_instance_id": expectedTurnInstanceID,
-		"command_id":                commandID,
-	}, nil
+	return sessionRuntimeResetResponse(ackRaw, expectedTurnInstanceID, commandID)
 }
 
 func runtimeConnectionID(metadata json.RawMessage) string {
@@ -3076,4 +2994,82 @@ func (s *Service) NodeBrowserControl(
 	return s.queryNodeDaemon(c, meta, nodeID, map[string]any{
 		"type": "browser.control", "browser_control": map[string]any{"operation": operation, "payload": payload},
 	})
+}
+
+func validateDaemonMaintenanceOptions(
+	shutdownGrace, idleGrace, drainTimeout *int,
+	reason string,
+) error {
+	if shutdownGrace != nil &&
+		(*shutdownGrace < 1 || *shutdownGrace > 60) {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "shutdown_grace_seconds must be between 1 and 60",
+		}
+	}
+	if idleGrace != nil &&
+		(*idleGrace < 1 || *idleGrace > 60) {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "idle_grace_seconds must be between 1 and 60",
+		}
+	}
+	if drainTimeout != nil &&
+		(*drainTimeout < 1 || *drainTimeout > 3600) {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "drain_timeout_seconds must be between 1 and 3600",
+		}
+	}
+	if len(reason) > 512 {
+		return apperr.Error{
+			Status: http.StatusBadRequest, Message: "reason must not exceed 512 bytes",
+		}
+	}
+	return nil
+}
+
+func sessionRuntimeResetResponse(
+	ackRaw []byte,
+	expectedTurnInstanceID, commandID string,
+) (int, any, error) {
+	var ack struct {
+		OK     bool   `json:"ok"`
+		Status string `json:"status"`
+		Error  *struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+		Result *struct {
+			SessionRuntimeReset *struct {
+				Status             string `json:"status"`
+				ProjectionRevision uint64 `json:"projection_revision"`
+			} `json:"session_runtime_reset"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(ackRaw, &ack); err != nil {
+		return 0, nil, apperr.Error{
+			Status: http.StatusBadGateway, Message: "invalid session runtime reset acknowledgement",
+		}
+	}
+	if !ack.OK || ack.Result == nil || ack.Result.SessionRuntimeReset == nil {
+		message := "session runtime reset was rejected"
+		if ack.Error != nil && strings.TrimSpace(ack.Error.Message) != "" {
+			message = ack.Error.Message
+		}
+		return 0, nil, apperr.Error{Status: http.StatusConflict, Message: message}
+	}
+	reset := ack.Result.SessionRuntimeReset
+	if reset.Status == "conflict" {
+		return 0, nil, apperr.Error{
+			Status: http.StatusConflict, Message: "session runtime turn has changed",
+		}
+	}
+	return http.StatusAccepted, map[string]any{
+		"status":                    "accepted_pending",
+		"reset_status":              reset.Status,
+		"projection_revision":       reset.ProjectionRevision,
+		"expected_turn_instance_id": expectedTurnInstanceID,
+		"command_id":                commandID,
+	}, nil
 }

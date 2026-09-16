@@ -414,15 +414,30 @@ func TestACPHistoryGivenToolCallUpdatesThenCollapsesIntoOneRowPerToolCallID(t *t
 		))
 	}
 
-	project(1, `{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call","toolCallId":"tc-1","title":"Read file","kind":"read","rawInput":{"path":"a.go"}}},"jsonrpc":"2.0"}`)
-	project(2, `{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call_update","toolCallId":"tc-1","status":"in_progress"}},"jsonrpc":"2.0"}`)
-	project(3, `{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call_update","toolCallId":"tc-1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"done"}}]}},"jsonrpc":"2.0"}`)
+	project(
+		1,
+		`{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call","toolCallId":"tc-1","title":"Read file","kind":"read","rawInput":{"path":"a.go"}}},"jsonrpc":"2.0"}`,
+	)
+	project(
+		2,
+		`{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call_update","toolCallId":"tc-1","status":"in_progress"}},"jsonrpc":"2.0"}`,
+	)
+	project(
+		3,
+		`{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call_update","toolCallId":"tc-1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"done"}}]}},"jsonrpc":"2.0"}`,
+	)
 	// A different toolCallId must remain a separate row.
-	project(4, `{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call","toolCallId":"tc-2","title":"List dir","kind":"read"}},"jsonrpc":"2.0"}`)
+	project(
+		4,
+		`{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call","toolCallId":"tc-2","title":"List dir","kind":"read"}},"jsonrpc":"2.0"}`,
+	)
 	// reliablemq redelivers frames in order (exactly-once dispatch), so the
 	// realistic replay is the latest frame arriving twice. It must not duplicate
 	// rows or regress the merged state.
-	project(3, `{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call_update","toolCallId":"tc-1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"done"}}]}},"jsonrpc":"2.0"}`)
+	project(
+		3,
+		`{"method":"session/update","params":{"sessionId":"sess_tc","update":{"sessionUpdate":"tool_call_update","toolCallId":"tc-1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"done"}}]}},"jsonrpc":"2.0"}`,
+	)
 
 	messages, err := store.ListMessages(ctx, "agent_tc", "sess_tc", 100)
 	require.NoError(t, err)
@@ -430,7 +445,12 @@ func TestACPHistoryGivenToolCallUpdatesThenCollapsesIntoOneRowPerToolCallID(t *t
 
 	byToolCall := map[string]domain.Message{}
 	for _, message := range messages {
-		assert.Equal(t, "tool_call", message.MessageType, "collapsed rows use the canonical tool_call type")
+		assert.Equal(
+			t,
+			"tool_call",
+			message.MessageType,
+			"collapsed rows use the canonical tool_call type",
+		)
 		byToolCall[acpHistoryToolCallIDFromRaw(message.RawJSON)] = message
 	}
 
@@ -447,7 +467,12 @@ func TestACPHistoryGivenToolCallUpdatesThenCollapsesIntoOneRowPerToolCallID(t *t
 	require.NoError(t, err)
 	require.Len(t, parts, 1, "one raw part per collapsed tool call")
 	assert.Equal(t, domain.MessagePartRawJSON, parts[0].PartType)
-	assert.JSONEq(t, string(tc1.RawJSON), string(parts[0].PayloadJSON), "message raw and part payload stay in sync")
+	assert.JSONEq(
+		t,
+		string(tc1.RawJSON),
+		string(parts[0].PayloadJSON),
+		"message raw and part payload stay in sync",
+	)
 
 	assert.NotEmpty(t, byToolCall["tc-2"].MessageID)
 }
@@ -888,9 +913,23 @@ func TestACPHistoryGivenPendingInvocationWhenTerminalToolUpdateArrivesThenProjec
 	}
 	require.NotEmpty(t, toolMessage.MessageID)
 	require.NotEmpty(t, display.MessageID)
-	assert.Equal(t, toolCallMessageID, toolMessage.MessageID, "updates merge into the first tool_call row")
-	assert.Contains(t, string(toolMessage.RawJSON), `"title":"pax conversation"`, "title survives the merge")
-	assert.True(t, acpHistoryTerminalToolCallUpdate(toolMessage.RawJSON), "merged status advanced to completed")
+	assert.Equal(
+		t,
+		toolCallMessageID,
+		toolMessage.MessageID,
+		"updates merge into the first tool_call row",
+	)
+	assert.Contains(
+		t,
+		string(toolMessage.RawJSON),
+		`"title":"pax conversation"`,
+		"title survives the merge",
+	)
+	assert.True(
+		t,
+		acpHistoryTerminalToolCallUpdate(toolMessage.RawJSON),
+		"merged status advanced to completed",
+	)
 	assert.Equal(t, toolMessage.MessageID, display.ParentMessageID)
 	assert.Contains(t, string(display.RawJSON), `"`+toolCallMessageID+`"`)
 	assert.Contains(t, string(display.RawJSON), `"msg_prompt"`)
@@ -1344,7 +1383,12 @@ func (s *countingACPHistoryTextSink) AppendTerminalText(
 ) error {
 	s.appendCalls++
 	chunk := terminalChunkStateFromStore(ctx, s.store, messageID)
-	target, _ := terminalChunkTarget(chunk.index, chunk.size, len(delta), defaultACPTerminalChunkMaxBytes)
+	target, _ := terminalChunkTarget(
+		chunk.index,
+		chunk.size,
+		len(delta),
+		defaultACPTerminalChunkMaxBytes,
+	)
 	return s.store.AppendMessagePartText(ctx, messageID, target, delta, nil)
 }
 

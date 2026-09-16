@@ -24,18 +24,24 @@ func TestTerminalChunkTarget(t *testing.T) {
 		assert.Equal(t, 1500, size)
 	})
 
-	t.Run("given the delta would overflow the cap then rolls to the next chunk", func(t *testing.T) {
-		index, size := terminalChunkTarget(2, cap-10, 100, cap)
-		assert.Equal(t, 3, index, "must advance part_index")
-		assert.Equal(t, 100, size, "new chunk starts at the delta size")
-	})
+	t.Run(
+		"given the delta would overflow the cap then rolls to the next chunk",
+		func(t *testing.T) {
+			index, size := terminalChunkTarget(2, cap-10, 100, cap)
+			assert.Equal(t, 3, index, "must advance part_index")
+			assert.Equal(t, 100, size, "new chunk starts at the delta size")
+		},
+	)
 
-	t.Run("given an empty active chunk then never rolls before the first write", func(t *testing.T) {
-		// A single oversized delta still lands in its own bounded part.
-		index, size := terminalChunkTarget(0, 0, cap*2, cap)
-		assert.Equal(t, 0, index)
-		assert.Equal(t, cap*2, size)
-	})
+	t.Run(
+		"given an empty active chunk then never rolls before the first write",
+		func(t *testing.T) {
+			// A single oversized delta still lands in its own bounded part.
+			index, size := terminalChunkTarget(0, 0, cap*2, cap)
+			assert.Equal(t, 0, index)
+			assert.Equal(t, cap*2, size)
+		},
+	)
 
 	t.Run("given exactly the cap then stays until the next delta overflows", func(t *testing.T) {
 		index, size := terminalChunkTarget(1, 0, cap, cap)
@@ -178,6 +184,9 @@ func terminalDeltaFrame(sessionID, terminalID, data string) json.RawMessage {
 	encoded, _ := json.Marshal(data)
 	return json.RawMessage(fmt.Sprintf(
 		`{"method":"session/update","params":{"update":{"_meta":{"terminal_output_delta":{"data":%s,"terminal_id":%q}},"toolCallId":%q,"sessionUpdate":"tool_call_update"},"sessionId":%q},"jsonrpc":"2.0"}`,
-		encoded, terminalID, terminalID, sessionID,
+		encoded,
+		terminalID,
+		terminalID,
+		sessionID,
 	))
 }

@@ -59,7 +59,13 @@ func ListNodeOwnerAgents(c context.Context, ctx *app.RequestContext) {
 	}
 
 	store := serviceFromContext(ctx).store
-	agents, err := listNodeOwnerAgents(c, store, node, fromAgentID, normalizeOwnerAgentFilter(filter))
+	agents, err := listNodeOwnerAgents(
+		c,
+		store,
+		node,
+		fromAgentID,
+		normalizeOwnerAgentFilter(filter),
+	)
 	if err != nil {
 		writeEndpointError(ctx, err)
 		return

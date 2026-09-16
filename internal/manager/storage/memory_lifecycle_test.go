@@ -233,9 +233,19 @@ func TestMemoryAgentConversationGivenAgentTargetWhenDeliveredThenEnsuresRepresen
 	require.NoError(t, err)
 
 	sourceProfile := deterministicAgentProfileID(sourceAgent.AgentID, owner.UserID)
-	wantSourceRep := deterministicRepresentativeAgentID(sourceAgent.AgentID, sourceProfile, "user", owner.UserID)
+	wantSourceRep := deterministicRepresentativeAgentID(
+		sourceAgent.AgentID,
+		sourceProfile,
+		"user",
+		owner.UserID,
+	)
 	targetProfile := deterministicAgentProfileID(targetAgent.AgentID, owner.UserID)
-	wantTargetRep := deterministicRepresentativeAgentID(targetAgent.AgentID, targetProfile, "user", owner.UserID)
+	wantTargetRep := deterministicRepresentativeAgentID(
+		targetAgent.AgentID,
+		targetProfile,
+		"user",
+		owner.UserID,
+	)
 
 	require.Equal(t, wantSourceRep, delivery.Invocation.SourceRepresentativeAgentID)
 	require.Equal(t, wantTargetRep, delivery.Invocation.TargetRepresentativeAgentID)
@@ -271,7 +281,10 @@ func TestMemoryAgentConversationGivenAgentTargetWithSessionThenUsesThatSession(t
 	require.NoError(t, err)
 
 	delivery, err := store.DeliverAgentConversation(ctx, node, domain.DeliverConversationRequest{
-		Source: domain.ConversationDeliverySource{AgentID: sourceAgent.AgentID, SessionID: "sess_src"},
+		Source: domain.ConversationDeliverySource{
+			AgentID:   sourceAgent.AgentID,
+			SessionID: "sess_src",
+		},
 		Target: domain.ConversationDeliveryTarget{
 			Kind:      domain.ConversationDeliveryTargetAgent,
 			AgentID:   targetAgent.AgentID,
@@ -303,7 +316,9 @@ func TestMemoryAgentConversationGivenSelfAgentTargetWhenDeliveredThenSucceeds(t 
 	require.NotEmpty(t, delivery.ReceiptToken)
 }
 
-func TestMemoryAgentConversationGivenAgentTargetOfAnotherOwnerThenReturnsUnauthorized(t *testing.T) {
+func TestMemoryAgentConversationGivenAgentTargetOfAnotherOwnerThenReturnsUnauthorized(
+	t *testing.T,
+) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
 	store := NewMemoryStore(func() time.Time { return now })
@@ -320,7 +335,10 @@ func TestMemoryAgentConversationGivenAgentTargetOfAnotherOwnerThenReturnsUnautho
 	require.NoError(t, err)
 
 	_, err = store.DeliverAgentConversation(ctx, node, domain.DeliverConversationRequest{
-		Source: domain.ConversationDeliverySource{AgentID: sourceAgent.AgentID, SessionID: "sess_src"},
+		Source: domain.ConversationDeliverySource{
+			AgentID:   sourceAgent.AgentID,
+			SessionID: "sess_src",
+		},
 		Target: domain.ConversationDeliveryTarget{
 			Kind:    domain.ConversationDeliveryTargetAgent,
 			AgentID: foreignAgent.AgentID,

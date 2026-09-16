@@ -174,7 +174,9 @@ func cloneE2EEPairingRequest(request E2EEPairingRequest) E2EEPairingRequest {
 
 func cloneE2EEKeyPackage(keyPackage E2EEKeyPackage) E2EEKeyPackage {
 	keyPackage.RecipientPublicKey = append([]byte(nil), keyPackage.RecipientPublicKey...)
-	keyPackage.SenderEphemeralPublicKey = append([]byte(nil), keyPackage.SenderEphemeralPublicKey...)
+	keyPackage.SenderEphemeralPublicKey = append(
+		[]byte(nil),
+		keyPackage.SenderEphemeralPublicKey...)
 	keyPackage.Nonce = append([]byte(nil), keyPackage.Nonce...)
 	keyPackage.Ciphertext = append([]byte(nil), keyPackage.Ciphertext...)
 	return keyPackage
@@ -259,7 +261,7 @@ func (s *PostgresStore) ListPendingE2EEPairingRequests(
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	requests := make([]E2EEPairingRequest, 0)
 	for rows.Next() {
 		request, scanErr := scanE2EEPairingRequest(rows)

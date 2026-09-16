@@ -418,7 +418,10 @@ func ListAgentConversationMessages(c context.Context, ctx *app.RequestContext) {
 		}
 		items := make([]domain.MessageWithParts, 0, len(page.Messages))
 		for _, m := range page.Messages {
-			items = append(items, domain.MessageWithParts{Message: m, Parts: partsByID[m.MessageID]})
+			items = append(
+				items,
+				domain.MessageWithParts{Message: m, Parts: partsByID[m.MessageID]},
+			)
 		}
 		if !debug {
 			items = domain.NormalTranscriptMessages(items)

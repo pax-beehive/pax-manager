@@ -180,7 +180,11 @@ func TestFriendsBetweenLookupAndCleanup(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			friends, err := store.ListFriendsBetween(ctx, UserPrincipal{User: alice}, "bob@example.com")
+			friends, err := store.ListFriendsBetween(
+				ctx,
+				UserPrincipal{User: alice},
+				"bob@example.com",
+			)
 			require.NoError(t, err)
 			require.Empty(t, friends)
 

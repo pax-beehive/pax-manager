@@ -107,7 +107,12 @@ func TestMemoryListConversationHistoryPageBySeq(t *testing.T) {
 	})
 	user, err := store.EnsureUser(ctx, "c@example.com", "C", "user")
 	require.NoError(t, err)
-	agentModel, err := store.RegisterAgent(ctx, user, RegisterAgentRequest{Name: "a", OS: "darwin"}, "hash")
+	agentModel, err := store.RegisterAgent(
+		ctx,
+		user,
+		RegisterAgentRequest{Name: "a", OS: "darwin"},
+		"hash",
+	)
 	require.NoError(t, err)
 	const convID = "conv_seq"
 	// Seed membership directly (package-internal) so the read is authorized.
@@ -134,7 +139,14 @@ func TestMemoryListConversationHistoryPageBySeq(t *testing.T) {
 	assert.True(t, page.HasOlder)
 
 	// Access control: a non-member is denied.
-	_, err = store.ListConversationHistoryPageBySeq(ctx, UserPrincipal{User: User{UserID: "intruder"}}, convID, 0, 0, 10)
+	_, err = store.ListConversationHistoryPageBySeq(
+		ctx,
+		UserPrincipal{User: User{UserID: "intruder"}},
+		convID,
+		0,
+		0,
+		10,
+	)
 	assert.ErrorIs(t, err, ErrNotFound)
 }
 

@@ -216,7 +216,9 @@ func TestE2EEAgentPayloadGivenCanonicalHistoryWhenReceivedThenUpsertsMessageAndP
 	assert.Equal(t, 0, page.Messages[0].Parts[0].PartIndex)
 }
 
-func TestE2EEHistoryEndpointGivenCanonicalRecordsWhenLoadedThenReturnsOpaqueMessageAndParts(t *testing.T) {
+func TestE2EEHistoryEndpointGivenCanonicalRecordsWhenLoadedThenReturnsOpaqueMessageAndParts(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "history@example.com")
 	fixture := testNodeAgent(t, srv, "history@example.com")
 	createConversationTestSession(t, srv, fixture, "sess_history", "native_history")
@@ -270,7 +272,11 @@ func TestE2EEHistoryEndpointGivenCanonicalRecordsWhenLoadedThenReturnsOpaqueMess
 	assert.Equal(t, message.ID, got.ID)
 	assert.Equal(t, "message_1", got.MessageID)
 	assert.Equal(t, "e2ee_message", got.Envelope.Kind)
-	assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("private-ciphertext")), got.Envelope.Payload)
+	assert.Equal(
+		t,
+		base64.StdEncoding.EncodeToString([]byte("private-ciphertext")),
+		got.Envelope.Payload,
+	)
 	require.Len(t, got.Parts, 1)
 	assert.Equal(t, 0, got.Parts[0].PartIndex)
 	assert.Equal(t, "e2ee_message_part", got.Parts[0].Envelope.Kind)

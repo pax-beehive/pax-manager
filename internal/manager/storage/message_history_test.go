@@ -56,7 +56,11 @@ func TestUserPromptMessageAdvancesSessionOrderingTimestamp(t *testing.T) {
 	require.NoError(t, store.UpsertAgentSessions(ctx, node, agent.AgentID, []SessionStatusInput{{
 		SessionID: "codex:prompt-native", NativeID: "prompt-native",
 	}}))
-	sessions, err := store.ListAgentSessions(ctx, UserPrincipal{User: User{UserID: node.OwnerUserID}}, agent.AgentID)
+	sessions, err := store.ListAgentSessions(
+		ctx,
+		UserPrincipal{User: User{UserID: node.OwnerUserID}},
+		agent.AgentID,
+	)
 	require.NoError(t, err)
 	managerSessionID := ""
 	for i := range sessions {
@@ -73,7 +77,11 @@ func TestUserPromptMessageAdvancesSessionOrderingTimestamp(t *testing.T) {
 	}
 	require.NoError(t, store.UpsertMessage(ctx, &message))
 
-	sessions, err = store.ListAgentSessions(ctx, UserPrincipal{User: User{UserID: node.OwnerUserID}}, agent.AgentID)
+	sessions, err = store.ListAgentSessions(
+		ctx,
+		UserPrincipal{User: User{UserID: node.OwnerUserID}},
+		agent.AgentID,
+	)
 	require.NoError(t, err)
 	var found *AgentSession
 	for i := range sessions {
@@ -89,7 +97,9 @@ func TestUserPromptMessageAdvancesSessionOrderingTimestamp(t *testing.T) {
 
 func TestPostgresUserPromptUpsertTouchesSessionInSameStatement(t *testing.T) {
 	now := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
-	script := &scriptedPostgresScript{queries: []scriptedRows{scriptedRow(scriptedMessageHistoryRow(1, "msg_prompt", now)...)}}
+	script := &scriptedPostgresScript{
+		queries: []scriptedRows{scriptedRow(scriptedMessageHistoryRow(1, "msg_prompt", now)...)},
+	}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
 	message := Message{

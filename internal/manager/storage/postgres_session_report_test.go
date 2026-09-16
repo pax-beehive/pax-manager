@@ -182,7 +182,11 @@ func TestPostgresStoreUpsertAgentSessions(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Len(t, script.execTexts, 1)
-			assert.Contains(t, script.execTexts[0], "GREATEST(agent_sessions.last_message_at, EXCLUDED.last_message_at)")
+			assert.Contains(
+				t,
+				script.execTexts[0],
+				"GREATEST(agent_sessions.last_message_at, EXCLUDED.last_message_at)",
+			)
 		},
 	)
 
@@ -197,13 +201,22 @@ func TestPostgresStoreUpsertAgentSessions(t *testing.T) {
 			defer cleanup()
 			activity := time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC)
 
-			err := store.UpsertAgentSessions(context.Background(), Node{NodeID: "node_1"}, "agent_1", []SessionStatusInput{{
-				SessionID: "codex:abc", LastUserMessageAt: &activity,
-			}})
+			err := store.UpsertAgentSessions(
+				context.Background(),
+				Node{NodeID: "node_1"},
+				"agent_1",
+				[]SessionStatusInput{{
+					SessionID: "codex:abc", LastUserMessageAt: &activity,
+				}},
+			)
 
 			require.NoError(t, err)
 			require.Len(t, script.execTexts, 1)
-			assert.Contains(t, script.execTexts[0], "GREATEST(agent_sessions.last_user_message_at, EXCLUDED.last_user_message_at)")
+			assert.Contains(
+				t,
+				script.execTexts[0],
+				"GREATEST(agent_sessions.last_user_message_at, EXCLUDED.last_user_message_at)",
+			)
 		},
 	)
 }

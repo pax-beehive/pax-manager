@@ -49,11 +49,23 @@ func (h *longTurnHarness) project(raw string) {
 }
 
 func (h *longTurnHarness) message(update, text string) {
-	h.project(fmt.Sprintf(`{"method":"session/update","params":{"sessionId":"sess_lt","update":{"sessionUpdate":%q,"content":{"type":"text","text":%q}}},"jsonrpc":"2.0"}`, update, text))
+	h.project(
+		fmt.Sprintf(
+			`{"method":"session/update","params":{"sessionId":"sess_lt","update":{"sessionUpdate":%q,"content":{"type":"text","text":%q}}},"jsonrpc":"2.0"}`,
+			update,
+			text,
+		),
+	)
 }
 
 func (h *longTurnHarness) toolCall(id, title string) {
-	h.project(fmt.Sprintf(`{"method":"session/update","params":{"sessionId":"sess_lt","update":{"sessionUpdate":"tool_call","toolCallId":%q,"title":%q,"kind":"execute"}},"jsonrpc":"2.0"}`, id, title))
+	h.project(
+		fmt.Sprintf(
+			`{"method":"session/update","params":{"sessionId":"sess_lt","update":{"sessionUpdate":"tool_call","toolCallId":%q,"title":%q,"kind":"execute"}},"jsonrpc":"2.0"}`,
+			id,
+			title,
+		),
+	)
 }
 
 func (h *longTurnHarness) terminal(termID, data string) {
@@ -133,7 +145,12 @@ func TestLongTurnMergedToolUpdatesDoNotBuryAnswer(t *testing.T) {
 	// Heavy trailing status churn on the already-running tools.
 	for round := 0; round < 40; round++ {
 		for i := 0; i < 6; i++ {
-			h.project(fmt.Sprintf(`{"method":"session/update","params":{"sessionId":"sess_lt","update":{"sessionUpdate":"tool_call_update","toolCallId":%q,"status":"completed"}},"jsonrpc":"2.0"}`, fmt.Sprintf("tc-%d", i)))
+			h.project(
+				fmt.Sprintf(
+					`{"method":"session/update","params":{"sessionId":"sess_lt","update":{"sessionUpdate":"tool_call_update","toolCallId":%q,"status":"completed"}},"jsonrpc":"2.0"}`,
+					fmt.Sprintf("tc-%d", i),
+				),
+			)
 		}
 	}
 
