@@ -1,10 +1,10 @@
 # [ISSUE-027] CI fails formatting, lint, and object storage startup
 
-**Status:** in-progress
+**Status:** resolved
 **Severity:** high
 **Component:** deployment
 **Found:** 2026-09-16
-**Resolved:** -
+**Resolved:** 2026-09-16
 
 ## Summary
 
@@ -35,4 +35,10 @@ the last snapshot.
 ## Verification
 
 Local fmt-check, both lint passes, full unit coverage, and build passed.
-Updated integration-tag lint passed. Remote integration verification is pending.
+Updated integration-tag lint passed. GitHub run 35149935335 passed both
+fmt/lint/unit coverage and Docker integration jobs.
+
+## Resolution
+
+Both CI jobs pass with all existing checks enabled, accessible pinned images,
+and the runtime integration test aligned with the snapshot authority contract.

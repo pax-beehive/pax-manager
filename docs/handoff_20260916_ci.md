@@ -32,4 +32,5 @@ Local formatting, both lint passes, full unit coverage (53.1%), and build pass.
 The first remote run restored container startup and exposed an obsolete ACP
 runtime assertion. The integration test now drives node-control snapshots,
 uses the prompt envelope turn ID, and verifies ACP frames cannot overwrite
-snapshot state. Updated integration lint passes; remote rerun is pending. No deployment is included.
+snapshot state. Updated integration lint passes. GitHub run 35149935335 passed both CI jobs,
+including PostgreSQL/MinIO-backed integration tests. Issue 027 is resolved. No deployment is included.
