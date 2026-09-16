@@ -542,7 +542,11 @@ func (s *PostgresStore) deliverAgentConversationToAgent(
 	now := s.now().UTC()
 	sourceRep, err := s.ensureCanonicalRepresentativeAgent(ctx, sourceAgent, now)
 	if err != nil {
-		logging.Warn(ctx, "conversation delivery source representative ensure failed", logging.Err(err))
+		logging.Warn(
+			ctx,
+			"conversation delivery source representative ensure failed",
+			logging.Err(err),
+		)
 		return domain.ConversationDelivery{}, err
 	}
 	ctx = logging.With(
@@ -551,13 +555,21 @@ func (s *PostgresStore) deliverAgentConversationToAgent(
 	)
 	targetRep, err := s.ensureCanonicalRepresentativeAgent(ctx, targetAgent, now)
 	if err != nil {
-		logging.Warn(ctx, "conversation delivery target representative ensure failed", logging.Err(err))
+		logging.Warn(
+			ctx,
+			"conversation delivery target representative ensure failed",
+			logging.Err(err),
+		)
 		return domain.ConversationDelivery{}, err
 	}
 
 	conversationID, err := newSecret("conv")
 	if err != nil {
-		logging.Warn(ctx, "conversation delivery conversation id generation failed", logging.Err(err))
+		logging.Warn(
+			ctx,
+			"conversation delivery conversation id generation failed",
+			logging.Err(err),
+		)
 		return domain.ConversationDelivery{}, err
 	}
 	receiptToken, err := newSecret("rcpt")
@@ -628,7 +640,12 @@ func (s *PostgresStore) ensureCanonicalRepresentativeAgent(
 	profileID := deterministicAgentProfileID(agent.AgentID, agent.OwnerUserID)
 	representsType := "user"
 	representsID := agent.OwnerUserID
-	repID := deterministicRepresentativeAgentID(agent.AgentID, profileID, representsType, representsID)
+	repID := deterministicRepresentativeAgentID(
+		agent.AgentID,
+		profileID,
+		representsType,
+		representsID,
+	)
 
 	if _, err := s.db.ExecContext(ctx, `
 		INSERT INTO agent_profiles (
@@ -2614,7 +2631,12 @@ func (s *MemoryStore) ensureCanonicalRepresentativeAgentLocked(
 	profileID := deterministicAgentProfileID(agent.AgentID, agent.OwnerUserID)
 	representsType := "user"
 	representsID := agent.OwnerUserID
-	repID := deterministicRepresentativeAgentID(agent.AgentID, profileID, representsType, representsID)
+	repID := deterministicRepresentativeAgentID(
+		agent.AgentID,
+		profileID,
+		representsType,
+		representsID,
+	)
 
 	if profile, ok := s.agentProfiles[profileID]; !ok || profile.ProfileID == "" {
 		s.agentProfiles[profileID] = domain.AgentProfile{

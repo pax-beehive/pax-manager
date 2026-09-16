@@ -108,98 +108,11 @@ func (s *PostgresStore) ReplaceAgentActiveTurns(
 		}
 	}
 
-	resolved := make(map[string]string, len(snapshot.ActiveTurns))
-	for _, turn := range snapshot.ActiveTurns {
-		sessionID, found, resolveErr := s.resolvePostgresRuntimeSession(
-			ctx,
-			tx,
-			snapshot.AgentID,
-			turn.NativeSessionID,
-		)
-		if resolveErr != nil {
-			return domain.ReplaceAgentActiveTurnsResult{}, resolveErr
-		}
-		if !found {
-			continue
-		}
-		resolved[turn.NativeSessionID] = sessionID
-	}
-
-	previous, err := loadPostgresRuntimeSessions(ctx, tx, snapshot.AgentID)
+	changes, err := s.applyPostgresRuntimeSessions(ctx, tx, node, snapshot)
 	if err != nil {
 		return domain.ReplaceAgentActiveTurnsResult{}, err
 	}
 	now := s.now().UTC()
-	changes := make([]domain.RuntimeStatusChange, 0, len(snapshot.ActiveTurns)+len(previous))
-	currentSessions := make(map[string]struct{}, len(snapshot.ActiveTurns))
-	for _, turn := range snapshot.ActiveTurns {
-		sessionID, reportable := resolved[turn.NativeSessionID]
-		if !reportable {
-			continue
-		}
-		state := runtimeStateFromTurn(node, snapshot.AgentID, sessionID, turn, now)
-		stateJSON, marshalErr := json.Marshal(state)
-		if marshalErr != nil {
-			return domain.ReplaceAgentActiveTurnsResult{}, marshalErr
-		}
-		result, execErr := tx.ExecContext(ctx, `
-			UPDATE agent_sessions
-			SET runtime_status = $3,
-				runtime_turn_instance_id = $4,
-				run_status = $3,
-				metadata = jsonb_set(
-					COALESCE(metadata, '{}'::jsonb), '{runtime_state}', $5::jsonb, true
-				),
-				updated_at = $6
-			WHERE agent_id = $1 AND session_id = $2
-		`, snapshot.AgentID, sessionID, turn.RuntimeStatus, turn.TurnInstanceID, stateJSON, now)
-		if execErr != nil {
-			return domain.ReplaceAgentActiveTurnsResult{}, execErr
-		}
-		if affected, rowsErr := result.RowsAffected(); rowsErr == nil && affected == 0 {
-			return domain.ReplaceAgentActiveTurnsResult{}, ErrNotFound
-		}
-		currentSessions[sessionID] = struct{}{}
-		old := previous[sessionID]
-		if old.runtimeStatus != turn.RuntimeStatus || old.turnInstanceID != turn.TurnInstanceID {
-			changes = append(changes, domain.RuntimeStatusChange{
-				SessionID: sessionID, NativeSessionID: turn.NativeSessionID,
-				RuntimeStatus: turn.RuntimeStatus, TurnInstanceID: turn.TurnInstanceID,
-			})
-		}
-	}
-	for sessionID, old := range previous {
-		if _, current := currentSessions[sessionID]; current ||
-			old.runtimeStatus != domain.RuntimeStatusRunning &&
-				old.runtimeStatus != domain.RuntimeStatusWaitingApproval &&
-				old.runtimeStatus != domain.RuntimeStatusUnknown {
-			continue
-		}
-		state := idleRuntimeState(node, AgentSession{
-			AgentID: snapshot.AgentID, SessionID: sessionID,
-		}, now)
-		stateJSON, marshalErr := json.Marshal(state)
-		if marshalErr != nil {
-			return domain.ReplaceAgentActiveTurnsResult{}, marshalErr
-		}
-		if _, execErr := tx.ExecContext(ctx, `
-			UPDATE agent_sessions
-			SET runtime_status = 'idle',
-				runtime_turn_instance_id = NULL,
-				run_status = 'idle',
-				metadata = jsonb_set(
-					COALESCE(metadata, '{}'::jsonb), '{runtime_state}', $3::jsonb, true
-				),
-				updated_at = $4
-			WHERE agent_id = $1 AND session_id = $2
-		`, snapshot.AgentID, sessionID, stateJSON, now); execErr != nil {
-			return domain.ReplaceAgentActiveTurnsResult{}, execErr
-		}
-		changes = append(changes, domain.RuntimeStatusChange{
-			SessionID: sessionID, NativeSessionID: old.nativeSessionID,
-			RuntimeStatus: domain.RuntimeStatusIdle,
-		})
-	}
 
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE agent_runtime_snapshot_heads
@@ -349,4 +262,106 @@ func loadPostgresRuntimeSessions(
 		return nil, err
 	}
 	return result, nil
+}
+
+func (s *PostgresStore) applyPostgresRuntimeSessions(
+	ctx context.Context,
+	tx *sql.Tx,
+	node Node,
+	snapshot domain.AgentRuntimeSnapshot,
+) ([]domain.RuntimeStatusChange, error) {
+	resolved := make(map[string]string, len(snapshot.ActiveTurns))
+	for _, turn := range snapshot.ActiveTurns {
+		sessionID, found, resolveErr := s.resolvePostgresRuntimeSession(
+			ctx,
+			tx,
+			snapshot.AgentID,
+			turn.NativeSessionID,
+		)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		if !found {
+			continue
+		}
+		resolved[turn.NativeSessionID] = sessionID
+	}
+
+	previous, err := loadPostgresRuntimeSessions(ctx, tx, snapshot.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now().UTC()
+	changes := make([]domain.RuntimeStatusChange, 0, len(snapshot.ActiveTurns)+len(previous))
+	currentSessions := make(map[string]struct{}, len(snapshot.ActiveTurns))
+	for _, turn := range snapshot.ActiveTurns {
+		sessionID, reportable := resolved[turn.NativeSessionID]
+		if !reportable {
+			continue
+		}
+		state := runtimeStateFromTurn(node, snapshot.AgentID, sessionID, turn, now)
+		stateJSON, marshalErr := json.Marshal(state)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		result, execErr := tx.ExecContext(ctx, `
+			UPDATE agent_sessions
+			SET runtime_status = $3,
+				runtime_turn_instance_id = $4,
+				run_status = $3,
+				metadata = jsonb_set(
+					COALESCE(metadata, '{}'::jsonb), '{runtime_state}', $5::jsonb, true
+				),
+				updated_at = $6
+			WHERE agent_id = $1 AND session_id = $2
+		`, snapshot.AgentID, sessionID, turn.RuntimeStatus, turn.TurnInstanceID, stateJSON, now)
+		if execErr != nil {
+			return nil, execErr
+		}
+		if affected, rowsErr := result.RowsAffected(); rowsErr == nil && affected == 0 {
+			return nil, ErrNotFound
+		}
+		currentSessions[sessionID] = struct{}{}
+		old := previous[sessionID]
+		if old.runtimeStatus != turn.RuntimeStatus || old.turnInstanceID != turn.TurnInstanceID {
+			changes = append(changes, domain.RuntimeStatusChange{
+				SessionID: sessionID, NativeSessionID: turn.NativeSessionID,
+				RuntimeStatus: turn.RuntimeStatus, TurnInstanceID: turn.TurnInstanceID,
+			})
+		}
+	}
+	for sessionID, old := range previous {
+		if _, current := currentSessions[sessionID]; current ||
+			old.runtimeStatus != domain.RuntimeStatusRunning &&
+				old.runtimeStatus != domain.RuntimeStatusWaitingApproval &&
+				old.runtimeStatus != domain.RuntimeStatusUnknown {
+			continue
+		}
+		state := idleRuntimeState(node, AgentSession{
+			AgentID: snapshot.AgentID, SessionID: sessionID,
+		}, now)
+		stateJSON, marshalErr := json.Marshal(state)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		if _, execErr := tx.ExecContext(ctx, `
+			UPDATE agent_sessions
+			SET runtime_status = 'idle',
+				runtime_turn_instance_id = NULL,
+				run_status = 'idle',
+				metadata = jsonb_set(
+					COALESCE(metadata, '{}'::jsonb), '{runtime_state}', $3::jsonb, true
+				),
+				updated_at = $4
+			WHERE agent_id = $1 AND session_id = $2
+		`, snapshot.AgentID, sessionID, stateJSON, now); execErr != nil {
+			return nil, execErr
+		}
+		changes = append(changes, domain.RuntimeStatusChange{
+			SessionID: sessionID, NativeSessionID: old.nativeSessionID,
+			RuntimeStatus: domain.RuntimeStatusIdle,
+		})
+	}
+
+	return changes, nil
 }

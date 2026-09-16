@@ -181,7 +181,10 @@ type PermissionCatalogStore interface {
 	GetAgentRuntimeIdentity(context.Context, string) (AgentRuntimeIdentity, error)
 	InsertPermissionProfile(context.Context, AgentPermissionProfile) error
 	ListActivePermissionProfiles(context.Context, string, string) ([]AgentPermissionProfile, error)
-	UpsertPermissionObservation(context.Context, AgentPermissionObservation) (AgentPermissionObservation, error)
+	UpsertPermissionObservation(
+		context.Context,
+		AgentPermissionObservation,
+	) (AgentPermissionObservation, error)
 	GetPermissionObservation(context.Context, string, string) (AgentPermissionObservation, error)
 }
 
@@ -197,6 +200,8 @@ func CloneObservedPermissionCatalog(in ObservedPermissionCatalog) ObservedPermis
 	return out
 }
 
-func MarshalPermissionProfileDefinition(definition PermissionProfileDefinition) (json.RawMessage, error) {
+func MarshalPermissionProfileDefinition(
+	definition PermissionProfileDefinition,
+) (json.RawMessage, error) {
 	return json.Marshal(definition)
 }

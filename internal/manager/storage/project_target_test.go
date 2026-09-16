@@ -34,217 +34,235 @@ func TestMemoryProjectTargetLifecycleBDD(t *testing.T) {
 	project, err := store.CreateProject(ctx, owner, CreateProjectRequest{DisplayName: "Manager"})
 	require.NoError(t, err)
 
-	t.Run("given one agent when creating multiple cwd targets then both snapshots are retained", func(t *testing.T) {
-		first, createErr := store.CreateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			CreateProjectTargetRequest{
-				AgentID:     "agent_owner",
-				DisplayName: " Mac main ",
-				Cwd:         " ~/pax_workspace/pax-manager ",
-				IsDefault:   true,
-			},
-		)
-		require.NoError(t, createErr)
-		assert.Equal(t, "Mac main", first.DisplayName)
-		assert.Equal(t, "~/pax_workspace/pax-manager", first.Cwd)
-		assert.True(t, first.Enabled)
-		assert.True(t, first.IsDefault)
+	t.Run(
+		"given one agent when creating multiple cwd targets then both snapshots are retained",
+		func(t *testing.T) {
+			first, createErr := store.CreateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				CreateProjectTargetRequest{
+					AgentID:     "agent_owner",
+					DisplayName: " Mac main ",
+					Cwd:         " ~/pax_workspace/pax-manager ",
+					IsDefault:   true,
+				},
+			)
+			require.NoError(t, createErr)
+			assert.Equal(t, "Mac main", first.DisplayName)
+			assert.Equal(t, "~/pax_workspace/pax-manager", first.Cwd)
+			assert.True(t, first.Enabled)
+			assert.True(t, first.IsDefault)
 
-		second, createErr := store.CreateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			CreateProjectTargetRequest{
-				AgentID:     "agent_owner",
-				DisplayName: "Mac feature",
-				Cwd:         "~/worktrees/pax-manager-feature",
-			},
-		)
-		require.NoError(t, createErr)
+			second, createErr := store.CreateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				CreateProjectTargetRequest{
+					AgentID:     "agent_owner",
+					DisplayName: "Mac feature",
+					Cwd:         "~/worktrees/pax-manager-feature",
+				},
+			)
+			require.NoError(t, createErr)
 
-		targets, listErr := store.ListProjectTargets(ctx, owner, project.ProjectID)
-		require.NoError(t, listErr)
-		require.Len(t, targets, 2)
-		assert.ElementsMatch(t, []string{first.TargetID, second.TargetID}, targetIDs(targets))
-		assert.NotEqual(t, first.Cwd, second.Cwd)
-	})
+			targets, listErr := store.ListProjectTargets(ctx, owner, project.ProjectID)
+			require.NoError(t, listErr)
+			require.Len(t, targets, 2)
+			assert.ElementsMatch(t, []string{first.TargetID, second.TargetID}, targetIDs(targets))
+			assert.NotEqual(t, first.Cwd, second.Cwd)
+		},
+	)
 
-	t.Run("given the same project agent and cwd when creating twice then the existing target is reused", func(t *testing.T) {
-		before, listErr := store.ListProjectTargets(ctx, owner, project.ProjectID)
-		require.NoError(t, listErr)
-		first, createErr := store.CreateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			CreateProjectTargetRequest{
-				AgentID:     "agent_owner",
-				DisplayName: "Original",
-				Cwd:         " ~/dedupe ",
-			},
-		)
-		require.NoError(t, createErr)
-		second, createErr := store.CreateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			CreateProjectTargetRequest{
-				AgentID:     " agent_owner ",
-				DisplayName: "Ignored replacement",
-				Cwd:         "~/dedupe",
-			},
-		)
-		require.NoError(t, createErr)
+	t.Run(
+		"given the same project agent and cwd when creating twice then the existing target is reused",
+		func(t *testing.T) {
+			before, listErr := store.ListProjectTargets(ctx, owner, project.ProjectID)
+			require.NoError(t, listErr)
+			first, createErr := store.CreateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				CreateProjectTargetRequest{
+					AgentID:     "agent_owner",
+					DisplayName: "Original",
+					Cwd:         " ~/dedupe ",
+				},
+			)
+			require.NoError(t, createErr)
+			second, createErr := store.CreateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				CreateProjectTargetRequest{
+					AgentID:     " agent_owner ",
+					DisplayName: "Ignored replacement",
+					Cwd:         "~/dedupe",
+				},
+			)
+			require.NoError(t, createErr)
 
-		assert.Equal(t, first, second)
-		after, listErr := store.ListProjectTargets(ctx, owner, project.ProjectID)
-		require.NoError(t, listErr)
-		assert.Len(t, after, len(before)+1)
-	})
+			assert.Equal(t, first, second)
+			after, listErr := store.ListProjectTargets(ctx, owner, project.ProjectID)
+			require.NoError(t, listErr)
+			assert.Len(t, after, len(before)+1)
+		},
+	)
 
-	t.Run("given a new default when updating then the previous default is cleared", func(t *testing.T) {
-		first, createErr := store.CreateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			CreateProjectTargetRequest{
-				AgentID:     "agent_owner",
-				DisplayName: "First default",
-				Cwd:         "~/first",
-				IsDefault:   true,
-			},
-		)
-		require.NoError(t, createErr)
-		second, createErr := store.CreateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			CreateProjectTargetRequest{
-				AgentID:     "agent_owner",
-				DisplayName: "Second default",
-				Cwd:         "~/second",
-			},
-		)
-		require.NoError(t, createErr)
+	t.Run(
+		"given a new default when updating then the previous default is cleared",
+		func(t *testing.T) {
+			first, createErr := store.CreateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				CreateProjectTargetRequest{
+					AgentID:     "agent_owner",
+					DisplayName: "First default",
+					Cwd:         "~/first",
+					IsDefault:   true,
+				},
+			)
+			require.NoError(t, createErr)
+			second, createErr := store.CreateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				CreateProjectTargetRequest{
+					AgentID:     "agent_owner",
+					DisplayName: "Second default",
+					Cwd:         "~/second",
+				},
+			)
+			require.NoError(t, createErr)
 
-		makeDefault := true
-		second, updateErr := store.UpdateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			second.TargetID,
-			UpdateProjectTargetRequest{IsDefault: &makeDefault},
-		)
-		require.NoError(t, updateErr)
-		assert.True(t, second.IsDefault)
+			makeDefault := true
+			second, updateErr := store.UpdateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				second.TargetID,
+				UpdateProjectTargetRequest{IsDefault: &makeDefault},
+			)
+			require.NoError(t, updateErr)
+			assert.True(t, second.IsDefault)
 
-		first, getErr := store.GetProjectTarget(ctx, owner, project.ProjectID, first.TargetID)
-		require.NoError(t, getErr)
-		assert.False(t, first.IsDefault)
+			first, getErr := store.GetProjectTarget(ctx, owner, project.ProjectID, first.TargetID)
+			require.NoError(t, getErr)
+			assert.False(t, first.IsDefault)
 
-		enabled := false
-		second, updateErr = store.UpdateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			second.TargetID,
-			UpdateProjectTargetRequest{Enabled: &enabled},
-		)
-		require.NoError(t, updateErr)
-		assert.False(t, second.Enabled)
-		assert.False(t, second.IsDefault)
-	})
+			enabled := false
+			second, updateErr = store.UpdateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				second.TargetID,
+				UpdateProjectTargetRequest{Enabled: &enabled},
+			)
+			require.NoError(t, updateErr)
+			assert.False(t, second.Enabled)
+			assert.False(t, second.IsDefault)
+		},
+	)
 
-	t.Run("given a foreign agent or disabled default then creation is rejected", func(t *testing.T) {
-		_, createErr := store.CreateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			CreateProjectTargetRequest{
-				AgentID:     "agent_foreign",
-				DisplayName: "Foreign",
-				Cwd:         "~/foreign",
-			},
-		)
-		require.ErrorIs(t, createErr, ErrNotFound)
+	t.Run(
+		"given a foreign agent or disabled default then creation is rejected",
+		func(t *testing.T) {
+			_, createErr := store.CreateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				CreateProjectTargetRequest{
+					AgentID:     "agent_foreign",
+					DisplayName: "Foreign",
+					Cwd:         "~/foreign",
+				},
+			)
+			require.ErrorIs(t, createErr, ErrNotFound)
 
-		disabled := false
-		_, createErr = store.CreateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			CreateProjectTargetRequest{
-				AgentID:     "agent_owner",
-				DisplayName: "Invalid default",
-				Cwd:         "~/invalid",
-				IsDefault:   true,
-				Enabled:     &disabled,
-			},
-		)
-		require.ErrorIs(t, createErr, ErrConflict)
-	})
+			disabled := false
+			_, createErr = store.CreateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				CreateProjectTargetRequest{
+					AgentID:     "agent_owner",
+					DisplayName: "Invalid default",
+					Cwd:         "~/invalid",
+					IsDefault:   true,
+					Enabled:     &disabled,
+				},
+			)
+			require.ErrorIs(t, createErr, ErrConflict)
+		},
+	)
 
-	t.Run("given editable fields when updating then agent name and cwd change together", func(t *testing.T) {
-		target, createErr := store.CreateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			CreateProjectTargetRequest{
-				AgentID:     "agent_owner",
-				DisplayName: "Editable",
-				Cwd:         "~/before",
-			},
-		)
-		require.NoError(t, createErr)
+	t.Run(
+		"given editable fields when updating then agent name and cwd change together",
+		func(t *testing.T) {
+			target, createErr := store.CreateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				CreateProjectTargetRequest{
+					AgentID:     "agent_owner",
+					DisplayName: "Editable",
+					Cwd:         "~/before",
+				},
+			)
+			require.NoError(t, createErr)
 
-		agentID := " agent_owner_2 "
-		displayName := " Edited "
-		cwd := " ~/after "
-		now = now.Add(time.Minute)
-		updated, updateErr := store.UpdateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			target.TargetID,
-			UpdateProjectTargetRequest{
-				AgentID:     &agentID,
-				DisplayName: &displayName,
-				Cwd:         &cwd,
-			},
-		)
-		require.NoError(t, updateErr)
-		assert.Equal(t, "agent_owner_2", updated.AgentID)
-		assert.Equal(t, "Edited", updated.DisplayName)
-		assert.Equal(t, "~/after", updated.Cwd)
-		assert.Equal(t, now, updated.UpdatedAt)
+			agentID := " agent_owner_2 "
+			displayName := " Edited "
+			cwd := " ~/after "
+			now = now.Add(time.Minute)
+			updated, updateErr := store.UpdateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				target.TargetID,
+				UpdateProjectTargetRequest{
+					AgentID:     &agentID,
+					DisplayName: &displayName,
+					Cwd:         &cwd,
+				},
+			)
+			require.NoError(t, updateErr)
+			assert.Equal(t, "agent_owner_2", updated.AgentID)
+			assert.Equal(t, "Edited", updated.DisplayName)
+			assert.Equal(t, "~/after", updated.Cwd)
+			assert.Equal(t, now, updated.UpdatedAt)
 
-		foreignAgent := "agent_foreign"
-		_, updateErr = store.UpdateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			target.TargetID,
-			UpdateProjectTargetRequest{AgentID: &foreignAgent},
-		)
-		require.ErrorIs(t, updateErr, ErrNotFound)
+			foreignAgent := "agent_foreign"
+			_, updateErr = store.UpdateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				target.TargetID,
+				UpdateProjectTargetRequest{AgentID: &foreignAgent},
+			)
+			require.ErrorIs(t, updateErr, ErrNotFound)
 
-		blank := " "
-		_, updateErr = store.UpdateProjectTarget(
-			ctx,
-			owner,
-			project.ProjectID,
-			target.TargetID,
-			UpdateProjectTargetRequest{Cwd: &blank},
-		)
-		require.ErrorIs(t, updateErr, ErrConflict)
-	})
+			blank := " "
+			_, updateErr = store.UpdateProjectTarget(
+				ctx,
+				owner,
+				project.ProjectID,
+				target.TargetID,
+				UpdateProjectTargetRequest{Cwd: &blank},
+			)
+			require.ErrorIs(t, updateErr, ErrConflict)
+		},
+	)
 
-	t.Run("given another owner when reading targets then the project is hidden", func(t *testing.T) {
-		other := UserPrincipal{User: User{UserID: "user_other"}}
-		_, listErr := store.ListProjectTargets(ctx, other, project.ProjectID)
-		require.ErrorIs(t, listErr, ErrNotFound)
-	})
+	t.Run(
+		"given another owner when reading targets then the project is hidden",
+		func(t *testing.T) {
+			other := UserPrincipal{User: User{UserID: "user_other"}}
+			_, listErr := store.ListProjectTargets(ctx, other, project.ProjectID)
+			require.ErrorIs(t, listErr, ErrNotFound)
+		},
+	)
 }
 
 func targetIDs(targets []ProjectTarget) []string {

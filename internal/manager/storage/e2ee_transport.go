@@ -269,7 +269,10 @@ func (s *MemoryStore) ListE2EEMessageHistoryPage(
 			}
 		}
 		sort.Slice(parts, func(i, j int) bool { return parts[i].PartIndex < parts[j].PartIndex })
-		page.Messages = append(page.Messages, domain.E2EEMessageWithParts{Message: message, Parts: parts})
+		page.Messages = append(
+			page.Messages,
+			domain.E2EEMessageWithParts{Message: message, Parts: parts},
+		)
 	}
 	if hasMore && len(messages) > 0 {
 		page.NextBeforeID = messages[len(messages)-1].ID
@@ -554,9 +557,14 @@ func (s *PostgresStore) UpsertE2EEMessagePart(
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return E2EEMessagePart{}, false, err
 	}
-	existing, err := scanE2EEMessagePart(s.db.QueryRowContext(ctx,
+	existing, err := scanE2EEMessagePart(s.db.QueryRowContext(
+		ctx,
 		e2eeMessagePartSelect+` WHERE agent_id = $1 AND session_id = $2 AND message_id = $3 AND part_index = $4`,
-		part.AgentID, part.SessionID, part.MessageID, part.PartIndex))
+		part.AgentID,
+		part.SessionID,
+		part.MessageID,
+		part.PartIndex,
+	))
 	if err != nil {
 		return E2EEMessagePart{}, false, err
 	}
@@ -619,7 +627,10 @@ func (s *PostgresStore) ListE2EEMessageHistoryPage(
 		if err := partRows.Close(); err != nil {
 			return E2EEMessageHistoryPage{}, err
 		}
-		page.Messages = append(page.Messages, domain.E2EEMessageWithParts{Message: message, Parts: parts})
+		page.Messages = append(
+			page.Messages,
+			domain.E2EEMessageWithParts{Message: message, Parts: parts},
+		)
 	}
 	if hasMore && len(messages) > 0 {
 		page.NextBeforeID = messages[len(messages)-1].ID

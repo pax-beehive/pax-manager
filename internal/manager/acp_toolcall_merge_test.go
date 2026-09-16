@@ -43,36 +43,56 @@ func TestMergeACPToolCallFrames(t *testing.T) {
 		assert.Equal(t, "completed", update["status"], "status must advance to the latest")
 		assert.Equal(t, "tool_call_update", update["sessionUpdate"], "sessionUpdate advances")
 		require.IsType(t, map[string]any{}, update["rawInput"])
-		assert.Equal(t, "a.go", update["rawInput"].(map[string]any)["path"], "rawInput must survive")
-	})
-
-	t.Run("given a patch with a fresh output then output is replaced with the latest", func(t *testing.T) {
-		base := json.RawMessage(
-			`{"params":{"update":{"toolCallId":"tc-1","content":[{"type":"text","text":"partial"}]}}}`,
+		assert.Equal(
+			t,
+			"a.go",
+			update["rawInput"].(map[string]any)["path"],
+			"rawInput must survive",
 		)
-		patch := json.RawMessage(
-			`{"params":{"update":{"toolCallId":"tc-1","content":[{"type":"text","text":"final"}]}}}`,
-		)
-
-		got := mergeACPToolCallFrames(base, patch)
-
-		update := updateObject(t, got)
-		content, ok := update["content"].([]any)
-		require.True(t, ok)
-		require.Len(t, content, 1)
-		assert.Equal(t, "final", content[0].(map[string]any)["text"], "latest output replaces prior")
 	})
 
-	t.Run("given a patch with an empty-string field then the base value is preserved", func(t *testing.T) {
-		base := json.RawMessage(`{"params":{"update":{"toolCallId":"tc-1","title":"Read file"}}}`)
-		patch := json.RawMessage(`{"params":{"update":{"toolCallId":"tc-1","title":"","status":"failed"}}}`)
+	t.Run(
+		"given a patch with a fresh output then output is replaced with the latest",
+		func(t *testing.T) {
+			base := json.RawMessage(
+				`{"params":{"update":{"toolCallId":"tc-1","content":[{"type":"text","text":"partial"}]}}}`,
+			)
+			patch := json.RawMessage(
+				`{"params":{"update":{"toolCallId":"tc-1","content":[{"type":"text","text":"final"}]}}}`,
+			)
 
-		got := mergeACPToolCallFrames(base, patch)
+			got := mergeACPToolCallFrames(base, patch)
 
-		update := updateObject(t, got)
-		assert.Equal(t, "Read file", update["title"], "empty patch string must not clobber")
-		assert.Equal(t, "failed", update["status"])
-	})
+			update := updateObject(t, got)
+			content, ok := update["content"].([]any)
+			require.True(t, ok)
+			require.Len(t, content, 1)
+			assert.Equal(
+				t,
+				"final",
+				content[0].(map[string]any)["text"],
+				"latest output replaces prior",
+			)
+		},
+	)
+
+	t.Run(
+		"given a patch with an empty-string field then the base value is preserved",
+		func(t *testing.T) {
+			base := json.RawMessage(
+				`{"params":{"update":{"toolCallId":"tc-1","title":"Read file"}}}`,
+			)
+			patch := json.RawMessage(
+				`{"params":{"update":{"toolCallId":"tc-1","title":"","status":"failed"}}}`,
+			)
+
+			got := mergeACPToolCallFrames(base, patch)
+
+			update := updateObject(t, got)
+			assert.Equal(t, "Read file", update["title"], "empty patch string must not clobber")
+			assert.Equal(t, "failed", update["status"])
+		},
+	)
 
 	t.Run("given the same patch applied twice then the result is idempotent", func(t *testing.T) {
 		base := json.RawMessage(
@@ -85,17 +105,32 @@ func TestMergeACPToolCallFrames(t *testing.T) {
 		once := mergeACPToolCallFrames(base, patch)
 		twice := mergeACPToolCallFrames(once, patch)
 
-		assert.JSONEq(t, string(once), string(twice), "replaying the same frame must not change state")
+		assert.JSONEq(
+			t,
+			string(once),
+			string(twice),
+			"replaying the same frame must not change state",
+		)
 	})
 
-	t.Run("given large integer fields then formatting is preserved without exponents", func(t *testing.T) {
-		base := json.RawMessage(`{"params":{"update":{"toolCallId":"tc-1"}}}`)
-		patch := json.RawMessage(`{"id":6,"params":{"update":{"toolCallId":"tc-1","bytes":79974123456}}}`)
+	t.Run(
+		"given large integer fields then formatting is preserved without exponents",
+		func(t *testing.T) {
+			base := json.RawMessage(`{"params":{"update":{"toolCallId":"tc-1"}}}`)
+			patch := json.RawMessage(
+				`{"id":6,"params":{"update":{"toolCallId":"tc-1","bytes":79974123456}}}`,
+			)
 
-		got := mergeACPToolCallFrames(base, patch)
+			got := mergeACPToolCallFrames(base, patch)
 
-		assert.Contains(t, string(got), "79974123456", "integers must not be reformatted as float exponents")
-	})
+			assert.Contains(
+				t,
+				string(got),
+				"79974123456",
+				"integers must not be reformatted as float exponents",
+			)
+		},
+	)
 }
 
 func TestMergeACPToolCallFramesFallsBackOnInvalidJSON(t *testing.T) {
@@ -118,11 +153,31 @@ func TestACPHistoryIsMergeableToolCall(t *testing.T) {
 		fields acpHistoryFields
 		want   bool
 	}{
-		{"tool_call with id", acpHistoryFields{SessionUpdate: "tool_call", ToolCallID: "tc-1"}, true},
-		{"tool_call_update with id", acpHistoryFields{SessionUpdate: "tool_call_update", ToolCallID: "tc-1"}, true},
-		{"terminal delta is excluded", acpHistoryFields{SessionUpdate: "tool_call_update", ToolCallID: "tc-1", TerminalID: "t-1"}, false},
+		{
+			"tool_call with id",
+			acpHistoryFields{SessionUpdate: "tool_call", ToolCallID: "tc-1"},
+			true,
+		},
+		{
+			"tool_call_update with id",
+			acpHistoryFields{SessionUpdate: "tool_call_update", ToolCallID: "tc-1"},
+			true,
+		},
+		{
+			"terminal delta is excluded",
+			acpHistoryFields{
+				SessionUpdate: "tool_call_update",
+				ToolCallID:    "tc-1",
+				TerminalID:    "t-1",
+			},
+			false,
+		},
 		{"missing toolCallId", acpHistoryFields{SessionUpdate: "tool_call"}, false},
-		{"unrelated update", acpHistoryFields{SessionUpdate: "agent_message_chunk", ToolCallID: "tc-1"}, false},
+		{
+			"unrelated update",
+			acpHistoryFields{SessionUpdate: "agent_message_chunk", ToolCallID: "tc-1"},
+			false,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

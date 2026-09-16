@@ -66,35 +66,49 @@ func TestRuntimeIdentityGivenCapabilityReportsWhenParsedThenSupportsV1AndPartial
 		assert.Equal(t, "consistent", identity.PoolConsistency)
 	})
 
-	t.Run("given runtime-only v2 then accepts it with a conservative fingerprint", func(t *testing.T) {
-		raw := json.RawMessage(`{
+	t.Run(
+		"given runtime-only v2 then accepts it with a conservative fingerprint",
+		func(t *testing.T) {
+			raw := json.RawMessage(`{
 			"schema_version":2,
 			"connection_id":"conn-3",
 			"report_generation":9,
 			"implementation":{"runtime":{"name":"codex","version":"0.59.0"}}
 		}`)
-		identity, err := parseAgentRuntimeIdentity("agent-3", "codex", "conn-3", raw, observedAt)
-		require.NoError(t, err)
-		require.NotNil(t, identity)
-		assert.Empty(t, identity.ACPAgentName)
-		assert.Equal(t, "codex", identity.RuntimeName)
-		assert.Contains(t, identity.IdentityFingerprint, "sha256:")
-	})
+			identity, err := parseAgentRuntimeIdentity(
+				"agent-3",
+				"codex",
+				"conn-3",
+				raw,
+				observedAt,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, identity)
+			assert.Empty(t, identity.ACPAgentName)
+			assert.Equal(t, "codex", identity.RuntimeName)
+			assert.Contains(t, identity.IdentityFingerprint, "sha256:")
+		},
+	)
 
-	t.Run("given an unknown schema then identity is rejected without panicking", func(t *testing.T) {
-		identity, err := parseAgentRuntimeIdentity(
-			"agent-4",
-			"codex",
-			"conn-4",
-			json.RawMessage(`{"schema_version":99}`),
-			observedAt,
-		)
-		assert.Error(t, err)
-		assert.Nil(t, identity)
-	})
+	t.Run(
+		"given an unknown schema then identity is rejected without panicking",
+		func(t *testing.T) {
+			identity, err := parseAgentRuntimeIdentity(
+				"agent-4",
+				"codex",
+				"conn-4",
+				json.RawMessage(`{"schema_version":99}`),
+				observedAt,
+			)
+			assert.Error(t, err)
+			assert.Nil(t, identity)
+		},
+	)
 }
 
-func TestRuntimeIdentityGivenMissingOrInvalidReportWhenSnapshotAppliedThenDowngradesPriorIdentity(t *testing.T) {
+func TestRuntimeIdentityGivenMissingOrInvalidReportWhenSnapshotAppliedThenDowngradesPriorIdentity(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "owner@example.com")
 	fixture := testNodeAgent(t, srv, "owner@example.com")
 	principal := testUserPrincipal(t, srv, "owner@example.com")
@@ -153,7 +167,9 @@ func TestRuntimeIdentityGivenMissingOrInvalidReportWhenSnapshotAppliedThenDowngr
 	}
 }
 
-func TestPermissionCatalogGivenProfileAndObservationsWhenResolvedThenUsesSafePriority(t *testing.T) {
+func TestPermissionCatalogGivenProfileAndObservationsWhenResolvedThenUsesSafePriority(
+	t *testing.T,
+) {
 	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
 	store := NewMemoryStore(func() time.Time { return now })
 	owner, err := store.EnsureUser(t.Context(), "owner@example.com", "Owner", "user")
@@ -223,28 +239,34 @@ func TestPermissionCatalogGivenProfileAndObservationsWhenResolvedThenUsesSafePri
 		assert.True(t, catalog.Choices[3].RequiresConfirmation)
 	})
 
-	t.Run("given an existing session choice then resolves the current observed binding", func(t *testing.T) {
-		resolved, err := srv.resolveStoredPermissionChoice(
-			t.Context(),
-			agent,
-			"agent:mode:read-only",
-		)
-		require.NoError(t, err)
-		assert.Equal(t, domain.SessionApprovalModeManual, resolved.ApprovalMode)
-		assert.Equal(t, domain.PermissionBindingConfigOption, resolved.Binding.Kind)
-		assert.Equal(t, "mode", resolved.Binding.ConfigID)
-		assert.Equal(t, "read-only", resolved.Value)
-	})
+	t.Run(
+		"given an existing session choice then resolves the current observed binding",
+		func(t *testing.T) {
+			resolved, err := srv.resolveStoredPermissionChoice(
+				t.Context(),
+				agent,
+				"agent:mode:read-only",
+			)
+			require.NoError(t, err)
+			assert.Equal(t, domain.SessionApprovalModeManual, resolved.ApprovalMode)
+			assert.Equal(t, domain.PermissionBindingConfigOption, resolved.Binding.Kind)
+			assert.Equal(t, "mode", resolved.Binding.ConfigID)
+			assert.Equal(t, "read-only", resolved.Value)
+		},
+	)
 
-	t.Run("given a current observation with a missing runtime version then marks it stale", func(t *testing.T) {
-		identity.ReportGeneration++
-		identity.RuntimeVersion = ""
-		require.NoError(t, store.UpsertAgentRuntimeIdentity(t.Context(), identity))
-		catalog, err := srv.resolveAgentPermissionCatalog(t.Context(), agent)
-		require.NoError(t, err)
-		assert.Equal(t, domain.PermissionCatalogSourceObserved, catalog.Source)
-		assert.True(t, catalog.Stale)
-	})
+	t.Run(
+		"given a current observation with a missing runtime version then marks it stale",
+		func(t *testing.T) {
+			identity.ReportGeneration++
+			identity.RuntimeVersion = ""
+			require.NoError(t, store.UpsertAgentRuntimeIdentity(t.Context(), identity))
+			catalog, err := srv.resolveAgentPermissionCatalog(t.Context(), agent)
+			require.NoError(t, err)
+			assert.Equal(t, domain.PermissionCatalogSourceObserved, catalog.Source)
+			assert.True(t, catalog.Stale)
+		},
+	)
 
 	t.Run("given unknown pool consistency then ignores slot observation", func(t *testing.T) {
 		identity.ReportGeneration++
@@ -360,14 +382,18 @@ func TestPermissionCatalogGivenMalformedSelectedProfileWhenResolvedThenFailsClos
 		domain.UserPrincipal{User: owner},
 		agent.AgentID,
 		"agent:mode:agent",
-		json.RawMessage(`{"configOptions":[{"id":"mode","category":"mode","options":[{"value":"agent","name":"Agent"}]}]}`),
+		json.RawMessage(
+			`{"configOptions":[{"id":"mode","category":"mode","options":[{"value":"agent","name":"Agent"}]}]}`,
+		),
 	)
 	var httpErr apperr.Error
 	require.ErrorAs(t, err, &httpErr)
 	assert.Equal(t, http.StatusBadGateway, httpErr.Status)
 }
 
-func TestPermissionObservationGivenSessionNewFrameWhenProjectedThenCachesConsistentPositiveAndNegativeCatalog(t *testing.T) {
+func TestPermissionObservationGivenSessionNewFrameWhenProjectedThenCachesConsistentPositiveAndNegativeCatalog(
+	t *testing.T,
+) {
 	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
 	store := NewMemoryStore(func() time.Time { return now })
 	owner, err := store.EnsureUser(t.Context(), "owner@example.com", "Owner", "user")
@@ -512,7 +538,9 @@ func TestPermissionConversationGivenChoiceWhenResolvedThenRequiresLiveSafeMatch(
 	})
 }
 
-func TestPermissionProfileGivenVersionConstraintsWhenMatchedThenUnknownIsStaleAndMismatchRejected(t *testing.T) {
+func TestPermissionProfileGivenVersionConstraintsWhenMatchedThenUnknownIsStaleAndMismatchRejected(
+	t *testing.T,
+) {
 	profile := domain.BuiltInCodexPermissionProfile(time.Now())
 	profile.ACPAgentVersionConstraint = ">=1.1.0 <2.0.0"
 	profile.RuntimeVersionConstraint = ">=0.50.0 <1.0.0"
@@ -546,7 +574,9 @@ func TestPermissionProfileGivenVersionConstraintsWhenMatchedThenUnknownIsStaleAn
 	assert.False(t, uncertain)
 }
 
-func TestConversationRequestGivenPermissionChoiceAndLegacyApprovalWhenValidatedThenRequiresConsistency(t *testing.T) {
+func TestConversationRequestGivenPermissionChoiceAndLegacyApprovalWhenValidatedThenRequiresConsistency(
+	t *testing.T,
+) {
 	tests := []struct {
 		name     string
 		choiceID string
@@ -680,7 +710,9 @@ func TestPermissionBindingGivenProfileAndLiveWhenComparedThenRequiresDeclaredFie
 	))
 }
 
-func TestPermissionObservationGivenNonModeConfigOptionsWhenModesExistThenUsesLegacyModes(t *testing.T) {
+func TestPermissionObservationGivenNonModeConfigOptionsWhenModesExistThenUsesLegacyModes(
+	t *testing.T,
+) {
 	catalog := parseObservedPermissionCatalog(json.RawMessage(`{
 		"configOptions":[{
 			"id":"model",
@@ -715,14 +747,18 @@ func TestPermissionObservationGivenUnrelatedNonStringConfigWhenParsedThenKeepsMo
 	assert.Equal(t, "agent", catalog.Options[0].Value)
 }
 
-func TestPermissionProfileGivenConfirmationRequiredChoiceWhenDefaultedThenRejectsProfile(t *testing.T) {
+func TestPermissionProfileGivenConfirmationRequiredChoiceWhenDefaultedThenRejectsProfile(
+	t *testing.T,
+) {
 	profile := domain.BuiltInCodexPermissionProfile(time.Now())
 	profile.Definition.DefaultChoiceID = "agent:mode:agent-full-access"
 	err := validatePermissionProfileDefinition(profile.Definition)
 	assert.EqualError(t, err, "default_choice_id cannot require confirmation")
 }
 
-func TestPermissionProfileGivenInvalidDeclarativeDefinitionWhenValidatedThenRejectsIt(t *testing.T) {
+func TestPermissionProfileGivenInvalidDeclarativeDefinitionWhenValidatedThenRejectsIt(
+	t *testing.T,
+) {
 	base := domain.BuiltInCodexPermissionProfile(time.Now()).Definition
 	tests := []struct {
 		name   string
@@ -767,7 +803,9 @@ func TestPermissionProfileGivenInvalidDeclarativeDefinitionWhenValidatedThenReje
 	}
 }
 
-func TestPermissionObservationGivenConfirmationRequiredCurrentModeWhenResolvedThenHasNoDefault(t *testing.T) {
+func TestPermissionObservationGivenConfirmationRequiredCurrentModeWhenResolvedThenHasNoDefault(
+	t *testing.T,
+) {
 	profile := domain.BuiltInCodexPermissionProfile(time.Now())
 	catalog := catalogFromObservation(domain.AgentPermissionObservation{
 		CatalogRevision: 1,
@@ -805,16 +843,23 @@ func (r *recordingPermissionRequester) request(
 	return conversationResponse{}, r.err
 }
 
-func TestPermissionChoiceGivenResolvedNativeConfigWhenAppliedThenUsesExpectedACPMethod(t *testing.T) {
+func TestPermissionChoiceGivenResolvedNativeConfigWhenAppliedThenUsesExpectedACPMethod(
+	t *testing.T,
+) {
 	t.Run("given config option then sends set config option", func(t *testing.T) {
 		requester := &recordingPermissionRequester{}
-		err := applyResolvedPermissionChoice(t.Context(), requester, "session-1", domain.ResolvedPermissionChoice{
-			Binding: domain.PermissionBinding{
-				Kind:     domain.PermissionBindingConfigOption,
-				ConfigID: "mode",
+		err := applyResolvedPermissionChoice(
+			t.Context(),
+			requester,
+			"session-1",
+			domain.ResolvedPermissionChoice{
+				Binding: domain.PermissionBinding{
+					Kind:     domain.PermissionBindingConfigOption,
+					ConfigID: "mode",
+				},
+				Value: "agent",
 			},
-			Value: "agent",
-		})
+		)
 		require.NoError(t, err)
 		assert.Equal(t, "session/set_config_option", requester.method)
 		assert.Equal(t, "session-1", requester.params["sessionId"])
@@ -824,10 +869,15 @@ func TestPermissionChoiceGivenResolvedNativeConfigWhenAppliedThenUsesExpectedACP
 
 	t.Run("given legacy mode then sends set mode", func(t *testing.T) {
 		requester := &recordingPermissionRequester{}
-		err := applyResolvedPermissionChoice(t.Context(), requester, "session-1", domain.ResolvedPermissionChoice{
-			Binding: domain.PermissionBinding{Kind: domain.PermissionBindingLegacyMode},
-			Value:   "auto",
-		})
+		err := applyResolvedPermissionChoice(
+			t.Context(),
+			requester,
+			"session-1",
+			domain.ResolvedPermissionChoice{
+				Binding: domain.PermissionBinding{Kind: domain.PermissionBindingLegacyMode},
+				Value:   "auto",
+			},
+		)
 		require.NoError(t, err)
 		assert.Equal(t, "session/set_mode", requester.method)
 		assert.Equal(t, "auto", requester.params["modeId"])
@@ -836,13 +886,18 @@ func TestPermissionChoiceGivenResolvedNativeConfigWhenAppliedThenUsesExpectedACP
 	t.Run("given ACP failure then propagates and does not pretend success", func(t *testing.T) {
 		wantErr := errors.New("set config failed")
 		requester := &recordingPermissionRequester{err: wantErr}
-		err := applyResolvedPermissionChoice(t.Context(), requester, "session-1", domain.ResolvedPermissionChoice{
-			Binding: domain.PermissionBinding{
-				Kind:     domain.PermissionBindingConfigOption,
-				ConfigID: "mode",
+		err := applyResolvedPermissionChoice(
+			t.Context(),
+			requester,
+			"session-1",
+			domain.ResolvedPermissionChoice{
+				Binding: domain.PermissionBinding{
+					Kind:     domain.PermissionBindingConfigOption,
+					ConfigID: "mode",
+				},
+				Value: "agent",
 			},
-			Value: "agent",
-		})
+		)
 		assert.ErrorIs(t, err, wantErr)
 	})
 
@@ -860,10 +915,15 @@ func TestPermissionChoiceGivenResolvedNativeConfigWhenAppliedThenUsesExpectedACP
 
 	t.Run("given unsupported binding then returns bad gateway", func(t *testing.T) {
 		requester := &recordingPermissionRequester{}
-		err := applyResolvedPermissionChoice(t.Context(), requester, "session-1", domain.ResolvedPermissionChoice{
-			Binding: domain.PermissionBinding{Kind: "unknown"},
-			Value:   "agent",
-		})
+		err := applyResolvedPermissionChoice(
+			t.Context(),
+			requester,
+			"session-1",
+			domain.ResolvedPermissionChoice{
+				Binding: domain.PermissionBinding{Kind: "unknown"},
+				Value:   "agent",
+			},
+		)
 		var httpErr apperr.Error
 		require.ErrorAs(t, err, &httpErr)
 		assert.Equal(t, http.StatusBadGateway, httpErr.Status)
@@ -871,7 +931,9 @@ func TestPermissionChoiceGivenResolvedNativeConfigWhenAppliedThenUsesExpectedACP
 	})
 }
 
-func TestPermissionChoiceGivenPostCreateFailureWhenRolledBackThenClosesAndDeletesProvisionalSession(t *testing.T) {
+func TestPermissionChoiceGivenPostCreateFailureWhenRolledBackThenClosesAndDeletesProvisionalSession(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "owner@example.com")
 	fixture := testNodeAgent(t, srv, "owner@example.com")
 	principal := testUserPrincipal(t, srv, fixture.userEmail)
@@ -954,7 +1016,9 @@ func TestPermissionCatalogGivenOpenAPIDocumentWhenGeneratedThenEndpointIsDocumen
 	assert.Contains(t, document.Paths, openAPIUserAgentPermissionCatalog)
 }
 
-func TestConversationGivenNativePermissionChoiceWhenCreatingThenConfiguresBeforePrompt(t *testing.T) {
+func TestConversationGivenNativePermissionChoiceWhenCreatingThenConfiguresBeforePrompt(
+	t *testing.T,
+) {
 	srv, _ := testServer(t, "owner@example.com")
 	fixture := testNodeAgent(t, srv, "owner@example.com")
 

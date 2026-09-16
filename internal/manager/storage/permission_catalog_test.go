@@ -15,7 +15,9 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
-func TestPermissionStoreGivenProfilesAndObservationsWhenWrittenThenVersionsAreAppendOnly(t *testing.T) {
+func TestPermissionStoreGivenProfilesAndObservationsWhenWrittenThenVersionsAreAppendOnly(
+	t *testing.T,
+) {
 	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
 	store := NewMemoryStore(func() time.Time { return now })
 	owner, err := store.EnsureUser(t.Context(), "owner@example.com", "Owner", "user")
@@ -25,40 +27,43 @@ func TestPermissionStoreGivenProfilesAndObservationsWhenWrittenThenVersionsAreAp
 	}, "key")
 	require.NoError(t, err)
 
-	t.Run("given runtime identities then stale reports cannot replace a newer generation", func(t *testing.T) {
-		identity := domain.AgentRuntimeIdentity{
-			AgentID:             agent.AgentID,
-			ReportEpoch:         "epoch-1",
-			SchemaVersion:       2,
-			ConnectionID:        "conn-1",
-			ReportGeneration:    2,
-			IdentityFingerprint: "identity-new",
-			ObservedAt:          now,
-		}
-		require.NoError(t, store.UpsertAgentRuntimeIdentity(t.Context(), identity))
-		identity.ReportGeneration = 1
-		identity.IdentityFingerprint = "identity-stale"
-		require.NoError(t, store.UpsertAgentRuntimeIdentity(t.Context(), identity))
-		stored, err := store.GetAgentRuntimeIdentity(t.Context(), agent.AgentID)
-		require.NoError(t, err)
-		assert.Equal(t, "identity-new", stored.IdentityFingerprint)
+	t.Run(
+		"given runtime identities then stale reports cannot replace a newer generation",
+		func(t *testing.T) {
+			identity := domain.AgentRuntimeIdentity{
+				AgentID:             agent.AgentID,
+				ReportEpoch:         "epoch-1",
+				SchemaVersion:       2,
+				ConnectionID:        "conn-1",
+				ReportGeneration:    2,
+				IdentityFingerprint: "identity-new",
+				ObservedAt:          now,
+			}
+			require.NoError(t, store.UpsertAgentRuntimeIdentity(t.Context(), identity))
+			identity.ReportGeneration = 1
+			identity.IdentityFingerprint = "identity-stale"
+			require.NoError(t, store.UpsertAgentRuntimeIdentity(t.Context(), identity))
+			stored, err := store.GetAgentRuntimeIdentity(t.Context(), agent.AgentID)
+			require.NoError(t, err)
+			assert.Equal(t, "identity-new", stored.IdentityFingerprint)
 
-		identity.ConnectionID = "conn-2"
-		identity.IdentityFingerprint = "identity-new-connection"
-		require.NoError(t, store.UpsertAgentRuntimeIdentity(t.Context(), identity))
-		stored, err = store.GetAgentRuntimeIdentity(t.Context(), agent.AgentID)
-		require.NoError(t, err)
-		assert.Equal(t, "identity-new-connection", stored.IdentityFingerprint)
+			identity.ConnectionID = "conn-2"
+			identity.IdentityFingerprint = "identity-new-connection"
+			require.NoError(t, store.UpsertAgentRuntimeIdentity(t.Context(), identity))
+			stored, err = store.GetAgentRuntimeIdentity(t.Context(), agent.AgentID)
+			require.NoError(t, err)
+			assert.Equal(t, "identity-new-connection", stored.IdentityFingerprint)
 
-		identity.ConnectionID = "conn-1"
-		identity.ReportEpoch = "epoch-2"
-		identity.ReportGeneration = 1
-		identity.IdentityFingerprint = "identity-after-restart"
-		require.NoError(t, store.UpsertAgentRuntimeIdentity(t.Context(), identity))
-		stored, err = store.GetAgentRuntimeIdentity(t.Context(), agent.AgentID)
-		require.NoError(t, err)
-		assert.Equal(t, "identity-after-restart", stored.IdentityFingerprint)
-	})
+			identity.ConnectionID = "conn-1"
+			identity.ReportEpoch = "epoch-2"
+			identity.ReportGeneration = 1
+			identity.IdentityFingerprint = "identity-after-restart"
+			require.NoError(t, store.UpsertAgentRuntimeIdentity(t.Context(), identity))
+			stored, err = store.GetAgentRuntimeIdentity(t.Context(), agent.AgentID)
+			require.NoError(t, err)
+			assert.Equal(t, "identity-after-restart", stored.IdentityFingerprint)
+		},
+	)
 
 	t.Run("given builtin seed then duplicate revision is not overwritten", func(t *testing.T) {
 		profiles, err := store.ListActivePermissionProfiles(t.Context(), owner.UserID, "codex")
@@ -77,17 +82,20 @@ func TestPermissionStoreGivenProfilesAndObservationsWhenWrittenThenVersionsAreAp
 		assert.Equal(t, "agent:mode:agent", profiles[0].Definition.DefaultChoiceID)
 	})
 
-	t.Run("given a new profile revision then keeps both and selects newest first", func(t *testing.T) {
-		next := domain.BuiltInCodexPermissionProfile(now)
-		next.Revision = 2
-		next.Definition.DefaultChoiceID = "agent:mode:read-only"
-		require.NoError(t, store.InsertPermissionProfile(t.Context(), next))
-		profiles, err := store.ListActivePermissionProfiles(t.Context(), owner.UserID, "codex")
-		require.NoError(t, err)
-		require.Len(t, profiles, 2)
-		assert.Equal(t, int64(2), profiles[0].Revision)
-		assert.Equal(t, int64(1), profiles[1].Revision)
-	})
+	t.Run(
+		"given a new profile revision then keeps both and selects newest first",
+		func(t *testing.T) {
+			next := domain.BuiltInCodexPermissionProfile(now)
+			next.Revision = 2
+			next.Definition.DefaultChoiceID = "agent:mode:read-only"
+			require.NoError(t, store.InsertPermissionProfile(t.Context(), next))
+			profiles, err := store.ListActivePermissionProfiles(t.Context(), owner.UserID, "codex")
+			require.NoError(t, err)
+			require.Len(t, profiles, 2)
+			assert.Equal(t, int64(2), profiles[0].Revision)
+			assert.Equal(t, int64(1), profiles[1].Revision)
+		},
+	)
 
 	t.Run("given observations then revisions change only when content changes", func(t *testing.T) {
 		observation := domain.AgentPermissionObservation{
@@ -129,7 +137,9 @@ func TestPermissionStoreGivenProfilesAndObservationsWhenWrittenThenVersionsAreAp
 	})
 }
 
-func TestPermissionRuntimeIdentityGivenPaxdRestartWhenSnapshotAppliedThenUsesRuntimeFenceEpoch(t *testing.T) {
+func TestPermissionRuntimeIdentityGivenPaxdRestartWhenSnapshotAppliedThenUsesRuntimeFenceEpoch(
+	t *testing.T,
+) {
 	ctx := t.Context()
 	store, node, agent := sessionReportStoreFixture(t, ctx)
 	require.NoError(t, store.ActivateNodeRuntimeFence(ctx, node, "fence-old"))
@@ -183,7 +193,9 @@ func TestPermissionRuntimeIdentityGivenPaxdRestartWhenSnapshotAppliedThenUsesRun
 	assert.Equal(t, "unknown", stored.PoolConsistency)
 }
 
-func TestPermissionChoiceGivenLegacyApprovalOverrideWhenStoredThenClearsChoiceAndPreservesCWD(t *testing.T) {
+func TestPermissionChoiceGivenLegacyApprovalOverrideWhenStoredThenClearsChoiceAndPreservesCWD(
+	t *testing.T,
+) {
 	ctx := t.Context()
 	store, node, agent := sessionReportStoreFixture(t, ctx)
 	principal := UserPrincipal{User: User{UserID: node.OwnerUserID}}
@@ -286,22 +298,29 @@ func TestPostgresPermissionStoreGivenRowsWhenReadAndWrittenThenUsesTypedSchema(t
 		assert.Contains(t, script.execTexts[0], "DELETE FROM agent_sessions")
 	})
 
-	t.Run("given authoritative snapshot identity then replaces within accepted fence", func(t *testing.T) {
-		script := &scriptedPostgresScript{execResults: []int64{1}}
-		store, cleanup := scriptedPostgresStore(t, script)
-		defer cleanup()
-		err := replaceAgentRuntimeIdentity(t.Context(), dbExecer{store.db}, domain.AgentRuntimeIdentity{
-			AgentID:             "agent-1",
-			ReportEpoch:         "fence-1",
-			ConnectionID:        "durable-connection",
-			ReportGeneration:    1,
-			IdentityFingerprint: "identity-after-restart",
-			ObservedAt:          now,
-		})
-		require.NoError(t, err)
-		require.Len(t, script.execTexts, 1)
-		assert.NotContains(t, script.execTexts[0], "WHERE agent_runtime_identities")
-	})
+	t.Run(
+		"given authoritative snapshot identity then replaces within accepted fence",
+		func(t *testing.T) {
+			script := &scriptedPostgresScript{execResults: []int64{1}}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+			err := replaceAgentRuntimeIdentity(
+				t.Context(),
+				dbExecer{store.db},
+				domain.AgentRuntimeIdentity{
+					AgentID:             "agent-1",
+					ReportEpoch:         "fence-1",
+					ConnectionID:        "durable-connection",
+					ReportGeneration:    1,
+					IdentityFingerprint: "identity-after-restart",
+					ObservedAt:          now,
+				},
+			)
+			require.NoError(t, err)
+			require.Len(t, script.execTexts, 1)
+			assert.NotContains(t, script.execTexts[0], "WHERE agent_runtime_identities")
+		},
+	)
 
 	t.Run("given runtime identity row then scans all typed values", func(t *testing.T) {
 		script := &scriptedPostgresScript{queries: []scriptedRows{{
@@ -371,7 +390,10 @@ func TestPostgresPermissionStoreGivenRowsWhenReadAndWrittenThenUsesTypedSchema(t
 
 	t.Run("given observation then upserts and reads revisioned catalog", func(t *testing.T) {
 		catalog := domain.ObservedPermissionCatalog{
-			Binding: domain.PermissionBinding{Kind: domain.PermissionBindingConfigOption, ConfigID: "mode"},
+			Binding: domain.PermissionBinding{
+				Kind:     domain.PermissionBindingConfigOption,
+				ConfigID: "mode",
+			},
 			Options: []domain.ObservedPermissionOption{{Value: "agent", Name: "Agent"}},
 		}
 		raw, err := json.Marshal(catalog)
@@ -389,10 +411,13 @@ func TestPostgresPermissionStoreGivenRowsWhenReadAndWrittenThenUsesTypedSchema(t
 			}}}
 		store, cleanup := scriptedPostgresStore(t, script)
 		defer cleanup()
-		stored, err := store.UpsertPermissionObservation(t.Context(), domain.AgentPermissionObservation{
-			AgentID: "agent-1", IdentityFingerprint: "identity-1", CatalogHash: "hash-1",
-			Catalog: catalog, ObservedAt: now, ExpiresAt: now.Add(time.Hour),
-		})
+		stored, err := store.UpsertPermissionObservation(
+			t.Context(),
+			domain.AgentPermissionObservation{
+				AgentID: "agent-1", IdentityFingerprint: "identity-1", CatalogHash: "hash-1",
+				Catalog: catalog, ObservedAt: now, ExpiresAt: now.Add(time.Hour),
+			},
+		)
 		require.NoError(t, err)
 		assert.Equal(t, int64(4), stored.CatalogRevision)
 		stored, err = store.GetPermissionObservation(t.Context(), "agent-1", "identity-1")
@@ -400,26 +425,31 @@ func TestPostgresPermissionStoreGivenRowsWhenReadAndWrittenThenUsesTypedSchema(t
 		assert.Equal(t, "agent", stored.Catalog.Options[0].Value)
 	})
 
-	t.Run("given legacy approval override then preserves config and clears typed choice", func(t *testing.T) {
-		script := &scriptedPostgresScript{execResults: []int64{1}}
-		store, cleanup := scriptedPostgresStore(t, script)
-		defer cleanup()
-		err := store.SetSessionApprovalMode(
-			t.Context(),
-			"agent-1",
-			"session-1",
-			domain.SessionApprovalModeAutoApproveAll,
-		)
-		require.NoError(t, err)
-		require.Len(t, script.execTexts, 1)
-		assert.Contains(t, script.execTexts[0], "metadata->'pax_config'")
-		assert.Contains(t, script.execTexts[0], "- 'permission_choice_id'")
-		require.Len(t, script.execArgs, 1)
-		assert.Equal(t, domain.SessionApprovalModeAutoApproveAll, script.execArgs[0][2].Value)
-	})
+	t.Run(
+		"given legacy approval override then preserves config and clears typed choice",
+		func(t *testing.T) {
+			script := &scriptedPostgresScript{execResults: []int64{1}}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+			err := store.SetSessionApprovalMode(
+				t.Context(),
+				"agent-1",
+				"session-1",
+				domain.SessionApprovalModeAutoApproveAll,
+			)
+			require.NoError(t, err)
+			require.Len(t, script.execTexts, 1)
+			assert.Contains(t, script.execTexts[0], "metadata->'pax_config'")
+			assert.Contains(t, script.execTexts[0], "- 'permission_choice_id'")
+			require.Len(t, script.execArgs, 1)
+			assert.Equal(t, domain.SessionApprovalModeAutoApproveAll, script.execArgs[0][2].Value)
+		},
+	)
 }
 
-func TestPermissionSchemaGivenDatabaseBootstrapWhenReadThenContainsSeparateIndexedTables(t *testing.T) {
+func TestPermissionSchemaGivenDatabaseBootstrapWhenReadThenContainsSeparateIndexedTables(
+	t *testing.T,
+) {
 	initSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "init.sql"))
 	require.NoError(t, err)
 	sql := string(initSQL)

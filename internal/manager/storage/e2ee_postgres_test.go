@@ -108,7 +108,9 @@ func TestPostgresE2EEEventInsertAndCursorRead(t *testing.T) {
 	assert.Equal(t, "event_1", events[0].RecordID)
 }
 
-func TestPostgresE2EEHistoryGivenCanonicalMessageAndPartWhenUpsertedAndListedThenUsesRevisionGuardedRows(t *testing.T) {
+func TestPostgresE2EEHistoryGivenCanonicalMessageAndPartWhenUpsertedAndListedThenUsesRevisionGuardedRows(
+	t *testing.T,
+) {
 	now := time.Date(2026, 8, 7, 22, 0, 0, 0, time.UTC)
 	message := E2EEMessage{
 		MessageID: "message_1", Revision: 2, UpdatedAt: now,
@@ -129,10 +131,19 @@ func TestPostgresE2EEHistoryGivenCanonicalMessageAndPartWhenUpsertedAndListedThe
 		},
 	}
 	script := &scriptedPostgresScript{queries: []scriptedRows{
-		{columns: []string{"id", "created_at", "updated_at"}, values: [][]driver.Value{{int64(31), now, now}}},
-		{columns: []string{"id", "created_at", "updated_at"}, values: [][]driver.Value{{int64(41), now, now}}},
+		{
+			columns: []string{"id", "created_at", "updated_at"},
+			values:  [][]driver.Value{{int64(31), now, now}},
+		},
+		{
+			columns: []string{"id", "created_at", "updated_at"},
+			values:  [][]driver.Value{{int64(41), now, now}},
+		},
 		{columns: e2eeMessageColumns(), values: [][]driver.Value{e2eeMessageValues(message, 31)}},
-		{columns: e2eeMessagePartColumns(), values: [][]driver.Value{e2eeMessagePartValues(part, 41)}},
+		{
+			columns: e2eeMessagePartColumns(),
+			values:  [][]driver.Value{e2eeMessagePartValues(part, 41)},
+		},
 	}}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()

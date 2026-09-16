@@ -59,7 +59,11 @@ func TestMemoryStoreListOwnerAgentsBase(t *testing.T) {
 			_, _, err = store.CreateNodeAgent(
 				ctx,
 				UserPrincipal{User: other},
-				CreateAgentRequest{NodeID: otherNode.NodeID, Name: "other-agent", AgentType: "codex"},
+				CreateAgentRequest{
+					NodeID:    otherNode.NodeID,
+					Name:      "other-agent",
+					AgentType: "codex",
+				},
 			)
 			require.NoError(t, err)
 
@@ -127,7 +131,11 @@ func TestMemoryStoreListOwnerAgentsFilters(t *testing.T) {
 		store, ownerID, agents := ownerAgentFilterFixture(
 			t, ctx, &clk, "Backend Bot", "Frontend Helper", "backend-worker",
 		)
-		got, err := store.ListOwnerAgents(ctx, ownerID, OwnerAgentFilter{Query: "backend", Status: "any"})
+		got, err := store.ListOwnerAgents(
+			ctx,
+			ownerID,
+			OwnerAgentFilter{Query: "backend", Status: "any"},
+		)
 		require.NoError(t, err)
 		assert.ElementsMatch(t,
 			[]string{agents["Backend Bot"].AgentID, agents["backend-worker"].AgentID},
@@ -143,14 +151,34 @@ func TestMemoryStoreListOwnerAgentsFilters(t *testing.T) {
 		node, err := store.RegisterNode(ctx, owner,
 			RegisterNodeRequest{Name: "n", Hostname: "n", OS: "linux"}, "h")
 		require.NoError(t, err)
-		match, _, err := store.CreateNodeAgent(ctx, UserPrincipal{User: owner},
-			CreateAgentRequest{NodeID: node.NodeID, Name: "alpha", Description: "maintains the payments service", AgentType: "codex"})
+		match, _, err := store.CreateNodeAgent(
+			ctx,
+			UserPrincipal{User: owner},
+			CreateAgentRequest{
+				NodeID:      node.NodeID,
+				Name:        "alpha",
+				Description: "maintains the payments service",
+				AgentType:   "codex",
+			},
+		)
 		require.NoError(t, err)
-		_, _, err = store.CreateNodeAgent(ctx, UserPrincipal{User: owner},
-			CreateAgentRequest{NodeID: node.NodeID, Name: "beta", Description: "runs the frontend", AgentType: "codex"})
+		_, _, err = store.CreateNodeAgent(
+			ctx,
+			UserPrincipal{User: owner},
+			CreateAgentRequest{
+				NodeID:      node.NodeID,
+				Name:        "beta",
+				Description: "runs the frontend",
+				AgentType:   "codex",
+			},
+		)
 		require.NoError(t, err)
 
-		got, err := store.ListOwnerAgents(ctx, owner.UserID, OwnerAgentFilter{Query: "payments", Status: "any"})
+		got, err := store.ListOwnerAgents(
+			ctx,
+			owner.UserID,
+			OwnerAgentFilter{Query: "payments", Status: "any"},
+		)
 		require.NoError(t, err)
 		assert.Equal(t, []string{match.AgentID}, ownerAgentIDs(got))
 	})
@@ -175,7 +203,11 @@ func TestMemoryStoreListOwnerAgentsFilters(t *testing.T) {
 			CreateAgentRequest{NodeID: node.NodeID, Name: "beta", AgentType: "codex"})
 		require.NoError(t, err)
 
-		got, err := store.ListOwnerAgents(ctx, owner.UserID, OwnerAgentFilter{Query: "reviewer", Status: "any"})
+		got, err := store.ListOwnerAgents(
+			ctx,
+			owner.UserID,
+			OwnerAgentFilter{Query: "reviewer", Status: "any"},
+		)
 		require.NoError(t, err)
 		assert.Equal(t, []string{match.AgentID}, ownerAgentIDs(got))
 	})
@@ -183,7 +215,10 @@ func TestMemoryStoreListOwnerAgentsFilters(t *testing.T) {
 	t.Run("status online returns only online agents", func(t *testing.T) {
 		clk := base
 		store, ownerID, agents := ownerAgentFilterFixture(t, ctx, &clk, "on", "off")
-		require.NoError(t, store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["on"].AgentID}))
+		require.NoError(
+			t,
+			store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["on"].AgentID}),
+		)
 
 		got, err := store.ListOwnerAgents(ctx, ownerID, OwnerAgentFilter{Status: "online"})
 		require.NoError(t, err)
@@ -193,7 +228,10 @@ func TestMemoryStoreListOwnerAgentsFilters(t *testing.T) {
 	t.Run("status offline returns only non-online agents", func(t *testing.T) {
 		clk := base
 		store, ownerID, agents := ownerAgentFilterFixture(t, ctx, &clk, "on", "off")
-		require.NoError(t, store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["on"].AgentID}))
+		require.NoError(
+			t,
+			store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["on"].AgentID}),
+		)
 
 		got, err := store.ListOwnerAgents(ctx, ownerID, OwnerAgentFilter{Status: "offline"})
 		require.NoError(t, err)
@@ -203,7 +241,10 @@ func TestMemoryStoreListOwnerAgentsFilters(t *testing.T) {
 	t.Run("empty status does not filter by status", func(t *testing.T) {
 		clk := base
 		store, ownerID, agents := ownerAgentFilterFixture(t, ctx, &clk, "on", "off")
-		require.NoError(t, store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["on"].AgentID}))
+		require.NoError(
+			t,
+			store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["on"].AgentID}),
+		)
 
 		got, err := store.ListOwnerAgents(ctx, ownerID, OwnerAgentFilter{})
 		require.NoError(t, err)
@@ -213,7 +254,11 @@ func TestMemoryStoreListOwnerAgentsFilters(t *testing.T) {
 	t.Run("order_by name sorts alphabetically", func(t *testing.T) {
 		clk := base
 		store, ownerID, _ := ownerAgentFilterFixture(t, ctx, &clk, "charlie", "alpha", "bravo")
-		got, err := store.ListOwnerAgents(ctx, ownerID, OwnerAgentFilter{Status: "any", OrderBy: "name"})
+		got, err := store.ListOwnerAgents(
+			ctx,
+			ownerID,
+			OwnerAgentFilter{Status: "any", OrderBy: "name"},
+		)
 		require.NoError(t, err)
 		names := make([]string, 0, len(got))
 		for _, ag := range got {
@@ -226,13 +271,26 @@ func TestMemoryStoreListOwnerAgentsFilters(t *testing.T) {
 		clk := base
 		store, ownerID, agents := ownerAgentFilterFixture(t, ctx, &clk, "a", "b", "c")
 		clk = base.Add(1 * time.Minute)
-		require.NoError(t, store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["a"].AgentID}))
+		require.NoError(
+			t,
+			store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["a"].AgentID}),
+		)
 		clk = base.Add(3 * time.Minute)
-		require.NoError(t, store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["c"].AgentID}))
+		require.NoError(
+			t,
+			store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["c"].AgentID}),
+		)
 		clk = base.Add(2 * time.Minute)
-		require.NoError(t, store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["b"].AgentID}))
+		require.NoError(
+			t,
+			store.UpsertAgentStatus(ctx, AgentStatusReport{AgentID: agents["b"].AgentID}),
+		)
 
-		got, err := store.ListOwnerAgents(ctx, ownerID, OwnerAgentFilter{Status: "any", OrderBy: "last_active"})
+		got, err := store.ListOwnerAgents(
+			ctx,
+			ownerID,
+			OwnerAgentFilter{Status: "any", OrderBy: "last_active"},
+		)
 		require.NoError(t, err)
 		assert.Equal(t,
 			[]string{agents["c"].AgentID, agents["b"].AgentID, agents["a"].AgentID},
@@ -245,7 +303,11 @@ func TestMemoryStoreListOwnerAgentsFilters(t *testing.T) {
 		store, ownerID, agents := ownerAgentFilterFixture(
 			t, ctx, &clk, "team backend", "backend", "backend service",
 		)
-		got, err := store.ListOwnerAgents(ctx, ownerID, OwnerAgentFilter{Query: "backend", Status: "any"})
+		got, err := store.ListOwnerAgents(
+			ctx,
+			ownerID,
+			OwnerAgentFilter{Query: "backend", Status: "any"},
+		)
 		require.NoError(t, err)
 		// exact "backend" first, then prefix "backend service", then substring "team backend".
 		assert.Equal(t,

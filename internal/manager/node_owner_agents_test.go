@@ -29,8 +29,15 @@ func TestListNodeOwnerAgents(t *testing.T) {
 		caller, _, err := store.CreateNodeAgent(ctx, domain.UserPrincipal{User: owner},
 			domain.CreateAgentRequest{NodeID: nodeA.NodeID, Name: "caller", AgentType: "codex"})
 		require.NoError(t, err)
-		_, _, err = store.CreateNodeAgent(ctx, domain.UserPrincipal{User: owner},
-			domain.CreateAgentRequest{NodeID: nodeB.NodeID, Name: "other-node-agent", AgentType: "codex"})
+		_, _, err = store.CreateNodeAgent(
+			ctx,
+			domain.UserPrincipal{User: owner},
+			domain.CreateAgentRequest{
+				NodeID:    nodeB.NodeID,
+				Name:      "other-node-agent",
+				AgentType: "codex",
+			},
+		)
 		require.NoError(t, err)
 		return store, nodeA, caller, owner.UserID
 	}
@@ -38,7 +45,13 @@ func TestListNodeOwnerAgents(t *testing.T) {
 	t.Run("returns the caller owner's agents across all nodes", func(t *testing.T) {
 		store, nodeA, caller, ownerID := newStore()
 
-		got, err := listNodeOwnerAgents(ctx, store, nodeA, caller.AgentID, domain.OwnerAgentFilter{})
+		got, err := listNodeOwnerAgents(
+			ctx,
+			store,
+			nodeA,
+			caller.AgentID,
+			domain.OwnerAgentFilter{},
+		)
 		require.NoError(t, err)
 
 		assert.Len(t, got, 2)
@@ -60,21 +73,48 @@ func TestListNodeOwnerAgents(t *testing.T) {
 		// not on the caller node.
 		victim, err := store.EnsureUser(ctx, "victim@example.com", "Victim", "user")
 		require.NoError(t, err)
-		victimNode, err := store.RegisterNode(ctx, victim,
-			domain.RegisterNodeRequest{Name: "victim-node", Hostname: "victim-node", OS: "linux"}, "hash_v")
+		victimNode, err := store.RegisterNode(
+			ctx,
+			victim,
+			domain.RegisterNodeRequest{
+				Name:     "victim-node",
+				Hostname: "victim-node",
+				OS:       "linux",
+			},
+			"hash_v",
+		)
 		require.NoError(t, err)
-		victimAgent, _, err := store.CreateNodeAgent(ctx, domain.UserPrincipal{User: victim},
-			domain.CreateAgentRequest{NodeID: victimNode.NodeID, Name: "victim-agent", AgentType: "codex"})
+		victimAgent, _, err := store.CreateNodeAgent(
+			ctx,
+			domain.UserPrincipal{User: victim},
+			domain.CreateAgentRequest{
+				NodeID:    victimNode.NodeID,
+				Name:      "victim-agent",
+				AgentType: "codex",
+			},
+		)
 		require.NoError(t, err)
 
-		_, err = listNodeOwnerAgents(ctx, store, nodeA, victimAgent.AgentID, domain.OwnerAgentFilter{})
+		_, err = listNodeOwnerAgents(
+			ctx,
+			store,
+			nodeA,
+			victimAgent.AgentID,
+			domain.OwnerAgentFilter{},
+		)
 		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("view carries node id, name, and hostname", func(t *testing.T) {
 		store, nodeA, caller, _ := newStore()
 
-		got, err := listNodeOwnerAgents(ctx, store, nodeA, caller.AgentID, domain.OwnerAgentFilter{})
+		got, err := listNodeOwnerAgents(
+			ctx,
+			store,
+			nodeA,
+			caller.AgentID,
+			domain.OwnerAgentFilter{},
+		)
 		require.NoError(t, err)
 		nodes := ownerNodeIndex(ctx, store, got)
 

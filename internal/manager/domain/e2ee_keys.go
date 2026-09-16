@@ -35,7 +35,10 @@ type E2EEKeyPackage struct {
 }
 
 type E2EEKeyDistributionStore interface {
-	CreateE2EEPairingRequest(ctx context.Context, request E2EEPairingRequest) (E2EEPairingRequest, error)
+	CreateE2EEPairingRequest(
+		ctx context.Context,
+		request E2EEPairingRequest,
+	) (E2EEPairingRequest, error)
 	GetE2EEPairingRequest(
 		ctx context.Context,
 		ownerUserID string,

@@ -367,18 +367,7 @@ func (a *ACPTunnelAgent) handleE2EEAgentPayload(
 	payload []byte,
 	metadata reliablemq.Metadata,
 ) (bool, error) {
-	var ack e2eeCommandAck
-	if err := json.Unmarshal(payload, &ack); err == nil && ack.Type == "e2ee_command_ack" {
-		if ack.CommandID == "" {
-			return true, errors.New("invalid encrypted command acknowledgement")
-		}
-		if ack.ConnectionEpoch != a.connectionEpoch {
-			return true, nil
-		}
-		err := a.store.AcknowledgeAgentCommand(ctx, ack.CommandID, ack.ConnectionEpoch)
-		if errors.Is(err, domain.ErrConflict) {
-			return true, nil
-		}
+	if handled, err := a.handleE2EECommandAck(ctx, payload); handled {
 		return true, err
 	}
 	var envelope e2eeEnvelope
@@ -530,4 +519,22 @@ func errorString(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func (a *ACPTunnelAgent) handleE2EECommandAck(ctx context.Context, payload []byte) (bool, error) {
+	var ack e2eeCommandAck
+	if err := json.Unmarshal(payload, &ack); err == nil && ack.Type == "e2ee_command_ack" {
+		if ack.CommandID == "" {
+			return true, errors.New("invalid encrypted command acknowledgement")
+		}
+		if ack.ConnectionEpoch != a.connectionEpoch {
+			return true, nil
+		}
+		err := a.store.AcknowledgeAgentCommand(ctx, ack.CommandID, ack.ConnectionEpoch)
+		if errors.Is(err, domain.ErrConflict) {
+			return true, nil
+		}
+		return true, err
+	}
+	return false, nil
 }

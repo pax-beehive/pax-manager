@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPostgresSchemaGivenEncryptedCanonicalHistoryThenScopesMessagesAndPartsToSession(t *testing.T) {
+func TestPostgresSchemaGivenEncryptedCanonicalHistoryThenScopesMessagesAndPartsToSession(
+	t *testing.T,
+) {
 	t.Parallel()
 	initSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "init.sql"))
 	require.NoError(t, err)
@@ -27,14 +29,20 @@ func TestPostgresSchemaGivenEncryptedCanonicalHistoryThenScopesMessagesAndPartsT
 	assert.Contains(t, schema[partStart:], "FOREIGN KEY (agent_id, session_id, message_id)")
 }
 
-func TestPostgresSchemaGivenSessionTransportThenDefaultsPlainAndBackfillsEncryptedSessions(t *testing.T) {
+func TestPostgresSchemaGivenSessionTransportThenDefaultsPlainAndBackfillsEncryptedSessions(
+	t *testing.T,
+) {
 	t.Parallel()
 	initSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "init.sql"))
 	require.NoError(t, err)
 	schema := string(initSQL)
 
 	assert.Contains(t, schema, "transport TEXT NOT NULL DEFAULT 'manager'")
-	assert.Contains(t, schema, "ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS transport TEXT NOT NULL DEFAULT 'manager'")
+	assert.Contains(
+		t,
+		schema,
+		"ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS transport TEXT NOT NULL DEFAULT 'manager'",
+	)
 	assert.Contains(t, schema, "SET transport = 'e2ee'")
 	assert.Contains(t, schema, "FROM agent_commands")
 	assert.Contains(t, schema, "FROM agent_events")
@@ -47,8 +55,16 @@ func TestPostgresSchemaSkipsEmptyTransportJournalErrorBackfill(t *testing.T) {
 	require.NoError(t, err)
 	schema := string(initSQL)
 
-	assert.Contains(t, schema, "WHERE error_message = ''\n  AND error IS NOT NULL\n  AND error <> ''")
-	assert.NotContains(t, schema, "SET error_message = COALESCE(error, '') WHERE error_message = ''")
+	assert.Contains(
+		t,
+		schema,
+		"WHERE error_message = ''\n  AND error IS NOT NULL\n  AND error <> ''",
+	)
+	assert.NotContains(
+		t,
+		schema,
+		"SET error_message = COALESCE(error, '') WHERE error_message = ''",
+	)
 }
 
 func TestMemoryE2EECommandGivenKnownSessionThenMarksItsTransportEncrypted(t *testing.T) {
@@ -180,7 +196,9 @@ func TestMemoryE2EEEventsAreIdempotentAndCursorOrdered(t *testing.T) {
 	assert.Equal(t, "local_2", events[0].RecordID)
 }
 
-func TestMemoryE2EEHistoryGivenRevisionsWhenLoadedThenReturnsLatestMessageWithOrderedParts(t *testing.T) {
+func TestMemoryE2EEHistoryGivenRevisionsWhenLoadedThenReturnsLatestMessageWithOrderedParts(
+	t *testing.T,
+) {
 	t.Parallel()
 	now := time.Date(2026, 8, 7, 18, 0, 0, 0, time.UTC)
 	store := NewMemoryStore(func() time.Time { return now })

@@ -50,7 +50,12 @@ func (s immediateACPHistoryTextSink) AppendTerminalText(
 		return nil
 	}
 	chunk := terminalChunkStateFromStore(ctx, s.store, messageID)
-	target, _ := terminalChunkTarget(chunk.index, chunk.size, len(delta), defaultACPTerminalChunkMaxBytes)
+	target, _ := terminalChunkTarget(
+		chunk.index,
+		chunk.size,
+		len(delta),
+		defaultACPTerminalChunkMaxBytes,
+	)
 	return s.store.AppendMessagePartText(ctx, messageID, target, delta, nil)
 }
 
