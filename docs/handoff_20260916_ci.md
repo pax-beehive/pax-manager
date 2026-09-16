@@ -28,4 +28,8 @@ and always `make integration-down`. Do not start the local Docker daemon
 just for this repair.
 
 Both pinned Quay image manifests were verified with `docker manifest inspect`.
-Local formatting and both lint passes succeed. Full unit coverage/build and remote integration CI are pending. No deployment is included.
+Local formatting, both lint passes, full unit coverage (53.1%), and build pass.
+The first remote run restored container startup and exposed an obsolete ACP
+runtime assertion. The integration test now drives node-control snapshots,
+uses the prompt envelope turn ID, and verifies ACP frames cannot overwrite
+snapshot state. Updated integration lint passes; remote rerun is pending. No deployment is included.

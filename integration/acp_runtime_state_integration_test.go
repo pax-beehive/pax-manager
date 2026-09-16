@@ -4,6 +4,7 @@ package integration_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,7 +15,7 @@ import (
 	"github.com/pax-beehive/paxkit/reliablemq"
 )
 
-func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
+func TestACPTunnelWithAuthoritativeRuntimeSnapshotsIntegration(t *testing.T) {
 	fixture := newIntegrationFixture(t)
 	fixture.waitForHealth(t)
 
@@ -22,14 +23,54 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 	node := createBoundaryNode(t, fixture, ownerHeaders, "acp-runtime-node")
 	createdAgent := createBoundaryAgent(t, fixture, ownerHeaders, node.NodeID, "acp-runtime-agent")
 	sessionID := "sess-acp-runtime"
-	createBoundarySession(
-		t,
-		fixture,
-		ownerHeaders,
-		node.NodeID,
-		createdAgent.Agent.AgentID,
-		sessionID,
+	postJSON[session](t, fixture,
+		"/api/v1/user/self/nodes/"+node.NodeID+"/agents/"+createdAgent.Agent.AgentID+"/sessions",
+		map[string]any{"session_id": sessionID, "native_id": sessionID},
+		ownerHeaders, http.StatusOK,
 	)
+	controlWS, _, err := websocket.DefaultDialer.Dial(
+		wsURL(fixture.baseURL, "/api/v1/node/control?node_id="+url.QueryEscape(node.NodeID)),
+		http.Header{"X-Pax-Key": []string{node.APIKey}},
+	)
+	if err != nil {
+		t.Fatalf("connect node control tunnel: %v", err)
+	}
+	defer func() { _ = controlWS.Close() }()
+	sequence := 0
+	reportRuntime := func(turnID, status, approvalID string) {
+		sequence++
+		activeTurns := []map[string]any{}
+		if status != "idle" {
+			activeTurns = append(activeTurns, map[string]any{
+				"native_session_id": sessionID, "turn_id": turnID,
+				"prompt_request_id": 1, "runtime_status": status,
+				"pending_approval_id": approvalID,
+			})
+		}
+		writeRawWS(t, controlWS, mustMarshalString(t, map[string]any{
+			"kind": "report", "version": 1,
+			"report_id": fmt.Sprintf("runtime-%d", sequence),
+			"report": map[string]any{
+				"type": "session_runtime.snapshot", "remote_id": "integration-runtime",
+				"node_id": node.NodeID, "sent_at": time.Now().UTC(),
+				"session_runtime_snapshot": map[string]any{
+					"agent_id": createdAgent.Agent.AgentID, "connection_id": "integration-connection",
+					"sequence": sequence, "generated_at": time.Now().UTC(),
+					"schema_version": 1, "active_turns": activeTurns,
+				},
+			},
+		}))
+	}
+	assertRuntimeUnchanged := func(want string) {
+		t.Helper()
+		got := getJSON[session](t, fixture,
+			"/api/user/agents/"+createdAgent.Agent.AgentID+"/sessions/"+sessionID,
+			ownerHeaders, http.StatusOK,
+		)
+		if got.RuntimeState == nil || got.RuntimeState.Lifecycle != want {
+			t.Fatalf("ACP overwrote snapshot state: got %+v, want %s", got.RuntimeState, want)
+		}
+	}
 
 	agentWS := fixture.connectACPAgentTunnel(
 		t,
@@ -47,7 +88,12 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 		"method":"session/prompt",
 		"params":{"sessionId":"sess-acp-runtime","prompt":[{"type":"text","text":"run tests"}]}
 	}`)
-	assertAgentDataContains(t, agentWS, 1, `"method":"session/prompt"`)
+	prompt := assertAgentDataContains(t, agentWS, 1, `"method":"session/prompt"`)
+	turnID := prompt.Metadata["turn_id"]
+	if turnID == "" {
+		t.Fatal("prompt envelope is missing turn_id")
+	}
+	reportRuntime(turnID, "running", "")
 	waitForRuntimeState(
 		t,
 		fixture,
@@ -76,6 +122,8 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 	}`)
 	assertAgentAck(t, agentWS, createdAgent.Agent.AgentID, 1)
 	assertRawWSContains(t, userWS, `"session/request_permission"`)
+	assertRuntimeUnchanged("running")
+	reportRuntime(turnID, "waiting_approval", "perm-1")
 	waitForRuntimeState(
 		t,
 		fixture,
@@ -84,9 +132,7 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 		"waiting_approval",
 		func(state *runtimeState) bool {
 			return state.BlockedReason == "tool_approval" &&
-				state.PendingApprovalID == "perm-1" &&
-				len(state.ActiveToolCalls) == 1 &&
-				state.ActiveToolCalls[0].ToolCallID == "call-1"
+				state.PendingApprovalID == "perm-1"
 		},
 	)
 
@@ -96,6 +142,8 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 		"result":{"optionId":"allow","kind":"allow_once"}
 	}`)
 	assertAgentDataContains(t, agentWS, 2, `"perm-1"`)
+	assertRuntimeUnchanged("waiting_approval")
+	reportRuntime(turnID, "running", "")
 	waitForRuntimeState(
 		t,
 		fixture,
@@ -114,6 +162,8 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 	}`)
 	assertAgentAck(t, agentWS, createdAgent.Agent.AgentID, 2)
 	assertRawWSContains(t, userWS, `"stopReason"`)
+	assertRuntimeUnchanged("running")
+	reportRuntime(turnID, "idle", "")
 	waitForRuntimeState(
 		t,
 		fixture,
@@ -121,7 +171,7 @@ func TestACPTunnelRuntimeStateIntegration(t *testing.T) {
 		sessionID,
 		"idle",
 		func(state *runtimeState) bool {
-			return state.LastStopReason == "end_turn"
+			return state.ActivePromptRequestID == "" && state.PendingApprovalID == ""
 		},
 	)
 }
@@ -213,11 +263,12 @@ func writeRawWS(t *testing.T, ws *websocket.Conn, raw string) {
 }
 
 type acpTunnelEnvelope struct {
-	Type    string          `json:"type"`
-	QueueID string          `json:"queue_id,omitempty"`
-	Stream  string          `json:"stream"`
-	Seq     int64           `json:"seq"`
-	Payload json.RawMessage `json:"payload,omitempty"`
+	Type     string            `json:"type"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+	QueueID  string            `json:"queue_id,omitempty"`
+	Stream   string            `json:"stream"`
+	Seq      int64             `json:"seq"`
+	Payload  json.RawMessage   `json:"payload,omitempty"`
 }
 
 func writeAgentData(t *testing.T, ws *websocket.Conn, queueID string, seq int64, raw string) {
@@ -235,7 +286,12 @@ func writeAgentData(t *testing.T, ws *websocket.Conn, queueID string, seq int64,
 	writeRawWS(t, ws, string(data))
 }
 
-func assertAgentDataContains(t *testing.T, ws *websocket.Conn, seq int64, want string) {
+func assertAgentDataContains(
+	t *testing.T,
+	ws *websocket.Conn,
+	seq int64,
+	want string,
+) acpTunnelEnvelope {
 	t.Helper()
 	env := readAgentEnvelope(t, ws)
 	if env.Type != "data" || env.QueueID == "" || env.Stream != "acp" || env.Seq != seq {
@@ -250,6 +306,7 @@ func assertAgentDataContains(t *testing.T, ws *websocket.Conn, seq int64, want s
 		Stream:  "acp",
 		Seq:     seq,
 	}))
+	return env
 }
 
 func assertAgentAck(t *testing.T, ws *websocket.Conn, queueID string, seq int64) {

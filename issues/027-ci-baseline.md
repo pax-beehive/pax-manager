@@ -23,6 +23,16 @@ Use the same pinned MinIO server and client releases from quay.io in all
 three Compose configurations. Both replacement manifests were verified
 without starting a local Docker daemon. Keep all CI checks enabled.
 
+## Integration contract
+
+After restoring image pulls, run 35149278588 exposed an obsolete ACP runtime
+test: it expected ACP events to persist session state. Runtime snapshots have
+been authoritative since issue 019. The test now sends node-control snapshots
+for running, approval, resume, and idle, using the prompt envelope turn ID.
+It also checks that ACP permission and completion frames do not overwrite
+the last snapshot.
+
 ## Verification
 
-Pending local checks and GitHub integration CI.
+Local fmt-check, both lint passes, full unit coverage, and build passed.
+Updated integration-tag lint passed. Remote integration verification is pending.
