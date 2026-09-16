@@ -238,6 +238,11 @@ func projectACPTransportMessageWithTextSinkForTurn(
 	}
 	if textProjection {
 		terminalOutput := fields.ToolCallID != "" && fields.TerminalID != ""
+		if fields.TurnID != "" && !terminalOutput {
+			// New rows retain their text block boundary. Older rows without this
+			// marker may contain a whole-turn aggregate and need legacy display.
+			msg.RawJSON = json.RawMessage(`{"text_layout":"segment"}`)
+		}
 		if terminalOutput {
 			msg.RawJSON = append(json.RawMessage(nil), payload...)
 		}
@@ -768,13 +773,14 @@ func acpHistoryLogicalKey(
 	}
 	if fields.SessionID != "" && fields.TurnID != "" {
 		return fmt.Sprintf(
-			"acp:%s:%s:%s:%s:%s:%s",
+			"acp:%s:%s:%s:%s:%s:%s:%s",
 			agentID,
 			stream,
 			firstNonEmpty(fields.SessionID, "_"),
 			fields.TurnID,
 			firstNonEmpty(fields.SessionUpdate, "_"),
 			firstNonEmpty(fields.Role, "_"),
+			firstNonEmpty(historyGroupID, fmt.Sprintf("seq:%d", seq)),
 		)
 	}
 	if fields.SessionID != "" && historyGroupID != "" {
