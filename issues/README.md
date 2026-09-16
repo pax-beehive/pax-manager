@@ -27,6 +27,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 023 | resolved | [Observer replay has no consistent turn or message contract](023-observer-turn-contract.md) | high | observer / storage / console |
 | 024 | resolved | [Summary history loses prompts and long-turn replies](024-summary-history-missing-text.md) | high | history / console |
 | 025 | resolved | [Tagged turns collapse distinct text segments](025-tagged-turn-text-segments.md) | high | history / console |
+| 026 | resolved | [Message detail reads select the regex substring overload](026-message-detail-substring-overload.md) | high | storage / userapi |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 

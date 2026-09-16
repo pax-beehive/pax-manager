@@ -88,7 +88,11 @@ func TestPostgresMessageDetailSlicesBeforeReturning(t *testing.T) {
 	require.True(t, page.HasMore)
 	require.Equal(t, 15, page.NextOffset)
 	query := script.queryTexts[len(script.queryTexts)-1]
-	require.Contains(t, query, "substring(COALESCE(body, payload::text) FROM $4 FOR $5)")
+	require.Contains(
+		t,
+		query,
+		"substring(COALESCE(body, payload::text) FROM $4::integer FOR $5::integer)",
+	)
 	require.Contains(t, query, "agent_id=$1 AND message_id=$2 AND session_id IN")
 }
 

@@ -32,3 +32,6 @@ Persisted tool raw JSON is not migrated; PostgreSQL may still detoast a large
 value when extracting summary fields. Detail reads of terminal parts assemble
 text inside PostgreSQL before slicing. Actual production latency/EXPLAIN has
 not been measured. The remaining work is not classified as resolved.
+
+The initial detail endpoint SQL overload failure is tracked and fixed separately
+in issue 026. The remaining performance limitations above keep this issue partial.
