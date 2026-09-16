@@ -30,15 +30,13 @@ var messageSummaryReturningSQL = strings.Replace(messageReturningSQL,
 func (s *PostgresStore) ListMessageSummaryPage(
 	ctx context.Context, agentID, sessionID string, afterSeq, beforeSeq int64, limit int,
 ) (domain.MessageHistoryPage, error) {
-	return s.listMessageHistoryPageBySeq(
-		ctx,
-		agentID,
-		sessionID,
-		afterSeq,
-		beforeSeq,
-		limit,
-		messageSummaryReturningSQL,
+	page, err := s.listMessageHistoryPageBySeq(
+		ctx, agentID, sessionID, afterSeq, beforeSeq, limit, messageSummaryReturningSQL,
 	)
+	if err != nil {
+		return page, err
+	}
+	return s.withSummaryTurnContext(ctx, agentID, sessionID, page)
 }
 
 func (s *PostgresStore) ListMessageSummaryParts(
@@ -117,6 +115,7 @@ func (s *MemoryStore) ListMessageSummaryPage(
 	if err != nil {
 		return page, err
 	}
+	page = s.withSummaryTurnContext(agentID, sessionID, page)
 	for i := range page.Messages {
 		msg := &page.Messages[i]
 		if !isToolMessage(msg.MessageType) {

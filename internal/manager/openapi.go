@@ -292,7 +292,7 @@ func sessionHistoryPathOperation(agentScoped bool) map[string]any {
 				"enum":    []string{"full", "summary"},
 				"default": "full",
 			},
-			"description": "Summary returns tool metadata with has_detail and no tool parts or raw frame. Text and display metadata remain inline. Uses seq cursors, defaults to 100 messages, maximum 200. Full preserves legacy responses.",
+			"description": "Summary returns tool metadata with has_detail and no tool parts or raw frame. Text and display metadata remain inline. Uses seq cursors with a base page of 100 rows, maximum 200, plus non-tool context for turns on that page. Pagination cursors refer to the base page, not the earliest context row. Full preserves legacy responses.",
 		})
 	}
 	for _, name := range []string{"before_seq", "after_seq"} {
