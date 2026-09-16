@@ -534,7 +534,9 @@ type MessagePart struct {
 
 type MessageWithParts struct {
 	Message
-	Parts []MessagePart `json:"parts"`
+	Parts     []MessagePart       `json:"parts"`
+	Tool      *MessageToolSummary `json:"tool,omitempty"`
+	HasDetail bool                `json:"has_detail,omitempty"`
 }
 
 type MessageHistoryPage struct {

@@ -161,6 +161,7 @@ type FleetStore interface {
 }
 
 type SessionHistoryStore interface {
+	domain.MessageSummaryStore
 	ListMessages(
 		ctx context.Context,
 		agentID string,

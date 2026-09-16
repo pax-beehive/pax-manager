@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,18 +15,59 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 )
 
+// The observer has one source of truth: the durable transcript of one pinned
+// business turn. Live updates replace message versions, never append raw ACP
+// deltas to a history aggregate.
 func (s *Service) handleSessionObserverEvents(w http.ResponseWriter, r *http.Request) {
 	ctx, logID := httpRequestLogContext(r.Context(), r)
 	w.Header().Set(logging.HeaderLogID, logID)
-	r = r.WithContext(ctx)
 	if r.Method != http.MethodGet {
 		writeHTTPError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	control, err := s.resolveConversationTurnControlSession(r)
+	control, err := s.resolveConversationTurnControlSession(r.WithContext(ctx))
 	if err != nil {
 		writeHTTPEndpointError(w, err)
 		return
+	}
+	cursor, err := parseSessionObserverCursor(r)
+	if err != nil {
+		writeHTTPError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	turnID := strings.TrimSpace(r.URL.Query().Get("turn_id"))
+	if turnID == "" && cursor > 0 {
+		writeHTTPError(w, http.StatusBadRequest, "turn_id is required with a resume cursor")
+		return
+	}
+	if turnID == "" && conversationSessionHasActiveTurn(control.session) {
+		turnID = conversationActiveTurnID(control.session)
+	}
+	store, ok := s.store.(domain.TurnTranscriptStore)
+	if !ok {
+		writeHTTPError(w, http.StatusInternalServerError, "turn transcript store unavailable")
+		return
+	}
+	var items []domain.MessageWithParts
+	if turnID != "" {
+		items, err = store.ListTurnTranscript(
+			ctx,
+			control.agent.AgentID,
+			control.session.SessionID,
+			turnID,
+		)
+		if err != nil {
+			writeHTTPEndpointError(w, err)
+			return
+		}
+		if len(items) == 0 && turnID != conversationActiveTurnID(control.session) {
+			writeHTTPError(w, http.StatusNotFound, "turn not found in session")
+			return
+		}
+		if cursor > turnTranscriptHead(items) {
+			writeHTTPError(w, http.StatusConflict, "cursor is ahead of the target turn")
+			return
+		}
 	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -36,215 +78,142 @@ func (s *Service) handleSessionObserverEvents(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
-
-	// Resume from the client's cursor (seq refactor): replay durable transcript
-	// items past the cursor before joining the live stream, so a reconnect never
-	// requires a separate full history refetch. Then advertise the head so the
-	// client knows if it is still behind.
-	afterSeq := sessionObserverCursor(r)
-	headSeq, err := writeSessionSeqCatchup(
-		ctx, w, flusher, s.store,
-		control.agent.NodeID, control.agent.AgentID, control.session.SessionID, afterSeq,
-	)
-	if err != nil {
-		logging.Error(ctx, "session observer catch-up failed", logging.Err(err))
-	}
-	_ = writeSessionObserverEvent(w, flusher, conversationEvent{
-		Type:      "head",
-		NodeID:    control.agent.NodeID,
-		AgentID:   control.agent.AgentID,
-		SessionID: control.session.SessionID,
-		HeadSeq:   headSeq,
-	})
-
-	activePromptID := conversationActivePromptRequestID(control.session)
-	activeTurnID := conversationActiveTurnID(control.session)
-	if !conversationSessionHasActiveTurn(control.session) {
-		_ = writeSessionObserverEvent(w, flusher, conversationEvent{
-			Type:      "no_running_turn",
-			NodeID:    control.agent.NodeID,
-			AgentID:   control.agent.AgentID,
-			SessionID: control.session.SessionID,
-			Status:    conversationSessionStatus(control.session),
-		})
+	base := conversationEvent{NodeID: control.agent.NodeID, AgentID: control.agent.AgentID,
+		SessionID: control.session.SessionID, TurnID: turnID}
+	if turnID == "" {
+		base.Type = "no_running_turn"
+		_ = writeSessionObserverEvent(w, flusher, base)
 		return
 	}
-	agentConn, err := s.acpTunnels.findAny(
-		control.agent.AgentID,
-		control.session.SessionID,
-		control.session.NativeID,
-		"",
-	)
-	if err != nil {
-		// Headers are already flushed as an event stream, so surface the failure
-		// as an SSE error rather than an HTTP status.
-		_ = writeSessionObserverEvent(w, flusher, conversationEvent{
-			Type:      "error",
-			NodeID:    control.agent.NodeID,
-			AgentID:   control.agent.AgentID,
-			SessionID: control.session.SessionID,
-			Message:   err.Error(),
-		})
+	base.Type = "turn_start"
+	if err := writeSessionObserverEvent(w, flusher, base); err != nil {
 		return
 	}
-	sub := agentConn.subscribeSSE(control.session.SessionID)
-	defer agentConn.unsubscribeSSE(sub)
+	s.streamTurnTranscript(ctx, w, flusher, store, base, items)
+}
 
-	timer := time.NewTimer(conversationRequestIdleTimeout)
-	defer timer.Stop()
+func parseSessionObserverCursor(r *http.Request) (int64, error) {
+	if r.URL.Query().Has("after_message_id") {
+		return 0, errors.New("after_message_id is unsupported; use turn_id and after_seq")
+	}
+	value := r.URL.Query().Get("after_seq")
+	if !r.URL.Query().Has("after_seq") {
+		value = r.Header.Get("Last-Event-ID")
+	}
+	if value == "" {
+		return 0, nil
+	}
+	cursor, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || cursor < 0 {
+		return 0, errors.New("invalid observer cursor")
+	}
+	return cursor, nil
+}
+
+func turnTranscriptHead(items []domain.MessageWithParts) int64 {
+	var head int64
+	for _, item := range items {
+		if item.SessionSeq > head {
+			head = item.SessionSeq
+		}
+	}
+	return head
+}
+
+func (s *Service) streamTurnTranscript(
+	ctx context.Context, w http.ResponseWriter, flusher http.Flusher,
+	store domain.TurnTranscriptStore, base conversationEvent, items []domain.MessageWithParts,
+) {
+	versions := make(map[string]string)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	idle := time.NewTimer(conversationRequestIdleTimeout)
+	defer idle.Stop()
 	for {
+		changed, complete, err := writeTurnTranscriptUpdate(w, flusher, base, items, versions)
+		if err != nil {
+			return
+		}
+		if changed {
+			resetConversationIdleTimer(idle)
+		}
+		if complete {
+			base.Type = "turn_done"
+			base.Status = "done"
+			_ = writeSessionObserverEvent(w, flusher, base)
+			return
+		}
 		select {
-		case payload, ok := <-sub.ch:
-			if !ok {
+		case <-ctx.Done():
+			return
+		case <-idle.C:
+			base.Type = "resync"
+			base.Message = "turn transcript idle timeout; reconnect to the same turn"
+			_ = writeSessionObserverEvent(w, flusher, base)
+			return
+		case <-ticker.C:
+			items, err = store.ListTurnTranscript(ctx, base.AgentID, base.SessionID, base.TurnID)
+			if err != nil {
+				base.Type = "error"
+				base.Message = "turn transcript read failed"
+				_ = writeSessionObserverEvent(w, flusher, base)
 				return
 			}
-			resetConversationIdleTimer(timer)
-			if err := writeSessionObserverEvent(w, flusher, conversationEvent{
-				Type:      "acp",
-				NodeID:    control.agent.NodeID,
-				AgentID:   control.agent.AgentID,
-				SessionID: control.session.SessionID,
-				TurnID:    activeTurnID,
-				Frame:     append(json.RawMessage(nil), payload...),
-			}); err != nil {
-				return
-			}
-			if sessionObserverPayloadCompletesTurn(payload, activePromptID) {
-				_ = writeSessionObserverEvent(w, flusher, conversationEvent{
-					Type:      "turn_done",
-					NodeID:    control.agent.NodeID,
-					AgentID:   control.agent.AgentID,
-					SessionID: control.session.SessionID,
-					TurnID:    activeTurnID,
-					Status:    "done",
-				})
-				return
-			}
-		case err, ok := <-sub.terminal:
-			if ok && err != nil {
-				if errors.Is(err, errACPSSESubscriberOverflow) {
-					// Tell the client the exact watermark to pull from instead of
-					// an opaque "reconnect": it resumes via history?after_seq.
-					_ = writeSessionObserverEvent(w, flusher, conversationEvent{
-						Type:      "resync",
-						NodeID:    control.agent.NodeID,
-						AgentID:   control.agent.AgentID,
-						SessionID: control.session.SessionID,
-						HeadSeq:   headSeq,
-						Message:   err.Error(),
-					})
-				} else {
-					_ = writeSessionObserverEvent(w, flusher, conversationEvent{
-						Type:      "error",
-						NodeID:    control.agent.NodeID,
-						AgentID:   control.agent.AgentID,
-						SessionID: control.session.SessionID,
-						Message:   err.Error(),
-					})
-				}
-			}
-			return
-		case <-timer.C:
-			_ = writeSessionObserverEvent(w, flusher, conversationEvent{
-				Type:      "error",
-				NodeID:    control.agent.NodeID,
-				AgentID:   control.agent.AgentID,
-				SessionID: control.session.SessionID,
-				Message:   "session observer idle timed out",
-			})
-			return
-		case <-r.Context().Done():
-			return
 		}
 	}
 }
 
-func sessionObserverPayloadCompletesTurn(payload []byte, activePromptID string) bool {
-	if activePromptID == "" {
-		return false
-	}
-	var frame acpJSONRPCMessage
-	if json.Unmarshal(payload, &frame) != nil {
-		return false
-	}
-	if acpRequestID(frame.ID) != activePromptID {
-		return false
-	}
-	return len(frame.Result) > 0 || len(frame.Error) > 0
-}
-
-// sessionObserverCursor extracts the resume cursor from the request: the
-// explicit after_seq query parameter, or the SSE Last-Event-ID header set by the
-// browser EventSource on automatic reconnect.
-func sessionObserverCursor(r *http.Request) int64 {
-	if v := strings.TrimSpace(r.URL.Query().Get("after_seq")); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
-			return n
+func writeTurnTranscriptUpdate(
+	w http.ResponseWriter, flusher http.Flusher, base conversationEvent,
+	items []domain.MessageWithParts, versions map[string]string,
+) (bool, bool, error) {
+	changed, complete := false, false
+	present := make(map[string]bool, len(items))
+	for i := range items {
+		item := &items[i]
+		if item.TurnID != base.TurnID || item.SessionID != base.SessionID {
+			continue
 		}
-	}
-	if v := strings.TrimSpace(r.Header.Get("Last-Event-ID")); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
-			return n
+		present[item.MessageID] = true
+		if item.MessageType == "turn_done" {
+			complete = true
 		}
-	}
-	return 0
-}
-
-// writeSessionSeqCatchup replays durable transcript items with session_seq >
-// afterSeq as ordered "history_item" SSE events (each tagged with its seq as the
-// SSE id), so a reconnecting client resumes from its cursor without a separate
-// full history refetch. It returns the session's current head seq.
-func writeSessionSeqCatchup(
-	ctx context.Context,
-	w http.ResponseWriter,
-	flusher http.Flusher,
-	store domain.Store,
-	nodeID string,
-	agentID string,
-	sessionID string,
-	afterSeq int64,
-) (int64, error) {
-	cursor := afterSeq
-	headSeq := int64(0)
-	for {
-		page, err := store.ListMessageHistoryPageBySeq(ctx, agentID, sessionID, cursor, 0, 200)
+		encoded, err := json.Marshal(item)
 		if err != nil {
-			return headSeq, err
+			return false, false, err
 		}
-		if page.HeadSeq > headSeq {
-			headSeq = page.HeadSeq
+		version := fmt.Sprintf("%x", sha256.Sum256(encoded))
+		if versions[item.MessageID] == version {
+			continue
 		}
-		if len(page.Messages) == 0 {
-			return headSeq, nil
+		event := base
+		event.Type, event.MessageID, event.Seq, event.Item = "history_item", item.MessageID, item.SessionSeq, item
+		if err := writeSessionObserverEvent(w, flusher, event); err != nil {
+			return false, false, err
 		}
-		ids := make([]string, 0, len(page.Messages))
-		for _, msg := range page.Messages {
-			ids = append(ids, msg.MessageID)
-		}
-		partsByID, err := store.ListMessagePartsByMessageIDs(ctx, ids)
-		if err != nil {
-			return headSeq, err
-		}
-		for _, msg := range page.Messages {
-			item := domain.MessageWithParts{Message: msg, Parts: partsByID[msg.MessageID]}
-			if err := writeSessionObserverEventWithID(w, flusher, msg.SessionSeq, conversationEvent{
-				Type:      "history_item",
-				NodeID:    nodeID,
-				AgentID:   agentID,
-				SessionID: sessionID,
-				TurnID:    msg.TurnID,
-				MessageID: msg.MessageID,
-				Seq:       msg.SessionSeq,
-				Item:      &item,
-			}); err != nil {
-				return headSeq, err
-			}
-			cursor = msg.SessionSeq
-		}
-		if !page.HasNewer {
-			return headSeq, nil
-		}
+		versions[item.MessageID] = version
+		changed = true
 	}
+	// Invocation display projection may replace earlier transcript rows.
+	for id := range versions {
+		if present[id] {
+			continue
+		}
+		event := base
+		event.Type, event.MessageID = "history_remove", id
+		if err := writeSessionObserverEvent(w, flusher, event); err != nil {
+			return false, false, err
+		}
+		delete(versions, id)
+		changed = true
+	}
+	// A head commits the batch. Individual items are not resume checkpoints:
+	// existing rows can change without receiving another SessionSeq.
+	base.Type, base.HeadSeq = "head", turnTranscriptHead(items)
+	if err := writeSessionObserverEventWithID(w, flusher, base.HeadSeq, base); err != nil {
+		return false, false, err
+	}
+	return changed, complete, nil
 }
 
 func writeSessionObserverEvent(

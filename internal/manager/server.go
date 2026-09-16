@@ -258,6 +258,7 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.GET(routeLegacySessionHistory, ListAgentSessionHistory)
 	h.GET(routeSessionHistory, ListAgentSessionHistory)
 	h.GET(routeUserSessionHistory, ListSessionHistory)
+	h.GET(routeUserSessionMessageDetail, GetSessionMessageDetail)
 	h.POST(
 		routeCreateKnowledgeCapsule,
 		CreateKnowledgeCapsule,

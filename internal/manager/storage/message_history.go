@@ -204,6 +204,24 @@ func (s *PostgresStore) ListMessageHistoryPageBySeq(
 	beforeSeq int64,
 	limit int,
 ) (domain.MessageHistoryPage, error) {
+	return s.listMessageHistoryPageBySeq(
+		ctx,
+		agentID,
+		sessionID,
+		afterSeq,
+		beforeSeq,
+		limit,
+		messageReturningSQL,
+	)
+}
+
+func (s *PostgresStore) listMessageHistoryPageBySeq(
+	ctx context.Context,
+	agentID, sessionID string,
+	afterSeq, beforeSeq int64,
+	limit int,
+	projection string,
+) (domain.MessageHistoryPage, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
@@ -241,7 +259,7 @@ func (s *PostgresStore) ListMessageHistoryPageBySeq(
 	}
 	args = append(args, limit+1)
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT `+messageReturningSQL+`
+		SELECT `+projection+`
 		FROM messages
 		WHERE `+filter+`
 		ORDER BY session_seq `+order+`
@@ -287,7 +305,13 @@ func conversationSeqOf(m Message) int64 { return m.ConversationSeq }
 // fills the cursor metadata. Forward pages arrive ascending; backward pages
 // arrive descending and are reversed. seqOf selects the scope's ordering key
 // (session or conversation). Shared by both stores.
-func buildSeqHistoryPage(messages []Message, headSeq int64, forward bool, limit int, seqOf func(Message) int64) domain.MessageHistoryPage {
+func buildSeqHistoryPage(
+	messages []Message,
+	headSeq int64,
+	forward bool,
+	limit int,
+	seqOf func(Message) int64,
+) domain.MessageHistoryPage {
 	trimmed := false
 	if len(messages) > limit {
 		trimmed = true
@@ -699,7 +723,10 @@ func (s *MemoryStore) ListConversationHistoryPageBySeq(
 		}
 	}
 	if forward {
-		sort.Slice(filtered, func(i, j int) bool { return filtered[i].ConversationSeq < filtered[j].ConversationSeq })
+		sort.Slice(
+			filtered,
+			func(i, j int) bool { return filtered[i].ConversationSeq < filtered[j].ConversationSeq },
+		)
 	} else {
 		sort.Slice(filtered, func(i, j int) bool { return filtered[i].ConversationSeq > filtered[j].ConversationSeq })
 	}
@@ -799,7 +826,10 @@ func (s *MemoryStore) ListMessageHistoryPageBySeq(
 		}
 	}
 	if forward {
-		sort.Slice(filtered, func(i, j int) bool { return filtered[i].SessionSeq < filtered[j].SessionSeq })
+		sort.Slice(
+			filtered,
+			func(i, j int) bool { return filtered[i].SessionSeq < filtered[j].SessionSeq },
+		)
 	} else {
 		sort.Slice(filtered, func(i, j int) bool { return filtered[i].SessionSeq > filtered[j].SessionSeq })
 	}
