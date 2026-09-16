@@ -115,3 +115,25 @@ func TestMessageSummaryPartsPreservesIndependentPayload(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, string(raw), string(stored[0].PayloadJSON))
 }
+
+func TestPostgresSummaryContextStaysWithinPageTurnsAndSession(t *testing.T) {
+	script := &scriptedPostgresScript{queries: []scriptedRows{
+		scriptedRow("session"), scriptedRow("native"), {},
+	}}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+	page := domain.MessageHistoryPage{HeadSeq: 160, NextBeforeSeq: 60, HasOlder: true,
+		Messages: []Message{{MessageID: "tool", TurnID: "turn", SessionSeq: 60}},
+	}
+	got, err := store.withSummaryTurnContext(t.Context(), "agent", "session", page)
+	require.NoError(t, err)
+	require.Equal(t, page.NextBeforeSeq, got.NextBeforeSeq)
+	query := script.queryTexts[len(script.queryTexts)-1]
+	require.Contains(t, query, "agent_id = $1 AND session_id IN ($2,$3)")
+	require.Contains(t, query, "turn_id IN ($4)")
+	require.Contains(t, query, "message_type IS NULL OR NOT")
+	require.Contains(t, query, "session_seq <= $5")
+	args := script.queryArgs[len(script.queryArgs)-1]
+	require.Equal(t, "turn", args[3].Value)
+	require.Equal(t, int64(160), args[4].Value)
+}

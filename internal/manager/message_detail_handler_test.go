@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +17,71 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
+
+func TestSummaryHistoryKeepsConversationTextAcrossToolPageBoundary(t *testing.T) {
+	srv, _ := testServer(t, "history@example.com")
+	fixture := testNodeAgent(t, srv, "history@example.com")
+	createConversationTestSession(t, srv, fixture, "long-history", "native-long-history")
+	put := func(id, role, kind, text string, raw json.RawMessage) {
+		t.Helper()
+		require.NoError(t, srv.store.UpsertMessage(t.Context(), &domain.Message{
+			MessageID: id, AgentID: fixture.agentID, SessionID: "long-history", TurnID: "turn-long",
+			Source: domain.MessageSourceACPTunnel, Direction: domain.MessageDirectionAgentToUser,
+			Role: role, MessageType: kind, RawJSON: raw,
+		}))
+		if text != "" {
+			require.NoError(t, srv.store.UpsertMessagePart(t.Context(), &domain.MessagePart{
+				MessageID: id, PartType: domain.MessagePartText, Text: text,
+			}))
+		}
+	}
+	put("user-prompt", "user", "user", "Read the deployment status", json.RawMessage(
+		`{"method":"session/prompt","params":{"prompt":[{"type":"text","text":"Read the deployment status"}]}}`,
+	))
+	put("assistant-answer", "assistant", "agent_message_chunk", "Deployment completed", nil)
+	for i := 0; i < 150; i++ {
+		put(fmt.Sprintf("tool-%03d", i), "assistant", "tool_call", "", json.RawMessage(
+			`{"params":{"update":{"toolCallId":"call","title":"Check deployment","status":"completed","rawOutput":"not-inline"}}}`,
+		))
+	}
+	put("turn-done", "assistant", "turn_done", "", nil)
+	read := func(cursor int64) domain.MessageHistoryPagination {
+		t.Helper()
+		path := "/api/v1/user/self/sessions/long-history/history?view=summary&limit=100"
+		if cursor != 0 {
+			path += "&before_seq=" + strconv.FormatInt(cursor, 10)
+		}
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("X-User-Email", fixture.userEmail)
+		rec := httptest.NewRecorder()
+		srv.routes().ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		body := decodeData[struct {
+			Messages   []domain.MessageWithParts       `json:"messages"`
+			Pagination domain.MessageHistoryPagination `json:"pagination"`
+		}](t, rec.Body.Bytes())
+		byID := map[string]domain.MessageWithParts{}
+		tools := 0
+		for _, message := range body.Messages {
+			require.NotContains(t, byID, message.MessageID)
+			byID[message.MessageID] = message
+			if message.Tool != nil {
+				tools++
+				require.Empty(t, message.RawJSON)
+			}
+		}
+		require.LessOrEqual(t, tools, 100)
+		require.Equal(t, "Read the deployment status", byID["user-prompt"].Parts[0].Text)
+		require.Equal(t, "Deployment completed", byID["assistant-answer"].Parts[0].Text)
+		require.NotContains(t, rec.Body.String(), "not-inline")
+		return body.Pagination
+	}
+	page := read(0)
+	require.True(t, page.HasOlder)
+	require.Greater(t, page.NextBeforeSeq, int64(2))
+	older := read(page.NextBeforeSeq)
+	require.False(t, older.HasOlder)
+}
 
 func TestSessionMessageSummaryAndDetails(t *testing.T) {
 	srv, _ := testServer(t, "history@example.com")
@@ -129,7 +195,18 @@ func TestSessionMessageSummaryAndDetails(t *testing.T) {
 	}))
 	rec = get(root+"/history?view=summary", fixture.userEmail)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	require.Equal(t, 1, strings.Count(rec.Body.String(), "unique-user-body"))
+	withPrompt := decodeData[struct {
+		Messages []domain.MessageWithParts `json:"messages"`
+	}](t, rec.Body.Bytes())
+	var promptParts []domain.MessagePart
+	for _, message := range withPrompt.Messages {
+		if message.MessageID == prompt.MessageID {
+			promptParts = message.Parts
+		}
+	}
+	require.Len(t, promptParts, 1)
+	require.Equal(t, "unique-user-body", promptParts[0].Text)
+	require.Empty(t, promptParts[0].PayloadJSON)
 	require.Equal(t, 1, strings.Count(rec.Body.String(), "test-image"))
 
 }

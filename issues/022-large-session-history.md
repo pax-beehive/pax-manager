@@ -16,9 +16,9 @@ up to 1000 messages and can write artifact projections on each GET.
 ## Current note
 
 The session-scoped history endpoint supports view=summary. Console uses this
-mode with 100 messages per page. PostgreSQL projects only tool identity/title/
+mode with 100 base rows per page plus non-tool context for the turns on the page. PostgreSQL projects only tool identity/title/
 status/kind and omits tool parts from the list. User prompt frames are retained
-once, and text parts do not include duplicate payloads. Artifact/invocation and
+once, and canonical prompt text parts remain inline without duplicate payload JSON. Artifact/invocation and
 permission display records remain available. Summary reads skip the historical
 artifact repair hook; normal publication and ACP write paths still reconcile.
 

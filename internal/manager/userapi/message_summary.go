@@ -57,11 +57,9 @@ func (s *Service) ListSessionHistorySummary(
 			item.RawJSON = nil
 			item.HasDetail = true
 		default:
-			// A user prompt frame contains text and attachments. Keep it once and do
-			// not fetch its duplicate extracted text/payload parts.
-			if !isSummaryPrompt(msg) {
-				ids = append(ids, msg.MessageID)
-			}
+			// Text parts are the display contract, including for user prompts.
+			// Raw frames alone are not a replacement for extracted prompt text.
+			ids = append(ids, msg.MessageID)
 		}
 		history = append(history, item)
 	}
@@ -136,14 +134,4 @@ func (s *Service) GetSessionMessageDetail(
 		}
 	}
 	return http.StatusOK, page, nil
-}
-
-func isSummaryPrompt(msg domain.Message) bool {
-	if msg.Role != "user" {
-		return false
-	}
-	var frame struct {
-		Method string `json:"method"`
-	}
-	return json.Unmarshal(msg.RawJSON, &frame) == nil && frame.Method == "session/prompt"
 }
