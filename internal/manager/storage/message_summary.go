@@ -173,6 +173,7 @@ func (s *PostgresStore) GetMessageDetailPage(
 	}
 	var text, format string
 	var revision time.Time
+	// Explicit integer casts select positional substring, not its text/regex overload.
 	err = s.db.QueryRowContext(ctx, `
  WITH selected AS (
   SELECT message_id, updated_at, `+toolUpdateSQL+` AS u FROM messages
@@ -186,7 +187,7 @@ func (s *PostgresStore) GetMessageDetailPage(
   FROM selected
  )
  SELECT revision, CASE WHEN body IS NOT NULL THEN 'text' ELSE 'json' END,
- substring(COALESCE(body, payload::text) FROM $4 FOR $5) FROM content`, args...).Scan(&revision, &format, &text)
+ substring(COALESCE(body, payload::text) FROM $4::integer FOR $5::integer) FROM content`, args...).Scan(&revision, &format, &text)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.MessageDetailPage{}, domain.ErrNotFound
 	}

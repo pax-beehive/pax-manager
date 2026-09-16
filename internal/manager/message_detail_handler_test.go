@@ -136,6 +136,14 @@ func TestSessionMessageSummaryAndDetails(t *testing.T) {
 	require.Equal(t, "summary-session", history.Messages[0].SessionID)
 	require.Empty(t, history.Messages[0].RawJSON)
 	require.Empty(t, history.Messages[0].Parts)
+
+	// A caller can use the tool message ID from history without any query options.
+	rec = get(root+"/messages/"+url.PathEscape(history.Messages[0].MessageID), fixture.userEmail)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	firstDetail := decodeData[domain.MessageDetailPage](t, rec.Body.Bytes())
+	require.Equal(t, history.Messages[0].MessageID, firstDetail.MessageID)
+	require.Equal(t, "output", firstDetail.Section)
+	require.NotEmpty(t, firstDetail.Text)
 	var combined strings.Builder
 	offset, revision := 0, ""
 	for {
