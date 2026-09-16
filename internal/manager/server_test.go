@@ -2983,7 +2983,7 @@ func TestSessionObserverGivenIdleSessionWhenOpenedThenReturnsNoRunningTurn(t *te
 	assert.Contains(t, rec.Body.String(), `"session_id":"sess-observer-idle"`)
 }
 
-func TestSessionObserverGivenBusinessTurnWhenStreamingThenKeepsExistingEnvelopeProtocol(
+func TestSessionObserverGivenBusinessTurnWhenStreamingThenReplaysDurableVersions(
 	t *testing.T,
 ) {
 	srv, _ := testServer(t, "todd@example.com")
@@ -3059,11 +3059,17 @@ func TestSessionObserverGivenBusinessTurnWhenStreamingThenKeepsExistingEnvelopeP
 		}
 		observerRespCh <- resp
 	}()
-	agentConn, err := srv.acpTunnels.findAny(fixture.agentID, "")
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		return agentConn.asyncReceiverCounts().sseSubscribers >= 2
-	}, 2*time.Second, 5*time.Millisecond)
+	// The observer acknowledges the pinned turn before output arrives. It does
+	// not subscribe to raw ACP deltas.
+	var observerResp *http.Response
+	select {
+	case observerResp = <-observerRespCh:
+		require.Equal(t, http.StatusOK, observerResp.StatusCode)
+	case requestErr := <-observerErrCh:
+		require.NoError(t, requestErr)
+	case <-time.After(2 * time.Second):
+		require.FailNow(t, "observer did not open")
+	}
 
 	writeAgentDataFrame(t, agentWS, promptEnv.QueueID, 1, json.RawMessage(
 		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-observer","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"observed output"}}}}`,
@@ -3072,21 +3078,15 @@ func TestSessionObserverGivenBusinessTurnWhenStreamingThenKeepsExistingEnvelopeP
 		`{"jsonrpc":"2.0","id":`+promptID+`,"result":{"stopReason":"end_turn"}}`,
 	))
 
-	var observerResp *http.Response
-	select {
-	case observerResp = <-observerRespCh:
-		require.Equal(t, http.StatusOK, observerResp.StatusCode)
-	case requestErr := <-observerErrCh:
-		require.NoError(t, requestErr)
-	case <-time.After(2 * time.Second):
-		require.FailNow(t, "observer did not return after turn completion")
-	}
 	observerBody, err := io.ReadAll(observerResp.Body)
 	require.NoError(t, err)
 	require.NoError(t, observerResp.Body.Close())
 	observerEvents := decodeConversationEvents(t, observerBody)
 	requireNoConversationEvent(t, observerEvents, "turn_started")
-	for _, event := range conversationEventsOfType(observerEvents, "acp") {
+	requireConversationEvent(t, observerEvents, "turn_start")
+	requireNoConversationEvent(t, observerEvents, "acp")
+	require.Contains(t, string(observerBody), "observed output")
+	for _, event := range conversationEventsOfType(observerEvents, "history_item") {
 		assert.Equal(t, businessTurnID, event.TurnID)
 	}
 	observerDone := requireConversationEvent(t, observerEvents, "turn_done")

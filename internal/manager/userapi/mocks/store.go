@@ -2168,6 +2168,68 @@ func (_c *MockStore_GetKnowledgeCapsule_Call) RunAndReturn(run func(context.Cont
 	return _c
 }
 
+// GetMessageDetailPage provides a mock function with given fields: ctx, agentID, sessionID, messageID, section, offset, limit
+func (_m *MockStore) GetMessageDetailPage(ctx context.Context, agentID string, sessionID string, messageID string, section string, offset int, limit int) (domain.MessageDetailPage, error) {
+	ret := _m.Called(ctx, agentID, sessionID, messageID, section, offset, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetMessageDetailPage")
+	}
+
+	var r0 domain.MessageDetailPage
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, int, int) (domain.MessageDetailPage, error)); ok {
+		return rf(ctx, agentID, sessionID, messageID, section, offset, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, string, int, int) domain.MessageDetailPage); ok {
+		r0 = rf(ctx, agentID, sessionID, messageID, section, offset, limit)
+	} else {
+		r0 = ret.Get(0).(domain.MessageDetailPage)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, string, int, int) error); ok {
+		r1 = rf(ctx, agentID, sessionID, messageID, section, offset, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetMessageDetailPage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetMessageDetailPage'
+type MockStore_GetMessageDetailPage_Call struct {
+	*mock.Call
+}
+
+// GetMessageDetailPage is a helper method to define mock.On call
+//   - ctx context.Context
+//   - agentID string
+//   - sessionID string
+//   - messageID string
+//   - section string
+//   - offset int
+//   - limit int
+func (_e *MockStore_Expecter) GetMessageDetailPage(ctx interface{}, agentID interface{}, sessionID interface{}, messageID interface{}, section interface{}, offset interface{}, limit interface{}) *MockStore_GetMessageDetailPage_Call {
+	return &MockStore_GetMessageDetailPage_Call{Call: _e.mock.On("GetMessageDetailPage", ctx, agentID, sessionID, messageID, section, offset, limit)}
+}
+
+func (_c *MockStore_GetMessageDetailPage_Call) Run(run func(ctx context.Context, agentID string, sessionID string, messageID string, section string, offset int, limit int)) *MockStore_GetMessageDetailPage_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].(string), args[5].(int), args[6].(int))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetMessageDetailPage_Call) Return(_a0 domain.MessageDetailPage, _a1 error) *MockStore_GetMessageDetailPage_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetMessageDetailPage_Call) RunAndReturn(run func(context.Context, string, string, string, string, int, int) (domain.MessageDetailPage, error)) *MockStore_GetMessageDetailPage_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetNode provides a mock function with given fields: ctx, principal, nodeID
 func (_m *MockStore) GetNode(ctx context.Context, principal domain.UserPrincipal, nodeID string) (domain.Node, error) {
 	ret := _m.Called(ctx, principal, nodeID)
@@ -3458,6 +3520,126 @@ func (_c *MockStore_ListMessagePartsByMessageIDs_Call) Return(_a0 map[string][]d
 }
 
 func (_c *MockStore_ListMessagePartsByMessageIDs_Call) RunAndReturn(run func(context.Context, []string) (map[string][]domain.MessagePart, error)) *MockStore_ListMessagePartsByMessageIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListMessageSummaryPage provides a mock function with given fields: ctx, agentID, sessionID, afterSeq, beforeSeq, limit
+func (_m *MockStore) ListMessageSummaryPage(ctx context.Context, agentID string, sessionID string, afterSeq int64, beforeSeq int64, limit int) (domain.MessageHistoryPage, error) {
+	ret := _m.Called(ctx, agentID, sessionID, afterSeq, beforeSeq, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListMessageSummaryPage")
+	}
+
+	var r0 domain.MessageHistoryPage
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, int64, int) (domain.MessageHistoryPage, error)); ok {
+		return rf(ctx, agentID, sessionID, afterSeq, beforeSeq, limit)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, int64, int64, int) domain.MessageHistoryPage); ok {
+		r0 = rf(ctx, agentID, sessionID, afterSeq, beforeSeq, limit)
+	} else {
+		r0 = ret.Get(0).(domain.MessageHistoryPage)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, int64, int64, int) error); ok {
+		r1 = rf(ctx, agentID, sessionID, afterSeq, beforeSeq, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListMessageSummaryPage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListMessageSummaryPage'
+type MockStore_ListMessageSummaryPage_Call struct {
+	*mock.Call
+}
+
+// ListMessageSummaryPage is a helper method to define mock.On call
+//   - ctx context.Context
+//   - agentID string
+//   - sessionID string
+//   - afterSeq int64
+//   - beforeSeq int64
+//   - limit int
+func (_e *MockStore_Expecter) ListMessageSummaryPage(ctx interface{}, agentID interface{}, sessionID interface{}, afterSeq interface{}, beforeSeq interface{}, limit interface{}) *MockStore_ListMessageSummaryPage_Call {
+	return &MockStore_ListMessageSummaryPage_Call{Call: _e.mock.On("ListMessageSummaryPage", ctx, agentID, sessionID, afterSeq, beforeSeq, limit)}
+}
+
+func (_c *MockStore_ListMessageSummaryPage_Call) Run(run func(ctx context.Context, agentID string, sessionID string, afterSeq int64, beforeSeq int64, limit int)) *MockStore_ListMessageSummaryPage_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(int64), args[4].(int64), args[5].(int))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListMessageSummaryPage_Call) Return(_a0 domain.MessageHistoryPage, _a1 error) *MockStore_ListMessageSummaryPage_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListMessageSummaryPage_Call) RunAndReturn(run func(context.Context, string, string, int64, int64, int) (domain.MessageHistoryPage, error)) *MockStore_ListMessageSummaryPage_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListMessageSummaryParts provides a mock function with given fields: ctx, messageIDs
+func (_m *MockStore) ListMessageSummaryParts(ctx context.Context, messageIDs []string) (map[string][]domain.MessagePart, error) {
+	ret := _m.Called(ctx, messageIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListMessageSummaryParts")
+	}
+
+	var r0 map[string][]domain.MessagePart
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) (map[string][]domain.MessagePart, error)); ok {
+		return rf(ctx, messageIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) map[string][]domain.MessagePart); ok {
+		r0 = rf(ctx, messageIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string][]domain.MessagePart)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, messageIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListMessageSummaryParts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListMessageSummaryParts'
+type MockStore_ListMessageSummaryParts_Call struct {
+	*mock.Call
+}
+
+// ListMessageSummaryParts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - messageIDs []string
+func (_e *MockStore_Expecter) ListMessageSummaryParts(ctx interface{}, messageIDs interface{}) *MockStore_ListMessageSummaryParts_Call {
+	return &MockStore_ListMessageSummaryParts_Call{Call: _e.mock.On("ListMessageSummaryParts", ctx, messageIDs)}
+}
+
+func (_c *MockStore_ListMessageSummaryParts_Call) Run(run func(ctx context.Context, messageIDs []string)) *MockStore_ListMessageSummaryParts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListMessageSummaryParts_Call) Return(_a0 map[string][]domain.MessagePart, _a1 error) *MockStore_ListMessageSummaryParts_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListMessageSummaryParts_Call) RunAndReturn(run func(context.Context, []string) (map[string][]domain.MessagePart, error)) *MockStore_ListMessageSummaryParts_Call {
 	_c.Call.Return(run)
 	return _c
 }

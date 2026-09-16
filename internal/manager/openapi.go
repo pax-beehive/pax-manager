@@ -239,6 +239,7 @@ func addSessionHistoryPath(doc map[string]any) {
 	}
 	paths[openAPISessionHistoryPath] = sessionHistoryPathOperation(true)
 	paths[openAPIUserSessionHistoryPath] = sessionHistoryPathOperation(false)
+	paths[openAPIUserSessionMessageDetailPath] = sessionMessageDetailOperation()
 }
 
 func sessionHistoryPathOperation(agentScoped bool) map[string]any {
@@ -283,6 +284,23 @@ func sessionHistoryPathOperation(agentScoped bool) map[string]any {
 			"description": "Returns messages with a database ID lower than this value. Use pagination.next_before_id to load older history.",
 		},
 	)
+	if !agentScoped {
+		parameters = append(parameters, map[string]any{
+			"name": "view", "in": "query", "required": false,
+			"schema": map[string]any{
+				"type":    "string",
+				"enum":    []string{"full", "summary"},
+				"default": "full",
+			},
+			"description": "Summary returns tool metadata with has_detail and no tool parts or raw frame. Text and display metadata remain inline. Uses seq cursors, defaults to 100 messages, maximum 200. Full preserves legacy responses.",
+		})
+	}
+	for _, name := range []string{"before_seq", "after_seq"} {
+		parameters = append(parameters, map[string]any{
+			"name": name, "in": "query", "required": false,
+			"schema": map[string]any{"type": "integer", "format": "int64", "minimum": 1},
+		})
+	}
 	summary := "List session history"
 	notFoundDescription := "Session not found."
 	if agentScoped {
@@ -642,24 +660,32 @@ func addACPWebSocketPaths(doc map[string]any) {
 		},
 	}
 	sessionObserverParameters := append([]map[string]any{}, turnControlParameters...)
-	sessionObserverParameters = append(sessionObserverParameters, map[string]any{
-		"name":        "after_message_id",
-		"in":          "query",
-		"required":    false,
-		"schema":      map[string]string{"type": "string"},
-		"description": "Global message_id used as a trim hint for replay buffers.",
-	})
+	sessionObserverParameters = append(sessionObserverParameters,
+		map[string]any{"name": "turn_id", "in": "query", "required": false,
+			"schema":      map[string]string{"type": "string"},
+			"description": "Pin one business turn in this session. Omit only when opening the active turn."},
+		map[string]any{"name": "after_seq", "in": "query", "required": false,
+			"schema":      map[string]any{"type": "integer", "format": "int64", "minimum": 0},
+			"description": "Last committed head watermark; requires turn_id when nonzero. Reconnect refreshes the complete turn because existing messages can change at the same sequence."},
+		map[string]any{"name": "Last-Event-ID", "in": "header", "required": false,
+			"schema":      map[string]string{"type": "string"},
+			"description": "Numeric watermark used when after_seq is absent. Same turn_id requirement."},
+	)
 	paths[openAPIUserSessionEventsPath] = map[string]any{
 		"get": map[string]any{
 			"tags":        []string{"ACP"},
 			"summary":     "Observe the active ACP turn for a session",
-			"description": "Streams live active-turn ACP events as SSE, or no_running_turn when the session is idle.",
+			"description": "Streams one durable turn as turn_start, history_item replacements, history_remove removals, and head batch commits, followed by updates and durable turn_done. With no turn_id, idle sessions return no_running_turn without replay. Never replays other turns. after_message_id is rejected.",
 			"security":    []map[string][]string{{"cloudflareAccess": {}}},
 			"parameters":  sessionObserverParameters,
 			"responses": map[string]any{
 				"200": map[string]string{
 					"description": "SSE stream of active turn observer events.",
 				},
+				"400": map[string]string{
+					"description": "Invalid cursor, deprecated parameter, or unscoped resume.",
+				},
+				"409": map[string]string{"description": "Cursor exceeds the target turn head."},
 				"401": map[string]string{"description": "User authentication failed."},
 				"404": map[string]string{"description": "Agent or session was not found."},
 			},

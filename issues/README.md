@@ -23,6 +23,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 019 | resolved | [Message persistence deadlocks with runtime snapshots](019-message-runtime-deadlock.md) | high | storage |
 | 020 | resolved | [ACP transport loses the Manager turn identity](020-acp-turn-identity.md) | high | session / storage |
 | 021 | resolved | [S3 presigned paths are encoded twice during signing](021-s3-presigned-path-double-encoding.md) | high | storage |
+| 022 | partial | [Large tool payloads inflate session history reads](022-large-session-history.md) | high | userapi / storage |
+| 023 | resolved | [Observer replay has no consistent turn or message contract](023-observer-turn-contract.md) | high | observer / storage / console |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 

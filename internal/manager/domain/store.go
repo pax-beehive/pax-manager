@@ -51,6 +51,7 @@ type ReliableTransportJournal interface {
 }
 
 type Store interface {
+	MessageSummaryStore
 	ReliableTransportJournal
 	PermissionCatalogStore
 	SessionACPConfigStore

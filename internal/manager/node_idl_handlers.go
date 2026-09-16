@@ -604,6 +604,26 @@ func ListSessionHistory(c context.Context, ctx *app.RequestContext) {
 		)
 		return
 	}
+	if view := ctx.Query("view"); view != "" && view != "full" && view != "summary" {
+		writeError(ctx, http.StatusBadRequest, "view must be full or summary")
+		return
+	}
+	if ctx.Query("view") == "summary" {
+		if beforeID != 0 {
+			writeError(ctx, http.StatusBadRequest, "summary history requires seq cursors")
+			return
+		}
+		status, data, err := serviceFromContext(ctx).userapi.ListSessionHistorySummary(
+			c,
+			requestMetadata(ctx),
+			ctx.Param("session_id"),
+			afterSeq,
+			beforeSeq,
+			queryInt(ctx, "limit"),
+		)
+		writeEndpointResult(ctx, status, data, err)
+		return
+	}
 	status, data, err := serviceFromContext(ctx).userapi.ListSessionHistory(
 		c,
 		requestMetadata(ctx),
