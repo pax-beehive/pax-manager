@@ -6148,7 +6148,14 @@ func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOrig
 	waitAgentToUserMessage(t, srv, fixture.agentID, "sess_source")
 	// The mock agent can respond before the outbound prompt projection finishes.
 	// Check the reply itself rather than assuming it is the last persisted row.
-	waitAgentMessagePartText(t, srv, fixture.agentID, "sess_source", "agent_message_chunk", "received")
+	waitAgentMessagePartText(
+		t,
+		srv,
+		fixture.agentID,
+		"sess_source",
+		"agent_message_chunk",
+		"received",
+	)
 }
 
 func TestConversationDeliveryGivenBusyOriginalSourceTunnelWhenReplyPostedThenQueuesAndPromptsAfterRelease(
