@@ -71,3 +71,10 @@ Passed make fmt-check, make lint (including integration-tag lint),
 go test -count=1 ./..., and go build -o bin/pax-manager ./cmd/manager.
 Console TypeScript, scoped ESLint, and 16 relevant tests passed.
 Docker-backed end-to-end tests were not run. No deployment performed.
+
+During PR validation, CI exposed a reply-delivery test that assumed the final
+persisted row must be the agent response. The mock response can race the outbound
+prompt projection. The test now checks the expected reply text in its target
+session instead. Two earlier CI attempts timed out in different existing ACP
+creation tests; targeted independent-module repetitions and five full Manager
+package runs did not reproduce those timeouts.

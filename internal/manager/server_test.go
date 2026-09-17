@@ -6146,10 +6146,9 @@ func TestConversationDeliveryGivenActiveInvocationReplyWhenPostedThenPromptsOrig
 	)
 	assert.Equal(t, "sess_source", got.Delivery.TargetSession.SessionID)
 	waitAgentToUserMessage(t, srv, fixture.agentID, "sess_source")
-	messages, err := srv.store.ListMessages(t.Context(), fixture.agentID, "sess_source", 10)
-	require.NoError(t, err)
-	require.NotEmpty(t, messages)
-	assert.Equal(t, domain.MessageDirectionAgentToUser, messages[len(messages)-1].Direction)
+	// The mock agent can respond before the outbound prompt projection finishes.
+	// Check the reply itself rather than assuming it is the last persisted row.
+	waitAgentMessagePartText(t, srv, fixture.agentID, "sess_source", "agent_message_chunk", "received")
 }
 
 func TestConversationDeliveryGivenBusyOriginalSourceTunnelWhenReplyPostedThenQueuesAndPromptsAfterRelease(
