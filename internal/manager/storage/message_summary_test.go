@@ -11,6 +11,39 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
+func TestPostgresLatestSessionMessageReadsOnlyHeadMetadata(t *testing.T) {
+	script := &scriptedPostgresScript{queries: []scriptedRows{
+		scriptedRow("session"), scriptedRow("native"), scriptedRow("latest", int64(42), "turn"),
+	}}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+	message, err := store.LatestSessionMessage(t.Context(), "agent", "session")
+	require.NoError(t, err)
+	require.Equal(t, "latest", message.MessageID)
+	require.Equal(t, int64(42), message.SessionSeq)
+	require.Equal(t, "turn", message.TurnID)
+	query := script.queryTexts[len(script.queryTexts)-1]
+	require.Contains(t, query, "ORDER BY session_seq DESC LIMIT 1")
+	require.Contains(t, query, "agent_id = $1 AND session_id IN")
+	require.NotContains(t, query, "raw_json")
+	require.NotContains(t, query, "message_parts")
+}
+
+func TestPostgresTurnSummaryFiltersBeforePagination(t *testing.T) {
+	script := &scriptedPostgresScript{queries: []scriptedRows{
+		scriptedRow("session"), scriptedRow("native"), scriptedRow(int64(9)),
+		{columns: []string{"message_id"}},
+	}}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+	_, err := store.ListTurnSummaryPage(t.Context(), "agent", "session", "turn", 0, 9, 2)
+	require.NoError(t, err)
+	query := script.queryTexts[len(script.queryTexts)-1]
+	require.Contains(t, query, "AND turn_id = $4")
+	require.Contains(t, query, "AND session_seq < $5")
+	require.Contains(t, query, "LIMIT $6")
+}
+
 func TestMessageSummaryCursorAndTerminalDetail(t *testing.T) {
 	now := time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC)
 	store := NewMemoryStore(func() time.Time { return now })

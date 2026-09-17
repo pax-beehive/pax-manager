@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 )
@@ -608,6 +609,10 @@ func ListSessionHistory(c context.Context, ctx *app.RequestContext) {
 		writeError(ctx, http.StatusBadRequest, "view must be full or summary")
 		return
 	}
+	if ctx.Query("turn_id") != "" && ctx.Query("view") != "summary" {
+		writeError(ctx, http.StatusBadRequest, "turn_id requires view=summary")
+		return
+	}
 	if ctx.Query("view") == "summary" {
 		if beforeID != 0 {
 			writeError(ctx, http.StatusBadRequest, "summary history requires seq cursors")
@@ -620,6 +625,7 @@ func ListSessionHistory(c context.Context, ctx *app.RequestContext) {
 			afterSeq,
 			beforeSeq,
 			queryInt(ctx, "limit"),
+			strings.TrimSpace(ctx.Query("turn_id")),
 		)
 		writeEndpointResult(ctx, status, data, err)
 		return

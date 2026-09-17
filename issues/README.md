@@ -31,6 +31,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 027 | resolved | [CI fails formatting, lint, and object storage startup](027-ci-baseline.md) | high | deployment |
 | 028 | resolved | [Queued turns depend on the originating browser stream](028-snapshot-driven-turn-queue.md) | high | session / storage |
 
+| 029 | resolved | [Completed session history calibration](029-session-history-calibration.md) | high | session / storage / api |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

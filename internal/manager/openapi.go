@@ -286,6 +286,11 @@ func sessionHistoryPathOperation(agentScoped bool) map[string]any {
 	)
 	if !agentScoped {
 		parameters = append(parameters, map[string]any{
+			"name": "turn_id", "in": "query", "required": false,
+			"schema":      map[string]string{"type": "string"},
+			"description": "With view=summary, restricts to one turn. Pages obey limit without extra turn context; follow next_before_seq until has_older is false.",
+		})
+		parameters = append(parameters, map[string]any{
 			"name": "view", "in": "query", "required": false,
 			"schema": map[string]any{
 				"type":    "string",
