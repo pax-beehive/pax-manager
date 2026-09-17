@@ -78,3 +78,10 @@ prompt projection. The test now checks the expected reply text in its target
 session instead. Two earlier CI attempts timed out in different existing ACP
 creation tests; targeted independent-module repetitions and five full Manager
 package runs did not reproduce those timeouts.
+
+Follow-up diagnosis found a reliablemq producer race: cumulative ACK processing
+advances nextToSend before a delayed successful write completion, which previously
+failed the cursor check and disconnected the binding. paxkit PR 9 fixes this
+with a deterministic regression (fails before the fix; passes 100 repetitions
+afterward). Manager now requires a9ad0b4721af. Verification uses GOWORK=off so
+workspace replacements cannot conceal the pinned dependency version.

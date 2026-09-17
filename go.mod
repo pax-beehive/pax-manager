@@ -12,7 +12,7 @@ require (
 	github.com/cloudwego/hertz v0.10.5
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/pax-beehive/paxkit v0.0.0-20260723043511-94d9e61fe44a
+	github.com/pax-beehive/paxkit v0.0.0-20260917160049-a9ad0b4721af
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.21.0
 	gorm.io/driver/postgres v1.6.0
