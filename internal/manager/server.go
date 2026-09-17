@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -24,6 +25,8 @@ import (
 )
 
 type Service struct {
+	queueContext       context.Context
+	queueCancel        context.CancelFunc
 	cfg                Config
 	store              Store
 	transportStore     reliablemq.DurableStore
@@ -37,6 +40,9 @@ type Service struct {
 	acpTunnels        *ACPTunnelHub
 	nodeControls      *NodeControlHub
 	conversationTurns *conversationTurnQueue
+	queueChecks       sync.Map
+	queueCheckSlots   chan struct{}
+	queueRunSlots     chan struct{}
 	acpRuntime        *acpRuntimeProjector
 	maxBodyBytes      int64
 	apiLimiter        *rateLimiter
@@ -120,7 +126,10 @@ func newServer(cfg Config, store Store) *Service {
 			go task(context.WithoutCancel(ctx))
 		},
 	}
-	s.conversationTurns = newConversationTurnQueue(func() time.Time { return s.clock().UTC() })
+	s.conversationTurns = newConversationTurnQueue(transportBaseStore)
+	s.queueContext, s.queueCancel = context.WithCancel(context.Background())
+	s.queueCheckSlots = make(chan struct{}, 8)
+	s.queueRunSlots = make(chan struct{}, 32)
 	s.acpRuntime = newACPRuntimeProjector(func() time.Time { return s.clock() })
 	authService := auth.NewService(store, store, serviceAdminPolicy{s: s}, secrets, auth.Config{
 		RegistrationToken:      cfg.RegistrationToken,
@@ -155,6 +164,9 @@ func newServer(cfg Config, store Store) *Service {
 func (s *Service) CloseTransportStore(ctx context.Context) error {
 	if s == nil {
 		return nil
+	}
+	if s.queueCancel != nil {
+		s.queueCancel()
 	}
 	var err error
 	if s.transportProducers != nil {

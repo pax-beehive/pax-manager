@@ -1941,3 +1941,19 @@ ALTER TABLE agent_session_participants ADD COLUMN IF NOT EXISTS left_at TIMESTAM
 CREATE INDEX IF NOT EXISTS idx_agent_session_participants_participant
     ON agent_session_participants(participant_type, participant_id, session_id)
     WHERE left_at IS NULL;
+
+-- One bounded pending slot per session; completed work belongs in message history.
+CREATE TABLE IF NOT EXISTS session_turn_queue (
+    agent_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    command_id TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    input TEXT NOT NULL CHECK (octet_length(input) BETWEEN 1 AND 65536),
+    state TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'sending', 'uncertain')),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (agent_id, session_id),
+    FOREIGN KEY (agent_id, session_id) REFERENCES agent_sessions(agent_id, session_id)
+        ON DELETE CASCADE
+);
