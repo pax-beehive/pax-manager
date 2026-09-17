@@ -1027,6 +1027,7 @@ func TestConversationGivenNativePermissionChoiceWhenCreatingThenConfiguresBefore
 	mux.HandleFunc("/api/v1/user/", srv.handleConversation)
 	httpServer := httptest.NewServer(mux)
 	defer httpServer.Close()
+	defer httpServer.CloseClientConnections()
 	baseWS := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
 	agentWS, _, err := websocket.DefaultDialer.Dial(
@@ -1037,6 +1038,25 @@ func TestConversationGivenNativePermissionChoiceWhenCreatingThenConfiguresBefore
 	defer func() { _ = agentWS.Close() }()
 	completeMockAgentReconcile(t, agentWS, fixture.agentID, 1)
 	waitACPTunnelAgentRegistered(t, srv, fixture.agentID, "")
+	defer func() {
+		if !t.Failed() {
+			return
+		}
+		conn, findErr := srv.acpTunnels.findAny(fixture.agentID, "")
+		if findErr != nil {
+			t.Logf("failed test tunnel: %v", findErr)
+			return
+		}
+		t.Logf("producer stats: %+v", conn.reliableEngine.Producer.Stats())
+		frames, replayErr := conn.reliableEngine.Store.ListInboundReplay(
+			t.Context(),
+			conn.queueID(),
+			"acp",
+			10,
+		)
+		t.Logf("pending inbound frames: %+v; error: %v", frames, replayErr)
+		t.Logf("tunnel state: %s", srv.acpTunnels.debugSnapshot(fixture.agentID))
+	}()
 
 	respCh := make(chan *http.Response, 1)
 	errCh := make(chan error, 1)
