@@ -2832,7 +2832,7 @@ func TestConversationTurnQueueCRUDGivenQueuedTurnWhenReadUpdatedAndDeletedThenRe
 	assert.Nil(t, emptyEnvelope.Data)
 }
 
-func TestConversationTurnQueueReplacesDraftAndDrainsAfterActivePrompt(t *testing.T) {
+func TestConversationTurnQueueDispatchesFromIdleSnapshotAfterOriginalStreamCloses(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
 	createConversationTestSession(t, srv, fixture, "sess-queue", "native-queue")
@@ -2904,6 +2904,15 @@ func TestConversationTurnQueueReplacesDraftAndDrainsAfterActivePrompt(t *testing
 			`{"jsonrpc":"2.0","id":`+firstPromptID+`,"result":{"stopReason":"end_turn"}}`,
 		),
 	)
+
+	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
+	events := decodeConversationEvents(t, body)
+	startedEvents := conversationEventsOfType(events, "turn_started")
+	doneEvents := conversationEventsOfType(events, "turn_done")
+	require.Len(t, startedEvents, 1)
+	require.Len(t, doneEvents, 1)
+	requireConversationEvent(t, events, "done")
+	reportQueueTestSnapshot(t, srv, fixture, 1, nil)
 	queuedPromptEnv := readNextManagerToAgentData(t, agentWS)
 	assertACPMethod(t, queuedPromptEnv.Payload, "session/prompt")
 	assertFrameSessionID(t, queuedPromptEnv.Payload, "sess-queue")
@@ -2920,30 +2929,11 @@ func TestConversationTurnQueueReplacesDraftAndDrainsAfterActivePrompt(t *testing
 		),
 	)
 
-	body := readConversationResponse(t, respCh, errCh, http.StatusOK)
-	events := decodeConversationEvents(t, body)
-	startedEvents := conversationEventsOfType(events, "turn_started")
-	doneEvents := conversationEventsOfType(events, "turn_done")
-	require.Len(t, startedEvents, 2)
-	require.Len(t, doneEvents, 2)
-	require.True(t, strings.HasPrefix(startedEvents[0].TurnID, "turn_"))
-	assert.NotEqual(t, startedEvents[0].TurnID, startedEvents[1].TurnID)
-	assert.Equal(t, firstQueue.QueuedTurnID, startedEvents[1].TurnID)
-	assert.Equal(t, startedEvents[0].TurnID, doneEvents[0].TurnID)
-	assert.Equal(t, startedEvents[1].TurnID, doneEvents[1].TurnID)
-	assert.Empty(t, requireConversationEvent(t, events, "done").TurnID)
-	timeline := make([]string, 0, 4)
-	for _, event := range events {
-		if event.Type == "turn_started" || event.Type == "turn_done" {
-			timeline = append(timeline, event.Type+":"+event.TurnID)
-		}
-	}
-	assert.Equal(t, []string{
-		"turn_started:" + startedEvents[0].TurnID,
-		"turn_done:" + startedEvents[0].TurnID,
-		"turn_started:" + startedEvents[1].TurnID,
-		"turn_done:" + startedEvents[1].TurnID,
-	}, timeline)
+	require.Eventually(t, func() bool {
+		_, exists, err := srv.conversationTurns.get(t.Context(), fixture.agentID, "sess-queue")
+		return err == nil && !exists
+	}, 2*time.Second, 10*time.Millisecond)
+	require.Equal(t, firstQueue.QueuedTurnID, queuedPromptEnv.Metadata["turn_id"])
 
 	messages, err := srv.store.ListMessages(t.Context(), fixture.agentID, "sess-queue", 100)
 	require.NoError(t, err)
@@ -2957,9 +2947,9 @@ func TestConversationTurnQueueReplacesDraftAndDrainsAfterActivePrompt(t *testing
 			completedTurns[message.TurnID] = message.Status == "complete"
 		}
 	}
-	for _, started := range startedEvents {
-		assert.True(t, userTurns[started.TurnID])
-		assert.True(t, completedTurns[started.TurnID])
+	for _, id := range []string{startedEvents[0].TurnID, firstQueue.QueuedTurnID} {
+		assert.True(t, userTurns[id])
+		assert.True(t, completedTurns[id])
 	}
 }
 

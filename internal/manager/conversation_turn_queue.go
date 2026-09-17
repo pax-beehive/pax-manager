@@ -3,10 +3,9 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -30,146 +29,73 @@ const (
 	turnSteerEffectSteering = "steering"
 )
 
-type conversationQueuedTurn struct {
-	TurnID    string    `json:"queued_turn_id"`
-	CommandID string    `json:"command_id"`
-	OwnerID   string    `json:"-"`
-	NodeID    string    `json:"node_id,omitempty"`
-	AgentID   string    `json:"agent_id"`
-	SessionID string    `json:"session_id"`
-	Input     string    `json:"input"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
+type conversationQueuedTurn = domain.QueuedTurn
 
 type conversationTurnQueue struct {
-	mu    sync.Mutex
-	now   func() time.Time
-	turns map[string]conversationQueuedTurn
+	store domain.TurnQueueStore
 }
 
-func newConversationTurnQueue(now func() time.Time) *conversationTurnQueue {
-	return &conversationTurnQueue{
-		now:   now,
-		turns: make(map[string]conversationQueuedTurn),
-	}
+func newConversationTurnQueue(store Store) *conversationTurnQueue {
+	queueStore, _ := store.(domain.TurnQueueStore)
+	return &conversationTurnQueue{store: queueStore}
 }
 
-func (q *conversationTurnQueue) get(agentID, sessionID string) (conversationQueuedTurn, bool) {
-	if q == nil {
-		return conversationQueuedTurn{}, false
+func (q *conversationTurnQueue) get(
+	ctx context.Context,
+	agentID, sessionID string,
+) (conversationQueuedTurn, bool, error) {
+	turn, err := q.store.GetQueuedTurn(ctx, agentID, sessionID)
+	if errors.Is(err, domain.ErrNotFound) {
+		return turn, false, nil
 	}
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	turn, ok := q.turns[conversationTurnQueueKey(agentID, sessionID)]
-	return turn, ok
+	return turn, err == nil, err
 }
 
 func (q *conversationTurnQueue) upsert(
+	ctx context.Context,
 	turn conversationQueuedTurn,
 ) (conversationQueuedTurn, string, error) {
-	if q == nil {
-		return conversationQueuedTurn{}, "", apperr.Error{
-			Status:  http.StatusInternalServerError,
-			Message: "turn queue unavailable",
-		}
+	var err error
+	turn.TurnID, err = newConversationTurnID()
+	if err != nil {
+		return turn, "", err
 	}
-	if turn.AgentID == "" || turn.SessionID == "" {
-		return conversationQueuedTurn{}, "", ErrNotFound
-	}
-	if turn.Input = strings.TrimSpace(turn.Input); turn.Input == "" {
-		return conversationQueuedTurn{}, "", apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "input is required",
-		}
-	}
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	key := conversationTurnQueueKey(turn.AgentID, turn.SessionID)
-	now := q.now()
+	stored, replaced, err := q.store.PutQueuedTurn(ctx, turn, false)
 	effect := turnQueueEffectQueued
-	if existing, ok := q.turns[key]; ok {
+	if replaced {
 		effect = turnQueueEffectReplaced
-		turn.TurnID = existing.TurnID
-		turn.CreatedAt = existing.CreatedAt
-	} else {
-		turnID, err := newConversationTurnID()
-		if err != nil {
-			return conversationQueuedTurn{}, "", err
-		}
-		turn.TurnID = turnID
-		turn.CreatedAt = now
 	}
-	turn.UpdatedAt = now
-	q.turns[key] = turn
-	return turn, effect, nil
+	return stored, effect, err
 }
 
-func newConversationTurnID() (string, error) {
-	return auth.Secrets{}.New("turn")
-}
+func newConversationTurnID() (string, error) { return auth.Secrets{}.New("turn") }
 
 func (q *conversationTurnQueue) patch(
+	ctx context.Context,
 	agentID, sessionID, commandID, input string,
 ) (conversationQueuedTurn, error) {
-	if q == nil {
-		return conversationQueuedTurn{}, apperr.Error{
-			Status:  http.StatusInternalServerError,
-			Message: "turn queue unavailable",
-		}
-	}
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return conversationQueuedTurn{}, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "input is required",
-		}
-	}
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	key := conversationTurnQueueKey(agentID, sessionID)
-	turn, ok := q.turns[key]
-	if !ok {
-		return conversationQueuedTurn{}, ErrNotFound
-	}
-	turn.CommandID = commandID
-	turn.Input = input
-	turn.UpdatedAt = q.now()
-	q.turns[key] = turn
-	return turn, nil
+	turn, _, err := q.store.PutQueuedTurn(
+		ctx,
+		conversationQueuedTurn{
+			AgentID:   agentID,
+			SessionID: sessionID,
+			CommandID: commandID,
+			Input:     input,
+		},
+		true,
+	)
+	return turn, err
 }
 
-func (q *conversationTurnQueue) delete(agentID, sessionID string) (conversationQueuedTurn, string) {
-	if q == nil {
-		return conversationQueuedTurn{}, turnQueueDeleteEffectNoop
+func (q *conversationTurnQueue) delete(
+	ctx context.Context,
+	agentID, sessionID string,
+) (conversationQueuedTurn, string, error) {
+	turn, err := q.store.DeleteQueuedTurn(ctx, agentID, sessionID)
+	if errors.Is(err, domain.ErrNotFound) {
+		return turn, turnQueueDeleteEffectNoop, nil
 	}
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	key := conversationTurnQueueKey(agentID, sessionID)
-	turn, ok := q.turns[key]
-	if !ok {
-		return conversationQueuedTurn{}, turnQueueDeleteEffectNoop
-	}
-	delete(q.turns, key)
-	return turn, turnQueueDeleteEffectDeleted
-}
-
-func (q *conversationTurnQueue) take(agentID, sessionID string) (conversationQueuedTurn, bool) {
-	if q == nil {
-		return conversationQueuedTurn{}, false
-	}
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	key := conversationTurnQueueKey(agentID, sessionID)
-	turn, ok := q.turns[key]
-	if ok {
-		delete(q.turns, key)
-	}
-	return turn, ok
-}
-
-func conversationTurnQueueKey(agentID, sessionID string) string {
-	return agentID + "\x00" + sessionID
+	return turn, turnQueueDeleteEffectDeleted, err
 }
 
 type conversationTurnInput struct {
@@ -230,28 +156,48 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 		writeHTTPEndpointError(w, err)
 		return
 	}
+	if s.conversationTurns == nil || s.conversationTurns.store == nil {
+		writeHTTPError(w, http.StatusServiceUnavailable, "turn queue unavailable")
+		return
+	}
+	if control.session.Transport == domain.SessionTransportE2EE {
+		writeHTTPError(w, http.StatusConflict, "turn queue requires Manager transport")
+		return
+	}
+
 	commandID := conversationCommandID(r)
 	switch r.Method {
 	case http.MethodGet:
-		turn, ok := s.conversationTurns.get(control.agent.AgentID, control.session.SessionID)
+		turn, ok, err := s.conversationTurns.get(
+			r.Context(),
+			control.agent.AgentID,
+			control.session.SessionID,
+		)
+		if err != nil {
+			writeHTTPEndpointError(w, err)
+			return
+		}
 		if !ok {
 			writeHTTPData(w, http.StatusOK, nil)
 			return
 		}
+		turn.NodeID = control.agent.NodeID
 		writeHTTPData(w, http.StatusOK, conversationQueuedTurnData(turn))
 	case http.MethodPost:
-		if !conversationSessionHasActiveTurn(control.session) {
-			writeHTTPEndpointError(
+		if control.session.NativeID == "" || control.session.ArchivedAt != nil {
+			writeHTTPError(
 				w,
-				apperr.Error{Status: http.StatusConflict, Message: "session has no active turn"},
+				http.StatusConflict,
+				"queue requires an initialized, unarchived session",
 			)
 			return
 		}
+
 		input, ok := readConversationTurnInput(w, r)
 		if !ok {
 			return
 		}
-		turn, effect, err := s.conversationTurns.upsert(conversationQueuedTurn{
+		turn, effect, err := s.conversationTurns.upsert(r.Context(), conversationQueuedTurn{
 			CommandID: commandID,
 			OwnerID:   control.principal.User.UserID,
 			NodeID:    control.agent.NodeID,
@@ -279,6 +225,7 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 			return
 		}
 		turn, err := s.conversationTurns.patch(
+			r.Context(),
 			control.agent.AgentID,
 			control.session.SessionID,
 			commandID,
@@ -288,9 +235,18 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 			writeHTTPEndpointError(w, err)
 			return
 		}
+		turn.NodeID = control.agent.NodeID
 		writeHTTPData(w, http.StatusOK, conversationQueuedTurnData(turn))
 	case http.MethodDelete:
-		turn, effect := s.conversationTurns.delete(control.agent.AgentID, control.session.SessionID)
+		turn, effect, err := s.conversationTurns.delete(
+			r.Context(),
+			control.agent.AgentID,
+			control.session.SessionID,
+		)
+		if err != nil {
+			writeHTTPEndpointError(w, err)
+			return
+		}
 		resp := conversationTurnQueueDeleteResponse{
 			AgentID:   control.agent.AgentID,
 			CommandID: commandID,
@@ -351,6 +307,15 @@ func (s *Service) handleConversationTurnSteer(w http.ResponseWriter, r *http.Req
 		writeHTTPEndpointError(w, err)
 		return
 	}
+	if s.conversationTurns == nil || s.conversationTurns.store == nil {
+		writeHTTPError(w, http.StatusServiceUnavailable, "turn queue unavailable")
+		return
+	}
+	if control.session.Transport == domain.SessionTransportE2EE {
+		writeHTTPError(w, http.StatusConflict, "turn queue requires Manager transport")
+		return
+	}
+
 	if !conversationSessionHasActiveTurn(control.session) {
 		writeHTTPEndpointError(
 			w,
@@ -363,7 +328,7 @@ func (s *Service) handleConversationTurnSteer(w http.ResponseWriter, r *http.Req
 		return
 	}
 	commandID := conversationCommandID(r)
-	turn, queueEffect, err := s.conversationTurns.upsert(conversationQueuedTurn{
+	turn, queueEffect, err := s.conversationTurns.upsert(r.Context(), conversationQueuedTurn{
 		CommandID: commandID,
 		OwnerID:   control.principal.User.UserID,
 		NodeID:    control.agent.NodeID,
@@ -507,6 +472,10 @@ func readConversationTurnInput(
 	}
 	input.Input = strings.TrimSpace(input.Input)
 	input.Reason = strings.TrimSpace(input.Reason)
+	if input.Input == "" || len(input.Input) > domain.MaxQueuedTurnBytes {
+		writeHTTPError(w, http.StatusBadRequest, "input must contain between 1 and 65536 bytes")
+		return conversationTurnInput{}, false
+	}
 	return input, true
 }
 
@@ -520,6 +489,7 @@ func conversationQueuedTurnData(turn conversationQueuedTurn) map[string]any {
 		"queued_turn_id": turn.TurnID,
 		"session_id":     turn.SessionID,
 		"updated_at":     turn.UpdatedAt,
+		"state":          turn.State,
 	}
 }
 

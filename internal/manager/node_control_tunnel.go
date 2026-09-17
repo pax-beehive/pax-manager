@@ -359,6 +359,10 @@ func (s *Server) replaceSessionRuntimeSnapshot(
 			}
 		}
 	}
+	if result.Status == domain.RuntimeSnapshotApplied {
+		s.wakeQueuedTurns(ctx, node, snapshot)
+	}
+
 	return nil
 }
 

@@ -29,6 +29,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 025 | resolved | [Tagged turns collapse distinct text segments](025-tagged-turn-text-segments.md) | high | history / console |
 | 026 | resolved | [Message detail reads select the regex substring overload](026-message-detail-substring-overload.md) | high | storage / userapi |
 | 027 | resolved | [CI fails formatting, lint, and object storage startup](027-ci-baseline.md) | high | deployment |
+| 028 | resolved | [Queued turns depend on the originating browser stream](028-snapshot-driven-turn-queue.md) | high | session / storage |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 

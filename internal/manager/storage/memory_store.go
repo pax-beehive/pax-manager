@@ -14,6 +14,7 @@ import (
 )
 
 type MemoryStore struct {
+	turnQueue                    map[string]domain.QueuedTurn
 	mu                           sync.Mutex
 	now                          func() time.Time
 	nextMailbox                  int64
@@ -113,6 +114,7 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		userAPIKeys:                  make(map[string]UserAPIKey),
 		userAPIKeyHashes:             make(map[string]string),
 		sessions:                     make(map[string]AgentSession),
+		turnQueue:                    make(map[string]domain.QueuedTurn),
 		nodeRuntimeFences:            make(map[string]string),
 		agentRuntimeSnapshotHeads:    make(map[string]memoryAgentRuntimeSnapshotHead),
 		agentRuntimeIdentities:       make(map[string]domain.AgentRuntimeIdentity),

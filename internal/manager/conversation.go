@@ -610,37 +610,12 @@ func (s *Service) promptConversation(
 	sub := runner.agentConn.subscribeSSE(session.managerID)
 	defer runner.agentConn.unsubscribeSSE(sub)
 
-	nextPrompt := prompt
-	nextTurnID, err := newConversationTurnID()
+	turnID, err := newConversationTurnID()
 	if err != nil {
 		return err
 	}
-	for {
-		completed, err := s.promptConversationOnce(
-			ctx,
-			w,
-			flusher,
-			runner,
-			session,
-			sub,
-			nextTurnID,
-			nextPrompt,
-		)
-		if err != nil {
-			return err
-		}
-		if !completed {
-			break
-		}
-		queued, ok := s.conversationTurns.take(runner.agentConn.agentID, session.managerID)
-		if !ok {
-			break
-		}
-		nextTurnID = queued.TurnID
-		nextPrompt = []map[string]any{{
-			"type": "text",
-			"text": queued.Input,
-		}}
+	if _, err := s.promptConversationOnce(ctx, w, flusher, runner, session, sub, turnID, prompt); err != nil {
+		return err
 	}
 	return s.writeConversationEvent(w, flusher, conversationEvent{
 		Type:      "done",
