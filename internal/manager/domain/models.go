@@ -92,6 +92,9 @@ type Node struct {
 }
 
 type AgentSession struct {
+	LatestMessageID       string               `json:"latest_message_id,omitempty"`
+	LatestMessageSeq      int64                `json:"latest_message_seq,omitempty"`
+	LatestTurnID          string               `json:"latest_turn_id,omitempty"`
 	ID                    int64                `json:"id"`
 	NodeID                string               `json:"node_id,omitempty"`
 	AgentID               string               `json:"agent_id"`

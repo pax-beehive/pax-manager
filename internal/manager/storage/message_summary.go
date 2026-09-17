@@ -116,6 +116,11 @@ func (s *MemoryStore) ListMessageSummaryPage(
 		return page, err
 	}
 	page = s.withSummaryTurnContext(agentID, sessionID, page)
+	return summarizeMemoryMessages(page)
+}
+
+func summarizeMemoryMessages(page domain.MessageHistoryPage) (domain.MessageHistoryPage, error) {
+	var err error
 	for i := range page.Messages {
 		msg := &page.Messages[i]
 		if !isToolMessage(msg.MessageType) {

@@ -2312,6 +2312,9 @@ func (s *Service) GetAgentSession(
 	if err != nil {
 		return 0, nil, err
 	}
+	if err := s.fillSessionHistoryHead(c, &session); err != nil {
+		return 0, nil, err
+	}
 	return http.StatusOK, session, nil
 }
 
@@ -2334,6 +2337,9 @@ func (s *Service) GetNodeAgentSession(
 	}
 	session, err := s.nodeSessionTarget(c, principal, nodeID, agentID, sessionID)
 	if err != nil {
+		return 0, nil, err
+	}
+	if err := s.fillSessionHistoryHead(c, &session); err != nil {
 		return 0, nil, err
 	}
 	return http.StatusOK, session, nil

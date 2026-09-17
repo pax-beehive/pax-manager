@@ -17,6 +17,7 @@ func (s *Service) ListSessionHistorySummary(
 	sessionID string,
 	afterSeq, beforeSeq int64,
 	limit int,
+	turnIDs ...string,
 ) (int, any, error) {
 	principal, err := s.principal.Principal(ctx, meta)
 	if err != nil {
@@ -32,14 +33,27 @@ func (s *Service) ListSessionHistorySummary(
 	if limit > 200 {
 		limit = 200
 	}
-	page, err := s.store.ListMessageSummaryPage(
-		ctx,
-		session.AgentID,
-		session.SessionID,
-		afterSeq,
-		beforeSeq,
-		limit,
-	)
+	var page domain.MessageHistoryPage
+	if len(turnIDs) > 0 && turnIDs[0] != "" {
+		reader, ok := s.store.(domain.SessionHistorySyncStore)
+		if !ok {
+			return 0, nil, apperr.Error{
+				Status:  http.StatusNotImplemented,
+				Message: "turn history unavailable",
+			}
+		}
+		page, err = reader.ListTurnSummaryPage(
+			ctx,
+			session.AgentID,
+			session.SessionID,
+			turnIDs[0],
+			afterSeq,
+			beforeSeq,
+			limit,
+		)
+	} else {
+		page, err = s.store.ListMessageSummaryPage(ctx, session.AgentID, session.SessionID, afterSeq, beforeSeq, limit)
+	}
 	if err != nil {
 		return 0, nil, err
 	}

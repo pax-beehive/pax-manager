@@ -221,6 +221,7 @@ func (s *PostgresStore) listMessageHistoryPageBySeq(
 	afterSeq, beforeSeq int64,
 	limit int,
 	projection string,
+	turnIDs ...string,
 ) (domain.MessageHistoryPage, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 100
@@ -240,6 +241,10 @@ func (s *PostgresStore) listMessageHistoryPageBySeq(
 		filter += " AND session_id IN (" + strings.Join(placeholders, ",") + ")"
 	}
 
+	if len(turnIDs) > 0 && turnIDs[0] != "" {
+		args = append(args, turnIDs[0])
+		filter += " AND turn_id = $" + strconvArg(len(args))
+	}
 	headSeq, err := s.messageHeadSeq(ctx, "session_seq", filter, args)
 	if err != nil {
 		return domain.MessageHistoryPage{}, err
@@ -782,6 +787,16 @@ func (s *MemoryStore) ListMessageHistoryPageBySeq(
 	beforeSeq int64,
 	limit int,
 ) (domain.MessageHistoryPage, error) {
+	return s.listMessageHistoryPageBySeq(ctx, agentID, sessionID, afterSeq, beforeSeq, limit, "")
+}
+
+func (s *MemoryStore) listMessageHistoryPageBySeq(
+	ctx context.Context,
+	agentID, sessionID string,
+	afterSeq, beforeSeq int64,
+	limit int,
+	turnID string,
+) (domain.MessageHistoryPage, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
@@ -797,7 +812,7 @@ func (s *MemoryStore) ListMessageHistoryPageBySeq(
 	scoped := make([]Message, 0)
 	headSeq := int64(0)
 	for _, msg := range s.messages {
-		if msg.AgentID != agentID || msg.SessionSeq == 0 {
+		if msg.AgentID != agentID || msg.SessionSeq == 0 || (turnID != "" && msg.TurnID != turnID) {
 			continue
 		}
 		if len(sessionIDs) > 0 {

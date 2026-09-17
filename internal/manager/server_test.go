@@ -6018,25 +6018,31 @@ func TestConversationDeliveryGivenAgentTargetWhenPostedThenPromptsFreshTargetSes
 		require.NoError(t, json.Unmarshal(sourceMessages[1].RawJSON, &sourceDisplay))
 		assert.Equal(t, []string{sourceMessages[0].MessageID}, sourceDisplay.ReplacesMessageID)
 
-		targetMessages, err := srv.store.ListMessages(
-			t.Context(),
-			targetAgent.AgentID,
-			targetManagerSessionID,
-			100,
-		)
-		require.NoError(t, err)
 		var targetPromptMessage domain.Message
 		var targetDisplayMessage domain.Message
-		for _, message := range targetMessages {
-			switch message.MessageType {
-			case domain.MessageTypePaxUser:
-				targetPromptMessage = message
-			case domain.MessageTypePaxInvocation:
-				targetDisplayMessage = message
+		// HTTP 202 confirms acceptance, not completion of the detached projection.
+		require.Eventually(t, func() bool {
+			targetMessages, err := srv.store.ListMessages(
+				t.Context(),
+				targetAgent.AgentID,
+				targetManagerSessionID,
+				100,
+			)
+			if err != nil {
+				return false
 			}
-		}
-		require.NotEmpty(t, targetPromptMessage.MessageID)
-		require.NotEmpty(t, targetDisplayMessage.MessageID)
+			targetPromptMessage = domain.Message{}
+			targetDisplayMessage = domain.Message{}
+			for _, message := range targetMessages {
+				switch message.MessageType {
+				case domain.MessageTypePaxUser:
+					targetPromptMessage = message
+				case domain.MessageTypePaxInvocation:
+					targetDisplayMessage = message
+				}
+			}
+			return targetPromptMessage.MessageID != "" && targetDisplayMessage.MessageID != ""
+		}, 3*time.Second, 10*time.Millisecond)
 		var targetDisplay paxInvocationPromptDisplayRaw
 		require.NoError(t, json.Unmarshal(targetDisplayMessage.RawJSON, &targetDisplay))
 		assert.Equal(

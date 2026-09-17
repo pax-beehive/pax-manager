@@ -14,6 +14,30 @@ func newCanonicalSessionStore(store domain.Store) domain.Store {
 	return canonicalSessionStore{Store: store}
 }
 
+func (s canonicalSessionStore) LatestSessionMessage(
+	ctx context.Context,
+	agentID, sessionID string,
+) (domain.Message, error) {
+	reader, ok := s.Store.(domain.SessionHistorySyncStore)
+	if !ok {
+		return domain.Message{}, nil
+	}
+	return reader.LatestSessionMessage(ctx, agentID, sessionID)
+}
+
+func (s canonicalSessionStore) ListTurnSummaryPage(
+	ctx context.Context,
+	agentID, sessionID, turnID string,
+	afterSeq, beforeSeq int64,
+	limit int,
+) (domain.MessageHistoryPage, error) {
+	reader, ok := s.Store.(domain.SessionHistorySyncStore)
+	if !ok {
+		return domain.MessageHistoryPage{}, domain.ErrConflict
+	}
+	return reader.ListTurnSummaryPage(ctx, agentID, sessionID, turnID, afterSeq, beforeSeq, limit)
+}
+
 func (s canonicalSessionStore) ActivateNodeRuntimeFence(
 	ctx context.Context,
 	node domain.Node,
