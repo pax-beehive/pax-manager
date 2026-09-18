@@ -65,6 +65,7 @@ func (s immediateACPHistoryTextSink) Flush(ctx context.Context) error {
 }
 
 type acpHistoryTextBatcher struct {
+	flushMu       sync.Mutex
 	mu            sync.Mutex
 	store         domain.Store
 	flushInterval time.Duration
@@ -114,7 +115,6 @@ func (b *acpHistoryTextBatcher) AppendText(
 	}
 	key := acpHistoryTextBatchKey{messageID: messageID, partIndex: partIndex}
 
-	var flushNow []acpHistoryTextBatch
 	b.mu.Lock()
 	batch := b.pending[key]
 	if batch == nil {
@@ -122,20 +122,24 @@ func (b *acpHistoryTextBatcher) AppendText(
 		b.pending[key] = batch
 	}
 	batch.text += delta
-	if len(batch.text) >= b.maxChars {
-		flushNow = []acpHistoryTextBatch{*batch}
-		delete(b.pending, key)
-	}
+	flushNow := len(batch.text) >= b.maxChars
 	b.ensureTimerLocked()
 	b.mu.Unlock()
 
-	return b.flushBatches(context.Background(), flushNow)
+	if flushNow {
+		return b.Flush(context.Background())
+	}
+	return nil
 }
 
 func (b *acpHistoryTextBatcher) Flush(ctx context.Context) error {
 	if b == nil {
 		return nil
 	}
+	// Serialize extraction and persistence together, including failed-batch requeue.
+	// A completion flush must also wait for a batch already being written.
+	b.flushMu.Lock()
+	defer b.flushMu.Unlock()
 	batches := b.takeAll()
 	return b.flushBatches(ctx, batches)
 }
