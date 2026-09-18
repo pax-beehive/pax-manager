@@ -33,6 +33,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 029 | resolved | [Completed session history calibration](029-session-history-calibration.md) | high | session / storage / api |
 
+| 030 | resolved | [Concurrent history text flushes reorder chunks](030-history-text-write-order.md) | high | history |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
