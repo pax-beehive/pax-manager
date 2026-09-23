@@ -82,6 +82,60 @@ func TestCloudflareAccessVerifier(t *testing.T) {
 			require.ErrorIs(t, err, ErrInvalidAccessJWT)
 		},
 	)
+
+	t.Run(
+		"Given JWTs from two Access accounts when verifying a migration chain then both are accepted",
+		func(t *testing.T) {
+			now := time.Date(2026, 9, 23, 7, 0, 0, 0, time.UTC)
+			newVerifier := func(
+				issuer string,
+				audience string,
+				key *rsa.PrivateKey,
+			) *CloudflareAccessVerifier {
+				verifier := NewCloudflareAccessVerifier(issuer, audience, issuer+"/certs")
+				verifier.now = func() time.Time { return now }
+				verifier.client = &http.Client{
+					Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+						return &http.Response{
+							StatusCode: http.StatusOK,
+							Body: io.NopCloser(
+								strings.NewReader(jwksForRSAKey("kid-1", &key.PublicKey)),
+							),
+							Header: http.Header{"Content-Type": []string{"application/json"}},
+						}, nil
+					}),
+				}
+				return verifier
+			}
+
+			oldKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			require.NoError(t, err)
+			newKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			require.NoError(t, err)
+			verifier := NewUserIdentityVerifierChain(
+				newVerifier("https://old.cloudflareaccess.com", "old-aud", oldKey),
+				newVerifier("https://new.cloudflareaccess.com", "new-aud", newKey),
+			)
+
+			for _, tc := range []struct {
+				issuer   string
+				audience string
+				email    string
+				key      *rsa.PrivateKey
+			}{
+				{"https://old.cloudflareaccess.com", "old-aud", "old@example.com", oldKey},
+				{"https://new.cloudflareaccess.com", "new-aud", "new@example.com", newKey},
+			} {
+				token := signTestJWT(t, tc.key, map[string]any{
+					"iss": tc.issuer, "aud": []string{tc.audience},
+					"email": tc.email, "exp": now.Add(time.Minute).Unix(),
+				})
+				identity, err := verifier.Verify(context.Background(), token)
+				require.NoError(t, err)
+				require.Equal(t, tc.email, identity.Email)
+			}
+		},
+	)
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

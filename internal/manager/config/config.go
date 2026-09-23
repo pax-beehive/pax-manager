@@ -15,52 +15,66 @@ import (
 const DefaultPaxdVerificationBaseURL = "https://ws.lakeward.net"
 
 type Config struct {
-	Port                        string
-	DatabaseURL                 string
-	RegistrationToken           string
-	RegistrationOwnerEmail      string
-	LocalUserID                 string
-	AllowLocalUserHeader        bool
-	CloudflareAccessDisabled    bool
-	CloudflareAccessIssuer      string
-	CloudflareAccessAud         string
-	CloudflareAccessJWKS        string
-	AdminEmails                 map[string]bool
-	TrustedCloudflareProxyCIDRs string
-	MaxBodyBytes                int64
-	APIRateLimitPerMinute       int
-	APIRateLimitBurst           int
-	RegisterLimitPerMinute      int
-	RegisterLimitBurst          int
-	PaxdArtifactDownloadTTL     time.Duration
-	ObjectStorageBucket         string
-	ObjectStorageRegion         string
-	ObjectStorageEndpoint       string
-	ObjectStoragePublicEndpoint string
-	ObjectStorageForcePathStyle bool
-	SessionArtifactUploadTTL    time.Duration
-	PaxdVerificationBaseURL     string
-	TeamMemexExecutor           string
-	DeepSeekAPIKey              string
-	DeepSeekBaseURL             string
-	DeepSeekModel               string
-	DeepSeekTimeout             time.Duration
-	DeepSeekMaxTokens           int
-	DeepSeekTemperature         float64
+	Port                             string
+	DatabaseURL                      string
+	RegistrationToken                string
+	RegistrationOwnerEmail           string
+	LocalUserID                      string
+	AllowLocalUserHeader             bool
+	CloudflareAccessDisabled         bool
+	CloudflareAccessIssuer           string
+	CloudflareAccessAud              string
+	CloudflareAccessJWKS             string
+	CloudflareAccessMigrationEnabled bool
+	CloudflareAccessMigrationIssuer  string
+	CloudflareAccessMigrationAud     string
+	CloudflareAccessMigrationJWKS    string
+	AdminEmails                      map[string]bool
+	TrustedCloudflareProxyCIDRs      string
+	MaxBodyBytes                     int64
+	APIRateLimitPerMinute            int
+	APIRateLimitBurst                int
+	RegisterLimitPerMinute           int
+	RegisterLimitBurst               int
+	PaxdArtifactDownloadTTL          time.Duration
+	ObjectStorageBucket              string
+	ObjectStorageRegion              string
+	ObjectStorageEndpoint            string
+	ObjectStoragePublicEndpoint      string
+	ObjectStorageForcePathStyle      bool
+	SessionArtifactUploadTTL         time.Duration
+	PaxdVerificationBaseURL          string
+	TeamMemexExecutor                string
+	DeepSeekAPIKey                   string
+	DeepSeekBaseURL                  string
+	DeepSeekModel                    string
+	DeepSeekTimeout                  time.Duration
+	DeepSeekMaxTokens                int
+	DeepSeekTemperature              float64
 }
 
 func Load() Config {
 	return Config{
-		Port:                        envDefault("PORT", "9879"),
-		DatabaseURL:                 os.Getenv("DATABASE_URL"),
-		RegistrationToken:           os.Getenv("REGISTRATION_TOKEN"),
-		RegistrationOwnerEmail:      os.Getenv("REGISTRATION_TOKEN_OWNER_EMAIL"),
-		LocalUserID:                 envDefault("LOCAL_USER_ID", "local@example.local"),
-		AllowLocalUserHeader:        parseBool(os.Getenv("ALLOW_LOCAL_USER_HEADER")),
-		CloudflareAccessDisabled:    parseBool(os.Getenv("CLOUDFLARE_ACCESS_DISABLED")),
-		CloudflareAccessIssuer:      os.Getenv("CLOUDFLARE_ACCESS_ISSUER"),
-		CloudflareAccessAud:         os.Getenv("CLOUDFLARE_ACCESS_AUD"),
-		CloudflareAccessJWKS:        os.Getenv("CLOUDFLARE_ACCESS_JWKS_URL"),
+		Port:                     envDefault("PORT", "9879"),
+		DatabaseURL:              os.Getenv("DATABASE_URL"),
+		RegistrationToken:        os.Getenv("REGISTRATION_TOKEN"),
+		RegistrationOwnerEmail:   os.Getenv("REGISTRATION_TOKEN_OWNER_EMAIL"),
+		LocalUserID:              envDefault("LOCAL_USER_ID", "local@example.local"),
+		AllowLocalUserHeader:     parseBool(os.Getenv("ALLOW_LOCAL_USER_HEADER")),
+		CloudflareAccessDisabled: parseBool(os.Getenv("CLOUDFLARE_ACCESS_DISABLED")),
+		CloudflareAccessIssuer:   os.Getenv("CLOUDFLARE_ACCESS_ISSUER"),
+		CloudflareAccessAud:      os.Getenv("CLOUDFLARE_ACCESS_AUD"),
+		CloudflareAccessJWKS:     os.Getenv("CLOUDFLARE_ACCESS_JWKS_URL"),
+		CloudflareAccessMigrationEnabled: parseBool(
+			os.Getenv("CLOUDFLARE_ACCESS_MIGRATION_ENABLED"),
+		),
+		CloudflareAccessMigrationIssuer: os.Getenv(
+			"CLOUDFLARE_ACCESS_MIGRATION_ISSUER",
+		),
+		CloudflareAccessMigrationAud: os.Getenv("CLOUDFLARE_ACCESS_MIGRATION_AUD"),
+		CloudflareAccessMigrationJWKS: os.Getenv(
+			"CLOUDFLARE_ACCESS_MIGRATION_JWKS_URL",
+		),
 		AdminEmails:                 parseEmailSet(os.Getenv("ADMIN_EMAILS")),
 		TrustedCloudflareProxyCIDRs: os.Getenv("TRUSTED_CLOUDFLARE_PROXY_CIDRS"),
 		MaxBodyBytes:                parseInt64Env("MAX_BODY_BYTES", 1<<20),
@@ -101,8 +115,37 @@ func (c Config) Validate() error {
 	if _, err := c.CloudflareProxyPrefixes(); err != nil {
 		return err
 	}
+	if err := c.validateCloudflareAccessMigration(); err != nil {
+		return err
+	}
 	if strings.TrimSpace(c.ObjectStorageBucket) == "" {
 		return errors.New("OBJECT_STORAGE_BUCKET is required")
+	}
+	return nil
+}
+
+func (c Config) validateCloudflareAccessMigration() error {
+	if !c.CloudflareAccessMigrationEnabled {
+		return nil
+	}
+	if c.CloudflareAccessDisabled {
+		return errors.New(
+			"CLOUDFLARE_ACCESS_MIGRATION_ENABLED cannot be used when CLOUDFLARE_ACCESS_DISABLED is true",
+		)
+	}
+	if strings.TrimSpace(c.CloudflareAccessIssuer) == "" ||
+		strings.TrimSpace(c.CloudflareAccessAud) == "" ||
+		strings.TrimSpace(c.CloudflareAccessJWKS) == "" {
+		return errors.New(
+			"CLOUDFLARE_ACCESS_MIGRATION_ENABLED requires the primary Cloudflare Access issuer, audience, and JWKS URL",
+		)
+	}
+	if strings.TrimSpace(c.CloudflareAccessMigrationIssuer) == "" ||
+		strings.TrimSpace(c.CloudflareAccessMigrationAud) == "" ||
+		strings.TrimSpace(c.CloudflareAccessMigrationJWKS) == "" {
+		return errors.New(
+			"CLOUDFLARE_ACCESS_MIGRATION_ENABLED requires the migration Cloudflare Access issuer, audience, and JWKS URL",
+		)
 	}
 	return nil
 }
