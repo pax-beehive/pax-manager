@@ -24,6 +24,15 @@ Cloudflare Access is the authentication layer for browser users.
   `CLOUDFLARE_ACCESS_DISABLED=true` and then opt into `X-User-Email` and
   `LOCAL_USER_ID` fallback with `ALLOW_LOCAL_USER_HEADER=true`.
 
+During a cross-account migration, production may temporarily enable
+`CLOUDFLARE_ACCESS_MIGRATION_ENABLED` and configure the corresponding
+migration issuer, audience, and JWKS URL. The primary verifier is tried first.
+The migration verifier is tried only when the JWT is invalid for the primary
+verifier; an operational primary-verifier error is not hidden by fallback.
+Startup rejects an enabled migration gate when either account configuration is
+incomplete or when Cloudflare Access is disabled. Remove the migration
+configuration after the old account and hostnames are retired.
+
 Production deployments should keep Cloudflare Access validation enabled and
 must not enable local header fallback.
 
