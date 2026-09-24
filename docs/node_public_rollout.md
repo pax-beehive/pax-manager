@@ -2,6 +2,13 @@
 
 ## Status
 
+September 23 domain migration: Console uses `paxworkspace.net`; browser APIs
+use `api.paxworkspace.net`; machine clients use `wsapi.paxworkspace.net`.
+The company `PAX Machine API` application covers only the two reviewed machine
+path scopes on `wsapi.paxworkspace.net`. Existing personal-account resources
+remain unchanged. The September 10 observations below describe the earlier
+deployment; they do not verify the new deployment.
+
 Production update, September 10: the guarded Manager is deployed. The scoped
 Access application is applied on both Manager hostnames. Fresh paxd login,
 browser approval, Node Key control connection and ACP upgrades succeeded
@@ -26,13 +33,13 @@ host before operations. The tunnel is remotely managed and runs as the
 
 | Hostname | Tunnel origin | Role |
 |---|---|---|
-| `ws.lakeward.net` | `http://pax-console:8080` | Console |
-| `api.lakeward.net` | `http://pax-manager:9879` | Manager |
-| `wsapi.lakeward.net` | `http://pax-manager:9879` | Manager alias |
+| `paxworkspace.net` | `http://pax-console:8080` | Console |
+| `api.paxworkspace.net` | `http://pax-manager:9879` | Manager |
+| `wsapi.paxworkspace.net` | `http://pax-manager:9879` | Manager alias |
 | unmatched | `http_status:404` | Denied |
 
-These mappings were checked against the latest ingress configuration in the
-tunnel logs. At the initial audit the host checkout matched `e0814a28eb65`. On September
+The table uses the September 23 company hostnames. The initial audit checked
+the corresponding legacy mappings against ingress configuration in tunnel logs. At the initial audit the host checkout matched `e0814a28eb65`. On September
 10 the checkout had advanced to `18e15ff` while the running image remained
 `e0814a28eb65`. The isolated guard candidate uses the running image source
 plus only the route guard and manifest. The application services and tunnel use `unless-stopped`.
@@ -47,7 +54,7 @@ confirmed immediate blocker for customer paxd without Access service tokens.
 The complete credential-free probe passed all 31 cases against the actual
 loopback origin: 28 reviewed routes and three negative path/method cases.
 This verifies rejection behavior, not authorized flows or tenant isolation.
-Earlier probes to `ws.lakeward.net` targeted the Console and should not be used
+Earlier probes to `paxworkspace.net` targeted the Console and should not be used
 to diagnose Manager behavior.
 
 GCP access is not needed. The checked-in VM pipeline and development Compose
@@ -86,7 +93,7 @@ Apply these boundaries to the confirmed production hostname(s):
    parameter placeholders represent one nonempty path segment. The concrete
    [Access change plan](../deploy/node-public/cloudflare-access-plan.json)
    proposes machine-path applications for `/api/v1/node/*` and
-   `/api/v1/agent/tunnel` on each Manager hostname. Access's wildcard paths are
+   `/api/v1/agent/tunnel` on `wsapi.paxworkspace.net` only. Access's wildcard paths are
    coarser than the application guard, so deploy and verify the guard first.
    Bypass only removes the interactive login; Manager still requires the
    credentials in the matrix. Do not distribute a shared Cloudflare service
@@ -173,8 +180,8 @@ GOCACHE=/tmp/pax-manager-go-cache go build -o /tmp/pax-manager-build-check ./cmd
 After applying the reviewed edge policy to the confirmed machine origin:
 
 ```bash
-python3 deploy/node-public/check.py --probe https://api.lakeward.net
-python3 deploy/node-public/check.py --probe https://wsapi.lakeward.net
+python3 deploy/node-public/check.py --probe https://api.paxworkspace.net
+python3 deploy/node-public/check.py --probe https://wsapi.paxworkspace.net
 ```
 
 The probe does not send credentials, follow redirects, print response bodies,

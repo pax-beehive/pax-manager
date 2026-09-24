@@ -28,7 +28,7 @@ func TestLoad(t *testing.T) {
 			require.Empty(t, cfg.ObjectStorageEndpoint)
 			require.Empty(t, cfg.ObjectStoragePublicEndpoint)
 			require.False(t, cfg.ObjectStorageForcePathStyle)
-			require.Equal(t, "https://ws.lakeward.net", cfg.PaxdVerificationBaseURL)
+			require.Equal(t, "https://paxworkspace.net", cfg.PaxdVerificationBaseURL)
 			require.Equal(t, "dry_run", cfg.TeamMemexExecutor)
 			require.Empty(t, cfg.DeepSeekAPIKey)
 			require.Equal(t, "https://api.deepseek.com", cfg.DeepSeekBaseURL)

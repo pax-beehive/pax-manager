@@ -1,5 +1,5 @@
 {
-  "status": "applied-2026-09-10",
+  "status": "applied-2026-09-23",
   "purpose": "Allow customer paxd through interactive Access while retaining Manager authentication.",
   "preconditions": [
     "Inspect existing Access applications and policies, including more-specific overrides; record IDs for rollback.",
@@ -8,30 +8,22 @@
   ],
   "applications": [
     {
-      "name": "PAX machine API",
-      "id": "67ce24f5-ad5c-40d2-bd9e-8251e135df52",
+      "name": "PAX Machine API",
+      "id": "7a3fb659-2df6-4b8b-9db7-de141f9c8811",
       "type": "Self-hosted",
       "destinations": [
         {
-          "hostname": "api.lakeward.net",
+          "hostname": "wsapi.paxworkspace.net",
           "path": "/api/v1/node/*"
         },
         {
-          "hostname": "api.lakeward.net",
-          "path": "/api/v1/agent/tunnel"
-        },
-        {
-          "hostname": "wsapi.lakeward.net",
-          "path": "/api/v1/node/*"
-        },
-        {
-          "hostname": "wsapi.lakeward.net",
+          "hostname": "wsapi.paxworkspace.net",
           "path": "/api/v1/agent/tunnel"
         }
       ],
       "policy": {
-        "name": "PAX machine routes - Manager auth",
-        "id": "3ac11dfb-24c6-479b-ae95-d7c5f3a1c86b",
+        "name": "PAX Machine API Bypass",
+        "id": "c9826548-48e6-4d4b-8e8b-a822b5c39347",
         "action": "Bypass",
         "include": {
           "selector": "Everyone"
@@ -40,8 +32,9 @@
     }
   ],
   "preserve_protection": [
-    "ws.lakeward.net (Console)",
-    "api.lakeward.net and wsapi.lakeward.net outside the listed machine scopes",
+    "paxworkspace.net (Console)",
+    "api.paxworkspace.net",
+    "wsapi.paxworkspace.net outside the listed machine scopes",
     "/api/v1/user/* and /api/user/*",
     "/api/v1/admin/*",
     "/openapi and /openapi.json",
@@ -53,9 +46,10 @@
     "A more-specific Access application overrides the broader application and does not inherit its policies.",
     "No shared Access service token is distributed to customer nodes.",
     "Public installer and object-storage delivery are separate scopes; do not infer their bypass from this plan.",
-    "KEV-36 through KEV-40 track additional hardening separately from this scoped CF client removal."
+    "KEV-36 through KEV-40 track additional hardening separately from this scoped CF client removal.",
+    "Company migration: machine bypass applies only to wsapi.paxworkspace.net. No old-account resources are changed."
   ],
-  "rollback": "Remove only application 67ce24f5-ad5c-40d2-bd9e-8251e135df52, then its dedicated policy 3ac11dfb-24c6-479b-ae95-d7c5f3a1c86b if unused. Keep the existing user/TWA applications and service-token policy unchanged.",
+  "rollback": "Remove only company application 7a3fb659-2df6-4b8b-9db7-de141f9c8811, then its dedicated policy c9826548-48e6-4d4b-8e8b-a822b5c39347 if unused. Keep PAX Production and all old-account resources unchanged.",
   "references": [
     "https://developers.cloudflare.com/cloudflare-one/access-controls/policies/app-paths/"
   ]

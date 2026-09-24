@@ -1,7 +1,7 @@
 # Security Plan
 
 The owner-confirmed production deployment uses Cloudflare Tunnel to a home
-Ubuntu host under `lakeward.net`. The checked-in GCP VM pipeline is not the
+Ubuntu host under `paxworkspace.net`. The checked-in GCP VM pipeline is not the
 source of truth for that host; the archived Cloud Run pipeline does not deploy
 a service. Verify the running tunnel and origin before changing public access.
 See [the Node rollout guide](node_public_rollout.md) and
