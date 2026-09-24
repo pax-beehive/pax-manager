@@ -48,6 +48,10 @@ connection to a machine running paxd.
 | `CLOUDFLARE_ACCESS_ISSUER` | empty | Expected Cloudflare Access JWT issuer, for example `https://<team>.cloudflareaccess.com`. |
 | `CLOUDFLARE_ACCESS_AUD` | empty | Expected Cloudflare Access application audience. |
 | `CLOUDFLARE_ACCESS_JWKS_URL` | empty | Cloudflare Access JWKS URL, usually `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`. |
+| `CLOUDFLARE_ACCESS_MIGRATION_ENABLED` | `false` | Temporarily accept a second Cloudflare Access account during an account or domain migration. |
+| `CLOUDFLARE_ACCESS_MIGRATION_ISSUER` | empty | Expected issuer for the temporary migration account. |
+| `CLOUDFLARE_ACCESS_MIGRATION_AUD` | empty | Expected application audience for the temporary migration account. |
+| `CLOUDFLARE_ACCESS_MIGRATION_JWKS_URL` | empty | JWKS URL for the temporary migration account. |
 | `ADMIN_EMAILS` | empty | Comma-separated extra admin email list. These are added to the built-in admin emails. |
 | `MAX_BODY_BYTES` | `1048576` | Maximum request body size accepted by API handlers. |
 | `API_RATE_LIMIT_PER_MINUTE` | `300` | Per-client request rate for `/api/*` routes. |
