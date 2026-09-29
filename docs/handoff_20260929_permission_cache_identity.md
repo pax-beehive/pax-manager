@@ -61,7 +61,8 @@ Passed:
 - The Claude regression fixture contains the six options from the historical
   claude-air observation. The stale catalog remains displayable; exact new keys
   survive full runtime fingerprint changes.
-- Changed-block statement coverage: Manager 68/72 (94.4%), paxd 21/22 (95.5%).
+- Changed-block statement coverage against current main: Manager 63/66 (95.5%),
+  paxd 21/22 (95.5%).
   All newly introduced production functions exceed 80% coverage individually.
 - Changed-code lint (`--new-from-rev=HEAD`), integration-package lint, and
   `git diff --check` pass.
@@ -70,19 +71,17 @@ The first parallel paxd run timed out in the unrelated one-second acpclient
 browser-login probe. That package passed independently, and the complete suite
 passed with package parallelism limited to two.
 
-Repository-wide `make fmt-check` and `make lint` remain blocked by existing
-formatting and nine unrelated lint findings (eight complexity findings and one
-unchecked rows.Close). No new lint finding was introduced.
+After rebasing onto current main, repository-wide `make fmt-check` and
+`make lint` both pass. The prior baseline formatting, lint, and runtime-state
+integration issues have already been fixed upstream and are not exceptions to
+this PR's validation.
 
-The stock `make integration-test` build cannot download private paxkit modules
-without the unavailable `PAX_BEEHIVE_READ_TOKEN`. An equivalent isolated stack
-was built from local cached dependencies and used to run integration tests.
-`TestACPTunnelRuntimeStateIntegration` also fails on the unmodified HEAD image
-with the same missing-running-state assertion. The paxd-container integration
-build independently requires the missing private dependency credential.
-These two cases prevent claiming a fully green integration suite. All other
-integration cases passed on the changed Manager image when those two cases were
-explicitly excluded. The isolated stack was removed using `make integration-down`.
+The local stock `make integration-test` image build cannot download private
+paxkit modules without `PAX_BEEHIVE_READ_TOKEN`. The isolated PostgreSQL migration
+and application integration checks were exercised using local cached dependencies.
+The current-main Docker integration job runs in GitHub Actions with the repository
+secret; its result is available on pax-manager PR #155. The isolated local stack
+was removed using `make integration-down`.
 
 No production service or production database was changed. Issue 031 is resolved
 in source; rollout is still required.
