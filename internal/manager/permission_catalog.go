@@ -75,7 +75,7 @@ func (s *Service) observePermissionCatalog(
 	now := s.clock().UTC()
 	_, err = s.store.UpsertPermissionObservation(ctx, domain.AgentPermissionObservation{
 		AgentID:             agentID,
-		IdentityFingerprint: identity.IdentityFingerprint,
+		IdentityFingerprint: permissionObservationFingerprint(identity),
 		CatalogHash:         fmt.Sprintf("sha256:%x", sha256.Sum256(catalogJSON)),
 		Catalog:             observed,
 		ObservedAt:          now,
@@ -262,7 +262,7 @@ func (s *Service) resolveAgentPermissionCatalog(
 		observation, err := s.store.GetPermissionObservation(
 			ctx,
 			agent.AgentID,
-			identity.IdentityFingerprint,
+			permissionObservationFingerprint(identity),
 		)
 		if err == nil {
 			if observation.ExpiresAt.After(s.clock().UTC()) {
@@ -273,6 +273,14 @@ func (s *Service) resolveAgentPermissionCatalog(
 			uncertain = true
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return domain.AgentPermissionCatalog{}, err
+		} else {
+			catalog, found, fallbackErr := s.legacyPermissionCatalogForDisplay(ctx, agent.AgentID, profile, profileFound)
+			if fallbackErr != nil {
+				return domain.AgentPermissionCatalog{}, fallbackErr
+			}
+			if found {
+				return catalog, nil
+			}
 		}
 	}
 	if hasIdentity && !strings.EqualFold(identity.PoolConsistency, "consistent") {
@@ -287,6 +295,43 @@ func (s *Service) resolveAgentPermissionCatalog(
 		return catalog, nil
 	}
 	return paxOnlyPermissionCatalog(!hasIdentity || uncertain), nil
+}
+
+func permissionObservationFingerprint(identity domain.AgentRuntimeIdentity) string {
+	if identity.ConfigurationFingerprint != "" {
+		return identity.ConfigurationFingerprint
+	}
+	return identity.IdentityFingerprint
+}
+
+// Legacy observations have no recoverable compatibility inputs. Expose them as
+// unverified suggestions only; live creation and existing-session writes retain
+// their independent validation. Never fall back across known new fingerprints.
+func (s *Service) legacyPermissionCatalogForDisplay(
+	ctx context.Context, agentID string,
+	profile domain.AgentPermissionProfile, profileFound bool,
+) (domain.AgentPermissionCatalog, bool, error) {
+	observation, err := s.store.GetLatestPermissionObservation(ctx, agentID)
+	if errors.Is(err, domain.ErrNotFound) {
+		return domain.AgentPermissionCatalog{}, false, nil
+	}
+	if err != nil {
+		return domain.AgentPermissionCatalog{}, false, err
+	}
+	if !observation.ExpiresAt.After(s.clock().UTC()) ||
+		strings.HasPrefix(observation.IdentityFingerprint, "config-v1:") {
+		return domain.AgentPermissionCatalog{}, false, nil
+	}
+	catalog := catalogFromObservation(observation, profile, profileFound)
+	catalog.DefaultChoiceID = ""
+	for i := range catalog.Choices {
+		if catalog.Choices[i].Kind == domain.PermissionChoiceKindAgent {
+			catalog.Choices[i].Risk = "unknown"
+			catalog.Choices[i].RequiresConfirmation = true
+		}
+	}
+	catalog.Stale = true
+	return catalog, true, nil
 }
 
 func isMixedPermissionPool(poolConsistency string) bool {
@@ -721,7 +766,7 @@ func (s *Service) resolveStoredPermissionChoice(
 	observation, err := s.store.GetPermissionObservation(
 		ctx,
 		agent.AgentID,
-		identity.IdentityFingerprint,
+		permissionObservationFingerprint(identity),
 	)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {

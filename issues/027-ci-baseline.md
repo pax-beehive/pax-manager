@@ -42,3 +42,12 @@ fmt/lint/unit coverage and Docker integration jobs.
 
 Both CI jobs pass with all existing checks enabled, accessible pinned images,
 and the runtime integration test aligned with the snapshot authority contract.
+
+## Follow-up: September 29 image registry availability
+
+Quay now rejects anonymous pulls of both pinned images with HTTP 401; the
+Docker Hub copies are also unavailable. CI prepares the same releases from
+MinIO's official GitHub artifacts using fixed SHA-256 checks, then runs the
+unchanged Compose integration suite. The CI-only Dockerfile is amd64-specific;
+production Compose files and credentials are unchanged. Both images were built
+locally and passed a versioned-bucket object upload/read smoke test.
