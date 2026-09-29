@@ -44,9 +44,9 @@ func writeAgentRuntimeIdentity(
 			acp_agent_name, acp_agent_title, acp_agent_version,
 			runtime_name, runtime_version, runtime_build, runtime_channel,
 			identity_fingerprint, command_fingerprint, client_profile_hash, worker_result_hash,
-			pool_consistency, observed_at
+			pool_consistency, observed_at, configuration_fingerprint
 		) VALUES (
-			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+			$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20
 		)
 		ON CONFLICT (agent_id) DO UPDATE SET
 			report_epoch = EXCLUDED.report_epoch,
@@ -62,6 +62,7 @@ func writeAgentRuntimeIdentity(
 			runtime_build = EXCLUDED.runtime_build,
 			runtime_channel = EXCLUDED.runtime_channel,
 			identity_fingerprint = EXCLUDED.identity_fingerprint,
+			configuration_fingerprint = EXCLUDED.configuration_fingerprint,
 			command_fingerprint = EXCLUDED.command_fingerprint,
 			client_profile_hash = EXCLUDED.client_profile_hash,
 			worker_result_hash = EXCLUDED.worker_result_hash,
@@ -80,7 +81,7 @@ func writeAgentRuntimeIdentity(
 		identity.RuntimeName, identity.RuntimeVersion, identity.RuntimeBuild,
 		identity.RuntimeChannel, identity.IdentityFingerprint,
 		identity.CommandFingerprint, identity.ClientProfileHash, identity.WorkerResultHash,
-		identity.PoolConsistency, identity.ObservedAt)
+		identity.PoolConsistency, identity.ObservedAt, identity.ConfigurationFingerprint)
 	return mapSQLError(err)
 }
 
@@ -94,7 +95,7 @@ func (s *PostgresStore) GetAgentRuntimeIdentity(
 			protocol_version, acp_agent_name, acp_agent_title, acp_agent_version,
 			runtime_name, runtime_version, runtime_build, runtime_channel,
 			identity_fingerprint, command_fingerprint, client_profile_hash, worker_result_hash,
-			pool_consistency, observed_at
+			pool_consistency, observed_at, configuration_fingerprint
 		FROM agent_runtime_identities
 		WHERE agent_id = $1
 	`, agentID).Scan(
@@ -104,7 +105,7 @@ func (s *PostgresStore) GetAgentRuntimeIdentity(
 		&identity.RuntimeName, &identity.RuntimeVersion, &identity.RuntimeBuild,
 		&identity.RuntimeChannel, &identity.IdentityFingerprint,
 		&identity.CommandFingerprint, &identity.ClientProfileHash, &identity.WorkerResultHash,
-		&identity.PoolConsistency, &identity.ObservedAt,
+		&identity.PoolConsistency, &identity.ObservedAt, &identity.ConfigurationFingerprint,
 	)
 	if err != nil {
 		return domain.AgentRuntimeIdentity{}, mapSQLError(err)
@@ -237,6 +238,31 @@ func (s *PostgresStore) GetPermissionObservation(
 		&observation.AgentID, &observation.IdentityFingerprint,
 		&observation.CatalogRevision, &observation.CatalogHash, &catalog,
 		&observation.ObservedAt, &observation.ExpiresAt,
+	)
+	if err != nil {
+		return domain.AgentPermissionObservation{}, mapSQLError(err)
+	}
+	if err := json.Unmarshal(catalog, &observation.Catalog); err != nil {
+		return domain.AgentPermissionObservation{}, err
+	}
+	return observation, nil
+}
+
+func (s *PostgresStore) GetLatestPermissionObservation(
+	ctx context.Context, agentID string,
+) (domain.AgentPermissionObservation, error) {
+	var observation domain.AgentPermissionObservation
+	var catalog []byte
+	err := s.db.QueryRowContext(ctx, `
+		SELECT agent_id, identity_fingerprint, catalog_revision, catalog_hash,
+			catalog, observed_at, expires_at
+		FROM agent_permission_observations
+		WHERE agent_id = $1
+		ORDER BY observed_at DESC, identity_fingerprint DESC
+		LIMIT 1
+	`, agentID).Scan(
+		&observation.AgentID, &observation.IdentityFingerprint, &observation.CatalogRevision,
+		&observation.CatalogHash, &catalog, &observation.ObservedAt, &observation.ExpiresAt,
 	)
 	if err != nil {
 		return domain.AgentPermissionObservation{}, mapSQLError(err)

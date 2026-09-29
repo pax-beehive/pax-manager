@@ -329,12 +329,12 @@ func TestPostgresPermissionStoreGivenRowsWhenReadAndWrittenThenUsesTypedSchema(t
 				"protocol_version", "acp_agent_name", "acp_agent_title", "acp_agent_version",
 				"runtime_name", "runtime_version", "runtime_build", "runtime_channel",
 				"identity_fingerprint", "command_fingerprint", "client_profile_hash", "worker_result_hash",
-				"pool_consistency", "observed_at",
+				"pool_consistency", "observed_at", "configuration_fingerprint",
 			},
 			values: [][]driver.Value{{
 				"agent-1", "epoch-1", int64(2), "conn-1", int64(3), int64(1), "codex-acp", "Codex",
 				"1.1.7", "codex", "0.58.0", "build", "stable", "identity-1",
-				"command-1", "profile-1", "worker-1", "consistent", now,
+				"command-1", "profile-1", "worker-1", "consistent", now, "config-v1:stable",
 			}},
 		}}}
 		store, cleanup := scriptedPostgresStore(t, script)
@@ -344,6 +344,7 @@ func TestPostgresPermissionStoreGivenRowsWhenReadAndWrittenThenUsesTypedSchema(t
 		assert.Equal(t, "codex", identity.RuntimeName)
 		assert.Equal(t, "identity-1", identity.IdentityFingerprint)
 		assert.Equal(t, "profile-1", identity.ClientProfileHash)
+		assert.Equal(t, "config-v1:stable", identity.ConfigurationFingerprint)
 	})
 
 	t.Run("given profile insert conflict then preserves append-only revision", func(t *testing.T) {

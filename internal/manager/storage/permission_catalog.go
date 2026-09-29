@@ -144,3 +144,29 @@ func (s *MemoryStore) GetPermissionObservation(
 	observation.Catalog = domain.CloneObservedPermissionCatalog(observation.Catalog)
 	return observation, nil
 }
+
+// GetLatestPermissionObservation returns an agent's last observation, including
+// negative observations. Callers must check expiry and cannot use it to authorize changes.
+func (s *MemoryStore) GetLatestPermissionObservation(
+	_ context.Context, agentID string,
+) (domain.AgentPermissionObservation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var latest domain.AgentPermissionObservation
+	found := false
+	for _, observation := range s.permissionObservations {
+		if observation.AgentID != agentID {
+			continue
+		}
+		if !found || observation.ObservedAt.After(latest.ObservedAt) ||
+			(observation.ObservedAt.Equal(latest.ObservedAt) && observation.IdentityFingerprint > latest.IdentityFingerprint) {
+			latest = observation
+			found = true
+		}
+	}
+	if !found {
+		return domain.AgentPermissionObservation{}, ErrNotFound
+	}
+	latest.Catalog = domain.CloneObservedPermissionCatalog(latest.Catalog)
+	return latest, nil
+}
