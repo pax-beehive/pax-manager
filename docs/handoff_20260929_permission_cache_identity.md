@@ -85,3 +85,13 @@ was removed using `make integration-down`.
 
 No production service or production database was changed. Issue 031 is resolved
 in source; rollout is still required.
+
+
+## CI image availability
+
+The first current-main PR run could not pull either pinned Quay MinIO image
+(HTTP 401). Docker Hub copies were also inaccessible. The CI integration job now
+prepares local images from the same official GitHub release artifacts, validating
+hard-coded SHA-256 digests before execution. The Dockerfile supports the CI
+runner's linux/amd64 architecture only and does not alter deployment Compose
+files. All integration checks remain enabled. See the final PR check results.
