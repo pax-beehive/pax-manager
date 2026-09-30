@@ -53,5 +53,9 @@ func (s *Service) handleUserAttachmentContent(c context.Context, ctx *app.Reques
 		writeEndpointError(ctx, err)
 		return
 	}
+	if string(ctx.Query("ticket")) == "1" {
+		writeData(ctx, http.StatusOK, map[string]string{"url": url})
+		return
+	}
 	ctx.Redirect(http.StatusFound, []byte(url))
 }

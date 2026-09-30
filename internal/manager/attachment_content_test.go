@@ -55,6 +55,23 @@ func TestUserAttachmentGivenStoredUploadWhenPreviewedThenAccessIsChecked(t *test
 			srv.cfg.ObjectStorageBucket = test.bucket
 			got := request(http.MethodGet, path+"/content", "", test.email)
 			require.Equal(t, test.status, got.Code, got.Body.String())
+			ticketResponse := request(http.MethodGet, path+"/content?ticket=1", "", test.email)
+			expectedTicketStatus := test.status
+			if expectedTicketStatus == http.StatusFound {
+				expectedTicketStatus = http.StatusOK
+			}
+			require.Equal(
+				t,
+				expectedTicketStatus,
+				ticketResponse.Code,
+				ticketResponse.Body.String(),
+			)
+			if expectedTicketStatus == http.StatusOK {
+				data := decodeData[map[string]string](t, ticketResponse.Body.Bytes())
+				assert.Equal(t, got.Header().Get("Location"), data["url"])
+				assert.Equal(t, "private, no-store", ticketResponse.Header().Get("Cache-Control"))
+			}
+
 			if test.status != http.StatusFound {
 				assert.Empty(t, got.Header().Get("Location"))
 				assert.Empty(t, backend.signedArtifact.Object)
