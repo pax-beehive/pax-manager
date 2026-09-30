@@ -430,6 +430,7 @@ CREATE TABLE IF NOT EXISTS agent_runtime_identities (
     runtime_build TEXT NOT NULL DEFAULT '',
     runtime_channel TEXT NOT NULL DEFAULT '',
     identity_fingerprint TEXT NOT NULL,
+    configuration_fingerprint TEXT NOT NULL DEFAULT '',
     command_fingerprint TEXT NOT NULL DEFAULT '',
     client_profile_hash TEXT NOT NULL DEFAULT '',
     worker_result_hash TEXT NOT NULL DEFAULT '',
@@ -441,6 +442,9 @@ ALTER TABLE agent_runtime_identities
     ADD COLUMN IF NOT EXISTS report_epoch TEXT NOT NULL DEFAULT '';
 ALTER TABLE agent_runtime_identities
     ADD COLUMN IF NOT EXISTS client_profile_hash TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE agent_runtime_identities
+    ADD COLUMN IF NOT EXISTS configuration_fingerprint TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_agent_runtime_identities_fingerprint
     ON agent_runtime_identities(identity_fingerprint);

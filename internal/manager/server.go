@@ -706,11 +706,20 @@ func cloudflareVerifier(cfg Config) auth.UserIdentityVerifier {
 		cfg.CloudflareAccessJWKS == "" {
 		return nil
 	}
-	return auth.NewCloudflareAccessVerifier(
+	primary := auth.NewCloudflareAccessVerifier(
 		cfg.CloudflareAccessIssuer,
 		cfg.CloudflareAccessAud,
 		cfg.CloudflareAccessJWKS,
 	)
+	if !cfg.CloudflareAccessMigrationEnabled {
+		return primary
+	}
+	secondary := auth.NewCloudflareAccessVerifier(
+		cfg.CloudflareAccessMigrationIssuer,
+		cfg.CloudflareAccessMigrationAud,
+		cfg.CloudflareAccessMigrationJWKS,
+	)
+	return auth.NewUserIdentityVerifierChain(primary, secondary)
 }
 
 func AgentWSAuthPreflight() app.HandlerFunc {

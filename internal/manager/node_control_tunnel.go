@@ -198,16 +198,17 @@ type nodeControlAgentRuntime struct {
 }
 
 type nodeControlACPPoolCapabilityReport struct {
-	SchemaVersion      int    `json:"schema_version"`
-	ConnectionID       string `json:"connection_id"`
-	ReportGeneration   int64  `json:"report_generation"`
-	ProtocolVersion    int    `json:"protocol_version"`
-	PaxdVersion        string `json:"paxd_version"`
-	CommandFingerprint string `json:"command_fingerprint"`
-	ClientProfileHash  string `json:"client_profile_hash"`
-	WorkerResultHash   string `json:"worker_result_hash"`
-	PoolConsistency    string `json:"pool_consistency"`
-	Implementation     struct {
+	SchemaVersion          int    `json:"schema_version"`
+	ConnectionID           string `json:"connection_id"`
+	ReportGeneration       int64  `json:"report_generation"`
+	ProtocolVersion        int    `json:"protocol_version"`
+	PaxdVersion            string `json:"paxd_version"`
+	CommandFingerprint     string `json:"command_fingerprint"`
+	ClientProfileHash      string `json:"client_profile_hash"`
+	ClientCapabilitiesHash string `json:"client_capabilities_hash"`
+	WorkerResultHash       string `json:"worker_result_hash"`
+	PoolConsistency        string `json:"pool_consistency"`
+	Implementation         struct {
 		ACPAgent struct {
 			Name    string `json:"name"`
 			Title   string `json:"title"`
@@ -532,12 +533,32 @@ func parseAgentRuntimeIdentity(
 	if identity.IdentityFingerprint == "" {
 		identity.IdentityFingerprint = fallbackRuntimeIdentityFingerprint(agentType, report)
 	} else {
+		identity.ConfigurationFingerprint = configurationObservationFingerprint(identity.IdentityFingerprint, report)
 		identity.IdentityFingerprint = effectiveObservationFingerprint(
 			identity.IdentityFingerprint,
 			report,
 		)
 	}
 	return identity, nil
+}
+
+// Keep the full runtime fingerprint for diagnostics; permission compatibility
+// excludes the daemon identity and uses the actual advertised client capabilities.
+func configurationObservationFingerprint(
+	implementation string,
+	report nodeControlACPPoolCapabilityReport,
+) string {
+	if strings.TrimSpace(report.ClientCapabilitiesHash) == "" {
+		return ""
+	}
+	value := strings.Join([]string{
+		strings.TrimSpace(implementation),
+		fmt.Sprint(report.ProtocolVersion),
+		strings.TrimSpace(report.ClientCapabilitiesHash),
+		strings.TrimSpace(report.CommandFingerprint),
+		strings.TrimSpace(report.WorkerResultHash),
+	}, "\n")
+	return fmt.Sprintf("config-v1:%x", sha256.Sum256([]byte(value)))
 }
 
 func effectiveObservationFingerprint(

@@ -69,25 +69,26 @@ func BuiltInCodexPermissionProfile(createdAt time.Time) AgentPermissionProfile {
 // AgentRuntimeIdentity is the typed, sanitized identity reported by paxd for
 // the ACP process currently backing an agent installation.
 type AgentRuntimeIdentity struct {
-	AgentID             string    `json:"agent_id"`
-	ReportEpoch         string    `json:"report_epoch,omitempty"`
-	SchemaVersion       int       `json:"schema_version"`
-	ConnectionID        string    `json:"connection_id"`
-	ReportGeneration    int64     `json:"report_generation"`
-	ProtocolVersion     int       `json:"protocol_version,omitempty"`
-	ACPAgentName        string    `json:"acp_agent_name,omitempty"`
-	ACPAgentTitle       string    `json:"acp_agent_title,omitempty"`
-	ACPAgentVersion     string    `json:"acp_agent_version,omitempty"`
-	RuntimeName         string    `json:"runtime_name,omitempty"`
-	RuntimeVersion      string    `json:"runtime_version,omitempty"`
-	RuntimeBuild        string    `json:"runtime_build,omitempty"`
-	RuntimeChannel      string    `json:"runtime_channel,omitempty"`
-	IdentityFingerprint string    `json:"identity_fingerprint"`
-	CommandFingerprint  string    `json:"command_fingerprint,omitempty"`
-	ClientProfileHash   string    `json:"client_profile_hash,omitempty"`
-	WorkerResultHash    string    `json:"worker_result_hash,omitempty"`
-	PoolConsistency     string    `json:"pool_consistency,omitempty"`
-	ObservedAt          time.Time `json:"observed_at"`
+	AgentID                  string    `json:"agent_id"`
+	ReportEpoch              string    `json:"report_epoch,omitempty"`
+	SchemaVersion            int       `json:"schema_version"`
+	ConnectionID             string    `json:"connection_id"`
+	ReportGeneration         int64     `json:"report_generation"`
+	ProtocolVersion          int       `json:"protocol_version,omitempty"`
+	ACPAgentName             string    `json:"acp_agent_name,omitempty"`
+	ACPAgentTitle            string    `json:"acp_agent_title,omitempty"`
+	ACPAgentVersion          string    `json:"acp_agent_version,omitempty"`
+	RuntimeName              string    `json:"runtime_name,omitempty"`
+	RuntimeVersion           string    `json:"runtime_version,omitempty"`
+	RuntimeBuild             string    `json:"runtime_build,omitempty"`
+	RuntimeChannel           string    `json:"runtime_channel,omitempty"`
+	IdentityFingerprint      string    `json:"identity_fingerprint"`
+	ConfigurationFingerprint string    `json:"configuration_fingerprint,omitempty"`
+	CommandFingerprint       string    `json:"command_fingerprint,omitempty"`
+	ClientProfileHash        string    `json:"client_profile_hash,omitempty"`
+	WorkerResultHash         string    `json:"worker_result_hash,omitempty"`
+	PoolConsistency          string    `json:"pool_consistency,omitempty"`
+	ObservedAt               time.Time `json:"observed_at"`
 }
 
 type PermissionBinding struct {
@@ -186,6 +187,7 @@ type PermissionCatalogStore interface {
 		AgentPermissionObservation,
 	) (AgentPermissionObservation, error)
 	GetPermissionObservation(context.Context, string, string) (AgentPermissionObservation, error)
+	GetLatestPermissionObservation(context.Context, string) (AgentPermissionObservation, error)
 }
 
 func ClonePermissionProfileDefinition(in PermissionProfileDefinition) PermissionProfileDefinition {

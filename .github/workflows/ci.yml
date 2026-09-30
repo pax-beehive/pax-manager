@@ -96,6 +96,15 @@ jobs:
           fi
           git config --global url."https://x-access-token:${PAX_BEEHIVE_READ_TOKEN}@github.com/".insteadOf "https://github.com/"
 
+      - name: Prepare pinned integration object storage images
+        run: |
+          docker build --platform linux/amd64 --target minio \
+            -f integration/images/minio.Dockerfile \
+            -t quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z .
+          docker build --platform linux/amd64 --target mc \
+            -f integration/images/minio.Dockerfile \
+            -t quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1 .
+
       - name: Run integration tests
         run: make integration-test
 
