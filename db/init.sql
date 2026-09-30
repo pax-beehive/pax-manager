@@ -254,6 +254,28 @@ CREATE TABLE IF NOT EXISTS e2ee_pairing_requests (
     completed_at TIMESTAMPTZ
 );
 
+-- Keep old requests for published-package foreign keys, but fence their completion.
+ALTER TABLE e2ee_pairing_requests ADD COLUMN IF NOT EXISTS superseded_at TIMESTAMPTZ;
+
+-- Existing installations may have several requests for one device and epoch.
+-- Resolve ties deterministically once; new requests are ordered under a transaction lock.
+WITH ranked AS (
+    SELECT pairing_id, ROW_NUMBER() OVER (
+        PARTITION BY agent_id, device_id, key_epoch
+        ORDER BY created_at DESC, pairing_id DESC
+    ) AS position
+    FROM e2ee_pairing_requests
+    WHERE superseded_at IS NULL
+)
+UPDATE e2ee_pairing_requests AS request
+SET superseded_at = NOW()
+FROM ranked
+WHERE request.pairing_id = ranked.pairing_id AND ranked.position > 1;
+
+CREATE INDEX IF NOT EXISTS idx_e2ee_pairing_requests_device
+    ON e2ee_pairing_requests(agent_id, device_id, key_epoch)
+    WHERE superseded_at IS NULL;
+
 CREATE INDEX IF NOT EXISTS idx_e2ee_pairing_requests_pending
     ON e2ee_pairing_requests(owner_user_id, agent_id, created_at)
     WHERE completed_at IS NULL;

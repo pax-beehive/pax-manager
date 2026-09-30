@@ -118,6 +118,7 @@ const (
 	routeUserSessionE2EECommands       = "/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/encrypted-commands"
 	routeUserSessionE2EEEvents         = "/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/encrypted-events"
 	routeUserSessionE2EEHistory        = "/api/v1/user/:userID/agents/:agentID/sessions/:sessionID/encrypted-history"
+	routeUserAgentE2EEPairing          = "/api/v1/user/:user_id/agents/:agent_id/e2ee/pairings/:pairing_id"
 	routeUserAgentE2EEPairings         = "/api/v1/user/:user_id/agents/:agent_id/e2ee/pairings"
 	routeUserAgentE2EEPairingPackage   = "/api/v1/user/:user_id/agents/:agent_id/e2ee/pairings/:pairing_id/package"
 	routeUserAgentE2EEKeyPackage       = "/api/v1/user/:user_id/agents/:agent_id/e2ee/key-packages/:device_id"
