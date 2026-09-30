@@ -8,9 +8,64 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestE2EEPairingRegenerationReplacesAuthorization(t *testing.T) {
+	srv, _ := testServer(t, "e2ee-regenerate@example.com")
+	fixture := testNodeAgent(t, srv, "e2ee-regenerate@example.com")
+	userBase := "/api/v1/user/self/agents/" + fixture.agentID + "/e2ee/pairings"
+	nodeBase := "/api/v1/node/agents/" + fixture.agentID + "/e2ee/pairings"
+	create := func(id string) {
+		response := e2eeKeyRequest(t, srv, http.MethodPost, userBase,
+			fixture.userEmail, "", validCreatePairingBody(id))
+		require.Equal(t, http.StatusCreated, response.Code, response.Body.String())
+	}
+	create("pair_a")
+	first := e2eeKeyRequest(t, srv, http.MethodPost, nodeBase+"/pair_a/package",
+		"", fixture.nodeAPIKey, validKeyPackageBody())
+	require.Equal(t, http.StatusCreated, first.Code, first.Body.String())
+	create("pair_b")
+	for _, route := range []struct{ base, user, key string }{
+		{userBase, fixture.userEmail, ""}, {nodeBase, "", fixture.nodeAPIKey},
+	} {
+		rejected := e2eeKeyRequest(t, srv, http.MethodPost, route.base+"/pair_a/package",
+			route.user, route.key, validKeyPackageBody())
+		require.Equal(t, http.StatusConflict, rejected.Code, rejected.Body.String())
+		require.Contains(t, rejected.Body.String(), "superseded")
+	}
+	loadPath := "/api/v1/user/self/agents/" + fixture.agentID +
+		"/e2ee/key-packages/device_browser_1?key_epoch=1"
+	old := e2eeKeyRequest(t, srv, http.MethodGet, loadPath, fixture.userEmail, "", nil)
+	require.Equal(t, http.StatusOK, old.Code, old.Body.String())
+	require.Equal(t, "pair_a", decodeData[e2eeKeyPackageResponse](t, old.Body.Bytes()).PairingID)
+	second := e2eeKeyRequest(t, srv, http.MethodPost, nodeBase+"/pair_b/package",
+		"", fixture.nodeAPIKey, validKeyPackageBody())
+	require.Equal(t, http.StatusCreated, second.Code, second.Body.String())
+	retryBody := withKeyPackageField(
+		"ciphertext",
+		base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{9}, 48)),
+	)
+	retry := e2eeKeyRequest(t, srv, http.MethodPost, nodeBase+"/pair_b/package",
+		"", fixture.nodeAPIKey, retryBody)
+	require.Equal(t, http.StatusCreated, retry.Code, retry.Body.String())
+	require.Equal(t, second.Body.String(), retry.Body.String())
+	latest := e2eeKeyRequest(t, srv, http.MethodGet, loadPath, fixture.userEmail, "", nil)
+	require.Equal(t, http.StatusOK, latest.Code, latest.Body.String())
+	require.Equal(t, "pair_b", decodeData[e2eeKeyPackageResponse](t, latest.Body.Bytes()).PairingID)
+}
+
+func TestE2EEPairingErrorsAreActionable(t *testing.T) {
+	status, message := endpointErrorStatus(domain.ErrE2EEPairingExpired)
+	require.Equal(t, http.StatusGone, status)
+	require.Contains(t, message, "generate a new pairing request")
+	status, message = endpointErrorStatus(domain.ErrE2EEPairingSuperseded)
+	require.Equal(t, http.StatusConflict, status)
+	require.Contains(t, message, "use the latest pairing command")
+}
 
 func TestE2EEKeyDistributionGivenNewBrowserWhenNodeCompletesPairingThenBrowserLoadsOpaquePackage(
 	t *testing.T,

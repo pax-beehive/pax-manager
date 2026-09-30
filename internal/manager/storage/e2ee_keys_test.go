@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -126,6 +128,7 @@ func TestMemoryE2EEKeysGivenRequestsWhenReadAndLimitedThenOnlyOwnedPendingReques
 	first.CreatedAt = now.Add(-time.Minute)
 	second := testE2EEPairingRequest(now)
 	second.PairingID = "pair_second"
+	second.DeviceID = "device_second"
 	_, err := store.CreateE2EEPairingRequest(ctx, second)
 	require.NoError(t, err)
 	_, err = store.CreateE2EEPairingRequest(ctx, first)
@@ -207,8 +210,11 @@ func TestPostgresE2EEKeysGivenBrowserPairingWhenPackagePublishedThenOpaquePackag
 	require.NoError(t, err)
 	assert.Equal(t, keyPackage, loaded)
 	assert.True(t, script.committed)
-	require.Len(t, script.execTexts, 1)
-	assert.Contains(t, script.execTexts[0], "completed_at")
+	require.Len(t, script.execTexts, 4)
+	assert.Contains(t, script.execTexts[0], "pg_advisory_xact_lock")
+	assert.Contains(t, script.execTexts[1], "superseded_at")
+	assert.Contains(t, script.execTexts[2], "pg_advisory_xact_lock")
+	assert.Contains(t, script.execTexts[3], "completed_at")
 }
 
 func TestPostgresE2EEKeysGivenExpiredRequestWhenPackagePublishedThenTransactionRollsBack(
@@ -228,7 +234,7 @@ func TestPostgresE2EEKeysGivenExpiredRequestWhenPackagePublishedThenTransactionR
 	store.now = func() time.Time { return now }
 
 	_, err := store.CompleteE2EEPairing(context.Background(), request, testE2EEKeyPackage(now))
-	require.ErrorIs(t, err, ErrConflict)
+	require.ErrorIs(t, err, domain.ErrE2EEPairingExpired)
 	assert.True(t, script.rolled)
 	assert.False(t, script.committed)
 }
@@ -339,19 +345,22 @@ func testE2EEKeyPackage(now time.Time) E2EEKeyPackage {
 func e2eePairingRequestColumns() []string {
 	return []string{
 		"pairing_id", "owner_user_id", "node_id", "agent_id", "device_id", "device_name",
-		"key_epoch", "recipient_public_key", "secret_commitment", "created_at", "expires_at", "completed_at",
+		"key_epoch", "recipient_public_key", "secret_commitment", "created_at", "expires_at", "completed_at", "superseded_at",
 	}
 }
 
 func e2eePairingRequestValues(request E2EEPairingRequest) []driver.Value {
-	var completedAt driver.Value
+	var completedAt, supersededAt driver.Value
+	if request.SupersededAt != nil {
+		supersededAt = *request.SupersededAt
+	}
 	if request.CompletedAt != nil {
 		completedAt = *request.CompletedAt
 	}
 	return []driver.Value{
 		request.PairingID, request.OwnerUserID, request.NodeID, request.AgentID,
 		request.DeviceID, request.DeviceName, request.KeyEpoch, request.RecipientPublicKey,
-		request.SecretCommitment, request.CreatedAt, request.ExpiresAt, completedAt,
+		request.SecretCommitment, request.CreatedAt, request.ExpiresAt, completedAt, supersededAt,
 	}
 }
 

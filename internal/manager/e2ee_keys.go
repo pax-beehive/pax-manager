@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -106,6 +107,39 @@ func (s *Service) handleCreateE2EEPairing(c context.Context, ctx *app.RequestCon
 		return
 	}
 	writeData(ctx, http.StatusCreated, encodeE2EEPairingResponse(created))
+}
+
+// Request completion and browser delivery are separate: an approved request does
+// not expire while its browser is offline. GET exposes state without reapproving.
+func (s *Service) handleGetUserE2EEPairing(c context.Context, ctx *app.RequestContext) {
+	ctx.Header("Cache-Control", "private, no-store")
+	principal, agent, ok := s.ownedE2EEAgent(c, ctx)
+	if !ok {
+		return
+	}
+	request, err := s.store.GetE2EEPairingRequest(
+		c,
+		principal.User.UserID,
+		agent.AgentID,
+		ctx.Param("pairing_id"),
+	)
+	if err != nil && !errors.Is(err, domain.ErrE2EEPairingSuperseded) {
+		writeEndpointError(ctx, err)
+		return
+	}
+	status := "pending"
+	switch {
+	case request.CompletedAt != nil:
+		status = "approved"
+	case request.SupersededAt != nil:
+		status = "superseded"
+	case !request.ExpiresAt.After(s.clock().UTC()):
+		status = "expired"
+	}
+	writeData(ctx, http.StatusOK, struct {
+		e2eePairingResponse
+		Status string `json:"status"`
+	}{encodeE2EEPairingResponse(request), status})
 }
 
 func (s *Service) handleListE2EEPairings(c context.Context, ctx *app.RequestContext) {

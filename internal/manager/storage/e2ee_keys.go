@@ -5,14 +5,18 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
 const e2eePairingRequestSelectSQL = `
 	SELECT pairing_id, owner_user_id, node_id, agent_id, device_id, device_name,
-		key_epoch, recipient_public_key, secret_commitment, created_at, expires_at, completed_at
+		key_epoch, recipient_public_key, secret_commitment, created_at, expires_at,
+		completed_at, superseded_at
 	FROM e2ee_pairing_requests`
 
 const e2eeKeyPackageSelectSQL = `
@@ -36,10 +40,21 @@ func (s *MemoryStore) CreateE2EEPairingRequest(
 		if !sameE2EEPairingRequest(existing, request) {
 			return E2EEPairingRequest{}, ErrConflict
 		}
+		if existing.SupersededAt != nil {
+			return E2EEPairingRequest{}, domain.ErrE2EEPairingSuperseded
+		}
 		return cloneE2EEPairingRequest(existing), nil
 	}
 	if request.CreatedAt.IsZero() {
 		request.CreatedAt = s.now().UTC()
+	}
+	now := s.now().UTC()
+	for id, previous := range s.e2eePairingRequests {
+		if previous.AgentID == request.AgentID && previous.DeviceID == request.DeviceID &&
+			previous.KeyEpoch == request.KeyEpoch && previous.SupersededAt == nil {
+			previous.SupersededAt = &now
+			s.e2eePairingRequests[id] = previous
+		}
 	}
 	s.e2eePairingRequests[request.PairingID] = cloneE2EEPairingRequest(request)
 	return cloneE2EEPairingRequest(request), nil
@@ -56,6 +71,9 @@ func (s *MemoryStore) GetE2EEPairingRequest(
 	request, ok := s.e2eePairingRequests[pairingID]
 	if !ok || request.OwnerUserID != ownerUserID || request.AgentID != agentID {
 		return E2EEPairingRequest{}, ErrNotFound
+	}
+	if request.SupersededAt != nil {
+		return cloneE2EEPairingRequest(request), domain.ErrE2EEPairingSuperseded
 	}
 	return cloneE2EEPairingRequest(request), nil
 }
@@ -75,7 +93,7 @@ func (s *MemoryStore) ListPendingE2EEPairingRequests(
 	requests := make([]E2EEPairingRequest, 0, limit)
 	for _, request := range s.e2eePairingRequests {
 		if request.OwnerUserID == ownerUserID && request.AgentID == agentID &&
-			request.CompletedAt == nil && request.ExpiresAt.After(now) {
+			request.CompletedAt == nil && request.SupersededAt == nil && request.ExpiresAt.After(now) {
 			requests = append(requests, cloneE2EEPairingRequest(request))
 		}
 	}
@@ -99,18 +117,22 @@ func (s *MemoryStore) CompleteE2EEPairing(
 	if !ok || stored.OwnerUserID != request.OwnerUserID || stored.AgentID != request.AgentID {
 		return E2EEKeyPackage{}, ErrNotFound
 	}
+	if stored.SupersededAt != nil {
+		return E2EEKeyPackage{}, domain.ErrE2EEPairingSuperseded
+	}
 	if !pairingMatchesPackage(stored, keyPackage) {
 		return E2EEKeyPackage{}, ErrConflict
 	}
 	key := e2eeKeyPackageKey(keyPackage.AgentID, keyPackage.DeviceID, keyPackage.KeyEpoch)
-	if existing, exists := s.e2eeKeyPackages[key]; exists {
-		if !sameE2EEKeyPackage(existing, keyPackage) {
+	if stored.CompletedAt != nil {
+		existing, exists := s.e2eeKeyPackages[key]
+		if !exists || existing.PairingID != stored.PairingID {
 			return E2EEKeyPackage{}, ErrConflict
 		}
 		return cloneE2EEKeyPackage(existing), nil
 	}
 	if !stored.ExpiresAt.After(s.now().UTC()) {
-		return E2EEKeyPackage{}, ErrConflict
+		return E2EEKeyPackage{}, domain.ErrE2EEPairingExpired
 	}
 	if keyPackage.CreatedAt.IsZero() {
 		keyPackage.CreatedAt = s.now().UTC()
@@ -157,15 +179,6 @@ func sameE2EEPairingRequest(left E2EEPairingRequest, right E2EEPairingRequest) b
 		bytes.Equal(left.SecretCommitment, right.SecretCommitment)
 }
 
-func sameE2EEKeyPackage(left E2EEKeyPackage, right E2EEKeyPackage) bool {
-	return pairingMatchesPackage(E2EEPairingRequest{
-		PairingID: left.PairingID, OwnerUserID: left.OwnerUserID, NodeID: left.NodeID,
-		AgentID: left.AgentID, DeviceID: left.DeviceID, KeyEpoch: left.KeyEpoch,
-		RecipientPublicKey: left.RecipientPublicKey,
-	}, right) && bytes.Equal(left.SenderEphemeralPublicKey, right.SenderEphemeralPublicKey) &&
-		bytes.Equal(left.Nonce, right.Nonce) && bytes.Equal(left.Ciphertext, right.Ciphertext)
-}
-
 func cloneE2EEPairingRequest(request E2EEPairingRequest) E2EEPairingRequest {
 	request.RecipientPublicKey = append([]byte(nil), request.RecipientPublicKey...)
 	request.SecretCommitment = append([]byte(nil), request.SecretCommitment...)
@@ -186,6 +199,14 @@ func e2eeKeyPackageKey(agentID string, deviceID string, keyEpoch int64) string {
 	return agentID + "\x00" + deviceID + "\x00" + strconv.FormatInt(keyEpoch, 10)
 }
 
+// Creation and completion share a device-scoped transaction lock. Locking only
+// a pairing row would allow a different pairing to supersede it during completion.
+func lockE2EEPairing(ctx context.Context, tx *sql.Tx, request E2EEPairingRequest) error {
+	key := fmt.Sprintf("e2ee-pairing/%q/%q/%d", request.AgentID, request.DeviceID, request.KeyEpoch)
+	_, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, key)
+	return err
+}
+
 func (s *PostgresStore) CreateE2EEPairingRequest(
 	ctx context.Context,
 	request E2EEPairingRequest,
@@ -193,11 +214,19 @@ func (s *PostgresStore) CreateE2EEPairingRequest(
 	if !validE2EEPairingRequest(request) {
 		return E2EEPairingRequest{}, ErrConflict
 	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return E2EEPairingRequest{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err = lockE2EEPairing(ctx, tx, request); err != nil {
+		return E2EEPairingRequest{}, err
+	}
 	if request.CreatedAt.IsZero() {
 		request.CreatedAt = s.now().UTC()
 	}
 	var createdAt time.Time
-	err := s.db.QueryRowContext(ctx, `
+	err = tx.QueryRowContext(ctx, `
 		INSERT INTO e2ee_pairing_requests (
 			pairing_id, owner_user_id, node_id, agent_id, device_id, device_name,
 			key_epoch, recipient_public_key, secret_commitment, created_at, expires_at
@@ -208,21 +237,44 @@ func (s *PostgresStore) CreateE2EEPairingRequest(
 		request.DeviceID, request.DeviceName, request.KeyEpoch, request.RecipientPublicKey,
 		request.SecretCommitment, request.CreatedAt, request.ExpiresAt,
 	).Scan(&createdAt)
-	if err == nil {
+	if errors.Is(err, sql.ErrNoRows) {
+		// A creation retry must never reactivate a superseded request.
+		request, err = existingE2EEPairing(ctx, tx, request)
+	} else if err == nil {
 		request.CreatedAt = createdAt.UTC()
-		return request, nil
+		_, err = tx.ExecContext(ctx, `
+			UPDATE e2ee_pairing_requests SET superseded_at = $1
+			WHERE agent_id = $2 AND device_id = $3 AND key_epoch = $4
+				AND pairing_id <> $5 AND superseded_at IS NULL`,
+			s.now().UTC(), request.AgentID, request.DeviceID, request.KeyEpoch, request.PairingID)
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		return E2EEPairingRequest{}, err
 	}
-	existing, err := s.GetE2EEPairingRequest(
-		ctx, request.OwnerUserID, request.AgentID, request.PairingID,
-	)
+	if err = tx.Commit(); err != nil {
+		return E2EEPairingRequest{}, err
+	}
+	return request, nil
+}
+
+func existingE2EEPairing(
+	ctx context.Context, tx *sql.Tx, request E2EEPairingRequest,
+) (E2EEPairingRequest, error) {
+	existing, err := scanE2EEPairingRequest(tx.QueryRowContext(ctx,
+		e2eePairingRequestSelectSQL+`
+		WHERE owner_user_id = $1 AND agent_id = $2 AND pairing_id = $3`,
+		request.OwnerUserID, request.AgentID, request.PairingID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return E2EEPairingRequest{}, ErrNotFound
+	}
 	if err != nil {
 		return E2EEPairingRequest{}, err
 	}
 	if !sameE2EEPairingRequest(existing, request) {
 		return E2EEPairingRequest{}, ErrConflict
+	}
+	if existing.SupersededAt != nil {
+		return E2EEPairingRequest{}, domain.ErrE2EEPairingSuperseded
 	}
 	return existing, nil
 }
@@ -241,6 +293,9 @@ func (s *PostgresStore) GetE2EEPairingRequest(
 	if errors.Is(err, sql.ErrNoRows) {
 		return E2EEPairingRequest{}, ErrNotFound
 	}
+	if err == nil && request.SupersededAt != nil {
+		return request, domain.ErrE2EEPairingSuperseded
+	}
 	return request, err
 }
 
@@ -255,7 +310,7 @@ func (s *PostgresStore) ListPendingE2EEPairingRequests(
 	}
 	rows, err := s.db.QueryContext(ctx, e2eePairingRequestSelectSQL+`
 		WHERE owner_user_id = $1 AND agent_id = $2
-			AND completed_at IS NULL AND expires_at > $3
+			AND completed_at IS NULL AND superseded_at IS NULL AND expires_at > $3
 		ORDER BY created_at
 		LIMIT $4`, ownerUserID, agentID, s.now().UTC(), limit)
 	if err != nil {
@@ -282,11 +337,10 @@ func (s *PostgresStore) CompleteE2EEPairing(
 	if err != nil {
 		return E2EEKeyPackage{}, err
 	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
+	defer func() { _ = tx.Rollback() }()
+	if err = lockE2EEPairing(ctx, tx, request); err != nil {
+		return E2EEKeyPackage{}, err
+	}
 	stored, err := scanE2EEPairingRequest(tx.QueryRowContext(ctx,
 		e2eePairingRequestSelectSQL+`
 		WHERE owner_user_id = $1 AND agent_id = $2 AND pairing_id = $3
@@ -297,6 +351,9 @@ func (s *PostgresStore) CompleteE2EEPairing(
 	}
 	if err != nil {
 		return E2EEKeyPackage{}, err
+	}
+	if stored.SupersededAt != nil {
+		return E2EEKeyPackage{}, domain.ErrE2EEPairingSuperseded
 	}
 	if !pairingMatchesPackage(stored, keyPackage) {
 		return E2EEKeyPackage{}, ErrConflict
@@ -310,7 +367,7 @@ func (s *PostgresStore) CompleteE2EEPairing(
 		if err != nil {
 			return E2EEKeyPackage{}, err
 		}
-		if !sameE2EEKeyPackage(result, keyPackage) {
+		if result.PairingID != stored.PairingID {
 			return E2EEKeyPackage{}, ErrConflict
 		}
 		if err = tx.Commit(); err != nil {
@@ -319,7 +376,7 @@ func (s *PostgresStore) CompleteE2EEPairing(
 		return result, nil
 	}
 	if !stored.ExpiresAt.After(s.now().UTC()) {
-		return E2EEKeyPackage{}, ErrConflict
+		return E2EEKeyPackage{}, domain.ErrE2EEPairingExpired
 	}
 	if keyPackage.CreatedAt.IsZero() {
 		keyPackage.CreatedAt = s.now().UTC()
@@ -330,31 +387,26 @@ func (s *PostgresStore) CompleteE2EEPairing(
 			pairing_id, owner_user_id, node_id, agent_id, device_id, key_epoch,
 			recipient_public_key, sender_ephemeral_public_key, nonce, ciphertext, created_at
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-		ON CONFLICT (agent_id, device_id, key_epoch) DO NOTHING
+		ON CONFLICT (agent_id, device_id, key_epoch) DO UPDATE SET
+			pairing_id = EXCLUDED.pairing_id,
+			owner_user_id = EXCLUDED.owner_user_id,
+			node_id = EXCLUDED.node_id,
+			recipient_public_key = EXCLUDED.recipient_public_key,
+			sender_ephemeral_public_key = EXCLUDED.sender_ephemeral_public_key,
+			nonce = EXCLUDED.nonce,
+			ciphertext = EXCLUDED.ciphertext,
+			created_at = EXCLUDED.created_at
 		RETURNING created_at`,
 		keyPackage.PairingID, keyPackage.OwnerUserID, keyPackage.NodeID, keyPackage.AgentID,
 		keyPackage.DeviceID, keyPackage.KeyEpoch, keyPackage.RecipientPublicKey,
 		keyPackage.SenderEphemeralPublicKey, keyPackage.Nonce, keyPackage.Ciphertext,
 		keyPackage.CreatedAt,
 	).Scan(&createdAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		result, err = scanE2EEKeyPackage(tx.QueryRowContext(ctx,
-			e2eeKeyPackageSelectSQL+`
-			WHERE owner_user_id = $1 AND agent_id = $2 AND device_id = $3 AND key_epoch = $4`,
-			keyPackage.OwnerUserID, keyPackage.AgentID, keyPackage.DeviceID, keyPackage.KeyEpoch,
-		))
-		if err != nil {
-			return E2EEKeyPackage{}, err
-		}
-		if !sameE2EEKeyPackage(result, keyPackage) {
-			return E2EEKeyPackage{}, ErrConflict
-		}
-	} else if err != nil {
+	if err != nil {
 		return E2EEKeyPackage{}, err
-	} else {
-		keyPackage.CreatedAt = createdAt.UTC()
-		result = keyPackage
 	}
+	keyPackage.CreatedAt = createdAt.UTC()
+	result = keyPackage
 	_, err = tx.ExecContext(ctx, `
 		UPDATE e2ee_pairing_requests
 		SET completed_at = COALESCE(completed_at, $1)
@@ -399,6 +451,7 @@ func scanE2EEPairingRequest(row rowScanner) (E2EEPairingRequest, error) {
 		&request.PairingID, &request.OwnerUserID, &request.NodeID, &request.AgentID,
 		&request.DeviceID, &request.DeviceName, &request.KeyEpoch, &request.RecipientPublicKey,
 		&request.SecretCommitment, &request.CreatedAt, &request.ExpiresAt, &request.CompletedAt,
+		&request.SupersededAt,
 	)
 	return request, err
 }

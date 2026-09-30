@@ -401,6 +401,7 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	)
 	h.POST(routeUserAgentE2EEPairings, s.handleCreateE2EEPairing)
 	h.GET(routeUserAgentE2EEPairings, s.handleListE2EEPairings)
+	h.GET(routeUserAgentE2EEPairing, s.handleGetUserE2EEPairing)
 	h.POST(routeUserAgentE2EEPairingPackage, s.handleCompleteUserE2EEPairing)
 	h.GET(routeUserAgentE2EEKeyPackage, s.handleGetE2EEKeyPackage)
 	h.GET(routeNodeAgentE2EEPairing, NodeAuth(), s.handleGetNodeE2EEPairing)
@@ -553,6 +554,10 @@ func endpointErrorStatus(err error) (int, string) {
 		return httpErr.Status, httpErr.Message
 	}
 	switch {
+	case errors.Is(err, domain.ErrE2EEPairingSuperseded):
+		return http.StatusConflict, err.Error()
+	case errors.Is(err, domain.ErrE2EEPairingExpired):
+		return http.StatusGone, err.Error()
 	case errors.Is(err, ErrNotFound):
 		return http.StatusNotFound, "not found"
 	case errors.Is(err, ErrUnauthorized):

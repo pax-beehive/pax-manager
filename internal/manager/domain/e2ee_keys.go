@@ -2,7 +2,15 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	ErrE2EEPairingSuperseded = errors.New(
+		"pairing superseded by a newer request; use the latest pairing command",
+	)
+	ErrE2EEPairingExpired = errors.New("pairing expired; generate a new pairing request")
 )
 
 type E2EEPairingRequest struct {
@@ -17,6 +25,7 @@ type E2EEPairingRequest struct {
 	SecretCommitment   []byte     `json:"-"`
 	CreatedAt          time.Time  `json:"created_at"`
 	ExpiresAt          time.Time  `json:"expires_at"`
+	SupersededAt       *time.Time `json:"-"`
 	CompletedAt        *time.Time `json:"completed_at,omitempty"`
 }
 
@@ -39,6 +48,8 @@ type E2EEKeyDistributionStore interface {
 		ctx context.Context,
 		request E2EEPairingRequest,
 	) (E2EEPairingRequest, error)
+	// A superseded request is returned with ErrE2EEPairingSuperseded so a
+	// read-only owner status endpoint can describe it. Approval still rejects it.
 	GetE2EEPairingRequest(
 		ctx context.Context,
 		ownerUserID string,
