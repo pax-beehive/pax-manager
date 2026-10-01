@@ -14,6 +14,8 @@ import (
 )
 
 type MemoryStore struct {
+	shortPairingAttempts         map[string]domain.ShortPairingAttempt
+	shortPairingBudgets          map[string]shortPairingBudget
 	turnQueue                    map[string]domain.QueuedTurn
 	mu                           sync.Mutex
 	now                          func() time.Time

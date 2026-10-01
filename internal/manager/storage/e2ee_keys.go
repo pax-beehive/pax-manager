@@ -16,7 +16,7 @@ import (
 const e2eePairingRequestSelectSQL = `
 	SELECT pairing_id, owner_user_id, node_id, agent_id, device_id, device_name,
 		key_epoch, recipient_public_key, secret_commitment, created_at, expires_at,
-		completed_at, superseded_at
+		completed_at, superseded_at, protocol_version, recipient_capability_hash, cancelled_at, rejected_at
 	FROM e2ee_pairing_requests`
 
 const e2eeKeyPackageSelectSQL = `
@@ -30,12 +30,10 @@ func (s *MemoryStore) CreateE2EEPairingRequest(
 ) (E2EEPairingRequest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if request.PairingID == "" || request.OwnerUserID == "" || request.NodeID == "" ||
-		request.AgentID == "" || request.DeviceID == "" || request.KeyEpoch < 1 ||
-		len(request.RecipientPublicKey) == 0 || len(request.SecretCommitment) == 0 ||
-		request.ExpiresAt.IsZero() {
+	if !validE2EEPairingRequest(request) {
 		return E2EEPairingRequest{}, ErrConflict
 	}
+
 	if existing, ok := s.e2eePairingRequests[request.PairingID]; ok {
 		if !sameE2EEPairingRequest(existing, request) {
 			return E2EEPairingRequest{}, ErrConflict
@@ -93,7 +91,7 @@ func (s *MemoryStore) ListPendingE2EEPairingRequests(
 	requests := make([]E2EEPairingRequest, 0, limit)
 	for _, request := range s.e2eePairingRequests {
 		if request.OwnerUserID == ownerUserID && request.AgentID == agentID &&
-			request.CompletedAt == nil && request.SupersededAt == nil && request.ExpiresAt.After(now) {
+			request.CompletedAt == nil && request.CancelledAt == nil && request.RejectedAt == nil && request.SupersededAt == nil && request.ExpiresAt.After(now) {
 			requests = append(requests, cloneE2EEPairingRequest(request))
 		}
 	}
@@ -120,6 +118,18 @@ func (s *MemoryStore) CompleteE2EEPairing(
 	if stored.SupersededAt != nil {
 		return E2EEKeyPackage{}, domain.ErrE2EEPairingSuperseded
 	}
+	if stored.CancelledAt != nil || stored.RejectedAt != nil {
+		return E2EEKeyPackage{}, domain.ErrShortPairingEnded
+	}
+	if stored.ProtocolVersion == domain.ShortPairingProtocol {
+		a, ok := s.shortPairingAttempts[request.ApprovalAttemptID]
+		if !ok {
+			return E2EEKeyPackage{}, ErrNotFound
+		}
+		if err := shortApproval(stored, a, request, s.now().UTC()); err != nil {
+			return E2EEKeyPackage{}, err
+		}
+	}
 	if !pairingMatchesPackage(stored, keyPackage) {
 		return E2EEKeyPackage{}, ErrConflict
 	}
@@ -138,6 +148,11 @@ func (s *MemoryStore) CompleteE2EEPairing(
 		keyPackage.CreatedAt = s.now().UTC()
 	}
 	now := s.now().UTC()
+	if stored.ProtocolVersion == domain.ShortPairingProtocol {
+		a := s.shortPairingAttempts[request.ApprovalAttemptID]
+		a.Stage = 4
+		s.shortPairingAttempts[a.AttemptID] = a
+	}
 	stored.CompletedAt = &now
 	s.e2eePairingRequests[stored.PairingID] = stored
 	s.e2eeKeyPackages[key] = cloneE2EEKeyPackage(keyPackage)
@@ -174,7 +189,7 @@ func sameE2EEPairingRequest(left E2EEPairingRequest, right E2EEPairingRequest) b
 	return left.PairingID == right.PairingID && left.OwnerUserID == right.OwnerUserID &&
 		left.NodeID == right.NodeID && left.AgentID == right.AgentID &&
 		left.DeviceID == right.DeviceID && left.DeviceName == right.DeviceName &&
-		left.KeyEpoch == right.KeyEpoch &&
+		left.KeyEpoch == right.KeyEpoch && normalizedPairingProtocol(left.ProtocolVersion) == normalizedPairingProtocol(right.ProtocolVersion) && bytes.Equal(left.RecipientCapabilityHash, right.RecipientCapabilityHash) &&
 		bytes.Equal(left.RecipientPublicKey, right.RecipientPublicKey) &&
 		bytes.Equal(left.SecretCommitment, right.SecretCommitment)
 }
@@ -182,6 +197,7 @@ func sameE2EEPairingRequest(left E2EEPairingRequest, right E2EEPairingRequest) b
 func cloneE2EEPairingRequest(request E2EEPairingRequest) E2EEPairingRequest {
 	request.RecipientPublicKey = append([]byte(nil), request.RecipientPublicKey...)
 	request.SecretCommitment = append([]byte(nil), request.SecretCommitment...)
+	request.RecipientCapabilityHash = bytes.Clone(request.RecipientCapabilityHash)
 	return request
 }
 
@@ -226,16 +242,28 @@ func (s *PostgresStore) CreateE2EEPairingRequest(
 		request.CreatedAt = s.now().UTC()
 	}
 	var createdAt time.Time
-	err = tx.QueryRowContext(ctx, `
+	err = tx.QueryRowContext(
+		ctx,
+		`
 		INSERT INTO e2ee_pairing_requests (
 			pairing_id, owner_user_id, node_id, agent_id, device_id, device_name,
-			key_epoch, recipient_public_key, secret_commitment, created_at, expires_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+			key_epoch, recipient_public_key, secret_commitment, created_at, expires_at,protocol_version,recipient_capability_hash
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 		ON CONFLICT (pairing_id) DO NOTHING
 		RETURNING created_at`,
-		request.PairingID, request.OwnerUserID, request.NodeID, request.AgentID,
-		request.DeviceID, request.DeviceName, request.KeyEpoch, request.RecipientPublicKey,
-		request.SecretCommitment, request.CreatedAt, request.ExpiresAt,
+		request.PairingID,
+		request.OwnerUserID,
+		request.NodeID,
+		request.AgentID,
+		request.DeviceID,
+		request.DeviceName,
+		request.KeyEpoch,
+		request.RecipientPublicKey,
+		request.SecretCommitment,
+		request.CreatedAt,
+		request.ExpiresAt,
+		normalizedPairingProtocol(request.ProtocolVersion),
+		request.RecipientCapabilityHash,
 	).Scan(&createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		// A creation retry must never reactivate a superseded request.
@@ -310,7 +338,7 @@ func (s *PostgresStore) ListPendingE2EEPairingRequests(
 	}
 	rows, err := s.db.QueryContext(ctx, e2eePairingRequestSelectSQL+`
 		WHERE owner_user_id = $1 AND agent_id = $2
-			AND completed_at IS NULL AND superseded_at IS NULL AND expires_at > $3
+			AND completed_at IS NULL AND cancelled_at IS NULL AND rejected_at IS NULL AND superseded_at IS NULL AND expires_at > $3
 		ORDER BY created_at
 		LIMIT $4`, ownerUserID, agentID, s.now().UTC(), limit)
 	if err != nil {
@@ -355,6 +383,9 @@ func (s *PostgresStore) CompleteE2EEPairing(
 	if stored.SupersededAt != nil {
 		return E2EEKeyPackage{}, domain.ErrE2EEPairingSuperseded
 	}
+	if err = s.validateShortApproval(ctx, tx, stored, request); err != nil {
+		return E2EEKeyPackage{}, err
+	}
 	if !pairingMatchesPackage(stored, keyPackage) {
 		return E2EEKeyPackage{}, ErrConflict
 	}
@@ -370,6 +401,7 @@ func (s *PostgresStore) CompleteE2EEPairing(
 		if result.PairingID != stored.PairingID {
 			return E2EEKeyPackage{}, ErrConflict
 		}
+
 		if err = tx.Commit(); err != nil {
 			return E2EEKeyPackage{}, err
 		}
@@ -414,6 +446,11 @@ func (s *PostgresStore) CompleteE2EEPairing(
 	if err != nil {
 		return E2EEKeyPackage{}, err
 	}
+	if stored.ProtocolVersion == domain.ShortPairingProtocol {
+		if _, err = tx.ExecContext(ctx, `UPDATE e2ee_pairing_attempts SET stage=4 WHERE attempt_id=$1`, request.ApprovalAttemptID); err != nil {
+			return E2EEKeyPackage{}, err
+		}
+	}
 	if err = tx.Commit(); err != nil {
 		return E2EEKeyPackage{}, err
 	}
@@ -442,16 +479,39 @@ func validE2EEPairingRequest(request E2EEPairingRequest) bool {
 	return request.PairingID != "" && request.OwnerUserID != "" && request.NodeID != "" &&
 		request.AgentID != "" && request.DeviceID != "" && request.KeyEpoch > 0 &&
 		len(request.RecipientPublicKey) > 0 && len(request.SecretCommitment) > 0 &&
-		!request.ExpiresAt.IsZero()
+		!request.ExpiresAt.IsZero() && validPairingProtocol(request)
+}
+func validPairingProtocol(request E2EEPairingRequest) bool {
+	switch normalizedPairingProtocol(request.ProtocolVersion) {
+	case "legacy-v1":
+		return len(request.RecipientCapabilityHash) == 0
+	case domain.ShortPairingProtocol:
+		return len(request.RecipientCapabilityHash) == 32
+	default:
+		return false
+	}
 }
 
 func scanE2EEPairingRequest(row rowScanner) (E2EEPairingRequest, error) {
 	var request E2EEPairingRequest
 	err := row.Scan(
-		&request.PairingID, &request.OwnerUserID, &request.NodeID, &request.AgentID,
-		&request.DeviceID, &request.DeviceName, &request.KeyEpoch, &request.RecipientPublicKey,
-		&request.SecretCommitment, &request.CreatedAt, &request.ExpiresAt, &request.CompletedAt,
+		&request.PairingID,
+		&request.OwnerUserID,
+		&request.NodeID,
+		&request.AgentID,
+		&request.DeviceID,
+		&request.DeviceName,
+		&request.KeyEpoch,
+		&request.RecipientPublicKey,
+		&request.SecretCommitment,
+		&request.CreatedAt,
+		&request.ExpiresAt,
+		&request.CompletedAt,
 		&request.SupersededAt,
+		&request.ProtocolVersion,
+		&request.RecipientCapabilityHash,
+		&request.CancelledAt,
+		&request.RejectedAt,
 	)
 	return request, err
 }
@@ -465,4 +525,36 @@ func scanE2EEKeyPackage(row rowScanner) (E2EEKeyPackage, error) {
 		&keyPackage.Nonce, &keyPackage.Ciphertext, &keyPackage.CreatedAt,
 	)
 	return keyPackage, err
+}
+
+func normalizedPairingProtocol(value string) string {
+	if value == "" {
+		return "legacy-v1"
+	}
+	return value
+}
+
+func (s *PostgresStore) validateShortApproval(
+	ctx context.Context,
+	tx *sql.Tx,
+	stored, request E2EEPairingRequest,
+) error {
+	if stored.CancelledAt != nil || stored.RejectedAt != nil {
+		return domain.ErrShortPairingEnded
+	}
+	if stored.ProtocolVersion != domain.ShortPairingProtocol {
+		return nil
+	}
+	attempt, err := scanShortAttempt(
+		tx.QueryRowContext(
+			ctx,
+			shortAttemptSelect+` WHERE attempt_id=$1 AND pairing_id=$2 FOR UPDATE`,
+			request.ApprovalAttemptID,
+			stored.PairingID,
+		),
+	)
+	if err != nil {
+		return err
+	}
+	return shortApproval(stored, attempt, request, s.now().UTC())
 }

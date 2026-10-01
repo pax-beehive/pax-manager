@@ -25,6 +25,7 @@ import (
 )
 
 type Service struct {
+	shortPairingStore  domain.ShortPairingStore
 	queueContext       context.Context
 	queueCancel        context.CancelFunc
 	cfg                Config
@@ -64,6 +65,7 @@ func newServer(cfg Config, store Store) *Service {
 		cfg.PaxdVerificationBaseURL = managerconfig.DefaultPaxdVerificationBaseURL
 	}
 	secrets := auth.Secrets{}
+	shortPairingStore, _ := store.(domain.ShortPairingStore)
 	transportBaseStore := store
 	store = newCanonicalSessionStore(store)
 	transportStore := reliablemq.NewProducerWriteBehindStore(
@@ -101,6 +103,7 @@ func newServer(cfg Config, store Store) *Service {
 	}
 	s := &Service{
 		cfg:                cfg,
+		shortPairingStore:  shortPairingStore,
 		store:              store,
 		transportStore:     transportStore,
 		transportProducers: transportProducers,
@@ -402,6 +405,11 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.POST(routeUserAgentE2EEPairings, s.handleCreateE2EEPairing)
 	h.GET(routeUserAgentE2EEPairings, s.handleListE2EEPairings)
 	h.GET(routeUserAgentE2EEPairing, s.handleGetUserE2EEPairing)
+	h.GET(routeUserAgentE2EEPairing+"/attempts", s.handleShortPairingAttempts)
+	h.POST(routeUserAgentE2EEPairing+"/attempts", s.handleShortPairingAttempts)
+	h.GET(routeUserAgentE2EEPairing+"/attempts/:attempt_id", s.handleShortPairingAttempt)
+	h.POST(routeUserAgentE2EEPairing+"/attempts/:attempt_id", s.handleShortPairingAttempt)
+	h.POST(routeUserAgentE2EEPairing+"/end", s.handleEndShortPairing)
 	h.POST(routeUserAgentE2EEPairingPackage, s.handleCompleteUserE2EEPairing)
 	h.GET(routeUserAgentE2EEKeyPackage, s.handleGetE2EEKeyPackage)
 	h.GET(routeNodeAgentE2EEPairing, NodeAuth(), s.handleGetNodeE2EEPairing)
@@ -554,6 +562,10 @@ func endpointErrorStatus(err error) (int, string) {
 		return httpErr.Status, httpErr.Message
 	}
 	switch {
+	case errors.Is(err, domain.ErrShortPairingLimited):
+		return http.StatusTooManyRequests, err.Error()
+	case errors.Is(err, domain.ErrShortPairingEnded):
+		return http.StatusConflict, err.Error()
 	case errors.Is(err, domain.ErrE2EEPairingSuperseded):
 		return http.StatusConflict, err.Error()
 	case errors.Is(err, domain.ErrE2EEPairingExpired):
