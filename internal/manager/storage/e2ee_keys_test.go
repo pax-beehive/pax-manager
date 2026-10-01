@@ -345,12 +345,18 @@ func testE2EEKeyPackage(now time.Time) E2EEKeyPackage {
 func e2eePairingRequestColumns() []string {
 	return []string{
 		"pairing_id", "owner_user_id", "node_id", "agent_id", "device_id", "device_name",
-		"key_epoch", "recipient_public_key", "secret_commitment", "created_at", "expires_at", "completed_at", "superseded_at",
+		"key_epoch", "recipient_public_key", "secret_commitment", "created_at", "expires_at", "completed_at", "superseded_at", "protocol_version", "recipient_capability_hash", "cancelled_at", "rejected_at",
 	}
 }
 
 func e2eePairingRequestValues(request E2EEPairingRequest) []driver.Value {
-	var completedAt, supersededAt driver.Value
+	var completedAt, supersededAt, cancelledAt, rejectedAt driver.Value
+	if request.CancelledAt != nil {
+		cancelledAt = *request.CancelledAt
+	}
+	if request.RejectedAt != nil {
+		rejectedAt = *request.RejectedAt
+	}
 	if request.SupersededAt != nil {
 		supersededAt = *request.SupersededAt
 	}
@@ -360,7 +366,7 @@ func e2eePairingRequestValues(request E2EEPairingRequest) []driver.Value {
 	return []driver.Value{
 		request.PairingID, request.OwnerUserID, request.NodeID, request.AgentID,
 		request.DeviceID, request.DeviceName, request.KeyEpoch, request.RecipientPublicKey,
-		request.SecretCommitment, request.CreatedAt, request.ExpiresAt, completedAt, supersededAt,
+		request.SecretCommitment, request.CreatedAt, request.ExpiresAt, completedAt, supersededAt, request.ProtocolVersion, request.RecipientCapabilityHash, cancelledAt, rejectedAt,
 	}
 }
 

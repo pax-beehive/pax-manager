@@ -14,19 +14,25 @@ var (
 )
 
 type E2EEPairingRequest struct {
-	PairingID          string     `json:"pairing_id"`
-	OwnerUserID        string     `json:"-"`
-	NodeID             string     `json:"node_id"`
-	AgentID            string     `json:"agent_id"`
-	DeviceID           string     `json:"device_id"`
-	DeviceName         string     `json:"device_name"`
-	KeyEpoch           int64      `json:"key_epoch"`
-	RecipientPublicKey []byte     `json:"-"`
-	SecretCommitment   []byte     `json:"-"`
-	CreatedAt          time.Time  `json:"created_at"`
-	ExpiresAt          time.Time  `json:"expires_at"`
-	SupersededAt       *time.Time `json:"-"`
-	CompletedAt        *time.Time `json:"completed_at,omitempty"`
+	ProtocolVersion         string     `json:"protocol_version,omitempty"`
+	RecipientCapabilityHash []byte     `json:"-"`
+	CancelledAt             *time.Time `json:"cancelled_at,omitempty"`
+	RejectedAt              *time.Time `json:"rejected_at,omitempty"`
+	ApprovalAttemptID       string     `json:"-"`
+	ApprovalCapabilityHash  []byte     `json:"-"`
+	PairingID               string     `json:"pairing_id"`
+	OwnerUserID             string     `json:"-"`
+	NodeID                  string     `json:"node_id"`
+	AgentID                 string     `json:"agent_id"`
+	DeviceID                string     `json:"device_id"`
+	DeviceName              string     `json:"device_name"`
+	KeyEpoch                int64      `json:"key_epoch"`
+	RecipientPublicKey      []byte     `json:"-"`
+	SecretCommitment        []byte     `json:"-"`
+	CreatedAt               time.Time  `json:"created_at"`
+	ExpiresAt               time.Time  `json:"expires_at"`
+	SupersededAt            *time.Time `json:"-"`
+	CompletedAt             *time.Time `json:"completed_at,omitempty"`
 }
 
 type E2EEKeyPackage struct {

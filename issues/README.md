@@ -36,6 +36,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 030 | resolved | [Concurrent history text flushes reorder chunks](030-history-text-write-order.md) | high | history |
 | 031 | resolved | [Permission cache invalidated by daemon version](031-permission-cache-daemon-version.md) | medium | runtime / permissions |
 
+| 032 | resolved | [Short-code device pairing relay](032-short-code-pairing.md) | medium | e2ee / storage / user API |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

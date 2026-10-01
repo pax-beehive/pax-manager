@@ -280,6 +280,35 @@ CREATE INDEX IF NOT EXISTS idx_e2ee_pairing_requests_pending
     ON e2ee_pairing_requests(owner_user_id, agent_id, created_at)
     WHERE completed_at IS NULL;
 
+-- Short-code pairing is additive; legacy secrets and delivered packages remain unchanged.
+ALTER TABLE e2ee_pairing_requests ADD COLUMN IF NOT EXISTS protocol_version TEXT NOT NULL DEFAULT 'legacy-v1';
+ALTER TABLE e2ee_pairing_requests ADD COLUMN IF NOT EXISTS recipient_capability_hash BYTEA;
+ALTER TABLE e2ee_pairing_requests ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+ALTER TABLE e2ee_pairing_requests ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS e2ee_pairing_attempts (
+    attempt_id TEXT PRIMARY KEY,
+    pairing_id TEXT NOT NULL REFERENCES e2ee_pairing_requests(pairing_id) ON DELETE CASCADE,
+    generation BIGINT NOT NULL CHECK (generation BETWEEN 0 AND 9),
+    approver_capability_hash BYTEA NOT NULL CHECK (octet_length(approver_capability_hash) = 32),
+    client_hello TEXT NOT NULL CHECK (octet_length(client_hello) <= 4096),
+    recipient_answer TEXT NOT NULL DEFAULT '' CHECK (octet_length(recipient_answer) <= 4096),
+    client_finish TEXT NOT NULL DEFAULT '' CHECK (octet_length(client_finish) <= 4096),
+    secret_payload TEXT NOT NULL DEFAULT '' CHECK (octet_length(secret_payload) <= 8192),
+    stage INTEGER NOT NULL DEFAULT 0 CHECK (stage BETWEEN 0 AND 4),
+    created_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    confirmation_expires_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_e2ee_pairing_attempts_request ON e2ee_pairing_attempts(pairing_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_e2ee_pairing_attempts_expiry ON e2ee_pairing_attempts(expires_at);
+CREATE TABLE IF NOT EXISTS e2ee_pairing_rate_limits (
+    scope TEXT PRIMARY KEY,
+    window_started_at TIMESTAMPTZ NOT NULL,
+    attempt_count INTEGER NOT NULL CHECK (attempt_count >= 0)
+);
+CREATE INDEX IF NOT EXISTS idx_e2ee_pairing_rate_limit_expiry ON e2ee_pairing_rate_limits(window_started_at);
+
 CREATE TABLE IF NOT EXISTS e2ee_key_packages (
     pairing_id TEXT NOT NULL REFERENCES e2ee_pairing_requests(pairing_id) ON DELETE CASCADE,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

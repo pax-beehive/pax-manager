@@ -24,21 +24,26 @@ const (
 )
 
 type createE2EEPairingRequest struct {
-	PairingID          string `json:"pairing_id"`
-	DeviceID           string `json:"device_id"`
-	DeviceName         string `json:"device_name"`
-	KeyEpoch           int64  `json:"key_epoch"`
-	RecipientPublicKey string `json:"recipient_public_key"`
-	SecretCommitment   string `json:"secret_commitment"`
+	ProtocolVersion     string `json:"protocol_version"`
+	RecipientCapability string `json:"recipient_capability"`
+	PairingID           string `json:"pairing_id"`
+	DeviceID            string `json:"device_id"`
+	DeviceName          string `json:"device_name"`
+	KeyEpoch            int64  `json:"key_epoch"`
+	RecipientPublicKey  string `json:"recipient_public_key"`
+	SecretCommitment    string `json:"secret_commitment"`
 }
 
 type completeE2EEPairingRequest struct {
+	AttemptID                string `json:"attempt_id"`
 	SenderEphemeralPublicKey string `json:"sender_ephemeral_public_key"`
 	Nonce                    string `json:"nonce"`
 	Ciphertext               string `json:"ciphertext"`
 }
 
 type e2eePairingResponse struct {
+	ServerTime         time.Time  `json:"server_time"`
+	ProtocolVersion    string     `json:"protocol_version,omitempty"`
 	PairingID          string     `json:"pairing_id"`
 	NodeID             string     `json:"node_id"`
 	AgentID            string     `json:"agent_id"`
@@ -94,9 +99,20 @@ func (s *Service) handleCreateE2EEPairing(c context.Context, ctx *app.RequestCon
 		writeError(ctx, http.StatusBadRequest, "invalid pairing request")
 		return
 	}
+	var capabilityHash []byte
+	if input.ProtocolVersion == domain.ShortPairingProtocol {
+		capabilityHash, err = pairingCapabilityHash(input.RecipientCapability)
+		if err != nil {
+			writeError(ctx, http.StatusBadRequest, "invalid recipient capability")
+			return
+		}
+	} else if input.ProtocolVersion != "" && input.ProtocolVersion != "legacy-v1" {
+		writeError(ctx, http.StatusBadRequest, "unsupported pairing protocol")
+		return
+	}
 	now := s.clock().UTC()
 	created, err := s.store.CreateE2EEPairingRequest(c, domain.E2EEPairingRequest{
-		PairingID: input.PairingID, OwnerUserID: principal.User.UserID,
+		ProtocolVersion: input.ProtocolVersion, RecipientCapabilityHash: capabilityHash, PairingID: input.PairingID, OwnerUserID: principal.User.UserID,
 		NodeID: agent.NodeID, AgentID: agent.AgentID, DeviceID: input.DeviceID,
 		DeviceName: input.DeviceName, KeyEpoch: input.KeyEpoch,
 		RecipientPublicKey: recipientPublicKey, SecretCommitment: secretCommitment,
@@ -106,7 +122,7 @@ func (s *Service) handleCreateE2EEPairing(c context.Context, ctx *app.RequestCon
 		writeEndpointError(ctx, err)
 		return
 	}
-	writeData(ctx, http.StatusCreated, encodeE2EEPairingResponse(created))
+	writeData(ctx, http.StatusCreated, encodeE2EEPairingResponse(created, s.clock()))
 }
 
 // Request completion and browser delivery are separate: an approved request does
@@ -131,6 +147,10 @@ func (s *Service) handleGetUserE2EEPairing(c context.Context, ctx *app.RequestCo
 	switch {
 	case request.CompletedAt != nil:
 		status = "approved"
+	case request.CancelledAt != nil:
+		status = "cancelled"
+	case request.RejectedAt != nil:
+		status = "rejected"
 	case request.SupersededAt != nil:
 		status = "superseded"
 	case !request.ExpiresAt.After(s.clock().UTC()):
@@ -139,7 +159,7 @@ func (s *Service) handleGetUserE2EEPairing(c context.Context, ctx *app.RequestCo
 	writeData(ctx, http.StatusOK, struct {
 		e2eePairingResponse
 		Status string `json:"status"`
-	}{encodeE2EEPairingResponse(request), status})
+	}{encodeE2EEPairingResponse(request, s.clock()), status})
 }
 
 func (s *Service) handleListE2EEPairings(c context.Context, ctx *app.RequestContext) {
@@ -156,7 +176,7 @@ func (s *Service) handleListE2EEPairings(c context.Context, ctx *app.RequestCont
 	}
 	responses := make([]e2eePairingResponse, 0, len(requests))
 	for _, request := range requests {
-		responses = append(responses, encodeE2EEPairingResponse(request))
+		responses = append(responses, encodeE2EEPairingResponse(request, s.clock()))
 	}
 	writeData(ctx, http.StatusOK, responses)
 }
@@ -203,7 +223,7 @@ func (s *Service) handleGetNodeE2EEPairing(c context.Context, ctx *app.RequestCo
 		writeEndpointError(ctx, err)
 		return
 	}
-	writeData(ctx, http.StatusOK, encodeE2EEPairingResponse(request))
+	writeData(ctx, http.StatusOK, encodeE2EEPairingResponse(request, s.clock()))
 }
 
 func (s *Service) handleCompleteNodeE2EEPairing(c context.Context, ctx *app.RequestContext) {
@@ -237,6 +257,16 @@ func (s *Service) completeE2EEPairing(
 	if err := json.Unmarshal(ctx.Request.Body(), &input); err != nil {
 		writeError(ctx, http.StatusBadRequest, "invalid key package")
 		return
+	}
+	if request.ProtocolVersion == domain.ShortPairingProtocol {
+		request.ApprovalAttemptID = input.AttemptID
+		request.ApprovalCapabilityHash, err = pairingCapabilityHash(
+			string(ctx.GetHeader(shortPairingCapabilityHeader)),
+		)
+		if err != nil {
+			writeError(ctx, http.StatusNotFound, "pairing capability not found")
+			return
+		}
 	}
 	senderPublicKey, err := decodeE2EEKeyField(
 		input.SenderEphemeralPublicKey, e2eePairingPublicKeyBytes,
@@ -319,9 +349,14 @@ func validE2EEKeyIdentifier(value string) bool {
 	return !strings.ContainsAny(value, " \t\r\n/\\")
 }
 
-func encodeE2EEPairingResponse(request domain.E2EEPairingRequest) e2eePairingResponse {
+func encodeE2EEPairingResponse(
+	request domain.E2EEPairingRequest,
+	now time.Time,
+) e2eePairingResponse {
 	return e2eePairingResponse{
-		PairingID: request.PairingID, NodeID: request.NodeID, AgentID: request.AgentID,
+		ServerTime:      now,
+		ProtocolVersion: request.ProtocolVersion,
+		PairingID:       request.PairingID, NodeID: request.NodeID, AgentID: request.AgentID,
 		DeviceID: request.DeviceID, DeviceName: request.DeviceName, KeyEpoch: request.KeyEpoch,
 		RecipientPublicKey: base64.StdEncoding.EncodeToString(request.RecipientPublicKey),
 		SecretCommitment:   base64.StdEncoding.EncodeToString(request.SecretCommitment),
