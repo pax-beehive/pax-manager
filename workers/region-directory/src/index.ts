@@ -1,4 +1,11 @@
-import { assign, lookup, type Assignment, type Region } from "./directory";
+import {
+  assign,
+  lookup,
+  lookupUser,
+  type Assignment,
+  type Region,
+} from "./directory";
+import { machineFetch } from "./machine";
 import { verifyIdentity } from "./identity";
 import { managerURL, provision } from "./provision";
 import { readState, stateCookie } from "./state";
@@ -10,6 +17,10 @@ import {
   proxyBrowser,
 } from "./browser-proxy";
 export interface Env {
+  MACHINE_ROUTING_ENABLED?: string;
+  MACHINE_PUBLIC_ORIGIN?: string;
+  US_MACHINE_URL?: string;
+  HK_MACHINE_URL?: string;
   BOOTSTRAP_ENABLED?: string;
   ROUTING_KEY_ID?: string;
   PREVIOUS_ROUTING_KEY_ID?: string;
@@ -129,6 +140,7 @@ export function createWorker(
     identity: typeof verifyIdentity;
     assign: typeof assign;
     lookup: typeof lookup;
+    lookupUser: typeof lookupUser;
     provision: typeof provision;
   }> = {},
 ) {
@@ -136,12 +148,15 @@ export function createWorker(
     identity: verifyIdentity,
     assign,
     lookup,
+    lookupUser,
     provision,
     ...overrides,
   };
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
       const url = new URL(request.url);
+      if (env.MACHINE_PUBLIC_ORIGIN && url.origin === env.MACHINE_PUBLIC_ORIGIN)
+        return machineFetch(request, env, deps.lookupUser);
       const bootstrap = url.pathname === "/api/v1/region/bootstrap";
       const probe = /^\/api\/v1\/region\/probe\/(us|hk)$/.exec(url.pathname);
       const path = browserPath(url.pathname);

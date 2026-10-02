@@ -8,6 +8,24 @@ export interface Result {
   assignment: Assignment | null;
   bookmark: string | null;
 }
+
+export async function lookupUser(
+  db: D1Database,
+  userID: string,
+): Promise<Pick<Assignment, "user_id" | "region"> | null> {
+  const sql = "SELECT user_id, region FROM user_regions WHERE user_id = ?";
+  const result = await db
+    .withSession("first-unconstrained")
+    .prepare(sql)
+    .bind(userID)
+    .first<Pick<Assignment, "user_id" | "region">>();
+  if (result) return result;
+  return db
+    .withSession("first-primary")
+    .prepare(sql)
+    .bind(userID)
+    .first<Pick<Assignment, "user_id" | "region">>();
+}
 const select =
   "SELECT user_id, identity_key, region FROM user_regions WHERE identity_key = ?";
 

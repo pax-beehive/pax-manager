@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Miniflare } from "miniflare";
 import { readFile } from "node:fs/promises";
-import { assign, lookup } from "../src/directory";
+import { assign, lookup, lookupUser } from "../src/directory";
 let mf: Miniflare;
 let db: D1Database;
 beforeAll(async () => {
@@ -50,6 +50,12 @@ describe("a globally unique user region", () => {
   });
   it("returns missing without allocating a region", async () => {
     expect((await lookup(db, "missing@example.com")).assignment).toBeNull();
+    expect(await lookupUser(db, "usr_missing")).toBeNull();
+    const created = await assign(db, "node-owner@example.com", "hk");
+    expect(await lookupUser(db, created.assignment.user_id)).toEqual({
+      user_id: created.assignment.user_id,
+      region: "hk",
+    });
   });
 });
 

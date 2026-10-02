@@ -24,6 +24,7 @@ func Register(r *server.Hertz) {
 			_v1.GET("/health", append(_healthMw(), handler.Health)...)
 			{
 				_node := _v1.Group("/node", _nodeMw()...)
+				_node.GET("/identity", append(_getnodeidentityMw(), handler.GetNodeIdentity)...)
 				_node.GET("/mailbox", append(_pullnodemailboxMw(), handler.PullNodeMailbox)...)
 				_node.POST("/register", append(_registernodeMw(), handler.RegisterNode)...)
 				_node.POST("/status", append(_reportnodestatusMw(), handler.ReportNodeStatus)...)
