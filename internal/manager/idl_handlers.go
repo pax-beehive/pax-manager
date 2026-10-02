@@ -148,6 +148,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"DecideUserApproval":            DecideUserApproval,
 	"DeleteNode":                    DeleteNode,
 	"DeleteNodeAgent":               DeleteNodeAgent,
+	"EnsureRegionalUser":            EnsureRegionalUser,
 	"GetCurrentUser":                GetCurrentUser,
 	"GetNode":                       GetNode,
 	"GetNodeAgent":                  GetNodeAgent,

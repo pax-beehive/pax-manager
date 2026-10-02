@@ -35,6 +35,7 @@ type Service struct {
 	registrationOwnerEmail string
 	localUserEmail         string
 	allowLocalUserHeader   bool
+	requireProvisionedUser bool
 }
 
 type Config struct {
@@ -43,6 +44,7 @@ type Config struct {
 	LocalUserEmail         string
 	AllowLocalUserHeader   bool
 	IdentityVerifier       UserIdentityVerifier
+	RequireProvisionedUser bool
 }
 
 func NewService(
@@ -54,6 +56,7 @@ func NewService(
 ) *Service {
 	return &Service{
 		users:                  users,
+		requireProvisionedUser: cfg.RequireProvisionedUser,
 		registrationTokens:     registrationTokens,
 		admins:                 admins,
 		secrets:                secrets,
@@ -87,8 +90,7 @@ func (s *Service) Principal(
 	if err != nil {
 		return domain.UserPrincipal{}, err
 	}
-	role := s.admins.RoleForEmail(email)
-	user, err := s.users.EnsureUser(ctx, email, "", role)
+	user, err := s.resolveUser(ctx, email)
 	if err != nil {
 		return domain.UserPrincipal{}, err
 	}
@@ -114,7 +116,7 @@ func (s *Service) RegistrationOwner(
 		if email == "" {
 			email = s.localUserEmail
 		}
-		return s.users.EnsureUser(ctx, email, "", s.admins.RoleForEmail(email))
+		return s.resolveUser(ctx, email)
 	}
 	return domain.User{}, domain.ErrUnauthorized
 }
@@ -147,4 +149,22 @@ func bearerToken(meta RequestMetadata) string {
 		return ""
 	}
 	return BearerToken(token)
+}
+
+// Regional managers only accept accounts provisioned by the directory Worker.
+func (s *Service) resolveUser(ctx context.Context, email string) (domain.User, error) {
+	if !s.requireProvisionedUser {
+		return s.users.EnsureUser(ctx, email, "", s.admins.RoleForEmail(email))
+	}
+	reader, ok := s.users.(interface {
+		GetUserByEmail(context.Context, string) (domain.User, error)
+	})
+	if !ok {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+	user, err := reader.GetUserByEmail(ctx, email)
+	if errors.Is(err, domain.ErrNotFound) {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+	return user, err
 }

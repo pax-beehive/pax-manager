@@ -23715,6 +23715,419 @@ func (p *GetNodeRequest) String() string {
 
 }
 
+type RegionalAssignment struct {
+	UserID      *string `thrift:"user_id,1,optional" form:"user_id" json:"user_id,omitempty" query:"user_id"`
+	IdentityKey *string `thrift:"identity_key,2,optional" form:"identity_key" json:"identity_key,omitempty" query:"identity_key"`
+	Region      *string `thrift:"region,3,optional" form:"region" json:"region,omitempty" query:"region"`
+}
+
+func NewRegionalAssignment() *RegionalAssignment {
+	return &RegionalAssignment{}
+}
+
+func (p *RegionalAssignment) InitDefault() {
+}
+
+var RegionalAssignment_UserID_DEFAULT string
+
+func (p *RegionalAssignment) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return RegionalAssignment_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var RegionalAssignment_IdentityKey_DEFAULT string
+
+func (p *RegionalAssignment) GetIdentityKey() (v string) {
+	if !p.IsSetIdentityKey() {
+		return RegionalAssignment_IdentityKey_DEFAULT
+	}
+	return *p.IdentityKey
+}
+
+var RegionalAssignment_Region_DEFAULT string
+
+func (p *RegionalAssignment) GetRegion() (v string) {
+	if !p.IsSetRegion() {
+		return RegionalAssignment_Region_DEFAULT
+	}
+	return *p.Region
+}
+
+var fieldIDToName_RegionalAssignment = map[int16]string{
+	1: "user_id",
+	2: "identity_key",
+	3: "region",
+}
+
+func (p *RegionalAssignment) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *RegionalAssignment) IsSetIdentityKey() bool {
+	return p.IdentityKey != nil
+}
+
+func (p *RegionalAssignment) IsSetRegion() bool {
+	return p.Region != nil
+}
+
+func (p *RegionalAssignment) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_RegionalAssignment[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *RegionalAssignment) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *RegionalAssignment) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.IdentityKey = _field
+	return nil
+}
+func (p *RegionalAssignment) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Region = _field
+	return nil
+}
+
+func (p *RegionalAssignment) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RegionalAssignment"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *RegionalAssignment) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *RegionalAssignment) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetIdentityKey() {
+		if err = oprot.WriteFieldBegin("identity_key", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.IdentityKey); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *RegionalAssignment) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRegion() {
+		if err = oprot.WriteFieldBegin("region", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Region); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *RegionalAssignment) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("RegionalAssignment(%+v)", *p)
+
+}
+
+type RegionalAssignmentResponse struct {
+	Data *RegionalAssignment `thrift:"data,1,optional" form:"data" json:"data,omitempty" query:"data"`
+}
+
+func NewRegionalAssignmentResponse() *RegionalAssignmentResponse {
+	return &RegionalAssignmentResponse{}
+}
+
+func (p *RegionalAssignmentResponse) InitDefault() {
+}
+
+var RegionalAssignmentResponse_Data_DEFAULT *RegionalAssignment
+
+func (p *RegionalAssignmentResponse) GetData() (v *RegionalAssignment) {
+	if !p.IsSetData() {
+		return RegionalAssignmentResponse_Data_DEFAULT
+	}
+	return p.Data
+}
+
+var fieldIDToName_RegionalAssignmentResponse = map[int16]string{
+	1: "data",
+}
+
+func (p *RegionalAssignmentResponse) IsSetData() bool {
+	return p.Data != nil
+}
+
+func (p *RegionalAssignmentResponse) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_RegionalAssignmentResponse[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *RegionalAssignmentResponse) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewRegionalAssignment()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Data = _field
+	return nil
+}
+
+func (p *RegionalAssignmentResponse) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RegionalAssignmentResponse"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *RegionalAssignmentResponse) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetData() {
+		if err = oprot.WriteFieldBegin("data", thrift.STRUCT, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Data.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *RegionalAssignmentResponse) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("RegionalAssignmentResponse(%+v)", *p)
+
+}
+
 type GetCurrentUserRequest struct {
 	UserID *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
 }
@@ -62748,6 +63161,8 @@ type PaxManagerAPI interface {
 
 	GetNodeAgentApproval(ctx context.Context, request *GetNodeAgentApprovalRequest) (r *ApprovalResponse, err error)
 
+	EnsureRegionalUser(ctx context.Context, request *RegionalAssignment) (r *RegionalAssignmentResponse, err error)
+
 	GetCurrentUser(ctx context.Context, request *GetCurrentUserRequest) (r *CurrentUserResponse, err error)
 
 	CreateProject(ctx context.Context, request *CreateProjectRequest) (r *ProjectResponse, err error)
@@ -63029,6 +63444,15 @@ func (p *PaxManagerAPIClient) GetNodeAgentApproval(ctx context.Context, request 
 	_args.Request = request
 	var _result PaxManagerAPIGetNodeAgentApprovalResult
 	if err = p.Client_().Call(ctx, "GetNodeAgentApproval", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) EnsureRegionalUser(ctx context.Context, request *RegionalAssignment) (r *RegionalAssignmentResponse, err error) {
+	var _args PaxManagerAPIEnsureRegionalUserArgs
+	_args.Request = request
+	var _result PaxManagerAPIEnsureRegionalUserResult
+	if err = p.Client_().Call(ctx, "EnsureRegionalUser", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
@@ -63583,6 +64007,7 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("WriteNodeSecretVersion", &paxManagerAPIProcessorWriteNodeSecretVersion{handler: handler})
 	self.AddToProcessorMap("CreateNodeAgentApproval", &paxManagerAPIProcessorCreateNodeAgentApproval{handler: handler})
 	self.AddToProcessorMap("GetNodeAgentApproval", &paxManagerAPIProcessorGetNodeAgentApproval{handler: handler})
+	self.AddToProcessorMap("EnsureRegionalUser", &paxManagerAPIProcessorEnsureRegionalUser{handler: handler})
 	self.AddToProcessorMap("GetCurrentUser", &paxManagerAPIProcessorGetCurrentUser{handler: handler})
 	self.AddToProcessorMap("CreateProject", &paxManagerAPIProcessorCreateProject{handler: handler})
 	self.AddToProcessorMap("ListProjects", &paxManagerAPIProcessorListProjects{handler: handler})
@@ -64411,6 +64836,54 @@ func (p *paxManagerAPIProcessorGetNodeAgentApproval) Process(ctx context.Context
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("GetNodeAgentApproval", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorEnsureRegionalUser struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorEnsureRegionalUser) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIEnsureRegionalUserArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("EnsureRegionalUser", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIEnsureRegionalUserResult{}
+	var retval *RegionalAssignmentResponse
+	if retval, err2 = p.handler.EnsureRegionalUser(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing EnsureRegionalUser: "+err2.Error())
+		oprot.WriteMessageBegin("EnsureRegionalUser", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("EnsureRegionalUser", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -71865,6 +72338,300 @@ func (p *PaxManagerAPIGetNodeAgentApprovalResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIGetNodeAgentApprovalResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIEnsureRegionalUserArgs struct {
+	Request *RegionalAssignment `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIEnsureRegionalUserArgs() *PaxManagerAPIEnsureRegionalUserArgs {
+	return &PaxManagerAPIEnsureRegionalUserArgs{}
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserArgs) InitDefault() {
+}
+
+var PaxManagerAPIEnsureRegionalUserArgs_Request_DEFAULT *RegionalAssignment
+
+func (p *PaxManagerAPIEnsureRegionalUserArgs) GetRequest() (v *RegionalAssignment) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIEnsureRegionalUserArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIEnsureRegionalUserArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIEnsureRegionalUserArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewRegionalAssignment()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("EnsureRegionalUser_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIEnsureRegionalUserArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIEnsureRegionalUserResult struct {
+	Success *RegionalAssignmentResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIEnsureRegionalUserResult() *PaxManagerAPIEnsureRegionalUserResult {
+	return &PaxManagerAPIEnsureRegionalUserResult{}
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserResult) InitDefault() {
+}
+
+var PaxManagerAPIEnsureRegionalUserResult_Success_DEFAULT *RegionalAssignmentResponse
+
+func (p *PaxManagerAPIEnsureRegionalUserResult) GetSuccess() (v *RegionalAssignmentResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIEnsureRegionalUserResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIEnsureRegionalUserResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIEnsureRegionalUserResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewRegionalAssignmentResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("EnsureRegionalUser_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnsureRegionalUserResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIEnsureRegionalUserResult(%+v)", *p)
 
 }
 

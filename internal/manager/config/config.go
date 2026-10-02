@@ -15,6 +15,8 @@ import (
 const DefaultPaxdVerificationBaseURL = "https://paxworkspace.net"
 
 type Config struct {
+	Region                           string
+	RegionProvisioningSecret         string
 	Port                             string
 	DatabaseURL                      string
 	RegistrationToken                string
@@ -55,6 +57,8 @@ type Config struct {
 
 func Load() Config {
 	return Config{
+		Region:                   os.Getenv("PAX_REGION"),
+		RegionProvisioningSecret: os.Getenv("REGION_PROVISIONING_SECRET"),
 		Port:                     envDefault("PORT", "9879"),
 		DatabaseURL:              os.Getenv("DATABASE_URL"),
 		RegistrationToken:        os.Getenv("REGISTRATION_TOKEN"),
@@ -112,6 +116,9 @@ func Load() Config {
 }
 
 func (c Config) Validate() error {
+	if err := c.validateRegion(); err != nil {
+		return err
+	}
 	if _, err := c.CloudflareProxyPrefixes(); err != nil {
 		return err
 	}
@@ -255,4 +262,17 @@ func (c Config) CloudflareProxyPrefixes() ([]netip.Prefix, error) {
 		prefixes = append(prefixes, prefix.Masked())
 	}
 	return prefixes, nil
+}
+
+func (c Config) validateRegion() error {
+	if c.Region == "" && c.RegionProvisioningSecret == "" {
+		return nil
+	}
+	if c.Region != "us" && c.Region != "hk" {
+		return errors.New("PAX_REGION must be us or hk when regional provisioning is configured")
+	}
+	if len(c.RegionProvisioningSecret) < 32 {
+		return errors.New("REGION_PROVISIONING_SECRET must contain at least 32 bytes")
+	}
+	return nil
 }

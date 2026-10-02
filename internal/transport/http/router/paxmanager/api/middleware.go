@@ -696,3 +696,18 @@ func _pushnodedaemonsecretchannelMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _internalMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _usersMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _ensureregionaluserMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

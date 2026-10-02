@@ -201,4 +201,11 @@ func Register(r *server.Hertz) {
 			}
 		}
 	}
+	{
+		_internal := root.Group("/internal", _internalMw()...)
+		{
+			_users := _internal.Group("/users", _usersMw()...)
+			_users.POST("/ensure", append(_ensureregionaluserMw(), handler.EnsureRegionalUser)...)
+		}
+	}
 }

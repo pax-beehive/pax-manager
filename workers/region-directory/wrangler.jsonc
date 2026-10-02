@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pax-region-directory",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "workers_dev": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pax-user-regions",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": {
+    "BOOTSTRAP_ENABLED": "false",
+    "PUBLIC_ORIGIN": "https://pax.example.com",
+    "US_MANAGER_URL": "https://us-api.example.com",
+    "HK_MANAGER_URL": "https://hk-api.example.com",
+    "ACCESS_PROVIDERS": "[]",
+  },
+}

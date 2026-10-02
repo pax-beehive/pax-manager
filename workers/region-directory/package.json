@@ -1,0 +1,35 @@
+{
+  "name": "pax-region-directory",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "deploy": "wrangler deploy --config wrangler.production.jsonc"
+  },
+  "dependencies": {
+    "jose": "6.2.12"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261002.1",
+    "@types/node": "26.6.4",
+    "@vitest/coverage-v8": "5.0.3",
+    "miniflare": "4.20260730.0",
+    "prettier": "^3.9.9",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3",
+    "wrangler": "4.147.0"
+  },
+  "overrides": {
+    "miniflare": {
+      "undici": "^7.29.1",
+      "sharp": "^0.35.4"
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

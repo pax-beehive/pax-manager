@@ -40,6 +40,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 033 | partial | [Encrypted sessions replay excessive history](033-encrypted-turn-replay.md) | high | e2ee / storage / Console |
 
+| 034 | partial | [Regional directory with automatic legacy account selection](034-regional-user-directory.md) | high | auth / storage / Worker |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

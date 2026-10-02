@@ -48,6 +48,7 @@ type Service struct {
 	maxBodyBytes      int64
 	apiLimiter        *rateLimiter
 	registerLimiter   *rateLimiter
+	regionalUsers     regionalUserStore
 	auth              *auth.Service
 	secrets           auth.Secrets
 	paxd              *paxd.Service
@@ -140,7 +141,9 @@ func newServer(cfg Config, store Store) *Service {
 		LocalUserEmail:         cfg.LocalUserID,
 		AllowLocalUserHeader:   cfg.AllowLocalUserHeader,
 		IdentityVerifier:       cloudflareVerifier(cfg),
+		RequireProvisionedUser: cfg.Region != "",
 	})
+	s.regionalUsers, _ = transportBaseStore.(regionalUserStore)
 	s.auth = authService
 	s.paxd = paxd.NewService(store, func() time.Time { return s.clock() }, authService, secrets)
 	s.userapi = userapi.NewService(

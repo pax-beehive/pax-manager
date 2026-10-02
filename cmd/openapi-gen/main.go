@@ -283,6 +283,10 @@ func buildSpec(doc thriftDoc) map[string]any {
 		"paths": paths,
 		"components": map[string]any{
 			"securitySchemes": map[string]any{
+				"regionalProvisioning": map[string]any{
+					"type": "apiKey", "in": "header", "name": "X-Pax-Signature",
+					"description": "Region-specific HMAC-SHA256 assertion with X-Pax-Timestamp; see the provisioning operation for signed bytes and expiry.",
+				},
 				"nodeBearer": map[string]any{
 					"type":        "http",
 					"scheme":      "bearer",

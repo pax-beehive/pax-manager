@@ -23,6 +23,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/node/secrets/:secret_id/versions", NodeAuth(), WriteNodeSecretVersion)
 	h.POST("/api/v1/node/agents/:agent_id/approvals", NodeAuth(), CreateNodeAgentApproval)
 	h.GET("/api/v1/node/agents/:agent_id/approvals/:approval_id", NodeAuth(), GetNodeAgentApproval)
+	h.POST("/internal/users/ensure", EnsureRegionalUser)
 	h.GET("/api/v1/user/:user_id/me", GetCurrentUser)
 	h.POST("/api/v1/user/:user_id/projects", CreateProject)
 	h.GET("/api/v1/user/:user_id/projects", ListProjects)
