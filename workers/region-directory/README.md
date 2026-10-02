@@ -1,0 +1,187 @@
+# Regional user directory (KEV-75)
+
+This Worker verifies Cloudflare Access identity, assigns one immutable region in
+D1, then provisions the same global user ID in that region's Manager. It never
+connects directly to regional PostgreSQL databases.
+
+## Contract
+
+`POST /api/v1/region/bootstrap`, with `Content-Type: application/json` and a
+verified `Cf-Access-Jwt-Assertion`:
+
+- `{}` resolves an existing account, or returns
+  `{"status":"selection_required","regions":["us","hk"]}` without creating one.
+- `{"preferred_region":"hk"}` assigns a new account, or returns its existing
+  assignment even if the preference differs.
+- Success: `{"status":"ready","user_id":"usr_...","region":"hk","api_url":"https://..."}`.
+- Invalid identity: 401. Invalid input or cross-origin browser request: 400.
+  Directory/provisioning failure: 503, with `retryable: true` after lookup begins.
+  Configuration failure: 503. Failure never defaults to US or changes regions.
+
+All responses are `no-store`. Identity/email/user ID cannot be supplied in the
+body. The Worker verifies the JWT signature, trusted issuer, audience and expiry.
+`ACCESS_PROVIDERS` is a JSON array of `{ "issuer": "https://TEAM.cloudflareaccess.com",
+"audience": "ACCESS_APPLICATION_AUD" }`; multiple entries support an explicitly
+configured Access migration. Only verified, normalized email identifies a user.
+Email changes require manual reconciliation; there is no automatic account merge.
+
+D1's unique identity constraint chooses the winner during concurrent signups.
+Reads use Sessions with the last signed bookmark, or `first-unconstrained`.
+Replica misses are confirmed on `first-primary`. Allocation is a primary-session
+atomic batch, returning its committed winning row and bookmark. A failed regional
+provision leaves that assignment intact; retry always reaches the same Manager.
+
+After provisioning succeeds, `__Host-pax_region` is an identity-bound, signed,
+Secure/HttpOnly/SameSite=Lax cookie. Its assignment shortcut lasts **10 seconds**
+and is not extended on cache hits. Its bookmark lasts one day. After 10 seconds,
+lookup uses the bookmark so replicas must satisfy read-your-writes; the TTL alone
+is not a replication guarantee. Missing/invalid cookies fall back to D1. If the
+cookie expires or the client changes devices, immutable assignments plus primary
+confirmation of misses preserve correctness. The cookie is not a Manager login
+credential and is not forwarded to regional domains.
+
+## Manager boundary
+
+Set `PAX_REGION=us` or `hk` and `REGION_PROVISIONING_SECRET` (at least 32 bytes).
+Partial configuration fails startup validation. With these unset, legacy
+single-region behavior is unchanged and `/internal/users/ensure` returns 404.
+
+In regional mode, both ordinary authenticated requests and the static
+registration-owner path only read existing users. Missing users are unauthorized.
+API keys and persisted registration tokens retain their existing behavior.
+Admin permissions remain Manager-controlled.
+
+`POST /internal/users/ensure` accepts exactly:
+
+```json
+{ "user_id": "usr_...", "identity_key": "owner@example.com", "region": "hk" }
+```
+
+`X-Pax-Timestamp` is Unix seconds. `X-Pax-Signature` is lowercase hex HMAC-SHA256
+using the destination region's secret, over the exact UTF-8 bytes:
+
+```text
+pax-region-ensure-v1\n<TIMESTAMP>\n<REQUEST_BODY>
+```
+
+Manager checks the signature, destination region, normalized identity and a
+30-second age limit (up to 5 seconds clock skew into the future). The body is
+limited to 2048 bytes. Replays are idempotent. Email/ID conflicts return 409 without
+mutating the existing account. The Worker currently surfaces this as retryable
+503; an operator must reconcile such conflicts before retry can succeed. There
+is no distributed transaction: D1 commits first, and local provisioning can be
+retried. User deletion and region migration are outside this contract.
+
+## Setup and controlled activation
+
+`wrangler.jsonc` is the local template. `wrangler.production.jsonc` targets the PAX
+account, its dedicated directory database and only the unified bootstrap route.
+Both default `BOOTSTRAP_ENABLED` to `false`: staged deployments return an explicit
+503 without authentication, D1 queries, allocation or Manager provisioning. Only
+the literal value `true` enables bootstrap. Do not enable it until the client,
+regional Managers and final inventory import are ready.
+
+1. Verify the production D1 binding ID in Wrangler. Configure the real
+   unified origin, US/HK Manager origins and trusted Access provider(s).
+2. Apply `npx wrangler d1 migrations apply pax-user-regions --remote --config wrangler.production.jsonc`.
+   Enable D1 read replication in the database settings when desired; the code
+   already uses Sessions. Local Miniflare tests exercise SQLite/D1 transactions,
+   not Cloudflare's replication lag; a separate session test simulates stale misses.
+3. Set three distinct random secrets via `npx wrangler secret put NAME --config wrangler.production.jsonc`:
+   `DIRECTORY_SECRET`, `US_PROVISIONING_SECRET`, `HK_PROVISIONING_SECRET`.
+   Each regional Manager receives only its matching provisioning secret.
+4. If the Manager origin is behind Access, configure region-specific Access
+   service credentials (`US_ACCESS_CLIENT_ID`, `US_ACCESS_CLIENT_SECRET`, and HK
+   equivalents) as Worker secrets, with an Access service-auth policy admitting
+   them to the internal route. Do not bypass Access for browser APIs. The HMAC
+   check is mandatory even when the network/Access policy already permits access.
+   Keep machine-only origins denying `/internal/*` unless specifically needed.
+5. Deploy Manager code with regional mode still disabled. Stage the Worker and
+   Access-protected unified bootstrap route. A staging request must not allocate
+   production identities before the inventory import is complete.
+6. During a coordinated signup pause, export both regional inventories, review
+   automatic duplicate decisions, apply the validated import, enable regional mode on both Managers,
+   set `BOOTSTRAP_ENABLED=true`, and activate the unified bootstrap entrypoint. Keep signup paused across the
+   export/import/configuration boundary so legacy implicit creation cannot race
+   the directory. Existing users remain readable throughout Manager rollout.
+7. Verify existing US users keep their IDs, a new HK account only exists in HK,
+   concurrent conflicting preferences resolve one way, and retries after a
+   provision failure keep the same ID. Verify short cache expiry with real D1
+   replicas. End the signup pause only after these checks.
+
+Full proxy routing, Console selection, installer auto-selection and paxd credential
+changes belong to KEV-76/77/78. This change supplies the bootstrap contract; it does
+not activate those client integrations. Do not enable regional mode for new users
+before a bootstrap-capable entrypoint is available.
+
+After activation, a rollback must preserve D1 mappings and keep regional Managers
+in read-only identity mode. Re-enabling independent implicit creation on both
+regions would break global uniqueness. Secret rotation invalidates old assertions;
+cookie-secret rotation safely falls back to D1 lookups.
+
+## Existing-user import
+
+Export only `user_id` and `email` from each regional PostgreSQL database:
+
+```sql
+SELECT COALESCE(json_agg(json_build_object('user_id', user_id, 'email', email)), '[]')
+FROM users;
+```
+
+Store exports outside source control with owner-only permissions. Then:
+
+```sh
+node scripts/import.mjs import-us.json import-hk.json import-reviewed.sql
+# Review the generated SQL privately, then apply explicitly:
+npx wrangler d1 execute pax-user-regions --remote --config wrangler.production.jsonc --file import-reviewed.sql
+```
+
+The script is a dry-run: it writes new owner-only files (mode 0600), never alters
+a database and never overwrites an output. Existing regional IDs are preserved.
+The precedence is **existing D1 assignment, then existing US account, then HK-only
+account**. When the same normalized identity exists in both regional inventories,
+the US ID is selected automatically. Users are not asked to resolve the duplicate.
+The HK account and all of its business data are left untouched; this is routing
+selection, not data migration or an account merge.
+
+`OUTPUT.sql.decisions.json` records the inventory's preferred account and the other
+regional account for operators. These are import candidates, not assertions that
+the directory was changed. The generated SQL uses `ON CONFLICT(identity_key) DO
+NOTHING`, so an already established D1 assignment takes precedence even over a US
+candidate. Re-running an import cannot switch an existing user's region or ID.
+
+Corrupt source inventories (two different IDs for one normalized identity within
+one region, or one ID reused for different identities) still produce a private
+`OUTPUT.sql.conflicts.json` report and no SQL. These are operator preflight failures,
+not browser errors. A global ID already used by another identity in D1 aborts the
+single SQL statement atomically; no partial import is committed. The immutable
+trigger still prevents updates to established identities and regions.
+
+Inputs larger than a 90KB statement require a separately reviewed staged import.
+Do not delete or rename HK accounts merely to suppress a duplicate.
+
+## Development
+
+Node 24 or later:
+
+```sh
+npm ci
+npm run format:check
+npm run typecheck
+npm test
+npm run build
+```
+
+`npm test` uses local Miniflare D1 and enforces 80% for statements, branches,
+functions and lines across Worker source. Go tests cover HMAC verification,
+read-only auth, idempotent memory/SQL provisioning and the HTTP boundary.
+The optional real PostgreSQL concurrency test runs with:
+
+```sh
+PAX_MANAGER_REGION_TEST_DATABASE_URL=postgres://... \
+  go test -race ./internal/manager/storage -run TestRegionalUserGivenConcurrentPostgres
+```
+
+Stable Miniflare 4 is used with patched `undici` and `sharp` overrides. These are
+test-only dependencies; Wrangler uses its own runtime. `npm audit` is clean with
+the checked-in lockfile.

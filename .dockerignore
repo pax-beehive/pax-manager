@@ -5,3 +5,6 @@ tmp
 .DS_Store
 Dockerfile
 docker-compose.yml
+
+# Worker dependencies and private import exports are not Manager build inputs.
+workers/

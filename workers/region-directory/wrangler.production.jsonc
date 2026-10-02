@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pax-region-directory",
+  "main": "src/index.ts",
+  "account_id": "221784d24eb2a95d148bc96b6f06d6be",
+  "compatibility_date": "2026-07-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "paxworkspace.net/api/v1/region/bootstrap*",
+      "zone_id": "6e7d305a2050525b513b76c9c2102f89",
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pax-user-regions",
+      "database_id": "e90d4b0b-fc8c-4595-855a-6c1542539c1e",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": {
+    "BOOTSTRAP_ENABLED": "false",
+    "PUBLIC_ORIGIN": "https://paxworkspace.net",
+    "US_MANAGER_URL": "https://api.paxworkspace.net",
+    "HK_MANAGER_URL": "https://hk-api.paxworkspace.net",
+  },
+}

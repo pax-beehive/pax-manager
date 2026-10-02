@@ -111,3 +111,25 @@ jobs:
       - name: Clean integration stack
         if: always()
         run: make integration-down
+
+  region-directory:
+    name: Region directory Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: workers/region-directory
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: workers/region-directory/package-lock.json
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          WRANGLER_SEND_METRICS: 'false'

@@ -2521,6 +2521,28 @@
         },
         "type": "object"
       },
+      "RegionalAssignment": {
+        "properties": {
+          "identity_key": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RegionalAssignmentResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RegionalAssignment"
+          }
+        },
+        "type": "object"
+      },
       "RegisterAgentRequest": {
         "properties": {
           "agent_type": {
@@ -3475,6 +3497,12 @@
         "description": "Node API key returned during registration.",
         "scheme": "bearer",
         "type": "http"
+      },
+      "regionalProvisioning": {
+        "description": "Region-specific HMAC-SHA256 assertion with X-Pax-Timestamp; see the provisioning operation for signed bytes and expiry.",
+        "in": "header",
+        "name": "X-Pax-Signature",
+        "type": "apiKey"
       }
     }
   },
@@ -11295,6 +11323,92 @@
         "summary": "List user sessions",
         "tags": [
           "user"
+        ]
+      }
+    },
+    "/internal/users/ensure": {
+      "post": {
+        "description": "Worker-only idempotent provisioning. Requires X-Pax-Timestamp and X-Pax-Signature: hex HMAC-SHA256 of pax-region-ensure-v1 followed by newline, timestamp, newline and the exact request body. Uses the region-specific provisioning secret. Timestamp expires after 30 seconds. Disabled without PAX_REGION.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegionalAssignment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionalAssignmentResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "regionalProvisioning": []
+          }
+        ],
+        "summary": "Provision a regional user",
+        "tags": [
+          "internal"
         ]
       }
     }

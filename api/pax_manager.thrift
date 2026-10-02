@@ -497,6 +497,16 @@ struct GetNodeRequest {
   2: optional string node_id (api.path = "node_id")
 }
 
+struct RegionalAssignment {
+  1: optional string user_id
+  2: optional string identity_key
+  3: optional string region
+}
+
+struct RegionalAssignmentResponse {
+  1: optional RegionalAssignment data
+}
+
 struct GetCurrentUserRequest {
   1: optional string user_id (api.path = "user_id")
 }
@@ -1497,6 +1507,16 @@ service PaxManagerAPI {
     openapi.security = "nodeBearer",
     openapi.path.agent_id = "Agent identifier.",
     openapi.path.approval_id = "Approval identifier."
+  )
+
+  RegionalAssignmentResponse EnsureRegionalUser(
+    1: optional RegionalAssignment request
+  ) (
+    api.post = "/internal/users/ensure",
+    openapi.tag = "internal",
+    openapi.summary = "Provision a regional user",
+    openapi.security = "regionalProvisioning",
+    openapi.description = "Worker-only idempotent provisioning. Requires X-Pax-Timestamp and X-Pax-Signature: hex HMAC-SHA256 of pax-region-ensure-v1 followed by newline, timestamp, newline and the exact request body. Uses the region-specific provisioning secret. Timestamp expires after 30 seconds. Disabled without PAX_REGION."
   )
 
   CurrentUserResponse GetCurrentUser(
