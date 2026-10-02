@@ -176,6 +176,9 @@ CREATE TABLE IF NOT EXISTS agent_events (
     UNIQUE(agent_id, local_id)
 );
 
+ALTER TABLE agent_events ADD COLUMN IF NOT EXISTS turn_ref TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_agent_events_turn_cursor ON agent_events(owner_user_id, session_id, turn_ref, cursor);
+CREATE INDEX IF NOT EXISTS idx_agent_events_indexed_turn_cursor ON agent_events(owner_user_id, session_id, cursor) WHERE turn_ref <> '';
 CREATE INDEX IF NOT EXISTS idx_agent_events_session_cursor
     ON agent_events(owner_user_id, session_id, cursor);
 

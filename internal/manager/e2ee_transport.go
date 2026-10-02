@@ -170,6 +170,11 @@ func (s *Service) handleE2EECommands(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) handleE2EEEvents(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet && r.URL.Query().Get("view") == "replay" {
+		s.handleE2EEReplay(w, r)
+		return
+	}
+
 	if r.Method != http.MethodGet {
 		writeHTTPError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -393,9 +398,13 @@ func (a *ACPTunnelAgent) handleE2EEAgentPayload(
 	record.CreatedAt = time.Now().UTC()
 	switch envelope.Kind {
 	case "acp_event":
+		turnRef := metadata["turn_ref"]
+		if turnRef != "" && !validE2EEIdentifier(turnRef) {
+			return true, errors.New("invalid encrypted turn reference")
+		}
 		event, inserted, err := a.store.InsertAgentEvent(
 			ctx,
-			domain.AgentEvent{E2EERecord: record},
+			domain.AgentEvent{E2EERecord: record, TurnRef: turnRef},
 		)
 		if err == nil && inserted && a.eventWakes != nil {
 			a.eventWakes.wake(event.SessionID)

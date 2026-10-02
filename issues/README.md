@@ -38,6 +38,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 032 | resolved | [Short-code device pairing relay](032-short-code-pairing.md) | medium | e2ee / storage / user API |
 
+| 033 | partial | [Encrypted sessions replay excessive history](033-encrypted-turn-replay.md) | high | e2ee / storage / Console |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
