@@ -422,16 +422,21 @@ func (s *PostgresStore) InsertAgentEvent(
 		return AgentEvent{}, false, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	// Serialize cursor allocation with commit for this session. A replay head must
+	// never skip a lower cursor whose transaction is still uncommitted.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "pax:e2ee:"+event.SessionID); err != nil {
+		return AgentEvent{}, false, err
+	}
 	row := tx.QueryRowContext(ctx, `
 		INSERT INTO agent_events (
 			owner_user_id, agent_id, session_id, local_id, kind, protocol_version,
-			cipher_version, key_epoch, nonce, ciphertext, created_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+			cipher_version, key_epoch, nonce, ciphertext, created_at, turn_ref
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 		ON CONFLICT (agent_id, local_id) DO NOTHING
 		RETURNING cursor, created_at`,
 		event.OwnerUserID, event.AgentID, event.SessionID, event.RecordID, event.Kind,
 		event.ProtocolVersion, event.CipherVersion, event.KeyEpoch, event.Nonce,
-		event.Ciphertext, event.CreatedAt,
+		event.Ciphertext, event.CreatedAt, event.TurnRef,
 	)
 	created := true
 	scanErr := row.Scan(&event.Cursor, &event.CreatedAt)
@@ -672,7 +677,7 @@ const agentCommandSelect = `SELECT id, command_id, owner_user_id, node_id, agent
 	FROM agent_commands`
 
 const agentEventSelect = `SELECT cursor, local_id, owner_user_id, agent_id, session_id,
-	kind, protocol_version, cipher_version, key_epoch, nonce, ciphertext, created_at
+	kind, protocol_version, cipher_version, key_epoch, nonce, ciphertext, created_at, turn_ref
 	FROM agent_events`
 
 const e2eeMessageSelect = `SELECT id, message_id, revision, record_id, owner_user_id,
@@ -698,7 +703,7 @@ func scanAgentEvent(row rowScanner) (AgentEvent, error) {
 	var event AgentEvent
 	err := row.Scan(&event.Cursor, &event.RecordID, &event.OwnerUserID, &event.AgentID,
 		&event.SessionID, &event.Kind, &event.ProtocolVersion, &event.CipherVersion,
-		&event.KeyEpoch, &event.Nonce, &event.Ciphertext, &event.CreatedAt)
+		&event.KeyEpoch, &event.Nonce, &event.Ciphertext, &event.CreatedAt, &event.TurnRef)
 	return event, err
 }
 
@@ -741,7 +746,7 @@ func sameAgentCommand(left AgentCommand, right AgentCommand) bool {
 }
 
 func sameAgentEvent(left AgentEvent, right AgentEvent) bool {
-	return sameE2EERecord(left.E2EERecord, right.E2EERecord)
+	return left.TurnRef == right.TurnRef && sameE2EERecord(left.E2EERecord, right.E2EERecord)
 }
 
 func sameE2EEMessage(left E2EEMessage, right E2EEMessage) bool {

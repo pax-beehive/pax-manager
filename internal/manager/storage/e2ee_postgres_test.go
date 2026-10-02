@@ -99,8 +99,9 @@ func TestPostgresE2EEEventInsertAndCursorRead(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, inserted)
 	assert.Equal(t, int64(21), created.Cursor)
-	require.Len(t, script.execTexts, 1)
-	assert.Contains(t, script.execTexts[0], "pax_agent_events")
+	require.Len(t, script.execTexts, 2)
+	assert.Contains(t, script.execTexts[0], "pg_advisory_xact_lock")
+	assert.Contains(t, script.execTexts[1], "pax_agent_events")
 
 	events, err := store.ListAgentEvents(ctx, "user_1", "session_1", 20, 100)
 	require.NoError(t, err)
@@ -219,13 +220,13 @@ func agentCommandValues(command AgentCommand, id int64) []driver.Value {
 
 func agentEventColumns() []string {
 	return []string{"cursor", "local_id", "owner_user_id", "agent_id", "session_id", "kind",
-		"protocol_version", "cipher_version", "key_epoch", "nonce", "ciphertext", "created_at"}
+		"protocol_version", "cipher_version", "key_epoch", "nonce", "ciphertext", "created_at", "turn_ref"}
 }
 
 func agentEventValues(event AgentEvent, cursor int64) []driver.Value {
 	return []driver.Value{cursor, event.RecordID, event.OwnerUserID, event.AgentID, event.SessionID,
 		event.Kind, int64(event.ProtocolVersion), int64(event.CipherVersion), event.KeyEpoch,
-		event.Nonce, event.Ciphertext, event.CreatedAt}
+		event.Nonce, event.Ciphertext, event.CreatedAt, event.TurnRef}
 }
 
 func e2eeMessageColumns() []string {

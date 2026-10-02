@@ -31,8 +31,32 @@ type AgentCommand struct {
 }
 
 type AgentEvent struct {
-	Cursor int64 `json:"cursor"`
+	Cursor  int64  `json:"cursor"`
+	TurnRef string `json:"turn_ref"`
 	E2EERecord
+}
+
+// TurnRef is opaque routing metadata; Manager never parses the ACP ciphertext.
+type E2EEReplayQuery struct {
+	BeforeTurn    int64
+	AfterCursor   int64
+	ThroughCursor int64
+	TurnRef       string
+	Limit         int
+}
+
+type E2EEReplayPage struct {
+	Events          []AgentEvent
+	TurnRef         string
+	TurnStartCursor int64
+	HeadCursor      int64
+	NextAfterCursor int64
+	HasMore         bool
+	HasOlder        bool
+}
+
+type E2EEReplayStore interface {
+	ReadE2EEReplay(context.Context, string, string, E2EEReplayQuery) (E2EEReplayPage, error)
 }
 
 type E2EEMessage struct {
@@ -64,6 +88,7 @@ type E2EEMessageHistoryPage struct {
 }
 
 type E2EETransportStore interface {
+	E2EEReplayStore
 	CreateAgentCommand(ctx context.Context, command AgentCommand) (AgentCommand, bool, error)
 	ListPendingAgentCommands(
 		ctx context.Context,
