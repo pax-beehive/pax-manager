@@ -329,3 +329,36 @@ it("issues route credentials on both committed and short-cache bootstrap results
     ),
   ).toBeNull();
 });
+it("preserves signed storage download redirects without following them or forwarding cookies", async () => {
+  const { worker } = setup();
+  const cookie = await routeCookie(assignment, env);
+  const path = "/api/pax/api/v1/user/self/attachments/attachment_one/content";
+  const fetch = vi.fn(
+    async () =>
+      new Response(null, {
+        status: 302,
+        headers: {
+          Location: "https://storage.example/object?signature=opaque",
+          "Set-Cookie": "origin=value",
+        },
+      }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  const result = await worker.fetch(request(path, cookie), env);
+  expect(result.status).toBe(302);
+  expect(result.headers.get("Location")).toContain("https://storage.example/");
+  expect(result.headers.get("Cache-Control")).toBe("no-store");
+  expect(result.headers.has("Set-Cookie")).toBe(false);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  for (const location of [
+    "/relative",
+    "http://storage.example/object",
+    "https://test.cloudflareaccess.com/login",
+    env.US_MANAGER_URL + "/login",
+  ]) {
+    fetch.mockResolvedValue(
+      new Response(null, { status: 302, headers: { Location: location } }),
+    );
+    expect((await worker.fetch(request(path, cookie), env)).status).toBe(503);
+  }
+});

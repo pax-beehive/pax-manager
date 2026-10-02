@@ -52,6 +52,35 @@ export function originIdentityHeaders(request: Request): Headers {
   headers.set("Cache-Control", "no-store");
   return headers;
 }
+function contentRedirect(
+  response: Response,
+  request: Request,
+  env: Env,
+  path: string,
+): boolean {
+  if (
+    response.status !== 302 ||
+    !["GET", "HEAD"].includes(request.method) ||
+    !/^\/api\/v1\/user\/[^/]+\/(artifacts|attachments|artifact-publications)\/[^/]+\/content(?:\/[^/]+)?$/.test(
+      path,
+    )
+  )
+    return false;
+  try {
+    const url = new URL(response.headers.get("Location") ?? "");
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.hostname.endsWith(".cloudflareaccess.com") &&
+      ![env.PUBLIC_ORIGIN, env.US_MANAGER_URL, env.HK_MANAGER_URL].includes(
+        url.origin,
+      )
+    );
+  } catch {
+    return false;
+  }
+}
 export async function proxyBrowser(
   request: Request,
   env: Env,
@@ -75,7 +104,8 @@ export async function proxyBrowser(
   if (
     response.status >= 300 &&
     response.status < 400 &&
-    response.status !== 304
+    response.status !== 304 &&
+    !contentRedirect(response, request, env, path)
   )
     throw new Error("Unexpected origin redirect");
   const headers = new Headers(response.headers);

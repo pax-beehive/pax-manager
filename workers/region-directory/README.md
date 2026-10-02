@@ -224,7 +224,9 @@ same Access application trust; optional service authentication is still supporte
 for provisioning. No new Access policy bypass is needed for the current origins.
 
 The origin and response are no-store; origin cookies and cross-origin allow
-headers are stripped. Redirects are rejected, not followed. Workerd supports
+headers are stripped. Redirects are rejected except Manager-issued HTTPS
+content-download redirects, which are returned to the browser without forwarding
+credentials to storage. No upstream redirect is followed. Workerd supports
 `redirect: manual` (not `error`); `cache: no-store` must not be combined with
 `cf.cacheTtl`. The runtime integration test exercises the bundled Worker with
 real RSA identity verification, D1, HK provisioning, SSE and WebSocket frames.
