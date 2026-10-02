@@ -1,5 +1,13 @@
 [
   {
+    "method": "GET",
+    "path": "/api/v1/node/identity",
+    "auth": "node-key",
+    "owner_boundary": "Only the actual owner of the authenticated Node Key; ignores routing hints",
+    "rate_class": "routing-recovery",
+    "caller": "Worker and paxd routing cache recovery"
+  },
+  {
     "method": "POST",
     "path": "/api/v1/node/registration/start",
     "auth": "anonymous",

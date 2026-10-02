@@ -34,6 +34,18 @@ struct RegisterNodeData {
   2: optional string api_key
 }
 
+struct NodeIdentityData {
+  1: optional string node_id
+  2: optional string user_id
+  3: optional string region
+}
+
+struct NodeIdentityResponse {
+  1: optional i32 code
+  2: optional string message
+  3: optional NodeIdentityData data
+}
+
 struct RegisterNodeAgentRequest {
   1: optional RegisterNodeRequest node
   2: optional CreateNodeAgentRequest agent
@@ -1334,6 +1346,14 @@ struct CancelNodeDaemonMaintenanceRequest {
 }
 
 service PaxManagerAPI {
+  NodeIdentityResponse GetNodeIdentity(1: optional EmptyRequest request) (
+    api.get = "/api/v1/node/identity",
+    openapi.tag = "node",
+    openapi.summary = "Recover node routing identity",
+    openapi.description = "Returns the actual owner of the authenticated Node Key. X-Pax-User-ID is a routing hint only and never selects an authorization identity.",
+    openapi.security = "nodeBearer"
+  )
+
   HealthResponse Health(1: optional EmptyRequest request) (
     api.get = "/api/v1/health",
     openapi.tag = "system",

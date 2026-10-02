@@ -711,3 +711,8 @@ func _ensureregionaluserMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _getnodeidentityMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

@@ -7,6 +7,7 @@ import (
 )
 
 func registerIDLRoutes(h *hertzserver.Hertz) {
+	h.GET("/api/v1/node/identity", NodeAuth(), GetNodeIdentity)
 	h.GET("/api/v1/health", Health)
 	h.POST("/api/v1/node/register", RegisterNode)
 	h.POST("/api/v1/node/agents/register", RegisterNodeAgent)

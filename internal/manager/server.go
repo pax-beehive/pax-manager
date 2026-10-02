@@ -695,6 +695,7 @@ func (s *Service) NodeAuth(c context.Context, ctx *app.RequestContext) {
 		return
 	}
 	ctx.Set("node", node)
+	ctx.Header("X-Pax-User-ID", node.OwnerUserID)
 	ctx.Next(c)
 }
 

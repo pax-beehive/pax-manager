@@ -27,8 +27,17 @@ remain operator-only preflight failures. No regional business data is merged.
 Production D1 schema and initial user import are complete: five assignments
 (US four, HK one), with existing IDs preserved. Both Managers and the Worker
 are deployed. Browser routing, runtime probes and Console bootstrap integration
-are implemented in the follow-up, pending coordinated live activation checks.
-Machine credentials and paxd/installer integration remain KEV-76/77/78 work.
+were activated on 2026-10-02. New accounts receive a recommendation and require
+the user's explicit region confirmation.
+
+Machine routing now uses the existing Node Key plus a disposable user-ID hint,
+not a signed machine ticket. The Manager identity endpoint returns the actual
+key owner; the Worker discovers that owner using read-only regional probes,
+checks D1, then forwards the business request once. paxd learns the corrected
+hint from successful HTTP and WebSocket responses. Missing or corrupt hints do
+not change authentication. This machine implementation is staged and disabled
+in production. Unified pre-pairing, installer integration and live machine-route
+activation remain KEV-76/77/78 work.
 
 Worker coverage, real workerd D1/SSE/WebSocket tests and the Console checks pass.
 The original merged change also passed all three GitHub CI jobs, including the

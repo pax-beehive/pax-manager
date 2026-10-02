@@ -151,6 +151,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"EnsureRegionalUser":            EnsureRegionalUser,
 	"GetCurrentUser":                GetCurrentUser,
 	"GetNode":                       GetNode,
+	"GetNodeIdentity":               GetNodeIdentity,
 	"GetNodeAgent":                  GetNodeAgent,
 	"GetNodeAgentApproval":          GetNodeAgentApproval,
 	"GetNodeAgentSession":           GetNodeAgentSession,

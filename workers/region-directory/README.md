@@ -237,6 +237,53 @@ navigate to the canonical host. HTML/static assets remain on the common Console;
 business traffic is regional. The Next REST fallback returns 503 when this mode
 is enabled, so a missing Worker route cannot send requests to the old US default.
 
-Machine route credentials, paxd pairing/refresh changes, and the unified installer
-remain KEV-76/78/77 follow-up scope. Existing machine-only origins and APIs are
-not intercepted by these browser routes. Keep these issues open for that work.
+## Paired machine routing (staged)
+
+Machine requests authenticate with the existing Node Key. `X-Pax-User-ID` is a
+disposable routing hint, never an authorization input. No machine ticket, ticket
+signing key, expiration or refresh protocol is needed. Browser cookies retain
+their separate signed protocol above.
+
+The Worker uses the hint's D1 record only to order discovery. It calls read-only
+`GET /api/v1/node/identity` on fixed regional machine origins with the Node Key.
+The Manager returns the authenticated node's actual `node_id`, `user_id` and
+`region`; the Worker checks that owner's D1 assignment before forwarding the
+original business body exactly once. Missing, corrupt and other-user hints are
+repaired. An unavailable unrelated origin does not block a valid key accepted by
+the other origin. Failed business requests are never replayed in another region.
+
+HTTP and WebSocket responses include the corrected `X-Pax-User-ID`. paxd stores
+it as a best-effort cache scoped to origin and Node Key, learns only from 2xx or
+101 responses, and preserves its cache during failures. D1 remains authoritative
+for user-to-region assignment; regional Manager authentication remains
+authoritative for Node Key ownership and permissions. Discovery never creates a
+user or changes an assignment. An absent D1 record returns 503; an inconsistent
+actual-owner assignment returns 409 and needs operator reconciliation.
+
+Each handshake/request currently performs identity discovery and D1 lookup;
+there is no server-side authenticated-identity cache. Discovery uses a five-second
+timeout per region. HTTP bodies, SSE and WebSocket upgrades are streamed. Paths
+and methods come from the reviewed Manager node policy manifest. Only header
+Node Keys are supported; query credentials, anonymous pairing, registration-token
+onboarding, legacy agent-only keys and unknown paths are excluded.
+
+Machine routing is disabled unless all four variables are explicitly supplied:
+
+```text
+MACHINE_ROUTING_ENABLED=true
+MACHINE_PUBLIC_ORIGIN=https://machine.example.com
+US_MACHINE_URL=https://us-origin.example.com
+HK_MACHINE_URL=https://hk-origin.example.com
+```
+
+The two upstreams must be distinct HTTPS origins, reachable without interactive
+Access login, and must not route back to this Worker. These example values are
+placeholders, not a deployable production config. Before activation, deploy the
+Manager endpoint in both regions, verify the origin/Access path policy, complete
+the unified pre-pairing flow, and test both old and new paxd clients. Preserve all
+active browser routes when adding machine routes. Do not deploy the disabled
+initial `wrangler.production.jsonc` over an active deployment.
+
+Existing regional machine origins and APIs are not intercepted by the active
+browser config. Unified pre-pairing, installer integration and production machine
+activation remain KEV-76/78/77 follow-up scope. Keep these issues open.
