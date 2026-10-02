@@ -185,3 +185,58 @@ PAX_MANAGER_REGION_TEST_DATABASE_URL=postgres://... \
 Stable Miniflare 4 is used with patched `undici` and `sharp` overrides. These are
 test-only dependencies; Wrangler uses its own runtime. `npm audit` is clean with
 the checked-in lockfile.
+
+## Browser routing activation (KEV-76 / KEV-77)
+
+`wrangler.browser.jsonc` is the explicit active browser deployment. Do not use
+it until both Managers have regional provisioning enabled and legacy identities
+have been reconciled while implicit signup is stopped. The staged production
+configuration remains available for initial installation, not post-activation
+rollback: removing active routes would restore the old single-region proxy.
+
+The browser flow runs before Console `/me`: POST bootstrap with `{}` restores
+an existing account; new identities receive `selection_required`. Two uncached
+same-origin `/api/v1/region/probe/us|hk?nonce=...` calls per region measure a real
+Manager `/health` fetch through the selected origin. Probe responses echo the
+nonce. A failed origin is not recommended or selected by default.
+
+`__Host-pax_route` is an HttpOnly, Secure, SameSite=Lax HS256 credential with
+issuer `pax-region-directory`, audience `browser-route`, protocol version 1,
+verified email subject, immutable user ID/region, iat/exp, and signing `kid`.
+It expires after one hour. The active key is `DIRECTORY_SECRET` with
+`ROUTING_KEY_ID`; optionally retain `PREVIOUS_DIRECTORY_SECRET` and
+`PREVIOUS_ROUTING_KEY_ID` during a rotation window. Remove the previous key
+for immediate credential invalidation. Access identity is verified on every
+request; a route credential never replaces authentication. Logout invalidates
+Access and the route credential cannot authenticate by itself. Bootstrap refreshes
+before expiry, and missing/invalid/expired credentials recover only an existing
+D1 assignment. A failed lookup never allocates or chooses a default region.
+
+The Worker intercepts `/api/pax/*` and browser `/api/v1/user/*` WebSockets.
+Only user-scoped endpoints, health, and the public paxd download resolver are
+allowed. It forwards to the fixed Manager origin selected by the credential or
+D1, preserves request/response streams, and returns WebSocket upgrades directly.
+It never retries a business mutation or falls back to another region. Untrusted
+Authorization, service tokens, local-user headers and regional hints are not
+forwarded. The verified Access JWT is forwarded in the origin assertion and
+CF_Authorization cookie. This deployment requires both origins to share the
+same Access application trust; optional service authentication is still supported
+for provisioning. No new Access policy bypass is needed for the current origins.
+
+The origin and response are no-store; origin cookies and cross-origin allow
+headers are stripped. Redirects are rejected except Manager-issued HTTPS
+content-download redirects, which are returned to the browser without forwarding
+credentials to storage. No upstream redirect is followed. Workerd supports
+`redirect: manual` (not `error`); `cache: no-store` must not be combined with
+`cf.cacheTtl`. The runtime integration test exercises the bundled Worker with
+real RSA identity verification, D1, HK provisioning, SSE and WebSocket frames.
+
+Console uses runtime `PAX_BROWSER_REGIONS_ENABLED=true` and
+`PAX_REGION_PUBLIC_ORIGIN=https://paxworkspace.net`. Alternate Console hostnames
+navigate to the canonical host. HTML/static assets remain on the common Console;
+business traffic is regional. The Next REST fallback returns 503 when this mode
+is enabled, so a missing Worker route cannot send requests to the old US default.
+
+Machine route credentials, paxd pairing/refresh changes, and the unified installer
+remain KEV-76/78/77 follow-up scope. Existing machine-only origins and APIs are
+not intercepted by these browser routes. Keep these issues open for that work.

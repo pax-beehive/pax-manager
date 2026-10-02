@@ -2,8 +2,18 @@ import { assign, lookup, type Assignment, type Region } from "./directory";
 import { verifyIdentity } from "./identity";
 import { managerURL, provision } from "./provision";
 import { readState, stateCookie } from "./state";
+import { readRoute, routeCookie } from "./routing";
+import {
+  browserPath,
+  crossSite,
+  probeOrigin,
+  proxyBrowser,
+} from "./browser-proxy";
 export interface Env {
   BOOTSTRAP_ENABLED?: string;
+  ROUTING_KEY_ID?: string;
+  PREVIOUS_ROUTING_KEY_ID?: string;
+  PREVIOUS_DIRECTORY_SECRET?: string;
   DB: D1Database;
   PUBLIC_ORIGIN: string;
   ACCESS_PROVIDERS: string;
@@ -108,6 +118,12 @@ const ready = (assignment: Assignment, env: Env) => ({
   region: assignment.region,
   api_url: managerURL(env, assignment.region),
 });
+async function readyResponse(assignment: Assignment, env: Env, state?: string) {
+  const response = json(ready(assignment, env), 200, state);
+  if (env.ROUTING_KEY_ID)
+    response.headers.append("Set-Cookie", await routeCookie(assignment, env));
+  return response;
+}
 export function createWorker(
   overrides: Partial<{
     identity: typeof verifyIdentity;
@@ -125,9 +141,16 @@ export function createWorker(
   };
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
-      if (new URL(request.url).pathname !== "/api/v1/region/bootstrap")
+      const url = new URL(request.url);
+      const bootstrap = url.pathname === "/api/v1/region/bootstrap";
+      const probe = /^\/api\/v1\/region\/probe\/(us|hk)$/.exec(url.pathname);
+      const path = browserPath(url.pathname);
+      if (!bootstrap && !probe && !path)
         return json({ error: "not_found" }, 404);
-      if (request.method !== "POST")
+      if (
+        (bootstrap && request.method !== "POST") ||
+        (probe && request.method !== "GET")
+      )
         return json({ error: "method_not_allowed" }, 405);
       if (env.BOOTSTRAP_ENABLED !== "true")
         return json(
@@ -136,11 +159,41 @@ export function createWorker(
         );
       if (!configured(env))
         return json({ error: "directory_unavailable" }, 503);
+      if (url.origin !== new URL(env.PUBLIC_ORIGIN).origin)
+        return json({ error: "not_found" }, 404);
+      if (!bootstrap && crossSite(request, new URL(env.PUBLIC_ORIGIN).origin))
+        return json({ error: "invalid_origin" }, 403);
       let identity: string;
       try {
         identity = await deps.identity(request, env.ACCESS_PROVIDERS);
       } catch {
         return json({ error: "unauthorized" }, 401);
+      }
+      if (!bootstrap) {
+        try {
+          if (probe) return await probeOrigin(request, env, probe[1] as Region);
+          let assignment = await readRoute(request, env, identity);
+          let cookie: string | undefined;
+          if (!assignment) {
+            const result = await deps.lookup(env.DB, identity);
+            assignment = result.assignment;
+            if (!assignment)
+              return json({ error: "region_selection_required" }, 409);
+            await deps.provision(assignment, env, request);
+            cookie = await routeCookie(assignment, env);
+          }
+          const response = await proxyBrowser(
+            request,
+            env,
+            assignment.region,
+            path!,
+          );
+          if (cookie && response.status !== 101)
+            response.headers.append("Set-Cookie", cookie);
+          return response;
+        } catch {
+          return json({ error: "region_unavailable", retryable: true }, 503);
+        }
       }
       let region: Region | undefined;
       try {
@@ -151,20 +204,20 @@ export function createWorker(
       try {
         const state = await readState(request, env.DIRECTORY_SECRET, identity);
         if (state && state.cached_until > Date.now())
-          return json(ready(state.assignment, env));
+          return readyResponse(state.assignment, env);
         let result = await deps.lookup(env.DB, identity, state?.bookmark);
         if (!result.assignment && region)
           result = await deps.assign(env.DB, identity, region);
         if (!result.assignment)
           return json({ status: "selection_required", regions: ["us", "hk"] });
-        await deps.provision(result.assignment, env);
+        await deps.provision(result.assignment, env, request);
         const cookie = await stateCookie(env.DIRECTORY_SECRET, {
           identity,
           assignment: result.assignment,
           bookmark: result.bookmark,
           cached_until: Date.now() + 10_000,
         });
-        return json(ready(result.assignment, env), 200, cookie);
+        return readyResponse(result.assignment, env, cookie);
       } catch {
         return json({ error: "directory_unavailable", retryable: true }, 503);
       }

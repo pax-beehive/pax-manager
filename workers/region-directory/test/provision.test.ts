@@ -34,7 +34,7 @@ it("signs the exact body, short timestamp and purpose and sends only to the chos
       .digest("hex"),
   );
   expect(headers["CF-Access-Client-Id"]).toBe("client");
-  expect(init.redirect).toBe("error");
+  expect(init.redirect).toBe("manual");
   expect(
     Math.abs(Date.now() / 1000 - Number(headers["X-Pax-Timestamp"])),
   ).toBeLessThan(2);
@@ -60,4 +60,22 @@ it("does not treat errors, login HTML, mismatched identity or redirects as succe
     );
     await expect(provision(assignment, env)).rejects.toThrow();
   }
+});
+it("forwards only the verified Access assertion for an origin in the same Access application", async () => {
+  const fetch = vi.fn(async () => Response.json({ data: assignment }));
+  vi.stubGlobal("fetch", fetch);
+  await provision(
+    assignment,
+    env,
+    new Request("https://pax.example", {
+      headers: {
+        "Cf-Access-Jwt-Assertion": "verified-user-jwt",
+        Cookie: "untrusted-cookie",
+      },
+    }),
+  );
+  const init = (fetch.mock.calls[0] as unknown as [URL, RequestInit])[1];
+  expect(new Headers(init.headers).get("Cookie")).toBe(
+    "CF_Authorization=verified-user-jwt",
+  );
 });
