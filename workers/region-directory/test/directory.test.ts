@@ -174,5 +174,10 @@ it("keeps the D1 winner when regional provisioning fails and another preference 
     region: "hk",
     status: "ready",
   });
-  expect(provision).toHaveBeenNthCalledWith(2, winner, env);
+  expect(provision).toHaveBeenNthCalledWith(
+    2,
+    winner,
+    env,
+    expect.any(Request),
+  );
 });

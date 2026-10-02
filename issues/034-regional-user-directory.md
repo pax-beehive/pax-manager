@@ -24,15 +24,15 @@ Existing D1 assignments always take precedence; HK-only identities remain HK.
 Inconsistent single-region inventories and IDs reused for unrelated identities
 remain operator-only preflight failures. No regional business data is merged.
 
-Production D1 creation/import, regional configuration, Access service-auth setup,
-coordinated activation and KEV-76/77/78 client integration remain outstanding.
-The user has now authorized merging and staged deployment. A D1 database exists;
-production inventory export/import is awaiting explicit authorization after an
-automatic approval rejection. `BOOTSTRAP_ENABLED=false` prevents a staged Worker
-from assigning identities before Console and Manager activation are ready.
+Production D1 schema and initial user import are complete: five assignments
+(US four, HK one), with existing IDs preserved. Both Managers and the Worker
+are deployed. Browser routing, runtime probes and Console bootstrap integration
+are implemented in the follow-up, pending coordinated live activation checks.
+Machine credentials and paxd/installer integration remain KEV-76/77/78 work.
 
-Unit, coverage, lint, build, real PostgreSQL concurrency and Manager API integration
-checks pass. The full Docker suite has a paxd chat round-trip timeout that also
-reproduces on unchanged base `565b3a8`; see the handoff for the comparison.
+Worker coverage, real workerd D1/SSE/WebSocket tests and the Console checks pass.
+The original merged change also passed all three GitHub CI jobs, including the
+full integration suite. See the browser routing handoff for current activation
+and rollback boundaries.
 
 See `workers/region-directory/README.md` for the API, rollout boundary and tests.

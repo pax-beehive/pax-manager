@@ -71,7 +71,11 @@ describe("verified and idempotent bootstrap", () => {
       assignment.identity_key,
       "us",
     );
-    expect(deps.provision).toHaveBeenCalledWith(assignment, env);
+    expect(deps.provision).toHaveBeenCalledWith(
+      assignment,
+      env,
+      expect.any(Request),
+    );
     expect(await response.json()).toMatchObject({
       status: "ready",
       user_id: "usr_global",
@@ -118,7 +122,12 @@ describe("verified and idempotent bootstrap", () => {
       (await worker.fetch(request('{"preferred_region":"us"}'), env)).status,
     ).toBe(200);
     expect(deps.assign).not.toHaveBeenCalled();
-    expect(deps.provision).toHaveBeenNthCalledWith(2, assignment, env);
+    expect(deps.provision).toHaveBeenNthCalledWith(
+      2,
+      assignment,
+      env,
+      expect.any(Request),
+    );
   });
   it("does not reuse another identity or tampered state", async () => {
     const cookie = await stateCookie(env.DIRECTORY_SECRET, {

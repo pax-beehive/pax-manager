@@ -6,6 +6,7 @@ export function managerURL(env: Env, region: "us" | "hk"): string {
 export async function provision(
   assignment: Assignment,
   env: Env,
+  request?: Request,
 ): Promise<void> {
   const body = JSON.stringify(assignment);
   const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -34,6 +35,8 @@ export async function provision(
     "X-Pax-Timestamp": timestamp,
     "X-Pax-Signature": signature,
   };
+  const accessToken = request?.headers.get("Cf-Access-Jwt-Assertion");
+  if (accessToken) headers.Cookie = `CF_Authorization=${accessToken}`;
   const clientID =
     assignment.region === "us"
       ? env.US_ACCESS_CLIENT_ID
@@ -52,7 +55,7 @@ export async function provision(
       method: "POST",
       headers,
       body,
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(5000),
     },
   );
