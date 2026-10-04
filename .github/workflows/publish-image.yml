@@ -1,0 +1,98 @@
+name: Publish image
+
+on:
+  workflow_call:
+    secrets:
+      PAX_RELEASE_PUBLISHER_TOKEN:
+        required: true
+      PAX_BEEHIVE_READ_TOKEN:
+        required: true
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-image-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check registration credential
+        env:
+          PAX_RELEASE_PUBLISHER_TOKEN: ${{ secrets.PAX_RELEASE_PUBLISHER_TOKEN }}
+          PAX_BEEHIVE_READ_TOKEN: ${{ secrets.PAX_BEEHIVE_READ_TOKEN }}
+        run: |
+          test -n "$PAX_RELEASE_PUBLISHER_TOKEN"
+          test -n "$PAX_BEEHIVE_READ_TOKEN"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push exact commit
+        id: image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:git-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            io.pax.product=manager
+          secrets: |
+            github_token=${{ secrets.PAX_BEEHIVE_READ_TOKEN }}
+      - name: Verify image by immutable digest
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}@${{ steps.image.outputs.digest }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          docker pull --platform linux/amd64 "$IMAGE"
+          test "$(docker image inspect "$IMAGE" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+          test "$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$COMMIT"
+      - name: Save immutable registration record
+        env:
+          PRODUCT: manager
+          COMMIT: ${{ github.sha }}
+          IMAGE: ghcr.io/${{ github.repository }}@${{ steps.image.outputs.digest }}
+        run: |
+          mkdir -p release-artifact
+          jq -n '{product:env.PRODUCT,commit:env.COMMIT,kind:"image",platform:"linux/amd64",reference:env.IMAGE}' > release-artifact/artifact.json
+      - name: Preserve registration record for retry
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-image-${{ github.sha }}
+          path: release-artifact/artifact.json
+          if-no-files-found: error
+      - name: Register image in Release
+        env:
+          PAX_RELEASE_PUBLISHER_TOKEN: ${{ secrets.PAX_RELEASE_PUBLISHER_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$RUNNER_TEMP/release-registration.json"
+          status=$(curl --silent --show-error --connect-timeout 15 --max-time 60 \
+            --request POST --header 'Content-Type: application/json' \
+            --header @<(printf 'Authorization: Bearer %s\n' "$PAX_RELEASE_PUBLISHER_TOKEN") \
+            --data-binary @release-artifact/artifact.json \
+            --output "$response" --write-out '%{http_code}' \
+            https://release.paxworkspace.net/api/v1/artifacts)
+          if [[ "$status" != 200 && "$status" != 201 ]]; then
+            echo "Release registration failed (HTTP $status); retry the saved artifact.json with pax-release register-artifact."
+            exit 1
+          fi
+          jq -e --slurpfile expected release-artifact/artifact.json \
+            '(.id | type == "number") and (.id > 0) and (.id == (.id | floor)) and contains($expected[0])' "$response" >/dev/null
+          id=$(jq -r '.id' "$response")
+          echo "Registered Release artifact $id" >> "$GITHUB_STEP_SUMMARY"

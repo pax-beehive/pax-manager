@@ -133,3 +133,15 @@ jobs:
       - run: npm run build
         env:
           WRANGLER_SEND_METRICS: 'false'
+
+  publish-image:
+    name: Publish verified main image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [checks, integration, region-directory]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/publish-image.yml
+    secrets:
+      PAX_RELEASE_PUBLISHER_TOKEN: ${{ secrets.PAX_RELEASE_PUBLISHER_TOKEN }}
+      PAX_BEEHIVE_READ_TOKEN: ${{ secrets.PAX_BEEHIVE_READ_TOKEN }}
