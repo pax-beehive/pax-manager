@@ -1222,22 +1222,26 @@ type CreatePaxdArtifactRequest struct {
 }
 
 type FindPaxdArtifactRequest struct {
-	Product  string
-	Platform string
-	Tags     []string
+	Version         string
+	IncludeDisabled bool
+	Product         string
+	Platform        string
+	Tags            []string
 }
 
 type PaxdArtifactDownloadResponse struct {
-	URL        string       `json:"url"`
-	ExpiresAt  time.Time    `json:"expires_at"`
-	Artifact   PaxdArtifact `json:"artifact"`
-	SHA256     string       `json:"sha256"`
-	SizeBytes  int64        `json:"size_bytes"`
-	Version    string       `json:"version"`
-	Product    string       `json:"product"`
-	Platform   string       `json:"platform"`
-	Tags       []string     `json:"tags"`
-	Generation int64        `json:"generation"`
+	CurrentStatus string       `json:"current_status,omitempty"`
+	Warning       string       `json:"warning,omitempty"`
+	URL           string       `json:"url"`
+	ExpiresAt     time.Time    `json:"expires_at"`
+	Artifact      PaxdArtifact `json:"artifact"`
+	SHA256        string       `json:"sha256"`
+	SizeBytes     int64        `json:"size_bytes"`
+	Version       string       `json:"version"`
+	Product       string       `json:"product"`
+	Platform      string       `json:"platform"`
+	Tags          []string     `json:"tags"`
+	Generation    int64        `json:"generation"`
 }
 
 const (

@@ -560,14 +560,20 @@ func (s *PostgresStore) FindPaxdArtifact(
 	row := s.db.QueryRowContext(ctx, paxdArtifactSelectSQL+`
 		WHERE product = $1
 			AND platform = $2
-			AND tags @> CASE
+			AND (CASE
+                WHEN 'disabled' = ANY(tags) THEN array_remove(array_remove(tags, 'testing'), 'stable')
+                WHEN 'stable' = ANY(tags) THEN array_remove(tags, 'testing')
+                ELSE array_append(tags, 'testing')
+            END) @> CASE
 				WHEN $3 = '' THEN '{}'::text[]
 				ELSE string_to_array($3, ',')::text[]
 			END
 			AND deleted_at IS NULL
+			AND ($4 = '' OR version = $4)
+			AND ($5 OR NOT ('disabled' = ANY(tags)))
 		ORDER BY created_at DESC, artifact_id DESC
 		LIMIT 1
-	`, req.Product, req.Platform, paxdArtifactTagList(req.Tags))
+	`, req.Product, req.Platform, paxdArtifactTagList(req.Tags), req.Version, req.IncludeDisabled)
 	return scanPaxdArtifact(row)
 }
 

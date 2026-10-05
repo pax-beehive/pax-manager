@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"regexp"
 	"sort"
@@ -90,9 +91,23 @@ func (s *Service) handleDownloadArtifact(
 		writeEndpointError(ctx, err)
 		return
 	}
+	currentStatus := s.currentBinaryQuality(c, ctx, req)
 	artifact, err := s.store.FindPaxdArtifact(c, req)
 	if err != nil {
+		if currentStatus == "disabled" && errors.Is(err, ErrNotFound) {
+			writeError(
+				ctx,
+				http.StatusGone,
+				"Current binary has known issues. No replacement is available; upgrade when a verified version is published.",
+			)
+			return
+		}
 		writeEndpointError(ctx, err)
+		return
+	}
+	artifact.Tags = normalizeBinaryQualityTags(artifact.Tags)
+	if req.IncludeDisabled {
+		writeData(ctx, http.StatusOK, binaryQualityMetadata(artifact))
 		return
 	}
 	expiresAt := s.clock().UTC().Add(s.paxdArtifactDownloadTTL())
@@ -102,16 +117,18 @@ func (s *Service) handleDownloadArtifact(
 		return
 	}
 	writeData(ctx, http.StatusOK, PaxdArtifactDownloadResponse{
-		URL:        url,
-		ExpiresAt:  expiresAt,
-		Artifact:   artifact,
-		SHA256:     artifact.SHA256,
-		SizeBytes:  artifact.SizeBytes,
-		Version:    artifact.Version,
-		Product:    artifact.Product,
-		Platform:   artifact.Platform,
-		Tags:       artifact.Tags,
-		Generation: artifact.Generation,
+		CurrentStatus: currentStatus,
+		Warning:       binaryQualityWarning(currentStatus),
+		URL:           url,
+		ExpiresAt:     expiresAt,
+		Artifact:      artifact,
+		SHA256:        artifact.SHA256,
+		SizeBytes:     artifact.SizeBytes,
+		Version:       artifact.Version,
+		Product:       artifact.Product,
+		Platform:      artifact.Platform,
+		Tags:          artifact.Tags,
+		Generation:    artifact.Generation,
 	})
 }
 
@@ -245,7 +262,21 @@ func paxdArtifactDownloadRequest(
 	if err != nil {
 		return FindPaxdArtifactRequest{}, err
 	}
-	return FindPaxdArtifactRequest{Product: product, Platform: platform, Tags: tags}, nil
+	version := strings.TrimSpace(string(ctx.QueryArgs().Peek("version")))
+	metadata := string(ctx.QueryArgs().Peek("metadata")) == "1"
+	if metadata && version == "" {
+		return FindPaxdArtifactRequest{}, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "metadata requires an exact version",
+		}
+	}
+	return FindPaxdArtifactRequest{
+		Product:         product,
+		Platform:        platform,
+		Tags:            tags,
+		Version:         version,
+		IncludeDisabled: metadata,
+	}, nil
 }
 
 func (s *Service) authenticateArtifactPublisher(
@@ -292,7 +323,7 @@ func normalizeCreatePaxdArtifactRequest(
 	if err != nil {
 		return CreatePaxdArtifactRequest{}, err
 	}
-	req.Tags = tags
+	req.Tags = normalizeBinaryQualityTags(tags)
 	req.Bucket = strings.TrimSpace(req.Bucket)
 	req.Object = strings.TrimSpace(req.Object)
 	req.Version = strings.TrimSpace(req.Version)
