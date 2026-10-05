@@ -1,0 +1,17 @@
+name: Release authentication checks
+on:
+  pull_request:
+    paths: ['.github/workflows/**', '.github/tests/test_release_registration.py']
+  push:
+    paths: ['.github/workflows/**', '.github/tests/test_release_registration.py']
+permissions:
+  contents: read
+jobs:
+  registration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python .github/tests/test_release_registration.py

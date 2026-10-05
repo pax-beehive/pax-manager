@@ -144,4 +144,6 @@ jobs:
     uses: ./.github/workflows/publish-image.yml
     secrets:
       PAX_RELEASE_PUBLISHER_TOKEN: ${{ secrets.PAX_RELEASE_PUBLISHER_TOKEN }}
+      PAX_RELEASE_CF_CLIENT_ID: ${{ secrets.PAX_RELEASE_CF_CLIENT_ID }}
+      PAX_RELEASE_CF_CLIENT_SECRET: ${{ secrets.PAX_RELEASE_CF_CLIENT_SECRET }}
       PAX_BEEHIVE_READ_TOKEN: ${{ secrets.PAX_BEEHIVE_READ_TOKEN }}
