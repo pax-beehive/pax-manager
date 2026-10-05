@@ -5,6 +5,10 @@ on:
     secrets:
       PAX_RELEASE_PUBLISHER_TOKEN:
         required: true
+      PAX_RELEASE_CF_CLIENT_ID:
+        required: false
+      PAX_RELEASE_CF_CLIENT_SECRET:
+        required: false
       PAX_BEEHIVE_READ_TOKEN:
         required: true
   workflow_dispatch:
@@ -29,8 +33,23 @@ jobs:
       - name: Check registration credential
         env:
           PAX_RELEASE_PUBLISHER_TOKEN: ${{ secrets.PAX_RELEASE_PUBLISHER_TOKEN }}
+          PAX_RELEASE_CF_CLIENT_ID: ${{ secrets.PAX_RELEASE_CF_CLIENT_ID }}
+          PAX_RELEASE_CF_CLIENT_SECRET: ${{ secrets.PAX_RELEASE_CF_CLIENT_SECRET }}
           PAX_BEEHIVE_READ_TOKEN: ${{ secrets.PAX_BEEHIVE_READ_TOKEN }}
+        shell: bash
         run: |
+          set +x
+          set -euo pipefail
+          export LC_ALL=C
+          service_token_pattern='^[!-~]+$'
+          if [[ -n "$PAX_RELEASE_CF_CLIENT_ID" || -n "$PAX_RELEASE_CF_CLIENT_SECRET" ]]; then
+            for value in "$PAX_RELEASE_CF_CLIENT_ID" "$PAX_RELEASE_CF_CLIENT_SECRET"; do
+              if [[ ${#value} -lt 32 || ${#value} -gt 256 || ! "$value" =~ $service_token_pattern ]]; then
+                echo 'Both Cloudflare Service Token secrets must be configured and valid.' >&2
+                exit 1
+              fi
+            done
+          fi
           test -n "$PAX_RELEASE_PUBLISHER_TOKEN"
           test -n "$PAX_BEEHIVE_READ_TOKEN"
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -78,13 +97,31 @@ jobs:
       - name: Register image in Release
         env:
           PAX_RELEASE_PUBLISHER_TOKEN: ${{ secrets.PAX_RELEASE_PUBLISHER_TOKEN }}
+          PAX_RELEASE_CF_CLIENT_ID: ${{ secrets.PAX_RELEASE_CF_CLIENT_ID }}
+          PAX_RELEASE_CF_CLIENT_SECRET: ${{ secrets.PAX_RELEASE_CF_CLIENT_SECRET }}
         shell: bash
         run: |
+          set +x
           set -euo pipefail
+          export LC_ALL=C
+          service_token_pattern='^[!-~]+$'
+          if [[ -n "$PAX_RELEASE_CF_CLIENT_ID" || -n "$PAX_RELEASE_CF_CLIENT_SECRET" ]]; then
+            for value in "$PAX_RELEASE_CF_CLIENT_ID" "$PAX_RELEASE_CF_CLIENT_SECRET"; do
+              if [[ ${#value} -lt 32 || ${#value} -gt 256 || ! "$value" =~ $service_token_pattern ]]; then
+                echo 'Both Cloudflare Service Token secrets must be configured and valid.' >&2
+                exit 1
+              fi
+            done
+          fi
+          umask 077
           response="$RUNNER_TEMP/release-registration.json"
+          trap 'rm -f "$response"' EXIT
           status=$(curl --silent --show-error --connect-timeout 15 --max-time 60 \
             --request POST --header 'Content-Type: application/json' \
-            --header @<(printf 'Authorization: Bearer %s\n' "$PAX_RELEASE_PUBLISHER_TOKEN") \
+            --header @<(printf 'Authorization: Bearer %s\n' "$PAX_RELEASE_PUBLISHER_TOKEN"; \
+              if [[ -n "$PAX_RELEASE_CF_CLIENT_ID" ]]; then \
+                printf 'CF-Access-Client-Id: %s\nCF-Access-Client-Secret: %s\n' "$PAX_RELEASE_CF_CLIENT_ID" "$PAX_RELEASE_CF_CLIENT_SECRET"; \
+              fi) \
             --data-binary @release-artifact/artifact.json \
             --output "$response" --write-out '%{http_code}' \
             https://release.paxworkspace.net/api/v1/artifacts)
@@ -93,6 +130,6 @@ jobs:
             exit 1
           fi
           jq -e --slurpfile expected release-artifact/artifact.json \
-            '(.id | type == "number") and (.id > 0) and (.id == (.id | floor)) and contains($expected[0])' "$response" >/dev/null
+            '(.id | type == "number") and (.id > 0) and (.id == (.id | floor)) and contains($expected[0])' "$response" >/dev/null 2>&1
           id=$(jq -r '.id' "$response")
           echo "Registered Release artifact $id" >> "$GITHUB_STEP_SUMMARY"
