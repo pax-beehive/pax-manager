@@ -593,7 +593,9 @@ func (s *MemoryStore) FindPaxdArtifact(
 		if artifact.DeletedAt != nil ||
 			artifact.Product != req.Product ||
 			artifact.Platform != req.Platform ||
-			!paxdArtifactHasTags(artifact.Tags, req.Tags) {
+			(req.Version != "" && artifact.Version != req.Version) ||
+			(!req.IncludeDisabled && paxdArtifactHasTags(artifact.Tags, []string{"disabled"})) ||
+			!paxdArtifactHasTags(domain.BinaryQualityTags(artifact.Tags), req.Tags) {
 			continue
 		}
 		if found.ArtifactID == "" ||

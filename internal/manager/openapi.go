@@ -914,6 +914,30 @@ func addPaxdArtifactPaths(doc map[string]any) {
 			},
 		},
 	}
+	for _, path := range []string{routeDownloadGenericArtifact, routeDownloadPaxdArtifact, routeDownloadPaxlArtifact} {
+		get := paths[path].(map[string]any)["get"].(map[string]any)
+		params := get["parameters"].([]map[string]any)
+		for _, field := range []struct{ name, description string }{
+			{"version", "Exact version. Disabled versions are excluded from downloads."},
+			{"metadata", "Set to 1 with version to inspect quality and identity without a download URL, including disabled versions."},
+			{"current_version", "Installed version. Returns current_status and an upgrade warning when disabled."},
+		} {
+			params = append(
+				params,
+				map[string]any{
+					"name":        field.name,
+					"in":          "query",
+					"schema":      map[string]string{"type": "string"},
+					"description": field.description,
+				},
+			)
+		}
+		get["parameters"] = params
+		get["responses"].(map[string]any)["410"] = map[string]string{
+			"description": "Current version is disabled and no replacement is available.",
+		}
+	}
+
 }
 
 func ensureSecurityScheme(doc map[string]any, name string, scheme map[string]any) {
