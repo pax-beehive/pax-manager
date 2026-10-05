@@ -881,7 +881,6 @@ FROM inbound_watermarks
 WHERE state.queue_id = inbound_watermarks.queue_id
     AND state.stream = inbound_watermarks.stream;
 
-DROP INDEX IF EXISTS idx_transport_journal_pending;
 CREATE INDEX IF NOT EXISTS idx_transport_journal_pending
     ON transport_journal(queue_id, stream, direction, status, seq);
 CREATE INDEX IF NOT EXISTS idx_transport_journal_inbound_ack
