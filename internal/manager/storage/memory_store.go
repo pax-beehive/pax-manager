@@ -361,6 +361,14 @@ func (s *MemoryStore) AuthenticateUserAPIKey(ctx context.Context, keyHash string
 		return User{}, ErrUnauthorized
 	}
 	now := s.now().UTC()
+	for _, login := range s.paxlDeviceLogins {
+		if login.UserAPIKeyID == keyID &&
+			login.Protocol == domain.PaxlDeviceLoginProtocolClientCommit &&
+			login.Status == domain.PaxlDeviceLoginStatusApproved &&
+			!login.ExpiresAt.After(now) {
+			return User{}, ErrUnauthorized
+		}
+	}
 	key.LastUsedAt = &now
 	s.userAPIKeys[keyID] = key
 	return user, nil
@@ -929,9 +937,16 @@ func (s *MemoryStore) DeleteStalePaxlDeviceLoginSessions(
 	defer s.mu.Unlock()
 	for loginID, session := range s.paxlDeviceLogins {
 		if session.ExpiresAt.After(cutoff) &&
-			session.Status != domain.PaxlDeviceLoginStatusConsumed &&
-			session.Status != domain.PaxlDeviceLoginStatusExpired {
+			(session.Protocol != "" || (session.Status != domain.PaxlDeviceLoginStatusConsumed &&
+				session.Status != domain.PaxlDeviceLoginStatusExpired)) {
 			continue
+		}
+		if session.Protocol == domain.PaxlDeviceLoginProtocolClientCommit &&
+			session.Status == domain.PaxlDeviceLoginStatusApproved {
+			if key, ok := s.userAPIKeys[session.UserAPIKeyID]; ok {
+				key.RevokedAt = &cutoff
+				s.userAPIKeys[key.KeyID] = key
+			}
 		}
 		delete(s.paxlDeviceLogins, loginID)
 		delete(s.paxlDeviceLoginUserCodes, session.UserCode)
@@ -943,7 +958,8 @@ func (s *MemoryStore) ApprovePaxlDeviceLoginSession(
 	ctx context.Context,
 	principal UserPrincipal,
 	userCode string,
-	userAPIKey UserAPIKey,
+	keyHash string,
+	prefix string,
 	apiKey string,
 ) (PaxlDeviceLoginSession, error) {
 	s.mu.Lock()
@@ -954,6 +970,10 @@ func (s *MemoryStore) ApprovePaxlDeviceLoginSession(
 	}
 	session := s.paxlDeviceLogins[loginID]
 	if session.Status != domain.PaxlDeviceLoginStatusPending {
+		if session.ExpiresAt.After(s.now().UTC()) && session.OwnerUserID == principal.User.UserID &&
+			(session.Status == domain.PaxlDeviceLoginStatusConfirmed || session.Status == domain.PaxlDeviceLoginStatusApproved || session.Status == domain.PaxlDeviceLoginStatusConsumed) {
+			return session, nil
+		}
 		return PaxlDeviceLoginSession{}, ErrConflict
 	}
 	now := s.now().UTC()
@@ -962,29 +982,12 @@ func (s *MemoryStore) ApprovePaxlDeviceLoginSession(
 		s.paxlDeviceLogins[loginID] = session
 		return PaxlDeviceLoginSession{}, ErrUnauthorized
 	}
-	session.Status = domain.PaxlDeviceLoginStatusApproved
-	session.OwnerUserID = principal.User.UserID
-	session.UserAPIKeyID = userAPIKey.KeyID
-	nodeID, err := newSecret("node")
-	if err != nil {
-		return PaxlDeviceLoginSession{}, err
+	if session.Protocol == domain.PaxlDeviceLoginProtocolClientCommit {
+		session.Status, session.OwnerUserID, session.ApprovedAt = domain.PaxlDeviceLoginStatusConfirmed, principal.User.UserID, &now
+		s.paxlDeviceLogins[loginID] = session
+		return session, nil
 	}
-	session.NodeID = nodeID
-	session.APIKey = apiKey
-	session.ApprovedAt = &now
-	s.nodes[nodeID] = Node{
-		NodeID:       nodeID,
-		OwnerUserID:  principal.User.UserID,
-		Kind:         "paxl",
-		Name:         firstNonEmpty(session.ClientName, "paxl"),
-		Hostname:     firstNonEmpty(session.ClientName, "paxl"),
-		OS:           "unknown",
-		APIEndpoint:  "",
-		Status:       "offline",
-		RegisteredAt: now,
-	}
-	s.paxlDeviceLogins[loginID] = session
-	return session, nil
+	return s.issuePaxlLoginLocked(session, principal.User.UserID, keyHash, prefix, apiKey, now)
 }
 
 func (s *MemoryStore) PollPaxlDeviceLoginSession(
@@ -998,10 +1001,8 @@ func (s *MemoryStore) PollPaxlDeviceLoginSession(
 	if !ok || session.PollTokenHash != pollTokenHash {
 		return PaxlDeviceLoginSession{}, ErrUnauthorized
 	}
-	if session.Status == domain.PaxlDeviceLoginStatusPending &&
-		!session.ExpiresAt.After(s.now().UTC()) {
-		session.Status = domain.PaxlDeviceLoginStatusExpired
-		s.paxlDeviceLogins[loginID] = session
+	if !session.ExpiresAt.After(s.now().UTC()) {
+		session.Status, session.APIKey = domain.PaxlDeviceLoginStatusExpired, ""
 	}
 	return session, nil
 }

@@ -983,13 +983,17 @@ type NodeRegistrationPreviewResponse struct {
 }
 
 const (
-	PaxlDeviceLoginStatusPending  = "pending"
-	PaxlDeviceLoginStatusApproved = "approved"
-	PaxlDeviceLoginStatusExpired  = "expired"
-	PaxlDeviceLoginStatusConsumed = "consumed"
+	PaxlDeviceLoginProtocolClientCommit = "client_commit_v1"
+	PaxlDeviceLoginStatusConfirmed      = "confirmed"
+	PaxlDeviceLoginStatusCancelled      = "cancelled"
+	PaxlDeviceLoginStatusPending        = "pending"
+	PaxlDeviceLoginStatusApproved       = "approved"
+	PaxlDeviceLoginStatusExpired        = "expired"
+	PaxlDeviceLoginStatusConsumed       = "consumed"
 )
 
 type PaxlDeviceLoginSession struct {
+	Protocol      string     `json:"protocol,omitempty"`
 	LoginID       string     `json:"login_id"`
 	UserCode      string     `json:"user_code"`
 	PollTokenHash string     `json:"-"`
@@ -1006,10 +1010,13 @@ type PaxlDeviceLoginSession struct {
 }
 
 type StartPaxlDeviceLoginRequest struct {
+	Protocol   string `json:"protocol,omitempty"`
 	ClientName string `json:"client_name,omitempty"`
 }
 
 type StartPaxlDeviceLoginResponse struct {
+	Protocol                string `json:"protocol,omitempty"`
+	Region                  string `json:"region,omitempty"`
 	LoginID                 string `json:"login_id"`
 	UserCode                string `json:"user_code"`
 	PollToken               string `json:"poll_token"`
@@ -1021,11 +1028,14 @@ type StartPaxlDeviceLoginResponse struct {
 }
 
 type PollPaxlDeviceLoginRequest struct {
-	LoginID   string `json:"login_id"`
-	PollToken string `json:"poll_token"`
+	Action         string `json:"action,omitempty"`
+	ExpectedUserID string `json:"expected_user_id,omitempty"`
+	LoginID        string `json:"login_id"`
+	PollToken      string `json:"poll_token"`
 }
 
 type PollPaxlDeviceLoginResponse struct {
+	Region     string      `json:"region,omitempty"`
 	Status     string      `json:"status"`
 	APIKey     string      `json:"api_key,omitempty"`
 	NodeID     string      `json:"node_id,omitempty"`
@@ -2072,4 +2082,10 @@ func NormalizeEmail(email string) string {
 
 func CanAccessOwner(principal UserPrincipal, ownerUserID string) bool {
 	return principal.User.UserID == ownerUserID
+}
+
+// PaxlDeviceLoginUpdate requires the CLI-only polling secret and pinned identity.
+type PaxlDeviceLoginUpdate struct {
+	LoginID, PollTokenHash, ExpectedUserID, Action string
+	KeyHash, KeyPrefix, APIKey                     string
 }

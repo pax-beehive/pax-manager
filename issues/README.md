@@ -42,6 +42,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 034 | partial | [Regional directory, browser routing and machine hint recovery](034-regional-user-directory.md) | high | auth / storage / Worker |
 
+| 035 | partial | [Regional paxl login races (KEV-90)](035-paxl-regional-login.md) | high | auth / storage / Worker / paxl / Console |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
