@@ -500,6 +500,7 @@ func TestScanNodeAndRegistrationSessions(t *testing.T) {
 		now,
 		&approvedAt,
 		&consumedAt,
+		"",
 	})
 	if err != nil {
 		t.Fatalf("scan paxl login: %v", err)

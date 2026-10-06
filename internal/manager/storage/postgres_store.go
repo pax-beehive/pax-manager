@@ -252,6 +252,13 @@ func (s *PostgresStore) AuthenticateUserAPIKey(ctx context.Context, keyHash stri
 			return ErrUnauthorized
 		}
 		now := s.now().UTC()
+		var expired bool
+		if err := tx.Raw(`SELECT EXISTS(SELECT 1 FROM paxl_device_login_sessions WHERE user_api_key_id = ? AND protocol = 'client_commit_v1' AND status = 'approved' AND expires_at <= ?)`, key.KeyID, now).Scan(&expired).Error; err != nil {
+			return err
+		}
+		if expired {
+			return ErrUnauthorized
+		}
 		info, err := keys.WithContext(ctx).
 			Where(keys.KeyID.Eq(key.KeyID)).
 			Update(keys.LastUsedAt, now)
@@ -911,11 +918,11 @@ func (s *PostgresStore) CreatePaxlDeviceLoginSession(
 ) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO paxl_device_login_sessions (
-			login_id, user_code, poll_token_hash, status, client_name, expires_at, created_at
+			login_id, user_code, poll_token_hash, status, client_name, expires_at, created_at, protocol
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 	`, session.LoginID, session.UserCode, session.PollTokenHash, session.Status,
-		session.ClientName, session.ExpiresAt, session.CreatedAt)
+		session.ClientName, session.ExpiresAt, session.CreatedAt, session.Protocol)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return ErrConflict
@@ -929,18 +936,54 @@ func (s *PostgresStore) DeleteStalePaxlDeviceLoginSessions(
 	ctx context.Context,
 	cutoff time.Time,
 ) error {
-	_, err := s.db.ExecContext(ctx, `
-		DELETE FROM paxl_device_login_sessions
-		WHERE expires_at <= $1 OR status IN ($2, $3)
-	`, cutoff, domain.PaxlDeviceLoginStatusConsumed, domain.PaxlDeviceLoginStatusExpired)
-	return err
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	// Lock before looking up keys: an in-flight commit may create one while cleanup waits.
+	rows, err := tx.QueryContext(
+		ctx,
+		`SELECT login_id FROM paxl_device_login_sessions WHERE expires_at <= $1 ORDER BY login_id FOR UPDATE`,
+		cutoff,
+	)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return err
+		}
+	}
+	err = rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE user_api_keys k SET revoked_at = COALESCE(k.revoked_at, $1)
+		FROM paxl_device_login_sessions l WHERE l.expires_at <= $1 AND l.protocol = $2 AND l.status = 'approved' AND k.key_id = l.user_api_key_id`, cutoff, domain.PaxlDeviceLoginProtocolClientCommit)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(
+		ctx,
+		`DELETE FROM paxl_device_login_sessions WHERE expires_at <= $1 OR (protocol = '' AND status IN ('consumed', 'expired'))`,
+		cutoff,
+	)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *PostgresStore) ApprovePaxlDeviceLoginSession(
 	ctx context.Context,
 	principal UserPrincipal,
 	userCode string,
-	userAPIKey UserAPIKey,
+	keyHash string,
+	prefix string,
 	apiKey string,
 ) (PaxlDeviceLoginSession, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -956,6 +999,10 @@ func (s *PostgresStore) ApprovePaxlDeviceLoginSession(
 		return PaxlDeviceLoginSession{}, err
 	}
 	if session.Status != domain.PaxlDeviceLoginStatusPending {
+		if session.ExpiresAt.After(s.now().UTC()) && session.OwnerUserID == principal.User.UserID &&
+			(session.Status == domain.PaxlDeviceLoginStatusConfirmed || session.Status == domain.PaxlDeviceLoginStatusApproved || session.Status == domain.PaxlDeviceLoginStatusConsumed) {
+			return session, nil
+		}
 		return PaxlDeviceLoginSession{}, ErrConflict
 	}
 	now := s.now().UTC()
@@ -965,40 +1012,35 @@ func (s *PostgresStore) ApprovePaxlDeviceLoginSession(
 		`, session.LoginID, domain.PaxlDeviceLoginStatusExpired)
 		return PaxlDeviceLoginSession{}, ErrUnauthorized
 	}
-	nodeID, err := newSecret("node")
-	if err != nil {
-		return PaxlDeviceLoginSession{}, err
-	}
-	nodeName := firstNonEmpty(session.ClientName, "paxl")
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO nodes (
-			node_id, owner_user_id, kind, name, hostname, machine_type, os, arch,
-			paxd_version, api_endpoint, api_key_hash, status, registered_at, metadata
+	if session.Protocol == domain.PaxlDeviceLoginProtocolClientCommit {
+		_, err := tx.ExecContext(
+			ctx,
+			`UPDATE paxl_device_login_sessions SET status = $2, owner_user_id = $3, approved_at = $4 WHERE login_id = $1`,
+			session.LoginID,
+			domain.PaxlDeviceLoginStatusConfirmed,
+			principal.User.UserID,
+			now,
 		)
-		VALUES ($1,$2,'paxl',$3,$3,'','unknown','','','',$4,'offline',$5,$6)
-	`, nodeID, principal.User.UserID, nodeName, "paxl-device:"+nodeID, now,
-		nullRaw(json.RawMessage(`{"kind":"paxl"}`))); err != nil {
-		return PaxlDeviceLoginSession{}, err
+		if err != nil {
+			return PaxlDeviceLoginSession{}, err
+		}
+		session.Status, session.OwnerUserID, session.ApprovedAt = domain.PaxlDeviceLoginStatusConfirmed, principal.User.UserID, &now
+		return session, tx.Commit()
 	}
-	_, err = tx.ExecContext(ctx, `
-		UPDATE paxl_device_login_sessions
-		SET status = $2, owner_user_id = $3, user_api_key_id = $4, api_key = $5, node_id = $6, approved_at = $7
-		WHERE login_id = $1
-	`, session.LoginID, domain.PaxlDeviceLoginStatusApproved, principal.User.UserID,
-		userAPIKey.KeyID, apiKey, nodeID, now)
+	issued, err := issuePaxlLoginTx(
+		ctx,
+		tx,
+		session,
+		principal.User.UserID,
+		keyHash,
+		prefix,
+		apiKey,
+		now,
+	)
 	if err != nil {
 		return PaxlDeviceLoginSession{}, err
 	}
-	session, err = scanPaxlDeviceLoginSession(tx.QueryRowContext(ctx, paxlDeviceLoginSelectSQL+`
-		WHERE login_id = $1
-	`, session.LoginID))
-	if err != nil {
-		return PaxlDeviceLoginSession{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return PaxlDeviceLoginSession{}, err
-	}
-	return session, nil
+	return issued, tx.Commit()
 }
 
 func (s *PostgresStore) PollPaxlDeviceLoginSession(
@@ -1015,12 +1057,8 @@ func (s *PostgresStore) PollPaxlDeviceLoginSession(
 		}
 		return PaxlDeviceLoginSession{}, err
 	}
-	if session.Status == domain.PaxlDeviceLoginStatusPending &&
-		!session.ExpiresAt.After(s.now().UTC()) {
-		session.Status = domain.PaxlDeviceLoginStatusExpired
-		_, _ = s.db.ExecContext(ctx, `
-			UPDATE paxl_device_login_sessions SET status = $2 WHERE login_id = $1
-		`, loginID, domain.PaxlDeviceLoginStatusExpired)
+	if !session.ExpiresAt.After(s.now().UTC()) {
+		session.Status, session.APIKey = domain.PaxlDeviceLoginStatusExpired, ""
 	}
 	return session, nil
 }
@@ -1073,7 +1111,7 @@ const paxlDeviceLoginSelectSQL = `
 	SELECT login_id, user_code, poll_token_hash, status, client_name,
 		COALESCE(owner_user_id, ''), COALESCE(user_api_key_id, ''), COALESCE(node_id, ''),
 		COALESCE(api_key, ''),
-		expires_at, created_at, approved_at, consumed_at
+		expires_at, created_at, approved_at, consumed_at, protocol
 	FROM paxl_device_login_sessions
 `
 

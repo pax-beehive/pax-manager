@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
+	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
@@ -33,6 +34,7 @@ func StartPaxlDeviceLogin(c context.Context, ctx *app.RequestContext) {
 }
 
 func PollPaxlDeviceLogin(c context.Context, ctx *app.RequestContext) {
+	ctx.Header("Cache-Control", "no-store")
 	var req PollPaxlDeviceLoginRequest
 	decodeBody(ctx, &req)
 	status, data, err := serviceFromContext(ctx).PollPaxlDeviceLogin(c, req)
@@ -50,6 +52,12 @@ func (s *Service) StartPaxlDeviceLogin(
 	req StartPaxlDeviceLoginRequest,
 	baseURL string,
 ) (int, any, error) {
+	if req.Protocol != "" && req.Protocol != domain.PaxlDeviceLoginProtocolClientCommit {
+		return 0, nil, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "unsupported login protocol",
+		}
+	}
 	now := s.clock().UTC()
 	if err := s.store.DeleteStalePaxlDeviceLoginSessions(c, now); err != nil {
 		return 0, nil, err
@@ -79,6 +87,7 @@ func (s *Service) StartPaxlDeviceLogin(
 			}
 		}
 		err = s.store.CreatePaxlDeviceLoginSession(c, domain.PaxlDeviceLoginSession{
+			Protocol:      req.Protocol,
 			LoginID:       loginID,
 			UserCode:      userCode,
 			PollTokenHash: s.secrets.Hash(pollToken),
@@ -99,6 +108,8 @@ func (s *Service) StartPaxlDeviceLogin(
 	}
 	verificationURI := strings.TrimRight(baseURL, "/") + "/paxl-login.html"
 	return http.StatusOK, domain.StartPaxlDeviceLoginResponse{
+		Protocol:                req.Protocol,
+		Region:                  s.cfg.Region,
 		LoginID:                 loginID,
 		UserCode:                userCode,
 		PollToken:               pollToken,
@@ -122,6 +133,30 @@ func (s *Service) ApprovePaxlDeviceLogin(
 	if err != nil {
 		return 0, nil, err
 	}
+	if s.cfg.Region != "" {
+		proof, err := auth.VerifyPaxlLoginApproval(
+			ctx.Request.Body(),
+			string(ctx.GetHeader("X-Pax-Login-Timestamp")),
+			string(ctx.GetHeader("X-Pax-Login-Signature")),
+			s.cfg.Region,
+			s.cfg.RegionProvisioningSecret,
+			userCode,
+			s.clock(),
+		)
+		if err != nil || proof.IdentityKey != principal.User.Email {
+			return 0, nil, ErrUnauthorized
+		}
+		if proof.Purpose == "admin" {
+			if !principal.IsAdmin {
+				return 0, nil, apperr.Error{
+					Status:  http.StatusForbidden,
+					Message: "regional administrator permission is required",
+				}
+			}
+		} else if proof.UserID != principal.User.UserID {
+			return 0, nil, ErrUnauthorized
+		}
+	}
 	key, err := s.secrets.New("paxu")
 	if err != nil {
 		return 0, nil, apperr.Error{
@@ -129,17 +164,9 @@ func (s *Service) ApprovePaxlDeviceLogin(
 			Message: "could not generate api key",
 		}
 	}
-	keyMeta, err := s.store.CreateUserAPIKey(
-		c,
-		principal,
-		"paxl device login",
-		s.secrets.Hash(key),
-		s.secrets.Prefix(key),
+	session, err := s.store.ApprovePaxlDeviceLoginSession(
+		c, principal, userCode, s.secrets.Hash(key), s.secrets.Prefix(key), key,
 	)
-	if err != nil {
-		return 0, nil, err
-	}
-	session, err := s.store.ApprovePaxlDeviceLoginSession(c, principal, userCode, keyMeta, key)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -162,13 +189,18 @@ func (s *Service) PollPaxlDeviceLogin(
 			Message: "login_id and poll_token are required",
 		}
 	}
-	session, err := s.store.PollPaxlDeviceLoginSession(
-		c,
-		req.LoginID,
-		s.secrets.Hash(req.PollToken),
-	)
+	var session domain.PaxlDeviceLoginSession
+	var err error
+	if req.Action != "" {
+		session, err = s.updatePaxlLogin(c, req)
+	} else {
+		session, err = s.store.PollPaxlDeviceLoginSession(c, req.LoginID, s.secrets.Hash(req.PollToken))
+	}
 	if err != nil {
 		return 0, nil, err
+	}
+	if session.Protocol == domain.PaxlDeviceLoginProtocolClientCommit {
+		return s.clientCommitLoginResponse(c, session)
 	}
 	if session.Status != domain.PaxlDeviceLoginStatusApproved {
 		return http.StatusOK, domain.PollPaxlDeviceLoginResponse{Status: session.Status}, nil
@@ -203,4 +235,66 @@ func (s *Service) PollPaxlDeviceLogin(
 		UserAPIKey: keyMeta,
 		User:       &user,
 	}, nil
+}
+
+func (s *Service) updatePaxlLogin(
+	c context.Context,
+	req PollPaxlDeviceLoginRequest,
+) (domain.PaxlDeviceLoginSession, error) {
+	if req.Action != "commit" && req.Action != "ack" && req.Action != "cancel" {
+		return domain.PaxlDeviceLoginSession{}, apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "invalid login action",
+		}
+	}
+	update := domain.PaxlDeviceLoginUpdate{
+		LoginID:        req.LoginID,
+		PollTokenHash:  s.secrets.Hash(req.PollToken),
+		ExpectedUserID: req.ExpectedUserID,
+		Action:         req.Action,
+	}
+	if req.Action == "commit" {
+		key, err := s.secrets.New("paxu")
+		if err != nil {
+			return domain.PaxlDeviceLoginSession{}, err
+		}
+		update.APIKey, update.KeyHash, update.KeyPrefix = key, s.secrets.Hash(
+			key,
+		), s.secrets.Prefix(
+			key,
+		)
+	}
+	return s.store.UpdatePaxlDeviceLoginSession(c, update)
+}
+
+func (s *Service) clientCommitLoginResponse(
+	c context.Context,
+	session domain.PaxlDeviceLoginSession,
+) (int, any, error) {
+	response := domain.PollPaxlDeviceLoginResponse{Status: session.Status, Region: s.cfg.Region}
+	if session.Status != domain.PaxlDeviceLoginStatusConfirmed &&
+		session.Status != domain.PaxlDeviceLoginStatusApproved {
+		return http.StatusOK, response, nil
+	}
+	user, err := s.store.GetUser(c, session.OwnerUserID)
+	if err != nil {
+		return 0, nil, err
+	}
+	response.User = &user
+	if session.Status == domain.PaxlDeviceLoginStatusApproved {
+		keys, err := s.store.ListUserAPIKeys(c, domain.UserPrincipal{User: user})
+		if err != nil {
+			return 0, nil, err
+		}
+		for i := range keys {
+			if keys[i].KeyID == session.UserAPIKeyID && keys[i].RevokedAt == nil {
+				response.UserAPIKey = &keys[i]
+			}
+		}
+		if response.UserAPIKey == nil {
+			return 0, nil, ErrUnauthorized
+		}
+		response.APIKey, response.NodeID = session.APIKey, session.NodeID
+	}
+	return http.StatusOK, response, nil
 }

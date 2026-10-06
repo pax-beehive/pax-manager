@@ -243,13 +243,18 @@ type Store interface {
 		pollTokenHash string,
 		apiKeyHash string,
 	) (Node, error)
+	UpdatePaxlDeviceLoginSession(
+		ctx context.Context,
+		update PaxlDeviceLoginUpdate,
+	) (PaxlDeviceLoginSession, error)
 	CreatePaxlDeviceLoginSession(ctx context.Context, session PaxlDeviceLoginSession) error
 	DeleteStalePaxlDeviceLoginSessions(ctx context.Context, cutoff time.Time) error
 	ApprovePaxlDeviceLoginSession(
 		ctx context.Context,
 		principal UserPrincipal,
 		userCode string,
-		userAPIKey UserAPIKey,
+		keyHash string,
+		prefix string,
 		apiKey string,
 	) (PaxlDeviceLoginSession, error)
 	PollPaxlDeviceLoginSession(

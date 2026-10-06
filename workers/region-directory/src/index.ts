@@ -1,3 +1,4 @@
+import { approvePaxlLogin } from "./paxl-login";
 import {
   assign,
   lookup,
@@ -158,12 +159,13 @@ export function createWorker(
       if (env.MACHINE_PUBLIC_ORIGIN && url.origin === env.MACHINE_PUBLIC_ORIGIN)
         return machineFetch(request, env, deps.lookupUser);
       const bootstrap = url.pathname === "/api/v1/region/bootstrap";
+      const login = url.pathname === "/api/v1/region/paxl-login/approve";
       const probe = /^\/api\/v1\/region\/probe\/(us|hk)$/.exec(url.pathname);
       const path = browserPath(url.pathname);
-      if (!bootstrap && !probe && !path)
+      if (!bootstrap && !probe && !path && !login)
         return json({ error: "not_found" }, 404);
       if (
-        (bootstrap && request.method !== "POST") ||
+        ((bootstrap || login) && request.method !== "POST") ||
         (probe && request.method !== "GET")
       )
         return json({ error: "method_not_allowed" }, 405);
@@ -184,6 +186,7 @@ export function createWorker(
       } catch {
         return json({ error: "unauthorized" }, 401);
       }
+      if (login) return approvePaxlLogin(request, env, identity, deps.lookup);
       if (!bootstrap) {
         try {
           if (probe) return await probeOrigin(request, env, probe[1] as Region);

@@ -147,6 +147,7 @@ func scanPaxlDeviceLoginSession(row rowScanner) (PaxlDeviceLoginSession, error) 
 		&session.CreatedAt,
 		&session.ApprovedAt,
 		&session.ConsumedAt,
+		&session.Protocol,
 	); err != nil {
 		return PaxlDeviceLoginSession{}, mapSQLError(err)
 	}

@@ -905,12 +905,12 @@ func TestMemoryPaxlDeviceLoginLifecycle(t *testing.T) {
 	require.NoError(t, store.CreatePaxlDeviceLoginSession(ctx, session))
 	require.ErrorIs(t, store.CreatePaxlDeviceLoginSession(ctx, session), ErrConflict)
 
-	apiKey := UserAPIKey{KeyID: "key_1", OwnerUserID: owner.UserID, Prefix: "paxu_123"}
 	approved, err := store.ApprovePaxlDeviceLoginSession(
 		ctx,
 		UserPrincipal{User: owner},
 		"ABCD-EFGH",
-		apiKey,
+		"key_hash",
+		"paxu_123",
 		"paxu_raw",
 	)
 	require.NoError(t, err)

@@ -967,7 +967,12 @@ CREATE TABLE IF NOT EXISTS paxl_device_login_sessions (
     consumed_at TIMESTAMPTZ
 );
 
+ALTER TABLE paxl_device_login_sessions ADD COLUMN IF NOT EXISTS protocol TEXT NOT NULL DEFAULT '';
+
 ALTER TABLE paxl_device_login_sessions ADD COLUMN IF NOT EXISTS node_id TEXT REFERENCES nodes(node_id);
+
+CREATE INDEX IF NOT EXISTS idx_paxl_device_login_unacknowledged_key
+    ON paxl_device_login_sessions(user_api_key_id) WHERE protocol = 'client_commit_v1' AND status = 'approved';
 
 CREATE INDEX IF NOT EXISTS idx_paxl_device_login_sessions_poll
     ON paxl_device_login_sessions(login_id, poll_token_hash);
