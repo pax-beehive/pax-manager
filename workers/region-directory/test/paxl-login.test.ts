@@ -163,14 +163,12 @@ it("never follows an origin redirect or falls back after failure", async () => {
     identity: async () => assignment.identity_key,
     lookup: async () => ({ assignment, bookmark: null }),
   });
-  const fetch = vi
-    .spyOn(globalThis, "fetch")
-    .mockResolvedValue(
-      new Response(null, {
-        status: 302,
-        headers: { Location: "https://us.example" },
-      }),
-    );
+  const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(null, {
+      status: 302,
+      headers: { Location: "https://us.example" },
+    }),
+  );
   expect((await worker.fetch(request({ code: "ABC123" }), env)).status).toBe(
     503,
   );
