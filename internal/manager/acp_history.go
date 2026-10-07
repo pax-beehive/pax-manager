@@ -336,11 +336,20 @@ func projectACPUserPromptForSessionTurn(
 		sessionID,
 	)
 	content := acpPromptText(rpc.Params)
-	if sessionID == "" || content == "" {
+	if sessionID == "" || (content == "" && !acpPromptHasResourceLink(rpc.Params)) {
 		return nil
 	}
+	identityContent := content
+	if identityContent == "" {
+		// Attachment-only requests must not all share the hash of empty text.
+		identityContent = string(rpc.Params)
+	}
 	paxMeta, hasPaxMeta := paxInvocationPromptMetadataFromRaw(rpc.Params)
-	projectionID := firstNonEmpty(turnID, acpHistoryRPCID(rpc.ID), acpHistoryContentHash(content))
+	projectionID := firstNonEmpty(
+		turnID,
+		acpHistoryRPCID(rpc.ID),
+		acpHistoryContentHash(identityContent),
+	)
 	if hasPaxMeta && strings.TrimSpace(paxMeta.TurnID) != "" {
 		projectionID = paxMeta.TurnID
 	}
@@ -692,6 +701,24 @@ func acpPromptText(raw json.RawMessage) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+func acpPromptHasResourceLink(raw json.RawMessage) bool {
+	var params struct {
+		Prompt []struct {
+			Type string `json:"type"`
+			URI  string `json:"uri"`
+		} `json:"prompt"`
+	}
+	if json.Unmarshal(raw, &params) != nil {
+		return false
+	}
+	for _, block := range params.Prompt {
+		if block.Type == "resource_link" && strings.TrimSpace(block.URI) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func acpHistoryRPCID(id any) string {
