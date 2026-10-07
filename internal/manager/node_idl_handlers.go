@@ -888,3 +888,16 @@ func NodeBrowserControl(c context.Context, ctx *app.RequestContext) {
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
+
+func UpgradeNodePaxl(c context.Context, ctx *app.RequestContext) {
+	var req UpgradeNodePaxlRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	status, data, err := serviceFromContext(ctx).userapi.UpgradeNodePaxl(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}

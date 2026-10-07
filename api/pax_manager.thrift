@@ -1338,6 +1338,14 @@ struct UpgradeNodeDaemonRequest {
   11: optional string reason
 }
 
+struct UpgradeNodePaxlRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string command_id
+  4: optional string version
+  5: optional string tag
+}
+
 struct CancelNodeDaemonMaintenanceRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
@@ -1738,6 +1746,19 @@ service PaxManagerAPI {
     openapi.tag = "user",
     openapi.summary = "Upgrade node daemon",
     openapi.description = "Forwards paxd.upgrade to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonCommandResponse UpgradeNodePaxl(
+    1: optional UpgradeNodePaxlRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/paxl/upgrade",
+    openapi.tag = "user",
+    openapi.summary = "Upgrade node paxl executable",
+    openapi.description = "Forwards paxl.upgrade. Poll daemon/commands/:command_id for verified completion. Does not restart paxd.",
     openapi.status = "202",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
