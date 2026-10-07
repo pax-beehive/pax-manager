@@ -176,6 +176,10 @@ func Register(r *server.Hertz) {
 									_secret_channel.POST("/push", append(_pushnodedaemonsecretchannelMw(), handler.PushNodeDaemonSecretChannel)...)
 								}
 							}
+							{
+								_paxl := _node_id.Group("/paxl", _paxlMw()...)
+								_paxl.POST("/upgrade", append(_upgradenodepaxlMw(), handler.UpgradeNodePaxl)...)
+							}
 						}
 					}
 					{

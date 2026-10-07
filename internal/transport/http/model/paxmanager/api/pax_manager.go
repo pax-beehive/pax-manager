@@ -63333,6 +63333,385 @@ func (p *UpgradeNodeDaemonRequest) String() string {
 
 }
 
+type UpgradeNodePaxlRequest struct {
+	UserID    *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID    *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	CommandID *string `thrift:"command_id,3,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
+	Version   *string `thrift:"version,4,optional" form:"version" json:"version,omitempty" query:"version"`
+	Tag       *string `thrift:"tag,5,optional" form:"tag" json:"tag,omitempty" query:"tag"`
+}
+
+func NewUpgradeNodePaxlRequest() *UpgradeNodePaxlRequest {
+	return &UpgradeNodePaxlRequest{}
+}
+
+func (p *UpgradeNodePaxlRequest) InitDefault() {
+}
+
+var UpgradeNodePaxlRequest_UserID_DEFAULT string
+
+func (p *UpgradeNodePaxlRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return UpgradeNodePaxlRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var UpgradeNodePaxlRequest_NodeID_DEFAULT string
+
+func (p *UpgradeNodePaxlRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return UpgradeNodePaxlRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var UpgradeNodePaxlRequest_CommandID_DEFAULT string
+
+func (p *UpgradeNodePaxlRequest) GetCommandID() (v string) {
+	if !p.IsSetCommandID() {
+		return UpgradeNodePaxlRequest_CommandID_DEFAULT
+	}
+	return *p.CommandID
+}
+
+var UpgradeNodePaxlRequest_Version_DEFAULT string
+
+func (p *UpgradeNodePaxlRequest) GetVersion() (v string) {
+	if !p.IsSetVersion() {
+		return UpgradeNodePaxlRequest_Version_DEFAULT
+	}
+	return *p.Version
+}
+
+var UpgradeNodePaxlRequest_Tag_DEFAULT string
+
+func (p *UpgradeNodePaxlRequest) GetTag() (v string) {
+	if !p.IsSetTag() {
+		return UpgradeNodePaxlRequest_Tag_DEFAULT
+	}
+	return *p.Tag
+}
+
+var fieldIDToName_UpgradeNodePaxlRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+	3: "command_id",
+	4: "version",
+	5: "tag",
+}
+
+func (p *UpgradeNodePaxlRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *UpgradeNodePaxlRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *UpgradeNodePaxlRequest) IsSetCommandID() bool {
+	return p.CommandID != nil
+}
+
+func (p *UpgradeNodePaxlRequest) IsSetVersion() bool {
+	return p.Version != nil
+}
+
+func (p *UpgradeNodePaxlRequest) IsSetTag() bool {
+	return p.Tag != nil
+}
+
+func (p *UpgradeNodePaxlRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_UpgradeNodePaxlRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *UpgradeNodePaxlRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *UpgradeNodePaxlRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *UpgradeNodePaxlRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.CommandID = _field
+	return nil
+}
+func (p *UpgradeNodePaxlRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Version = _field
+	return nil
+}
+func (p *UpgradeNodePaxlRequest) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Tag = _field
+	return nil
+}
+
+func (p *UpgradeNodePaxlRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("UpgradeNodePaxlRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *UpgradeNodePaxlRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *UpgradeNodePaxlRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *UpgradeNodePaxlRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCommandID() {
+		if err = oprot.WriteFieldBegin("command_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.CommandID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *UpgradeNodePaxlRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetVersion() {
+		if err = oprot.WriteFieldBegin("version", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Version); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *UpgradeNodePaxlRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTag() {
+		if err = oprot.WriteFieldBegin("tag", thrift.STRING, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Tag); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *UpgradeNodePaxlRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("UpgradeNodePaxlRequest(%+v)", *p)
+
+}
+
 type CancelNodeDaemonMaintenanceRequest struct {
 	UserID               *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
 	NodeID               *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
@@ -63727,6 +64106,8 @@ type PaxManagerAPI interface {
 	RestartNodeDaemon(ctx context.Context, request *RestartNodeDaemonRequest) (r *NodeDaemonCommandResponse, err error)
 
 	UpgradeNodeDaemon(ctx context.Context, request *UpgradeNodeDaemonRequest) (r *NodeDaemonCommandResponse, err error)
+
+	UpgradeNodePaxl(ctx context.Context, request *UpgradeNodePaxlRequest) (r *NodeDaemonCommandResponse, err error)
 
 	CancelNodeDaemonMaintenance(ctx context.Context, request *CancelNodeDaemonMaintenanceRequest) (r *NodeDaemonCommandResponse, err error)
 
@@ -64157,6 +64538,15 @@ func (p *PaxManagerAPIClient) UpgradeNodeDaemon(ctx context.Context, request *Up
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) UpgradeNodePaxl(ctx context.Context, request *UpgradeNodePaxlRequest) (r *NodeDaemonCommandResponse, err error) {
+	var _args PaxManagerAPIUpgradeNodePaxlArgs
+	_args.Request = request
+	var _result PaxManagerAPIUpgradeNodePaxlResult
+	if err = p.Client_().Call(ctx, "UpgradeNodePaxl", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) CancelNodeDaemonMaintenance(ctx context.Context, request *CancelNodeDaemonMaintenanceRequest) (r *NodeDaemonCommandResponse, err error) {
 	var _args PaxManagerAPICancelNodeDaemonMaintenanceArgs
 	_args.Request = request
@@ -64565,6 +64955,7 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("ListNodeDaemonAgentConnections", &paxManagerAPIProcessorListNodeDaemonAgentConnections{handler: handler})
 	self.AddToProcessorMap("RestartNodeDaemon", &paxManagerAPIProcessorRestartNodeDaemon{handler: handler})
 	self.AddToProcessorMap("UpgradeNodeDaemon", &paxManagerAPIProcessorUpgradeNodeDaemon{handler: handler})
+	self.AddToProcessorMap("UpgradeNodePaxl", &paxManagerAPIProcessorUpgradeNodePaxl{handler: handler})
 	self.AddToProcessorMap("CancelNodeDaemonMaintenance", &paxManagerAPIProcessorCancelNodeDaemonMaintenance{handler: handler})
 	self.AddToProcessorMap("CreateNodeDaemonAgentConnection", &paxManagerAPIProcessorCreateNodeDaemonAgentConnection{handler: handler})
 	self.AddToProcessorMap("UpdateNodeDaemonAgentConnection", &paxManagerAPIProcessorUpdateNodeDaemonAgentConnection{handler: handler})
@@ -66335,6 +66726,54 @@ func (p *paxManagerAPIProcessorUpgradeNodeDaemon) Process(ctx context.Context, s
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("UpgradeNodeDaemon", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorUpgradeNodePaxl struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorUpgradeNodePaxl) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIUpgradeNodePaxlArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("UpgradeNodePaxl", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIUpgradeNodePaxlResult{}
+	var retval *NodeDaemonCommandResponse
+	if retval, err2 = p.handler.UpgradeNodePaxl(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing UpgradeNodePaxl: "+err2.Error())
+		oprot.WriteMessageBegin("UpgradeNodePaxl", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("UpgradeNodePaxl", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -78805,6 +79244,300 @@ func (p *PaxManagerAPIUpgradeNodeDaemonResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIUpgradeNodeDaemonResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIUpgradeNodePaxlArgs struct {
+	Request *UpgradeNodePaxlRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIUpgradeNodePaxlArgs() *PaxManagerAPIUpgradeNodePaxlArgs {
+	return &PaxManagerAPIUpgradeNodePaxlArgs{}
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlArgs) InitDefault() {
+}
+
+var PaxManagerAPIUpgradeNodePaxlArgs_Request_DEFAULT *UpgradeNodePaxlRequest
+
+func (p *PaxManagerAPIUpgradeNodePaxlArgs) GetRequest() (v *UpgradeNodePaxlRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIUpgradeNodePaxlArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIUpgradeNodePaxlArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIUpgradeNodePaxlArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewUpgradeNodePaxlRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("UpgradeNodePaxl_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIUpgradeNodePaxlArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIUpgradeNodePaxlResult struct {
+	Success *NodeDaemonCommandResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIUpgradeNodePaxlResult() *PaxManagerAPIUpgradeNodePaxlResult {
+	return &PaxManagerAPIUpgradeNodePaxlResult{}
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlResult) InitDefault() {
+}
+
+var PaxManagerAPIUpgradeNodePaxlResult_Success_DEFAULT *NodeDaemonCommandResponse
+
+func (p *PaxManagerAPIUpgradeNodePaxlResult) GetSuccess() (v *NodeDaemonCommandResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIUpgradeNodePaxlResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIUpgradeNodePaxlResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIUpgradeNodePaxlResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNodeDaemonCommandResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("UpgradeNodePaxl_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpgradeNodePaxlResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIUpgradeNodePaxlResult(%+v)", *p)
 
 }
 

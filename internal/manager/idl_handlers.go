@@ -204,6 +204,7 @@ var generatedNodeDaemonHandlerBridge = map[string]generatedHandlerFunc{
 	"RestartNodeDaemon":                RestartNodeDaemon,
 	"RestartNodeDaemonAgentConnection": RestartNodeDaemonAgentConnection,
 	"StopNodeDaemonAgentConnection":    StopNodeDaemonAgentConnection,
+	"UpgradeNodePaxl":                  UpgradeNodePaxl,
 	"UpgradeNodeDaemon":                UpgradeNodeDaemon,
 	"UpdateNodeDaemonAgentConnection":  UpdateNodeDaemonAgentConnection,
 }

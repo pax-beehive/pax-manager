@@ -1628,6 +1628,7 @@ type AgentStatusReport struct {
 }
 
 type NodeStatusReport struct {
+	Paxl         *PaxlObservation   `json:"-"`
 	NodeID       string             `json:"node_id"`
 	RuntimeFence string             `json:"-"`
 	Hostname     string             `json:"hostname"`
@@ -1843,10 +1844,11 @@ type RestartNodeDaemonRequest struct {
 	Reason               string `json:"reason"`
 }
 type NodeDaemonHeartbeat struct {
-	BootID      string    `json:"boot_id"`
-	PaxdVersion string    `json:"paxd_version"`
-	DaemonPhase string    `json:"daemon_phase"`
-	ObservedAt  time.Time `json:"observed_at"`
+	Paxl        *PaxlObservation `json:"paxl,omitempty"`
+	BootID      string           `json:"boot_id"`
+	PaxdVersion string           `json:"paxd_version"`
+	DaemonPhase string           `json:"daemon_phase"`
+	ObservedAt  time.Time        `json:"observed_at"`
 }
 
 type NodeDaemonMaintenanceConfirmation struct {
@@ -2088,4 +2090,21 @@ func CanAccessOwner(principal UserPrincipal, ownerUserID string) bool {
 type PaxlDeviceLoginUpdate struct {
 	LoginID, PollTokenHash, ExpectedUserID, Action string
 	KeyHash, KeyPrefix, APIKey                     string
+}
+
+type UpgradeNodePaxlRequest struct {
+	UserID    string `json:"user_id"`
+	NodeID    string `json:"node_id"`
+	CommandID string `json:"command_id"`
+	Version   string `json:"version"`
+	Tag       string `json:"tag,omitempty"`
+}
+
+type PaxlObservation struct {
+	Status    string    `json:"status"`
+	Version   string    `json:"version,omitempty"`
+	Commit    string    `json:"commit,omitempty"`
+	Path      string    `json:"path,omitempty"`
+	CheckedAt time.Time `json:"checked_at"`
+	Error     string    `json:"error,omitempty"`
 }

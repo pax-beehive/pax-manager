@@ -1175,21 +1175,10 @@ func (s *PostgresStore) UpsertNodeStatus(
 	if report.Arch != "" {
 		node.Arch = report.Arch
 	}
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE nodes
-		SET status = 'online',
-			last_heartbeat = $2,
-			hostname = COALESCE(NULLIF($3, ''), hostname),
-			metadata = COALESCE($4, metadata),
-			machine_type = COALESCE(NULLIF($5, ''), machine_type),
-			os = COALESCE(NULLIF($6, ''), os),
-			arch = COALESCE(NULLIF($7, ''), arch),
-			paxd_version = COALESCE(NULLIF($8, ''), paxd_version)
-		WHERE node_id = $1
-	`, node.NodeID, now, report.Hostname, nullRaw(report.Metadata), report.MachineType, report.OS,
-		report.Arch, strings.TrimSpace(report.PaxdVersion)); err != nil {
+	if err := persistNodeStatus(ctx, tx, node, report, now); err != nil {
 		return err
 	}
+
 	for _, input := range report.Agents {
 		agentID := input.AgentID
 		if agentID == "" {
@@ -3592,4 +3581,41 @@ func (s *PostgresStore) resolveSessionCreator(
 		}
 	}
 	return createdBy, nil
+}
+
+func persistNodeStatus(
+	ctx context.Context,
+	tx *sql.Tx,
+	node Node,
+	report NodeStatusReport,
+	now time.Time,
+) error {
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE nodes
+		SET status = 'online',
+			last_heartbeat = $2,
+			hostname = COALESCE(NULLIF($3, ''), hostname),
+			metadata = CASE WHEN $4::jsonb IS NULL THEN metadata
+ ELSE $4::jsonb || jsonb_strip_nulls(jsonb_build_object('paxl', metadata->'paxl')) END,
+			machine_type = COALESCE(NULLIF($5, ''), machine_type),
+			os = COALESCE(NULLIF($6, ''), os),
+			arch = COALESCE(NULLIF($7, ''), arch),
+			paxd_version = COALESCE(NULLIF($8, ''), paxd_version)
+		WHERE node_id = $1
+	`, node.NodeID, now, report.Hostname, nullRaw(report.Metadata), report.MachineType, report.OS,
+		report.Arch, strings.TrimSpace(report.PaxdVersion)); err != nil {
+		return err
+	}
+	if report.Paxl != nil {
+		observation, err := json.Marshal(report.Paxl)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE nodes SET metadata = jsonb_set(CASE WHEN jsonb_typeof(metadata) = 'object' THEN metadata ELSE '{}'::jsonb END, '{paxl}', $2::jsonb) WHERE node_id = $1`, node.NodeID, string(observation)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

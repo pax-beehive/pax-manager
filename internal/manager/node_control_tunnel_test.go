@@ -64,6 +64,7 @@ func TestNodeControlHeartbeatPersistsPaxdVersionWithoutRuntimeSnapshotRollback(t
 			"heartbeat":{
 				"boot_id":"boot_current",
 				"paxd_version":"0.1.31",
+ "paxl":{"status":"installed","version":"0.1.50","path":"/opt/paxl","checked_at":"2026-10-07T12:00:00Z"},
 				"daemon_phase":"running"
 			}
 		}
@@ -73,6 +74,7 @@ func TestNodeControlHeartbeatPersistsPaxdVersionWithoutRuntimeSnapshotRollback(t
 		return node.PaxdVersion == "0.1.31"
 	})
 	require.Equal(t, "0.1.31", node.PaxdVersion)
+	require.Contains(t, string(node.Metadata), `"version":"0.1.50"`)
 
 	require.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{
 		"kind":"report",
@@ -94,6 +96,7 @@ func TestNodeControlHeartbeatPersistsPaxdVersionWithoutRuntimeSnapshotRollback(t
 		return strings.Contains(string(node.Metadata), "snap_after_heartbeat")
 	})
 	require.Equal(t, "0.1.31", node.PaxdVersion)
+	require.Contains(t, string(node.Metadata), `"version":"0.1.50"`)
 }
 
 func TestNodeControlTunnelRoutesQueryResponseWhileProcessingReport(t *testing.T) {

@@ -716,3 +716,13 @@ func _getnodeidentityMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _paxlMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _upgradenodepaxlMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

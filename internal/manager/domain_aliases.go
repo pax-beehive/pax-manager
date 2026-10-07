@@ -166,3 +166,5 @@ func hashSecret(secret string) string {
 func normalizeEmail(email string) string {
 	return domain.NormalizeEmail(email)
 }
+
+type UpgradeNodePaxlRequest = domain.UpgradeNodePaxlRequest

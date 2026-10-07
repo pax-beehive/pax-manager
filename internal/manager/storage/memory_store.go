@@ -1084,7 +1084,16 @@ func (s *MemoryStore) UpsertNodeStatus(
 		current.PaxdVersion = version
 	}
 	if len(report.Metadata) > 0 {
-		current.Metadata = report.Metadata
+		current.Metadata = preservePaxlObservation(current.Metadata, report.Metadata)
+	}
+	if report.Paxl != nil {
+		var metadata map[string]any
+		_ = json.Unmarshal(current.Metadata, &metadata)
+		if metadata == nil {
+			metadata = map[string]any{}
+		}
+		metadata["paxl"] = report.Paxl
+		current.Metadata, _ = json.Marshal(metadata)
 	}
 	s.nodes[node.NodeID] = current
 
@@ -3056,4 +3065,18 @@ func limitMailbox(messages []MailboxMessage, limit int) []MailboxMessage {
 		return messages
 	}
 	return messages[:limit]
+}
+
+func preservePaxlObservation(previous, next json.RawMessage) json.RawMessage {
+	var oldData, newData map[string]json.RawMessage
+	_ = json.Unmarshal(previous, &oldData)
+	if len(oldData["paxl"]) == 0 {
+		return next
+	}
+	if json.Unmarshal(next, &newData) != nil || newData == nil {
+		return next
+	}
+	newData["paxl"] = oldData["paxl"]
+	raw, _ := json.Marshal(newData)
+	return raw
 }
