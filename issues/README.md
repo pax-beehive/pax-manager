@@ -44,6 +44,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 035 | partial | [Regional paxl login races (KEV-90)](035-paxl-regional-login.md) | high | auth / storage / Worker / paxl / Console |
 
+| 036 | partial | [Attachment-only prompts disappear from history](036-attachment-only-prompt-history.md) | high | history / ACP projection |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
