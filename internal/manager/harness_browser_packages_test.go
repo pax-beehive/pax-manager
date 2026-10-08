@@ -41,6 +41,13 @@ if (nativeKey) {
   const observed = result.stdout.trim().split(' ').pop();
   runtime = {name: nativeKey === 'CODEX_PATH' ? 'codex' : 'claude-code', version: observed === '1.2.4' ? '0.0.0' : observed};
 }
+if (name === '@ccgv2/pi-acp') {
+  const root = process.env.PI_ACP_SDK_ROOT;
+  if (!root || !require('node:path').isAbsolute(root)) process.exit(22);
+  const sdk = require(require('node:path').join(root, 'package.json'));
+  if (sdk.name !== '@earendil-works/pi-coding-agent') process.exit(23);
+  runtime = {name:'pi',version:sdk.version === '1.2.4' ? '0.0.0' : sdk.version};
+}
 const rl = require('node:readline').createInterface({input:process.stdin});
 rl.on('line', line => {
   const req = JSON.parse(line);
