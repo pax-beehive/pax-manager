@@ -1338,6 +1338,16 @@ struct UpgradeNodeDaemonRequest {
   11: optional string reason
 }
 
+struct UpgradeNodeHarnessRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string command_id
+  4: optional string harness
+  5: optional string component
+  6: optional string version
+  7: optional string connection_id
+}
+
 struct UpgradeNodePaxlRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
@@ -1746,6 +1756,19 @@ service PaxManagerAPI {
     openapi.tag = "user",
     openapi.summary = "Upgrade node daemon",
     openapi.description = "Forwards paxd.upgrade to the connected paxd control tunnel.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonCommandResponse UpgradeNodeHarness(
+    1: optional UpgradeNodeHarnessRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/harness/upgrade",
+    openapi.tag = "user",
+    openapi.summary = "Upgrade a node harness or ACP adapter",
+    openapi.description = "Forwards harness.upgrade with an exact version. Poll daemon/commands/:command_id for installation and runtime verification.",
     openapi.status = "202",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",

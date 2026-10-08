@@ -177,6 +177,10 @@ func Register(r *server.Hertz) {
 								}
 							}
 							{
+								_harness := _node_id.Group("/harness", _harnessMw()...)
+								_harness.POST("/upgrade", append(_upgradenodeharnessMw(), handler.UpgradeNodeHarness)...)
+							}
+							{
 								_paxl := _node_id.Group("/paxl", _paxlMw()...)
 								_paxl.POST("/upgrade", append(_upgradenodepaxlMw(), handler.UpgradeNodePaxl)...)
 							}
