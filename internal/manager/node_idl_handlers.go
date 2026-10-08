@@ -901,3 +901,16 @@ func UpgradeNodePaxl(c context.Context, ctx *app.RequestContext) {
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
+
+func UpgradeNodeHarness(c context.Context, ctx *app.RequestContext) {
+	var req UpgradeNodeHarnessRequest
+	decodeBody(ctx, &req)
+	req.UserID = ctx.Param("user_id")
+	req.NodeID = ctx.Param("node_id")
+	status, data, err := serviceFromContext(ctx).userapi.UpgradeNodeHarness(
+		c,
+		requestMetadata(ctx),
+		req,
+	)
+	writeEndpointResult(ctx, status, data, err)
+}

@@ -168,3 +168,5 @@ func normalizeEmail(email string) string {
 }
 
 type UpgradeNodePaxlRequest = domain.UpgradeNodePaxlRequest
+
+type UpgradeNodeHarnessRequest = domain.UpgradeNodeHarnessRequest

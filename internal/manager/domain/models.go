@@ -2108,3 +2108,13 @@ type PaxlObservation struct {
 	CheckedAt time.Time `json:"checked_at"`
 	Error     string    `json:"error,omitempty"`
 }
+
+type UpgradeNodeHarnessRequest struct {
+	UserID       string `json:"user_id"`
+	NodeID       string `json:"node_id"`
+	CommandID    string `json:"command_id"`
+	Harness      string `json:"harness"`
+	Component    string `json:"component"`
+	Version      string `json:"version"`
+	ConnectionID string `json:"connection_id,omitempty"`
+}

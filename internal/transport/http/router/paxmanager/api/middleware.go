@@ -726,3 +726,13 @@ func _upgradenodepaxlMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _harnessMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _upgradenodeharnessMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
