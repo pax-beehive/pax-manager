@@ -48,6 +48,10 @@ beforeAll(async () => {
         script: `export default {async fetch(request,env){
    const url=new URL(request.url);
    if(url.pathname==="/cdn-cgi/access/certs") return Response.json(env.JWKS);
+   if(url.pathname==="/api/v1/user/self/customer-analytics") {
+    if(!request.headers.get("Cookie")?.startsWith("CF_Authorization=")) return new Response("missing identity",{status:401});
+    return Response.json({data:{regions:[{region:url.hostname.split(".")[0],available:true,updated_at:new Date().toISOString(),users:[]}]}});
+   }
    if(url.hostname!=="hk.example") return new Response("wrong region",{status:500});
    if(!request.headers.get("Cookie")?.startsWith("CF_Authorization="))return new Response("missing identity",{status:401});
    if(url.pathname==="/internal/users/ensure")return Response.json({data:await request.json()});
@@ -69,6 +73,27 @@ beforeAll(async () => {
 }, 20000);
 afterAll(async () => {
   await mf?.dispose();
+});
+it("aggregates both analytics origins in workerd without a routing cookie", async () => {
+  const response = await mf.dispatchFetch(
+    "https://pax.example/api/pax/api/v1/user/self/customer-analytics",
+    {
+      headers: {
+        "Cf-Access-Jwt-Assertion": access,
+        Origin: "https://pax.example",
+      },
+    },
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    code: 200,
+    data: {
+      regions: [
+        { region: "us", available: true, users: [] },
+        { region: "hk", available: true, users: [] },
+      ],
+    },
+  });
 });
 it("runs verified HK signup, cookie recovery, SSE and real WebSocket frames in workerd", async () => {
   const headers = {

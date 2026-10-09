@@ -43,8 +43,10 @@ only while visible and focused. Anonymous traffic is not tracked.
   test database. This test creates and removes its own uniquely named schema.
 - New handler and storage functions: 100% statement coverage in targeted runs.
 - Full Manager Go suite, formatting, lint, and binary build passed.
-- Worker full suite: 94 tests, 98%+ overall coverage, typecheck, local dry build.
-- Console full suite: 854 passed, two skipped; focused polling and browser
+- Worker full suite: 95 tests, 98%+ overall coverage, typecheck, local dry build.
+  New aggregation module has 100% statement/branch/function coverage; a real
+  workerd test verifies both regional origins without a routing cookie.
+- Console full suite: 862 passed, two skipped; focused polling and browser
   fixtures cover two minutes unfocused with zero new requests and one refresh
   on return. No production customer data is used in frontend fixtures.
 
