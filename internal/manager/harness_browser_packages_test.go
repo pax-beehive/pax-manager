@@ -19,8 +19,13 @@ func writeHarnessBrowserPackages(t *testing.T, root string) {
 	require.NoError(t, os.MkdirAll(bin, 0755))
 	script := `#!/usr/bin/env python3
 import json, pathlib, sys
+if sys.argv[1] == 'view':
+    with (pathlib.Path(__file__).parent / 'latest-queries').open('a') as f: f.write(sys.argv[2] + '\n')
+    print(json.dumps('1.2.3'))
+    sys.exit(0)
 prefix = pathlib.Path(sys.argv[sys.argv.index('--prefix') + 1])
 name, version = sys.argv[-1].rsplit('@', 1)
+if version == 'latest': sys.exit(24)
 bins = {'@anthropic-ai/claude-code':'claude', '@openai/codex':'codex', '@agentclientprotocol/claude-agent-acp':'claude-agent-acp', '@agentclientprotocol/codex-acp':'codex-acp', '@ccgv2/pi-acp':'pi-acp', '@earendil-works/pi-coding-agent':'pi'}
 binary = bins[name]
 pkg = prefix / 'lib' / 'node_modules' / name

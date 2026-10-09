@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,5 +126,11 @@ func TestHarnessBrowserUpgrade(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, string(version), "1.2.3")
 	}
+	queries, err := os.ReadFile(filepath.Join(root, "initial", "bin", "latest-queries"))
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{
+		"@anthropic-ai/claude-code@latest", "@openai/codex@latest", "@earendil-works/pi-coding-agent@latest",
+		"@agentclientprotocol/claude-agent-acp@latest", "@agentclientprotocol/codex-acp@latest", "@ccgv2/pi-acp@latest",
+	}, strings.Fields(string(queries)), "each blank-version command must resolve latest exactly once, including after reload")
 	t.Log(string(output))
 }

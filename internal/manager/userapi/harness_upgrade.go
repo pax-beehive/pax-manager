@@ -27,10 +27,14 @@ func (s *Service) UpgradeNodeHarness(
 	req.NodeID = strings.TrimSpace(req.NodeID)
 	req.CommandID = strings.TrimSpace(req.CommandID)
 	req.Version = strings.TrimSpace(req.Version)
-	if req.NodeID == "" || req.CommandID == "" || !harnessTargetVersion.MatchString(req.Version) {
+	if req.Version == "" {
+		req.Version = "latest"
+	}
+	if req.NodeID == "" || req.CommandID == "" ||
+		(req.Version != "latest" && !harnessTargetVersion.MatchString(req.Version)) {
 		return 0, nil, apperr.Error{
 			Status:  http.StatusBadRequest,
-			Message: "node_id, command_id and explicit semantic version are required",
+			Message: "node_id and command_id are required; version must be latest or an exact semantic version",
 		}
 	}
 	if (req.Harness != "claude-code" && req.Harness != "codex" && req.Harness != "pi") ||
