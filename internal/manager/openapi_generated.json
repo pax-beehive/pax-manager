@@ -10085,7 +10085,7 @@
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/harness/upgrade": {
       "post": {
-        "description": "Forwards harness.upgrade with an exact version. Poll daemon/commands/:command_id for installation and runtime verification.",
+        "description": "Forwards harness.upgrade. Omitted or blank version defaults to latest, resolved once by the node to an exact version. Poll daemon/commands/:command_id for installation and runtime verification.",
         "parameters": [
           {
             "description": "Node identifier.",

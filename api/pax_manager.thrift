@@ -1768,7 +1768,7 @@ service PaxManagerAPI {
     api.post = "/api/v1/user/:user_id/nodes/:node_id/harness/upgrade",
     openapi.tag = "user",
     openapi.summary = "Upgrade a node harness or ACP adapter",
-    openapi.description = "Forwards harness.upgrade with an exact version. Poll daemon/commands/:command_id for installation and runtime verification.",
+    openapi.description = "Forwards harness.upgrade. Omitted or blank version defaults to latest, resolved once by the node to an exact version. Poll daemon/commands/:command_id for installation and runtime verification.",
     openapi.status = "202",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",

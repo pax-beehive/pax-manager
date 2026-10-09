@@ -15,6 +15,18 @@ import (
 )
 
 func TestUpgradeNodeHarnessPreservesComponentAndTargetVersion(t *testing.T) {
+	for _, version := range []string{"1.2.3", "", "  ", "latest"} {
+		t.Run("version="+version, func(t *testing.T) {
+			expected := version
+			if expected == "" || expected == "  " {
+				expected = "latest"
+			}
+			testUpgradeNodeHarnessVersion(t, version, expected)
+		})
+	}
+}
+func testUpgradeNodeHarnessVersion(t *testing.T, version, expected string) {
+	t.Helper()
 	ctx := context.Background()
 	principal := userPrincipal("user1", false)
 	store := userapimocks.NewMockStore(t)
@@ -38,7 +50,7 @@ func TestUpgradeNodeHarnessPreservesComponentAndTargetVersion(t *testing.T) {
 		domain.UpgradeNodeHarnessRequest{
 			NodeID:       "node1",
 			CommandID:    "upgrade1",
-			Version:      "1.2.3",
+			Version:      version,
 			Harness:      "codex",
 			Component:    "acp",
 			ConnectionID: "conn1",
@@ -54,7 +66,7 @@ func TestUpgradeNodeHarnessPreservesComponentAndTargetVersion(t *testing.T) {
 			"command_id": "upgrade1",
 			"type":       "harness.upgrade",
 			"upgrade_harness": map[string]any{
-				"version":       "1.2.3",
+				"version":       expected,
 				"harness":       "codex",
 				"component":     "acp",
 				"connection_id": "conn1",
