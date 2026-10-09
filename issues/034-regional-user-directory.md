@@ -45,3 +45,13 @@ full integration suite. See the browser routing handoff for current activation
 and rollback boundaries.
 
 See `workers/region-directory/README.md` for the API, rollout boundary and tests.
+
+## Worker release integration (2026-10-09)
+
+Added an opt-in CI immutable-version upload/registration workflow for PAX Release,
+full commit association, production-config preservation checks, additive regional
+Manager health capabilities and a dedicated read-only Worker verification route.
+The default deploy script now selects `wrangler.browser.jsonc` instead of the
+obsolete bootstrap-only production file. See `docs/handoff_20261009_125000.md`.
+Credential setup and first live release verification remain pending. This does
+not close staging, machine routing or the other unfinished scope in this issue.

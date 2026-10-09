@@ -126,6 +126,12 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: workers/region-directory/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install coverage==7.16.2
+      - run: python -m coverage run --branch --source=ci_publish -m unittest test_ci_publish -v
+      - run: python -m coverage report --fail-under=80
       - run: npm ci
       - run: npm run format:check
       - run: npm run typecheck
@@ -147,3 +153,14 @@ jobs:
       PAX_RELEASE_CF_CLIENT_ID: ${{ secrets.PAX_RELEASE_CF_CLIENT_ID }}
       PAX_RELEASE_CF_CLIENT_SECRET: ${{ secrets.PAX_RELEASE_CF_CLIENT_SECRET }}
       PAX_BEEHIVE_READ_TOKEN: ${{ secrets.PAX_BEEHIVE_READ_TOKEN }}
+
+  publish-worker:
+    name: Upload verified main Worker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.PAX_WORKER_RELEASE_ENABLED == 'true'
+    needs: [checks, integration, region-directory]
+    uses: ./.github/workflows/publish-worker.yml
+    secrets:
+      PAX_WORKER_CF_API_TOKEN: ${{ secrets.PAX_WORKER_CF_API_TOKEN }}
+      PAX_RELEASE_PUBLISHER_TOKEN: ${{ secrets.PAX_RELEASE_PUBLISHER_TOKEN }}
+      PAX_RELEASE_CF_CLIENT_ID: ${{ secrets.PAX_RELEASE_CF_CLIENT_ID }}
+      PAX_RELEASE_CF_CLIENT_SECRET: ${{ secrets.PAX_RELEASE_CF_CLIENT_SECRET }}
