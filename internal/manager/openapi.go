@@ -240,6 +240,29 @@ func addSessionHistoryPath(doc map[string]any) {
 	paths[openAPISessionHistoryPath] = sessionHistoryPathOperation(true)
 	paths[openAPIUserSessionHistoryPath] = sessionHistoryPathOperation(false)
 	paths[openAPIUserSessionMessageDetailPath] = sessionMessageDetailOperation()
+	paths[routeCustomerAnalytics] = map[string]any{"get": map[string]any{
+		"tags": []string{"user"}, "summary": "Read administrator-only regional customer metadata",
+		"description": "Returns data.regions with region, available, updated_at and users. Excludes the local test account. User message totals exclude encrypted history. Cached internally for ten seconds; browser responses are private, no-store. The regional Worker aggregates US/HK and marks failed regions unavailable.",
+		"security":    []map[string][]string{{"cloudflareAccess": {}}},
+		"responses": map[string]any{
+			"200": map[string]string{"description": "Regional metadata snapshot"},
+			"401": map[string]string{"description": "Authentication required"},
+			"403": map[string]string{"description": "Administrator required"},
+			"503": map[string]string{"description": "Analytics unavailable"},
+		},
+	}}
+	paths[routeCustomerVisit] = map[string]any{"post": map[string]any{
+		"tags": []string{
+			"user",
+		}, "summary": "Record a focused Console visit for the authenticated account",
+		"description": "No request fields. Records server time for the authenticated user only. Console sends at most once per minute while visible and focused. Legacy last_seen_at is not used for visit analytics.",
+		"security":    []map[string][]string{{"cloudflareAccess": {}}},
+		"responses": map[string]any{
+			"200": map[string]string{"description": "Visit recorded"},
+			"401": map[string]string{"description": "Authentication required"},
+			"503": map[string]string{"description": "Activity unavailable"},
+		},
+	}}
 }
 
 func sessionHistoryPathOperation(agentScoped bool) map[string]any {
