@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS users (
     last_seen_at TIMESTAMPTZ
 );
 
+-- Focused Console visits are separate from legacy provisioning timestamps.
+CREATE TABLE IF NOT EXISTS customer_visits (
+    user_id TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    first_visit_at TIMESTAMPTZ NOT NULL,
+    last_visit_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS projects (
     project_id TEXT PRIMARY KEY,
     owner_user_id TEXT NOT NULL,

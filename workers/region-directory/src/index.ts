@@ -1,4 +1,5 @@
 import { approvePaxlLogin } from "./paxl-login";
+import { customerAnalytics, customerAnalyticsPath } from "./customer-analytics";
 import {
   assign,
   lookup,
@@ -187,6 +188,8 @@ export function createWorker(
         return json({ error: "unauthorized" }, 401);
       }
       if (login) return approvePaxlLogin(request, env, identity, deps.lookup);
+      if (path === customerAnalyticsPath)
+        return customerAnalytics(request, env);
       if (!bootstrap) {
         try {
           if (probe) return await probeOrigin(request, env, probe[1] as Region);

@@ -25,14 +25,18 @@ import (
 )
 
 type Service struct {
-	shortPairingStore  domain.ShortPairingStore
-	queueContext       context.Context
-	queueCancel        context.CancelFunc
-	cfg                Config
-	store              Store
-	transportStore     reliablemq.DurableStore
-	transportProducers *reliablemq.ProducerRegistry
-	transportFlusher   interface {
+	customerAnalytics     domain.CustomerAnalyticsStore
+	customerAnalyticsMu   sync.Mutex
+	customerAnalyticsAt   time.Time
+	customerAnalyticsRows []domain.CustomerAnalytics
+	shortPairingStore     domain.ShortPairingStore
+	queueContext          context.Context
+	queueCancel           context.CancelFunc
+	cfg                   Config
+	store                 Store
+	transportStore        reliablemq.DurableStore
+	transportProducers    *reliablemq.ProducerRegistry
+	transportFlusher      interface {
 		Flush(context.Context) error
 		Close(context.Context) error
 	}
@@ -144,6 +148,7 @@ func newServer(cfg Config, store Store) *Service {
 		RequireProvisionedUser: cfg.Region != "",
 	})
 	s.regionalUsers, _ = transportBaseStore.(regionalUserStore)
+	s.customerAnalytics, _ = transportBaseStore.(domain.CustomerAnalyticsStore)
 	s.auth = authService
 	s.paxd = paxd.NewService(store, func() time.Time { return s.clock() }, authService, secrets)
 	s.userapi = userapi.NewService(
@@ -245,6 +250,8 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.Use(injectService(s), s.protect())
 
 	registerIDLRoutes(h)
+	h.GET(routeCustomerAnalytics, s.handleCustomerAnalytics)
+	h.POST(routeCustomerVisit, s.handleCustomerVisit)
 	h.GET(routeLegacyHealth, Health)
 	h.POST(routeLegacyAgentRegister, RegisterAgent)
 	h.POST(routeLegacyAgentStatus, AgentAuth(), ReportAgentStatus)
