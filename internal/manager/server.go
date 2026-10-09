@@ -504,7 +504,15 @@ func Echo(c context.Context, ctx *app.RequestContext) {
 }
 
 func (s *Service) handleHealth(_ context.Context, ctx *app.RequestContext) {
-	writeData(ctx, http.StatusOK, map[string]string{"status": "ok"})
+	writeData(ctx, http.StatusOK, map[string]any{
+		"status": "ok", "region": s.cfg.Region,
+		"region_directory_capabilities": []string{
+			"provision-v1",
+			"browser-v1",
+			"paxl-login-v1",
+			"customer-analytics-v1",
+		},
+	})
 }
 
 func (s *Service) handleEcho(_ context.Context, ctx *app.RequestContext) {

@@ -287,3 +287,60 @@ initial `wrangler.production.jsonc` over an active deployment.
 Existing regional machine origins and APIs are not intercepted by the active
 browser config. Unified pre-pairing, installer integration and production machine
 activation remain KEV-76/78/77 follow-up scope. Keep these issues open.
+
+## PAX Release integration
+
+Production uses `wrangler.browser.jsonc`. `npm run deploy` now explicitly selects
+that file and retains remote variables; the old `wrangler.production.jsonc` is
+not a production rollback configuration. Ordinary CI uses `versions upload`, not
+`deploy`: uploading never activates traffic, modifies routes or migrates D1.
+
+`ci_publish.py upload` captures Wrangler output privately, associates the version
+with a full commit annotation, and compares all bindings/runtime settings with
+the live version before writing `release-artifact/worker.json`. Only the initial
+`WORKER_VERSION` metadata binding addition is allowed. Existing secret bindings
+are retained. `--keep-vars` does not by itself preserve other binding types; the
+explicit post-upload comparison rejects configuration drift before registration.
+A rejected uploaded version remains inactive. Secrets are never in the manifest.
+Cloudflare also rejects deploying old versions with incompatible secrets; the
+Release controller never uses `force` to bypass this protection.
+
+`ci_publish.py register` registers that immutable manifest using the existing
+publisher token and optional paired Cloudflare Access credentials. The workflow
+uploads the manifest as a GitHub artifact first so registration can be retried
+without rebuilding. Run both scripts from this directory. The checked-in JSONC
+configuration currently uses trailing commas and no comments; the CI reader
+supports this restricted form and fails closed on unsupported syntax.
+
+Enable the workflow only after both Managers and the Release controller support
+this contract:
+
+- Deploy Managers to US/HK first. `/health` now includes `region` and
+  `region_directory_capabilities` (provision-v1, browser-v1, paxl-login-v1,
+  customer-analytics-v1). This is additive and contains no user data.
+- Add a dedicated random `RELEASE_PROBE_TOKEN` Worker secret (at least 32 chars)
+  and store it in the controller's private probe-token file. Preserve all current
+  secrets, database bindings and routes during this one-time setup.
+- Ensure existing `US_ACCESS_CLIENT_ID/SECRET` and `HK_ACCESS_CLIENT_ID/SECRET`
+  bindings permit Worker health requests to the corresponding Managers. The
+  controller needs equivalent Access access for direct preflight checks.
+- Allow the controller's Access service identity on the diagnostic path
+  `/api/v1/region/release-health/*`. Keep ordinary browser/user policies intact.
+- Set repo secret `PAX_WORKER_CF_API_TOKEN` to a dedicated account-scoped Workers
+  Scripts Write token. No D1 or route write permission is required. Reuse the
+  existing PAX_RELEASE publisher and Access secrets for registration.
+- Set repo variable `PAX_WORKER_RELEASE_ENABLED=true`. Verified main CI uploads
+  versions automatically; the `Upload region directory Worker` workflow also
+  supports manual main reruns. Until enabled, image CI is unaffected.
+
+The diagnostic GET endpoint requires its dedicated bearer token and returns only
+Worker version metadata and one regional Manager's health/capabilities. It never
+creates users or accesses D1. A browser/Access token alone does not authorize it.
+Release checks US and HK before activation and verifies both through the Worker
+after activation. These probes verify version, protocol and connectivity, not a
+full browser session or every routing operation.
+
+Historical versions can be selected and republished using the same flow; there
+is no automatic rollback or D1 restore. Old versions without the diagnostic
+contract or matching configuration require a separately reviewed manual recovery.
+Staging and the existing machine-routing follow-up are still open.

@@ -328,7 +328,9 @@ func (p *ErrorData) String() string {
 }
 
 type HealthData struct {
-	Status *string `thrift:"status,1,optional" form:"status" json:"status,omitempty" query:"status"`
+	Status                      *string  `thrift:"status,1,optional" form:"status" json:"status,omitempty" query:"status"`
+	Region                      *string  `thrift:"region,2,optional" form:"region" json:"region,omitempty" query:"region"`
+	RegionDirectoryCapabilities []string `thrift:"region_directory_capabilities,3,optional,list<string>" form:"region_directory_capabilities" json:"region_directory_capabilities,omitempty" query:"region_directory_capabilities"`
 }
 
 func NewHealthData() *HealthData {
@@ -347,12 +349,40 @@ func (p *HealthData) GetStatus() (v string) {
 	return *p.Status
 }
 
+var HealthData_Region_DEFAULT string
+
+func (p *HealthData) GetRegion() (v string) {
+	if !p.IsSetRegion() {
+		return HealthData_Region_DEFAULT
+	}
+	return *p.Region
+}
+
+var HealthData_RegionDirectoryCapabilities_DEFAULT []string
+
+func (p *HealthData) GetRegionDirectoryCapabilities() (v []string) {
+	if !p.IsSetRegionDirectoryCapabilities() {
+		return HealthData_RegionDirectoryCapabilities_DEFAULT
+	}
+	return p.RegionDirectoryCapabilities
+}
+
 var fieldIDToName_HealthData = map[int16]string{
 	1: "status",
+	2: "region",
+	3: "region_directory_capabilities",
 }
 
 func (p *HealthData) IsSetStatus() bool {
 	return p.Status != nil
+}
+
+func (p *HealthData) IsSetRegion() bool {
+	return p.Region != nil
+}
+
+func (p *HealthData) IsSetRegionDirectoryCapabilities() bool {
+	return p.RegionDirectoryCapabilities != nil
 }
 
 func (p *HealthData) Read(iprot thrift.TProtocol) (err error) {
@@ -377,6 +407,22 @@ func (p *HealthData) Read(iprot thrift.TProtocol) (err error) {
 		case 1:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField3(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -422,6 +468,40 @@ func (p *HealthData) ReadField1(iprot thrift.TProtocol) error {
 	p.Status = _field
 	return nil
 }
+func (p *HealthData) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Region = _field
+	return nil
+}
+func (p *HealthData) ReadField3(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]string, 0, size)
+	for i := 0; i < size; i++ {
+
+		var _elem string
+		if v, err := iprot.ReadString(); err != nil {
+			return err
+		} else {
+			_elem = v
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.RegionDirectoryCapabilities = _field
+	return nil
+}
 
 func (p *HealthData) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -431,6 +511,14 @@ func (p *HealthData) Write(oprot thrift.TProtocol) (err error) {
 	if p != nil {
 		if err = p.writeField1(oprot); err != nil {
 			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
 			goto WriteFieldError
 		}
 	}
@@ -468,6 +556,52 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *HealthData) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRegion() {
+		if err = oprot.WriteFieldBegin("region", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Region); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *HealthData) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRegionDirectoryCapabilities() {
+		if err = oprot.WriteFieldBegin("region_directory_capabilities", thrift.LIST, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRING, len(p.RegionDirectoryCapabilities)); err != nil {
+			return err
+		}
+		for _, v := range p.RegionDirectoryCapabilities {
+			if err := oprot.WriteString(v); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
 }
 
 func (p *HealthData) String() string {

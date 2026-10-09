@@ -5,3 +5,8 @@ dist/
 .dev.vars
 import-*.json
 import-*.sql
+
+# CI publisher unit coverage and saved registration manifests
+.coverage
+__pycache__/
+release-artifact/

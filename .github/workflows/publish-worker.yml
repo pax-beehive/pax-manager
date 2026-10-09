@@ -1,0 +1,56 @@
+name: Upload region directory Worker
+on:
+  workflow_call:
+    secrets:
+      PAX_WORKER_CF_API_TOKEN:
+        required: true
+      PAX_RELEASE_PUBLISHER_TOKEN:
+        required: true
+      PAX_RELEASE_CF_CLIENT_ID:
+        required: false
+      PAX_RELEASE_CF_CLIENT_SECRET:
+        required: false
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: region-directory-upload
+  cancel-in-progress: false
+jobs:
+  upload:
+    if: github.ref == 'refs/heads/main' && vars.PAX_WORKER_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: workers/region-directory
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: workers/region-directory/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      # Manual reruns also verify the exact source before upload.
+      - run: npm run format:check && npm run typecheck && npm test
+      - run: python -m unittest test_ci_publish -v
+      - name: Upload immutable version with production configuration
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.PAX_WORKER_CF_API_TOKEN }}
+        run: python ci_publish.py upload
+      - name: Preserve manifest before registration
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-worker-${{ github.sha }}-${{ github.run_attempt }}
+          path: workers/region-directory/release-artifact/worker.json
+          if-no-files-found: error
+      - name: Register uploaded version in PAX Release
+        env:
+          PAX_RELEASE_PUBLISHER_TOKEN: ${{ secrets.PAX_RELEASE_PUBLISHER_TOKEN }}
+          PAX_RELEASE_CF_CLIENT_ID: ${{ secrets.PAX_RELEASE_CF_CLIENT_ID }}
+          PAX_RELEASE_CF_CLIENT_SECRET: ${{ secrets.PAX_RELEASE_CF_CLIENT_SECRET }}
+        run: python ci_publish.py register

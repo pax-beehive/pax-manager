@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "pax-region-directory",
   "main": "src/index.ts",
+  "version_metadata": { "binding": "WORKER_VERSION" },
   "account_id": "221784d24eb2a95d148bc96b6f06d6be",
   "compatibility_date": "2026-07-01",
   "workers_dev": false,
