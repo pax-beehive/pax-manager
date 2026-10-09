@@ -8,7 +8,7 @@
     "build": "wrangler deploy --dry-run --outdir dist",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "deploy": "wrangler deploy --config wrangler.production.jsonc",
+    "deploy": "wrangler deploy --config wrangler.browser.jsonc --keep-vars",
     "pretest": "npm run build"
   },
   "dependencies": {

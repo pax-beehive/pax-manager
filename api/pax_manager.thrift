@@ -14,6 +14,8 @@ struct ErrorData {
 
 struct HealthData {
   1: optional string status
+  2: optional string region
+  3: optional list<string> region_directory_capabilities
 }
 
 struct RegisterNodeRequest {

@@ -1,3 +1,4 @@
+import { releaseHealth } from "./release-health";
 import { approvePaxlLogin } from "./paxl-login";
 import { customerAnalytics, customerAnalyticsPath } from "./customer-analytics";
 import {
@@ -19,6 +20,8 @@ import {
   proxyBrowser,
 } from "./browser-proxy";
 export interface Env {
+  RELEASE_PROBE_TOKEN?: string;
+  WORKER_VERSION?: { id: string; tag: string; timestamp: string };
   MACHINE_ROUTING_ENABLED?: string;
   MACHINE_PUBLIC_ORIGIN?: string;
   US_MACHINE_URL?: string;
@@ -157,6 +160,10 @@ export function createWorker(
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
       const url = new URL(request.url);
+      const release = /^\/api\/v1\/region\/release-health\/(us|hk)$/.exec(
+        url.pathname,
+      );
+      if (release) return releaseHealth(request, env, release[1] as Region);
       if (env.MACHINE_PUBLIC_ORIGIN && url.origin === env.MACHINE_PUBLIC_ORIGIN)
         return machineFetch(request, env, deps.lookupUser);
       const bootstrap = url.pathname === "/api/v1/region/bootstrap";
