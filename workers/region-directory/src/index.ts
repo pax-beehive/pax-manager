@@ -174,6 +174,8 @@ export function createWorker(
         return json({ error: "not_found" }, 404);
       if (
         ((bootstrap || login) && request.method !== "POST") ||
+        (path === "/api/v1/public/artifacts/download" &&
+          !["GET", "HEAD"].includes(request.method)) ||
         (probe && request.method !== "GET")
       )
         return json({ error: "method_not_allowed" }, 405);

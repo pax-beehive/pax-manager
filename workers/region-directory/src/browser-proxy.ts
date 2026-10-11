@@ -9,7 +9,8 @@ export function browserPath(path: string): string | null {
   if (
     /^\/api\/v1\/user\/(self|usr_[A-Za-z0-9_-]{1,124})\//.test(target) ||
     target === "/api/v1/health" ||
-    target === "/api/v1/public/paxd/download"
+    target === "/api/v1/public/paxd/download" ||
+    target === "/api/v1/public/artifacts/download"
   )
     return target;
   return null;
