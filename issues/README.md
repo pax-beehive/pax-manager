@@ -40,7 +40,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 033 | partial | [Encrypted sessions replay excessive history](033-encrypted-turn-replay.md) | high | e2ee / storage / Console |
 
-| 034 | partial | [Regional directory, browser routing and machine hint recovery](034-regional-user-directory.md) | high | auth / storage / Worker |
+| 034 | partial | [Regional directory, browser routing and machine hint recovery (paxl download fixed)](034-regional-user-directory.md) | high | auth / storage / Worker |
 
 | 035 | partial | [Regional paxl login races (KEV-90)](035-paxl-regional-login.md) | high | auth / storage / Worker / paxl / Console |
 

@@ -55,3 +55,10 @@ The default deploy script now selects `wrangler.browser.jsonc` instead of the
 obsolete bootstrap-only production file. See `docs/handoff_20261009_125000.md`.
 Credential setup and first live release verification remain pending. This does
 not close staging, machine routing or the other unfinished scope in this issue.
+
+### Current note (2026-10-10)
+
+Browser paxl upgrade checks now allow the exact generic artifact download route
+through the assigned region. US/HK routing, identity enforcement, forbidden
+publication routes and read-only methods are covered by Worker regression tests.
+This fixes the browser upgrade lookup; the broader issue remains partial.

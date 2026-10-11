@@ -344,3 +344,12 @@ Historical versions can be selected and republished using the same flow; there
 is no automatic rollback or D1 restore. Old versions without the diagnostic
 contract or matching configuration require a separately reviewed manual recovery.
 Staging and the existing machine-routing follow-up are still open.
+
+### Browser paxl release lookup
+
+The authenticated browser proxy also permits GET/HEAD on
+`/api/pax/api/v1/public/artifacts/download`. This is the paxl stable-version
+lookup used by the Console upgrade dialog. Preserve the product/platform/tags
+query and route through the existing account assignment. This does not expose
+admin publication routes or bypass Access identity validation. Production changes
+use `wrangler.browser.jsonc --keep-vars`; secrets and D1 bindings are retained.

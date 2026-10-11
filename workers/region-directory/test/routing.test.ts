@@ -40,6 +40,47 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("browser route credentials", () => {
+  it.each(["us", "hk"] as const)(
+    "routes paxl stable lookup to the assigned %s Manager",
+    async (region) => {
+      const { worker } = setup();
+      const cookie = await routeCookie({ ...assignment, region }, env);
+      const fetch = vi.fn(async () =>
+        Response.json({ code: 200, data: { version: "0.1.55" } }),
+      );
+      vi.stubGlobal("fetch", fetch);
+      const query = "?product=paxl&platform=darwin%2Farm64&tags=stable";
+      const response = await worker.fetch(
+        request("/api/pax/api/v1/public/artifacts/download" + query, cookie),
+        env,
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        data: { version: "0.1.55" },
+      });
+      const [url] = fetch.mock.calls[0] as unknown as [URL];
+      expect(url.origin).toBe(`https://${region}.example`);
+      expect(url.pathname).toBe("/api/v1/public/artifacts/download");
+      expect(url.search).toBe(query);
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+    },
+  );
+  it("keeps artifact lookup authenticated and refuses writes and admin routes", async () => {
+    const { worker, deps } = setup();
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const path = "/api/pax/api/v1/public/artifacts/download";
+    deps.identity.mockRejectedValue(new Error("unauthorized"));
+    expect((await worker.fetch(request(path), env)).status).toBe(401);
+    expect(
+      (await worker.fetch(request(path, "", { method: "POST" }), env)).status,
+    ).toBe(405);
+    expect(
+      (await worker.fetch(request("/api/pax/api/v1/admin/artifacts"), env))
+        .status,
+    ).toBe(404);
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("binds identity, purpose, expiry and signing key; supports a previous rotation key", async () => {
     const cookie = await routeCookie(assignment, env);
     expect(cookie).toContain("HttpOnly; Secure; SameSite=Lax");
