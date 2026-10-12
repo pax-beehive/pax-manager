@@ -736,8 +736,3 @@ func _upgradenodeharnessMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
-
-func _getdevicesetupMw() []app.HandlerFunc {
-	// your code...
-	return nil
-}
