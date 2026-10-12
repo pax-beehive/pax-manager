@@ -1259,6 +1259,32 @@
         },
         "type": "object"
       },
+      "DeviceSetupData": {
+        "properties": {
+          "machine_url": {
+            "type": "string"
+          },
+          "script_url": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DeviceSetupResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeviceSetupData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "DiscoverNodeDaemonHarnessesRequest": {
         "properties": {
           "names": {
@@ -6209,6 +6235,103 @@
           }
         ],
         "summary": "List agent audit events",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/device-setup": {
+      "get": {
+        "description": "Returns deployment-configured setup script and machine URLs from the authenticated account region. No credentials are included.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetCurrentUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSetupResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get regional device setup endpoints",
         "tags": [
           "user"
         ]
