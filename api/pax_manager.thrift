@@ -1030,6 +1030,17 @@ struct NodeListResponse {
   3: optional string message
 }
 
+struct DeviceSetupData {
+  1: optional string script_url
+  2: optional string machine_url
+}
+
+struct DeviceSetupResponse {
+  1: optional DeviceSetupData data
+  2: optional i32 code
+  3: optional string message
+}
+
 struct CurrentUserResponse {
   1: optional CurrentUserData data
   2: optional i32 code
@@ -1557,6 +1568,15 @@ service PaxManagerAPI {
     openapi.summary = "Provision a regional user",
     openapi.security = "regionalProvisioning",
     openapi.description = "Worker-only idempotent provisioning. Requires X-Pax-Timestamp and X-Pax-Signature: hex HMAC-SHA256 of pax-region-ensure-v1 followed by newline, timestamp, newline and the exact request body. Uses the region-specific provisioning secret. Timestamp expires after 30 seconds. Disabled without PAX_REGION."
+  )
+
+  DeviceSetupResponse GetDeviceSetup(1: optional GetCurrentUserRequest request) (
+    api.get = "/api/v1/user/:user_id/device-setup",
+    openapi.tag = "user",
+    openapi.summary = "Get regional device setup endpoints",
+    openapi.description = "Returns deployment-configured setup script and machine URLs from the authenticated account region. No credentials are included.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier."
   )
 
   CurrentUserResponse GetCurrentUser(

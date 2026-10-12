@@ -70,6 +70,10 @@ func (s *Service) handleDownloadPaxlArtifact(c context.Context, ctx *app.Request
 }
 
 func (s *Service) handleDownloadPaxdInstaller(c context.Context, ctx *app.RequestContext) {
+	if string(ctx.QueryArgs().Peek("setup")) == "1" {
+		s.handlePaxdSetupScript(ctx)
+		return
+	}
 	s.handleDownloadInstaller(c, ctx, paxdArtifactProduct)
 }
 
