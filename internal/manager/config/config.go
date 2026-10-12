@@ -15,8 +15,6 @@ import (
 const DefaultPaxdVerificationBaseURL = "https://paxworkspace.net"
 
 type Config struct {
-	PaxdSetupDownloadURL             string
-	PaxdSetupMachineURL              string
 	Region                           string
 	RegionProvisioningSecret         string
 	Port                             string
@@ -59,8 +57,6 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		PaxdSetupDownloadURL:     strings.TrimSpace(os.Getenv("PAX_SETUP_DOWNLOAD_URL")),
-		PaxdSetupMachineURL:      strings.TrimSpace(os.Getenv("PAX_SETUP_MACHINE_URL")),
 		Region:                   os.Getenv("PAX_REGION"),
 		RegionProvisioningSecret: os.Getenv("REGION_PROVISIONING_SECRET"),
 		Port:                     envDefault("PORT", "9879"),

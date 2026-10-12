@@ -77,7 +77,6 @@ func Register(r *server.Hertz) {
 					_user_id.GET("/approval-grants", append(_listuserapprovalgrantsMw(), handler.ListUserApprovalGrants)...)
 					_user_id.GET("/approvals", append(_listuserapprovalsMw(), handler.ListUserApprovals)...)
 					_user_id.GET("/audit-events", append(_listuserauditeventsMw(), handler.ListUserAuditEvents)...)
-					_user_id.GET("/device-setup", append(_getdevicesetupMw(), handler.GetDeviceSetup)...)
 					_user_id.GET("/me", append(_getcurrentuserMw(), handler.GetCurrentUser)...)
 					_user_id.POST("/node-registration-tokens", append(_createnoderegistrationtokenMw(), handler.CreateNodeRegistrationToken)...)
 					_user_id.GET("/nodes", append(_listnodesMw(), handler.ListNodes)...)
