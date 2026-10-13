@@ -1,3 +1,4 @@
+import { addOriginAssertion } from "./origin-assertion";
 import { lookup, type Region } from "./directory";
 import { originIdentityHeaders } from "./browser-proxy";
 import { managerURL } from "./provision";
@@ -126,7 +127,13 @@ export async function approvePaxlLogin(
       key,
       encoder.encode(`pax-login-approval-v1\n${timestamp}\n${proof}`),
     );
-    const headers = originIdentityHeaders(request);
+    const headers = await addOriginAssertion(
+      originIdentityHeaders(request),
+      request,
+      env,
+      target,
+      `/api/v1/user/self/paxl/device-logins/${userCode}/approve`,
+    );
     headers.set("Content-Type", "application/json");
     headers.set("X-Pax-Login-Timestamp", timestamp);
     headers.set(

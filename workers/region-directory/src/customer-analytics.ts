@@ -1,3 +1,4 @@
+import { addOriginAssertion } from "./origin-assertion";
 import type { Env } from "./index";
 import type { Region } from "./directory";
 import { originIdentityHeaders } from "./browser-proxy";
@@ -28,7 +29,13 @@ export async function customerAnalytics(
           new URL(customerAnalyticsPath, managerURL(env, region)),
           {
             method: "GET",
-            headers: originIdentityHeaders(request),
+            headers: await addOriginAssertion(
+              originIdentityHeaders(request),
+              request,
+              env,
+              region,
+              customerAnalyticsPath,
+            ),
             redirect: "manual",
             cache: "no-store",
             signal: AbortSignal.any([

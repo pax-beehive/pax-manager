@@ -1,3 +1,11 @@
+import {
+  authRoute,
+  authenticateSession,
+  SessionFailure,
+  authJSON,
+  withCookies,
+} from "./workos-auth";
+import { attachWorkosIdentity } from "./origin-assertion";
 import { releaseHealth } from "./release-health";
 import { approvePaxlLogin } from "./paxl-login";
 import { customerAnalytics, customerAnalyticsPath } from "./customer-analytics";
@@ -20,6 +28,11 @@ import {
   proxyBrowser,
 } from "./browser-proxy";
 export interface Env {
+  WORKOS_ENABLED?: string;
+  WORKOS_BROWSER_ENABLED?: string;
+  WORKOS_CLIENT_ID?: string;
+  WORKOS_API_KEY?: string;
+  WORKOS_COOKIE_PASSWORD?: string;
   RELEASE_PROBE_TOKEN?: string;
   WORKER_VERSION?: { id: string; tag: string; timestamp: string };
   MACHINE_ROUTING_ENABLED?: string;
@@ -157,9 +170,10 @@ export function createWorker(
     provision,
     ...overrides,
   };
-  return {
+  const handler = {
     async fetch(request: Request, env: Env): Promise<Response> {
       const url = new URL(request.url);
+      if (url.pathname.startsWith("/auth/")) return authRoute(request, env);
       const release = /^\/api\/v1\/region\/release-health\/(us|hk)$/.exec(
         url.pathname,
       );
@@ -192,7 +206,9 @@ export function createWorker(
         return json({ error: "invalid_origin" }, 403);
       let identity: string;
       try {
-        identity = await deps.identity(request, env.ACCESS_PROVIDERS);
+        identity =
+          authenticated.get(request)?.identity ??
+          (await deps.identity(request, env.ACCESS_PROVIDERS));
       } catch {
         return json({ error: "unauthorized" }, 401);
       }
@@ -250,6 +266,35 @@ export function createWorker(
         return readyResponse(result.assignment, env, cookie);
       } catch {
         return json({ error: "directory_unavailable", retryable: true }, 503);
+      }
+    },
+  };
+  const authenticated = new WeakMap<Request, { identity: string }>();
+  return {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      const url = new URL(request.url);
+      if (
+        env.WORKOS_BROWSER_ENABLED !== "true" ||
+        url.pathname.startsWith("/auth/") ||
+        url.origin !== env.PUBLIC_ORIGIN ||
+        /\/release-health\//.test(url.pathname)
+      )
+        return handler.fetch(request, env);
+      try {
+        const session = await authenticateSession(request, env);
+        authenticated.set(request, session);
+        attachWorkosIdentity(request, session);
+        return withCookies(await handler.fetch(request, env), session.cookies);
+      } catch (e) {
+        if (e instanceof SessionFailure)
+          return withCookies(
+            authJSON(
+              { error: e.status === 401 ? "unauthorized" : "auth_unavailable" },
+              e.status,
+            ),
+            e.cookies,
+          );
+        return authJSON({ error: "auth_unavailable" }, 503);
       }
     },
   };

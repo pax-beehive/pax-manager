@@ -9,6 +9,10 @@
   "preview_urls": false,
   "routes": [
     {
+      "pattern": "paxworkspace.net/auth/*",
+      "zone_id": "6e7d305a2050525b513b76c9c2102f89",
+    },
+    {
       "pattern": "paxworkspace.net/api/v1/region/*",
       "zone_id": "6e7d305a2050525b513b76c9c2102f89",
     },
@@ -31,6 +35,9 @@
   ],
   "vars": {
     "BOOTSTRAP_ENABLED": "true",
+    "WORKOS_ENABLED": "true",
+    "WORKOS_BROWSER_ENABLED": "false",
+    "WORKOS_CLIENT_ID": "client_01M4SSKPMAX8DV2RBWMTTT6SR4",
     "ROUTING_KEY_ID": "browser-20261002",
     "PUBLIC_ORIGIN": "https://paxworkspace.net",
     "US_MANAGER_URL": "https://api.paxworkspace.net",

@@ -3,6 +3,8 @@ package auth
 import "strings"
 
 type RequestMetadata struct {
+	method  string
+	path    string
 	headers map[string]string
 }
 
@@ -19,4 +21,10 @@ func (m RequestMetadata) Header(name string) string {
 		return ""
 	}
 	return m.headers[strings.ToLower(name)]
+}
+
+// WithTarget uses the transport request, never caller-supplied headers.
+func (m RequestMetadata) WithTarget(method, path string) RequestMetadata {
+	m.method, m.path = method, path
+	return m
 }
