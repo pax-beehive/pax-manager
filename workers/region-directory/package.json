@@ -12,6 +12,7 @@
     "pretest": "npm run build"
   },
   "dependencies": {
+    "@workos-inc/node": "11.0.0",
     "jose": "6.2.12"
   },
   "devDependencies": {

@@ -1,3 +1,4 @@
+import { addOriginAssertion } from "./origin-assertion";
 import type { Env } from "./index";
 import type { Region } from "./directory";
 import { managerURL } from "./provision";
@@ -92,7 +93,13 @@ export async function proxyBrowser(
   target.search = new URL(request.url).search;
   const response = await fetch(target, {
     method: request.method,
-    headers: originIdentityHeaders(request),
+    headers: await addOriginAssertion(
+      originIdentityHeaders(request),
+      request,
+      env,
+      region,
+      path,
+    ),
     body:
       request.method === "GET" || request.method === "HEAD"
         ? undefined
@@ -141,7 +148,13 @@ export async function probeOrigin(
   const url = new URL("/health", managerURL(env, region));
   url.searchParams.set("probe", crypto.randomUUID());
   const response = await fetch(url, {
-    headers: originIdentityHeaders(request),
+    headers: await addOriginAssertion(
+      originIdentityHeaders(request),
+      request,
+      env,
+      region,
+      "/health",
+    ),
     redirect: "manual",
     cache: "no-store",
     signal: AbortSignal.timeout(5000),

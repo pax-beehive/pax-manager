@@ -26,6 +26,8 @@ type UserAPIKeyStore interface {
 }
 
 type Service struct {
+	region                 string
+	browserIdentitySecret  string
 	users                  UserStore
 	registrationTokens     RegistrationTokenStore
 	admins                 AdminPolicy
@@ -39,6 +41,8 @@ type Service struct {
 }
 
 type Config struct {
+	Region                 string
+	BrowserIdentitySecret  string
 	RegistrationToken      string
 	RegistrationOwnerEmail string
 	LocalUserEmail         string
@@ -55,6 +59,8 @@ func NewService(
 	cfg Config,
 ) *Service {
 	return &Service{
+		region:                 cfg.Region,
+		browserIdentitySecret:  cfg.BrowserIdentitySecret,
 		users:                  users,
 		requireProvisionedUser: cfg.RequireProvisionedUser,
 		registrationTokens:     registrationTokens,
@@ -85,6 +91,9 @@ func (s *Service) Principal(
 			User:    user,
 			IsAdmin: s.admins.IsAdmin(user.Email),
 		}, nil
+	}
+	if token := meta.Header("X-Pax-Identity-Assertion"); token != "" {
+		return s.browserPrincipal(ctx, meta, token)
 	}
 	email, err := s.userEmail(ctx, meta)
 	if err != nil {

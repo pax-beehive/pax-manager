@@ -140,6 +140,8 @@ func newServer(cfg Config, store Store) *Service {
 	s.queueRunSlots = make(chan struct{}, 32)
 	s.acpRuntime = newACPRuntimeProjector(func() time.Time { return s.clock() })
 	authService := auth.NewService(store, store, serviceAdminPolicy{s: s}, secrets, auth.Config{
+		Region:                 cfg.Region,
+		BrowserIdentitySecret:  cfg.RegionProvisioningSecret,
 		RegistrationToken:      cfg.RegistrationToken,
 		RegistrationOwnerEmail: cfg.RegistrationOwnerEmail,
 		LocalUserEmail:         cfg.LocalUserID,

@@ -22,7 +22,7 @@ func requestMetadata(ctx *app.RequestContext) auth.RequestMetadata {
 	ctx.Request.Header.VisitAll(func(k, v []byte) {
 		headers[string(k)] = string(v)
 	})
-	return auth.NewRequestMetadata(headers)
+	return auth.NewRequestMetadata(headers).WithTarget(string(ctx.Method()), string(ctx.Path()))
 }
 
 func (s *Service) handleAgentStatus(

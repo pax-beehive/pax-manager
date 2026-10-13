@@ -1525,7 +1525,7 @@ func httpRequestMetadata(r *http.Request) auth.RequestMetadata {
 			headers[k] = values[0]
 		}
 	}
-	return auth.NewRequestMetadata(headers)
+	return auth.NewRequestMetadata(headers).WithTarget(r.Method, r.URL.Path)
 }
 
 func userTunnelAgentID(r *http.Request) string {
