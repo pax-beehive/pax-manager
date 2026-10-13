@@ -36,7 +36,7 @@
   "vars": {
     "BOOTSTRAP_ENABLED": "true",
     "WORKOS_ENABLED": "true",
-    "WORKOS_BROWSER_ENABLED": "false",
+    "WORKOS_BROWSER_ENABLED": "true",
     "WORKOS_CLIENT_ID": "client_01M4SSKPMAX8DV2RBWMTTT6SR4",
     "ROUTING_KEY_ID": "browser-20261002",
     "PUBLIC_ORIGIN": "https://paxworkspace.net",
