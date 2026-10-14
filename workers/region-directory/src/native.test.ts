@@ -3,6 +3,16 @@ import { nativeFetch } from "./native";
 import { createWorker, type Env } from "./index";
 
 const base = "https://app.example.invalid";
+const loginResponse = (region: string) => ({
+  data: {
+    protocol: "client_commit_v1",
+    region,
+    login_id: "login_fixture",
+    poll_token: "poll_fixture",
+    user_code: "ABC123",
+    verification_uri: `https://${region}.example.invalid/paxl-login.html`,
+  },
+});
 const env = () =>
   ({
     PUBLIC_ORIGIN: base,
@@ -164,9 +174,7 @@ describe("native gateway", () => {
     const e = env();
     const upstream = vi
       .fn()
-      .mockResolvedValue(
-        Response.json({ data: { protocol: "client_commit_v1" } }),
-      );
+      .mockResolvedValue(Response.json(loginResponse("us")));
     vi.stubGlobal("fetch", upstream);
     expect(
       (
@@ -226,6 +234,30 @@ describe("native gateway", () => {
         )
       ).status,
     ).toBe(400);
+  });
+  it("uses canonical WorkOS confirmation for HK and rejects an upstream region mismatch", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(Response.json(loginResponse("hk")))
+        .mockResolvedValueOnce(Response.json(loginResponse("us"))),
+    );
+    const r = () =>
+      req("hk/paxl/device-login/start", "POST", {
+        protocol: "client_commit_v1",
+      });
+    const response = await nativeFetch(r(), env());
+    expect(response.status).toBe(200);
+    const data = ((await response.json()) as ReturnType<typeof loginResponse>)
+      .data;
+    expect(data.verification_uri).toBe(`${base}/paxl-login.html`);
+    expect(data).toHaveProperty(
+      "verification_uri_complete",
+      `${base}/paxl-login.html?code=ABC123&region=hk`,
+    );
+    expect(data.poll_token).toBe("poll_fixture");
+    expect((await nativeFetch(r(), env())).status).toBe(502);
   });
   it("sends a mutation once and forwards its exact body", async () => {
     const upstream = vi.fn().mockRejectedValue(new Error("lost response"));

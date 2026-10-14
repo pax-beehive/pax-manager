@@ -174,6 +174,38 @@ export async function nativeFetch(
       await upstream.body?.cancel();
       return json("native_origin_response", 502);
     }
+    if (login?.[1] === "start" && upstream.ok) {
+      const envelope = (await upstream.json()) as {
+        data?: Record<string, unknown>;
+      };
+      const data = envelope.data;
+      if (
+        !data ||
+        data.protocol !== "client_commit_v1" ||
+        data.region !== region ||
+        typeof data.user_code !== "string" ||
+        !/^[A-Z0-9]{6}$/.test(data.user_code) ||
+        typeof data.login_id !== "string" ||
+        !data.login_id ||
+        typeof data.poll_token !== "string" ||
+        !data.poll_token
+      ) {
+        return json("native_login_response", 502);
+      }
+      // Regional Managers may advertise regional Console hosts. WorkOS and
+      // coordinated approval live on the canonical origin, including HK users.
+      const verification = new URL("/paxl-login.html", env.PUBLIC_ORIGIN);
+      data.verification_uri = verification.href;
+      verification.searchParams.set("code", data.user_code);
+      verification.searchParams.set("region", region);
+      data.verification_uri_complete = verification.href;
+      return Response.json(envelope, {
+        headers: {
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
     const output = new Headers({
       "Cache-Control": "no-store",
       Vary: "Authorization",
