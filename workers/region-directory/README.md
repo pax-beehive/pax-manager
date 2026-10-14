@@ -353,3 +353,10 @@ lookup used by the Console upgrade dialog. Preserve the product/platform/tags
 query and route through the existing account assignment. This does not expose
 admin publication routes or bypass Access identity validation. Production changes
 use `wrangler.browser.jsonc --keep-vars`; secrets and D1 bindings are retained.
+
+## Native Android gateway
+
+The explicitly enabled production native surface is `/api/v1/native/{us|hk}/...`. It is
+separate from browser cookies and machine Node Keys. See
+[activation and boundary notes](../../docs/handoff_20261013_200000.md) for the
+allowlist, user-key authorization, rate-limit bindings, and production checks.

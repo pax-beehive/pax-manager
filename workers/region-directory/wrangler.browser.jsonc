@@ -9,6 +9,10 @@
   "preview_urls": false,
   "routes": [
     {
+      "pattern": "paxworkspace.net/api/v1/native/*",
+      "zone_id": "6e7d305a2050525b513b76c9c2102f89",
+    },
+    {
       "pattern": "paxworkspace.net/auth/*",
       "zone_id": "6e7d305a2050525b513b76c9c2102f89",
     },
@@ -25,6 +29,18 @@
       "zone_id": "6e7d305a2050525b513b76c9c2102f89",
     },
   ],
+  "ratelimits": [
+    {
+      "name": "NATIVE_START_LIMITER",
+      "namespace_id": "2026101301",
+      "simple": { "limit": 20, "period": 60 },
+    },
+    {
+      "name": "NATIVE_POLL_LIMITER",
+      "namespace_id": "2026101302",
+      "simple": { "limit": 120, "period": 60 },
+    },
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -34,6 +50,7 @@
     },
   ],
   "vars": {
+    "NATIVE_API_ENABLED": "true",
     "BOOTSTRAP_ENABLED": "true",
     "WORKOS_ENABLED": "true",
     "WORKOS_BROWSER_ENABLED": "true",
