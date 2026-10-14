@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"mime"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -270,8 +271,10 @@ func (s *Service) handleGetArtifactContent(c context.Context, ctx *app.RequestCo
 		if string(ctx.QueryArgs().Peek("disposition")) == "attachment" {
 			disposition = "attachment"
 		}
-		query["response-content-disposition"] = disposition + `; filename="` +
-			strings.ReplaceAll(content.Filename, `"`, ``) + `"`
+		query["response-content-disposition"] = mime.FormatMediaType(
+			disposition,
+			map[string]string{"filename": content.Filename},
+		)
 	}
 	url, err := s.paxdArtifacts.SignObjectDownloadURL(
 		c,
