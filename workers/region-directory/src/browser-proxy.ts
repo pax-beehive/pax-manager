@@ -31,6 +31,7 @@ export function originIdentityHeaders(request: Request): Headers {
     "accept",
     "content-type",
     "last-event-id",
+    "idempotency-key",
     "range",
     "if-range",
     "if-none-match",

@@ -15,6 +15,11 @@ const userRoutes: [string, string][] = [
   ["GET", `agents/${id}/e2ee/key-packages/${id}`],
   ["DELETE", `api-keys/${id}`],
 ];
+export const allowedNativeUserRoute = (method: string, path: string) =>
+  userRoutes.some(
+    ([verb, pattern]) =>
+      verb === method && new RegExp(`^user/self/${pattern}$`).test(path),
+  );
 const json = (error: string, status: number) =>
   Response.json(
     { error },

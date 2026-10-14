@@ -48,6 +48,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 037 | resolved | [Native gateway and account round trip verified](037-native-client-gateway.md) | high | Worker / native client / auth |
 
+| 038 | partial | [Native user sessions must not enroll nodes](038-native-user-sessions.md) | high | Worker / Android / auth |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

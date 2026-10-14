@@ -22,3 +22,11 @@ credential commit/save/ack. Authenticated device/session reads, live Claude
 prompt/reply and test-session stop passed. This resolves native gateway access;
 full encrypted-client acceptance remains separate. Current Worker version: `e91fd9c2-53ca-40ec-b52e-4abe52ab526a`.
 See [handoff](../docs/handoff_20261013_200000.md).
+
+## Superseded authentication model
+
+The transport issue was resolved, but paxl login was not an appropriate mobile
+identity model because it creates a node. Issue 038 replaces Android account
+login with WorkOS public-client PKCE. The old native device-login dispatcher now
+returns 410; existing key routes remain for migration. Current deployment is
+recorded in the issue 038 handoff.

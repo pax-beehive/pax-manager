@@ -18,6 +18,7 @@ import {
 } from "./directory";
 import { machineFetch } from "./machine";
 import { nativeFetch } from "./native";
+import { nativeClientFetch } from "./native-client";
 import { verifyIdentity } from "./identity";
 import { managerURL, provision } from "./provision";
 import { readState, stateCookie } from "./state";
@@ -277,8 +278,15 @@ export function createWorker(
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
       const url = new URL(request.url);
+      if (url.pathname.startsWith("/api/v1/native/client/"))
+        return nativeClientFetch(request, env);
       if (url.pathname.startsWith("/api/v1/native/"))
-        return nativeFetch(request, env);
+        if (/\/paxl\/device-login\//.test(url.pathname))
+          return Response.json(
+            { error: "client_update_required" },
+            { status: 410, headers: { "Cache-Control": "no-store" } },
+          );
+        else return nativeFetch(request, env);
       if (
         env.WORKOS_BROWSER_ENABLED !== "true" ||
         url.pathname.startsWith("/auth/") ||

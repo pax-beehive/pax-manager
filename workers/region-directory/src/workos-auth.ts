@@ -3,6 +3,7 @@ import { EncryptJWT, jwtDecrypt } from "jose";
 import { bindWorkosIdentity, readWorkosIdentity } from "./workos-identity";
 import { lookup } from "./directory";
 import type { Env } from "./index";
+import { nativeCallback } from "./native-client";
 
 const sessionName = "__Host-pax_session";
 const transactionName = "__Host-pax_login";
@@ -152,6 +153,10 @@ export async function authRoute(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   if (env.WORKOS_ENABLED !== "true" || url.origin !== env.PUBLIC_ORIGIN)
     return authJSON({ error: "not_found" }, 404);
+  if (url.pathname === "/auth/callback") {
+    const native = nativeCallback(request, env);
+    if (native) return native;
+  }
   try {
     const client = workos(env);
     if (url.pathname === "/auth/login" && request.method === "GET") {
