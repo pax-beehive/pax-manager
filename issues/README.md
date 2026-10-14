@@ -46,6 +46,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 036 | partial | [Attachment-only prompts disappear from history](036-attachment-only-prompt-history.md) | high | history / ACP projection |
 
+| 038 | resolved | [Unicode artifact filenames break signed downloads](038-unicode-artifact-download-filename.md) | high | userapi / object storage |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
