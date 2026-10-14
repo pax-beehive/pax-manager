@@ -46,7 +46,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 036 | partial | [Attachment-only prompts disappear from history](036-attachment-only-prompt-history.md) | high | history / ACP projection |
 
-| 037 | partial | [Native gateway deployed; account validation pending](037-native-client-gateway.md) | high | Worker / native client / auth |
+| 037 | resolved | [Native gateway and account round trip verified](037-native-client-gateway.md) | high | Worker / native client / auth |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
