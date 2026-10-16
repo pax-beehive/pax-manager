@@ -113,9 +113,22 @@ jobs:
         run: make integration-down
 
   region-directory:
-    name: Region directory Worker
+    name: Region directory and direct gateway
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: regional-test-only
+          POSTGRES_DB: regional_directory
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DIRECTORY_TEST_DATABASE_URL: postgresql://postgres:regional-test-only@127.0.0.1:5432/regional_directory
     defaults:
       run:
         working-directory: workers/region-directory
@@ -136,6 +149,8 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:regional
+      - run: npm run build:regional
       - run: npm run build
         env:
           WRANGLER_SEND_METRICS: 'false'

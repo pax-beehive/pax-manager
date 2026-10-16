@@ -1,5 +1,9 @@
 # Regional user directory (KEV-75)
 
+For EC2 direct access with local PostgreSQL directories, see the
+[regional gateway runbook](regional/README.md). The sections below describe the
+existing Cloudflare Worker deployment, which remains available for staged migration.
+
 This Worker verifies Cloudflare Access identity, assigns one immutable region in
 D1, then provisions the same global user ID in that region's Manager. It never
 connects directly to regional PostgreSQL databases.

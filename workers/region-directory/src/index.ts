@@ -5,6 +5,7 @@ import {
   authJSON,
   withCookies,
 } from "./workos-auth";
+import type { DirectoryDatabase } from "./account-directory";
 import { attachWorkosIdentity } from "./origin-assertion";
 import { releaseHealth } from "./release-health";
 import { approvePaxlLogin } from "./paxl-login";
@@ -48,7 +49,9 @@ export interface Env {
   ROUTING_KEY_ID?: string;
   PREVIOUS_ROUTING_KEY_ID?: string;
   PREVIOUS_DIRECTORY_SECRET?: string;
-  DB: D1Database;
+  DB: DirectoryDatabase;
+  // Set only by the regional Node gateway, never by public request metadata.
+  LOCAL_REGION?: Region;
   PUBLIC_ORIGIN: string;
   ACCESS_PROVIDERS: string;
   DIRECTORY_SECRET: string;

@@ -4,3 +4,5 @@ dist/
 .wrangler/
 import-*
 package-lock.json
+
+dist-regional/

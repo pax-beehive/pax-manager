@@ -1,11 +1,16 @@
 import type { User } from "@workos-inc/node";
+import {
+  isAccountDirectory,
+  type DirectoryDatabase,
+} from "./account-directory";
 
 // Email is used exactly once, after WorkOS verifies it. Subsequent logins use
 // the immutable subject binding, including when the provider email changes.
 export async function bindWorkosIdentity(
-  db: D1Database,
+  db: DirectoryDatabase,
   user: Pick<User, "id" | "email" | "emailVerified">,
 ): Promise<string> {
+  if (isAccountDirectory(db)) return db.bind(user);
   if (!user.emailVerified || !/^user_[A-Za-z0-9]+$/.test(user.id))
     throw new Error("Unverified identity");
   const email = user.email.trim().toLowerCase();
@@ -42,9 +47,10 @@ export async function bindWorkosIdentity(
 }
 
 export async function readWorkosIdentity(
-  db: D1Database,
+  db: DirectoryDatabase,
   subject: string,
 ): Promise<string> {
+  if (isAccountDirectory(db)) return db.readIdentity(subject);
   const row = await db
     .withSession("first-primary")
     .prepare(

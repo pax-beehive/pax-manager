@@ -9,21 +9,31 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "deploy": "wrangler deploy --config wrangler.browser.jsonc --keep-vars",
-    "pretest": "npm run build"
+    "pretest": "npm run build",
+    "build:regional": "esbuild src/regional/main.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-regional/gateway.mjs",
+    "start:regional": "node dist-regional/gateway.mjs",
+    "test:regional": "vitest run src/regional --coverage --coverage.include=src/regional/**/*.ts"
   },
   "dependencies": {
     "@workos-inc/node": "11.0.0",
-    "jose": "6.2.12"
+    "http-proxy": "1.18.1",
+    "jose": "6.2.12",
+    "pg": "8.23.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261002.1",
+    "@types/http-proxy": "1.17.17",
     "@types/node": "26.6.4",
+    "@types/pg": "8.23.1",
+    "@types/ws": "8.18.2",
     "@vitest/coverage-v8": "5.0.3",
+    "esbuild": "0.28.1",
     "miniflare": "4.20260730.0",
     "prettier": "^3.9.9",
     "typescript": "7.0.2",
     "vitest": "5.0.3",
-    "wrangler": "4.147.0"
+    "wrangler": "4.147.0",
+    "ws": "8.21.0"
   },
   "overrides": {
     "miniflare": {

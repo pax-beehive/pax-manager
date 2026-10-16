@@ -23,10 +23,14 @@ export async function addOriginAssertion(
     region === "us" ? env.US_ACCESS_CLIENT_ID : env.HK_ACCESS_CLIENT_ID;
   const clientSecret =
     region === "us" ? env.US_ACCESS_CLIENT_SECRET : env.HK_ACCESS_CLIENT_SECRET;
-  if (!clientId || !clientSecret)
+  if (env.LOCAL_REGION && env.LOCAL_REGION !== region)
+    throw new Error("Foreign regional upstream");
+  if (!env.LOCAL_REGION && (!clientId || !clientSecret))
     throw new Error("Origin service credentials unavailable");
-  headers.set("CF-Access-Client-Id", clientId);
-  headers.set("CF-Access-Client-Secret", clientSecret);
+  if (!env.LOCAL_REGION) {
+    headers.set("CF-Access-Client-Id", clientId!);
+    headers.set("CF-Access-Client-Secret", clientSecret!);
+  }
   headers.delete("Cf-Access-Jwt-Assertion");
   headers.delete("Cookie");
   // Region probes must work before a new user has chosen their account region.
