@@ -141,6 +141,7 @@ func Register(r *server.Hertz) {
 								_daemon.GET("/agent-connections", append(_listnodedaemonagentconnectionsMw(), handler.ListNodeDaemonAgentConnections)...)
 								_daemon.POST("/agent-connections", append(_createnodedaemonagentconnectionMw(), handler.CreateNodeDaemonAgentConnection)...)
 								_daemon.POST("/browser", append(_nodebrowsercontrolMw(), handler.NodeBrowserControl)...)
+								_daemon.GET("/directories", append(_listnodedaemondirectoriesMw(), handler.ListNodeDaemonDirectories)...)
 								_daemon.GET("/harnesses", append(_listnodedaemonharnessesMw(), handler.ListNodeDaemonHarnesses)...)
 								_daemon.POST("/restart", append(_restartnodedaemonMw(), handler.RestartNodeDaemon)...)
 								_daemon.GET("/status", append(_getnodedaemonstatusMw(), handler.GetNodeDaemonStatus)...)

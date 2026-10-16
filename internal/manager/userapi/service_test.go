@@ -105,6 +105,27 @@ func TestNodeDaemonQueries(t *testing.T) {
 			want map[string]any
 		}{
 			{
+				name: "home directories",
+				call: func(svc *userapi.Service) (int, any, error) {
+					return svc.ListNodeDaemonDirectories(
+						ctx,
+						auth.RequestMetadata{},
+						"node_1",
+						"/home/test/My Projects",
+						"last",
+						true,
+					)
+				},
+				want: map[string]any{
+					"type": "directories.list",
+					"list_directories": map[string]any{
+						"path":        "/home/test/My Projects",
+						"after":       "last",
+						"show_hidden": true,
+					},
+				},
+			},
+			{
 				name: "harnesses",
 				call: func(svc *userapi.Service) (int, any, error) {
 					return svc.ListNodeDaemonHarnesses(ctx, auth.RequestMetadata{}, "node_1", true)
@@ -182,7 +203,14 @@ func TestNodeDaemonQueries(t *testing.T) {
 			userapimocks.NewMockSecretIssuer(t),
 		)
 		svc.SetNodeControlClient(client)
-		_, _, err := svc.GetNodeDaemonStatus(ctx, auth.RequestMetadata{}, "node_other")
+		_, _, err := svc.ListNodeDaemonDirectories(
+			ctx,
+			auth.RequestMetadata{},
+			"node_other",
+			"",
+			"",
+			false,
+		)
 
 		require.ErrorIs(t, err, forbidden)
 		require.Zero(t, client.calls)

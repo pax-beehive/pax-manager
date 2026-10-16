@@ -736,3 +736,8 @@ func _upgradenodeharnessMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _listnodedaemondirectoriesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

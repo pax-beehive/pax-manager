@@ -1189,6 +1189,14 @@ struct GetNodeDaemonStatusRequest {
   2: optional string node_id (api.path = "node_id")
 }
 
+struct ListNodeDaemonDirectoriesRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string path (api.query = "path")
+  4: optional string after (api.query = "after")
+  5: optional bool show_hidden (api.query = "show_hidden")
+}
+
 struct ListNodeDaemonHarnessesRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
@@ -1697,6 +1705,18 @@ service PaxManagerAPI {
     openapi.tag = "user",
     openapi.summary = "Get node daemon status",
     openapi.description = "Forwards a status.get query to the connected paxd control tunnel.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonQueryResponse ListNodeDaemonDirectories(
+    1: optional ListNodeDaemonDirectoriesRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/nodes/:node_id/daemon/directories",
+    openapi.tag = "user",
+    openapi.summary = "Browse node home directories",
+    openapi.description = "Reads one directory page on demand, confined by paxd to its user home. Empty path starts at home. Returns at most 100 folders and a next_after cursor.",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier."

@@ -56121,6 +56121,385 @@ func (p *GetNodeDaemonStatusRequest) String() string {
 
 }
 
+type ListNodeDaemonDirectoriesRequest struct {
+	UserID     *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID     *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	Path       *string `thrift:"path,3,optional" json:"path,omitempty" query:"path"`
+	After      *string `thrift:"after,4,optional" json:"after,omitempty" query:"after"`
+	ShowHidden *bool   `thrift:"show_hidden,5,optional" json:"show_hidden,omitempty" query:"show_hidden"`
+}
+
+func NewListNodeDaemonDirectoriesRequest() *ListNodeDaemonDirectoriesRequest {
+	return &ListNodeDaemonDirectoriesRequest{}
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) InitDefault() {
+}
+
+var ListNodeDaemonDirectoriesRequest_UserID_DEFAULT string
+
+func (p *ListNodeDaemonDirectoriesRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return ListNodeDaemonDirectoriesRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var ListNodeDaemonDirectoriesRequest_NodeID_DEFAULT string
+
+func (p *ListNodeDaemonDirectoriesRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return ListNodeDaemonDirectoriesRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var ListNodeDaemonDirectoriesRequest_Path_DEFAULT string
+
+func (p *ListNodeDaemonDirectoriesRequest) GetPath() (v string) {
+	if !p.IsSetPath() {
+		return ListNodeDaemonDirectoriesRequest_Path_DEFAULT
+	}
+	return *p.Path
+}
+
+var ListNodeDaemonDirectoriesRequest_After_DEFAULT string
+
+func (p *ListNodeDaemonDirectoriesRequest) GetAfter() (v string) {
+	if !p.IsSetAfter() {
+		return ListNodeDaemonDirectoriesRequest_After_DEFAULT
+	}
+	return *p.After
+}
+
+var ListNodeDaemonDirectoriesRequest_ShowHidden_DEFAULT bool
+
+func (p *ListNodeDaemonDirectoriesRequest) GetShowHidden() (v bool) {
+	if !p.IsSetShowHidden() {
+		return ListNodeDaemonDirectoriesRequest_ShowHidden_DEFAULT
+	}
+	return *p.ShowHidden
+}
+
+var fieldIDToName_ListNodeDaemonDirectoriesRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+	3: "path",
+	4: "after",
+	5: "show_hidden",
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) IsSetPath() bool {
+	return p.Path != nil
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) IsSetAfter() bool {
+	return p.After != nil
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) IsSetShowHidden() bool {
+	return p.ShowHidden != nil
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ListNodeDaemonDirectoriesRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *ListNodeDaemonDirectoriesRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *ListNodeDaemonDirectoriesRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Path = _field
+	return nil
+}
+func (p *ListNodeDaemonDirectoriesRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.After = _field
+	return nil
+}
+func (p *ListNodeDaemonDirectoriesRequest) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ShowHidden = _field
+	return nil
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListNodeDaemonDirectoriesRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPath() {
+		if err = oprot.WriteFieldBegin("path", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Path); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAfter() {
+		if err = oprot.WriteFieldBegin("after", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.After); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetShowHidden() {
+		if err = oprot.WriteFieldBegin("show_hidden", thrift.BOOL, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.ShowHidden); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *ListNodeDaemonDirectoriesRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ListNodeDaemonDirectoriesRequest(%+v)", *p)
+
+}
+
 type ListNodeDaemonHarnessesRequest struct {
 	UserID         *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
 	NodeID         *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
@@ -64724,6 +65103,8 @@ type PaxManagerAPI interface {
 
 	GetNodeDaemonStatus(ctx context.Context, request *GetNodeDaemonStatusRequest) (r *NodeDaemonQueryResponse, err error)
 
+	ListNodeDaemonDirectories(ctx context.Context, request *ListNodeDaemonDirectoriesRequest) (r *NodeDaemonQueryResponse, err error)
+
 	ListNodeDaemonHarnesses(ctx context.Context, request *ListNodeDaemonHarnessesRequest) (r *NodeDaemonQueryResponse, err error)
 
 	DiscoverNodeDaemonHarnesses(ctx context.Context, request *DiscoverNodeDaemonHarnessesRequest) (r *NodeDaemonQueryResponse, err error)
@@ -65118,6 +65499,15 @@ func (p *PaxManagerAPIClient) GetNodeDaemonStatus(ctx context.Context, request *
 	_args.Request = request
 	var _result PaxManagerAPIGetNodeDaemonStatusResult
 	if err = p.Client_().Call(ctx, "GetNodeDaemonStatus", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) ListNodeDaemonDirectories(ctx context.Context, request *ListNodeDaemonDirectoriesRequest) (r *NodeDaemonQueryResponse, err error) {
+	var _args PaxManagerAPIListNodeDaemonDirectoriesArgs
+	_args.Request = request
+	var _result PaxManagerAPIListNodeDaemonDirectoriesResult
+	if err = p.Client_().Call(ctx, "ListNodeDaemonDirectories", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
@@ -65588,6 +65978,7 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("ListNodes", &paxManagerAPIProcessorListNodes{handler: handler})
 	self.AddToProcessorMap("GetNode", &paxManagerAPIProcessorGetNode{handler: handler})
 	self.AddToProcessorMap("GetNodeDaemonStatus", &paxManagerAPIProcessorGetNodeDaemonStatus{handler: handler})
+	self.AddToProcessorMap("ListNodeDaemonDirectories", &paxManagerAPIProcessorListNodeDaemonDirectories{handler: handler})
 	self.AddToProcessorMap("ListNodeDaemonHarnesses", &paxManagerAPIProcessorListNodeDaemonHarnesses{handler: handler})
 	self.AddToProcessorMap("DiscoverNodeDaemonHarnesses", &paxManagerAPIProcessorDiscoverNodeDaemonHarnesses{handler: handler})
 	self.AddToProcessorMap("ListNodeDaemonAgentConnections", &paxManagerAPIProcessorListNodeDaemonAgentConnections{handler: handler})
@@ -67125,6 +67516,54 @@ func (p *paxManagerAPIProcessorGetNodeDaemonStatus) Process(ctx context.Context,
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("GetNodeDaemonStatus", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorListNodeDaemonDirectories struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorListNodeDaemonDirectories) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIListNodeDaemonDirectoriesArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("ListNodeDaemonDirectories", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIListNodeDaemonDirectoriesResult{}
+	var retval *NodeDaemonQueryResponse
+	if retval, err2 = p.handler.ListNodeDaemonDirectories(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListNodeDaemonDirectories: "+err2.Error())
+		oprot.WriteMessageBegin("ListNodeDaemonDirectories", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("ListNodeDaemonDirectories", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -78461,6 +78900,300 @@ func (p *PaxManagerAPIGetNodeDaemonStatusResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIGetNodeDaemonStatusResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIListNodeDaemonDirectoriesArgs struct {
+	Request *ListNodeDaemonDirectoriesRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIListNodeDaemonDirectoriesArgs() *PaxManagerAPIListNodeDaemonDirectoriesArgs {
+	return &PaxManagerAPIListNodeDaemonDirectoriesArgs{}
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesArgs) InitDefault() {
+}
+
+var PaxManagerAPIListNodeDaemonDirectoriesArgs_Request_DEFAULT *ListNodeDaemonDirectoriesRequest
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesArgs) GetRequest() (v *ListNodeDaemonDirectoriesRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIListNodeDaemonDirectoriesArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIListNodeDaemonDirectoriesArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListNodeDaemonDirectoriesArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewListNodeDaemonDirectoriesRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListNodeDaemonDirectories_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListNodeDaemonDirectoriesArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIListNodeDaemonDirectoriesResult struct {
+	Success *NodeDaemonQueryResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIListNodeDaemonDirectoriesResult() *PaxManagerAPIListNodeDaemonDirectoriesResult {
+	return &PaxManagerAPIListNodeDaemonDirectoriesResult{}
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesResult) InitDefault() {
+}
+
+var PaxManagerAPIListNodeDaemonDirectoriesResult_Success_DEFAULT *NodeDaemonQueryResponse
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesResult) GetSuccess() (v *NodeDaemonQueryResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIListNodeDaemonDirectoriesResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIListNodeDaemonDirectoriesResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListNodeDaemonDirectoriesResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNodeDaemonQueryResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListNodeDaemonDirectories_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonDirectoriesResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListNodeDaemonDirectoriesResult(%+v)", *p)
 
 }
 
