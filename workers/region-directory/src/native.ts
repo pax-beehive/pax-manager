@@ -5,7 +5,15 @@ import { crossSite } from "./browser-proxy";
 const id = "[A-Za-z0-9_-]{1,128}";
 const userRoutes: [string, string][] = [
   ["GET", "(?:me|sessions|projects|nodes|approvals)"],
+  ["POST", "projects"],
   ["GET", `sessions/${id}/history`],
+  ["GET", `nodes/${id}/agents`],
+  ["GET", `nodes/${id}`],
+  ["GET", `nodes/${id}/daemon/(?:directories|status)`],
+  ["GET", `nodes/${id}/daemon/commands/${id}`],
+  ["POST", `nodes/${id}/daemon/upgrade`],
+  ["GET", `projects/${id}/targets`],
+  ["POST", `nodes/${id}/agents/${id}/sessions`],
   ["GET", `nodes/${id}/agents/${id}/sessions/${id}`],
   ["GET", `agents/${id}/sessions/${id}/(?:events|encrypted-events)`],
   ["POST", `nodes/${id}/agents/${id}/conversation`],

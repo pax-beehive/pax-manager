@@ -914,3 +914,15 @@ func UpgradeNodeHarness(c context.Context, ctx *app.RequestContext) {
 	)
 	writeEndpointResult(ctx, status, data, err)
 }
+
+func ListNodeDaemonDirectories(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.ListNodeDaemonDirectories(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("node_id"),
+		ctx.Query("path"),
+		ctx.Query("after"),
+		queryBool(ctx, "show_hidden"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}

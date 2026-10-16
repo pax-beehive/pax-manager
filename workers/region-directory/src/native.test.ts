@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { nativeFetch } from "./native";
+import { allowedNativeUserRoute, nativeFetch } from "./native";
 import { createWorker, type Env } from "./index";
 
 const base = "https://app.example.invalid";
@@ -46,6 +46,75 @@ const req = (path: string, method = "GET", body?: unknown) =>
 afterEach(() => vi.unstubAllGlobals());
 
 describe("native gateway", () => {
+  it("restricts daemon tools to exact authorized methods and current user", () => {
+    for (const path of [
+      "nodes/node_1",
+      "nodes/node_1/daemon/directories",
+      "nodes/node_1/daemon/status",
+      "nodes/node_1/daemon/commands/cmd_1",
+    ]) {
+      expect(allowedNativeUserRoute("GET", "user/self/" + path)).toBe(true);
+      expect(allowedNativeUserRoute("DELETE", "user/self/" + path)).toBe(false);
+      expect(allowedNativeUserRoute("GET", "user/other/" + path)).toBe(false);
+    }
+    expect(
+      allowedNativeUserRoute("POST", "user/self/nodes/node_1/daemon/upgrade"),
+    ).toBe(true);
+    for (const suffix of [
+      "restart",
+      "browser",
+      "secret-channel/open",
+      "directories/child",
+    ]) {
+      expect(
+        allowedNativeUserRoute(
+          "POST",
+          "user/self/nodes/node_1/daemon/" + suffix,
+        ),
+      ).toBe(false);
+    }
+  });
+  it("allows project creation only on the current user's collection", async () => {
+    expect(allowedNativeUserRoute("POST", "user/self/projects")).toBe(true);
+    for (const [method, path] of [
+      ["POST", "user/other/projects"],
+      ["POST", "user/self/projects/project_1"],
+      ["DELETE", "user/self/projects"],
+      ["PATCH", "user/self/projects"],
+    ])
+      expect(allowedNativeUserRoute(method, path)).toBe(false);
+    const upstream = vi.fn().mockResolvedValue(
+      Response.json(
+        {
+          data: {
+            project: { project_id: "project_1", display_name: "Mobile" },
+          },
+        },
+        { status: 201 },
+      ),
+    );
+    vi.stubGlobal("fetch", upstream);
+    const response = await nativeFetch(
+      req("us/user/self/projects", "POST", { display_name: "Mobile" }),
+      env(),
+    );
+    expect(response.status).toBe(201);
+    expect(new TextDecoder().decode(upstream.mock.calls[0][1].body)).toBe(
+      '{"display_name":"Mobile"}',
+    );
+  });
+  it("keeps mobile session creation limited to exact user-scoped routes", () => {
+    for (const [method, path] of [
+      ["DELETE", "user/self/nodes/node_1/agents/agent_1/sessions"],
+      ["POST", "user/self/nodes/node_1/agents"],
+      ["POST", "user/self/projects/project_1/targets"],
+      ["POST", "user/other/nodes/node_1/agents/agent_1/sessions"],
+      ["POST", "user/self/nodes/node_1/agents/agent_1/sessions/extra"],
+      ["GET", "user/self/nodes/../agents"],
+    ])
+      expect(allowedNativeUserRoute(method, path)).toBe(false);
+  });
+
   it("dispatches native requests without authenticating a browser session", async () => {
     const upstream = vi.fn().mockResolvedValue(Response.json({ data: {} }));
     vi.stubGlobal("fetch", upstream);

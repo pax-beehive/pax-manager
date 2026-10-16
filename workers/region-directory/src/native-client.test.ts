@@ -79,6 +79,46 @@ afterEach(() => {
 });
 
 describe("native WorkOS user gateway", () => {
+  it.each([
+    ["POST", "user/self/projects"],
+    ["GET", "user/self/nodes/node_1/agents"],
+    ["GET", "user/self/nodes/node_1"],
+    ["GET", "user/self/nodes/node_1/daemon/directories"],
+    ["GET", "user/self/nodes/node_1/daemon/status"],
+    ["GET", "user/self/nodes/node_1/daemon/commands/upgrade_1"],
+    ["POST", "user/self/nodes/node_1/daemon/upgrade"],
+    ["GET", "public/paxd/download"],
+    ["GET", "user/self/projects/project_1/targets"],
+    ["POST", "user/self/nodes/node_1/agents/agent_1/sessions"],
+  ])(
+    "authenticates and routes authorized mobile operations: %s %s",
+    async (method, path) => {
+      const { deps, fetch } = setup();
+      const upstream = vi.fn().mockResolvedValue(Response.json({ data: {} }));
+      vi.stubGlobal("fetch", upstream);
+      const result = await fetch(
+        req(
+          path,
+          method,
+          method === "POST"
+            ? path === "user/self/projects"
+              ? { display_name: "Mobile project" }
+              : {
+                  session_id: "sess_fixture",
+                  pax_config: { cwd: "/workspace" },
+                }
+            : undefined,
+        ),
+        env(),
+      );
+      expect(result.status).toBe(200);
+      expect(deps.verify).toHaveBeenCalled();
+      const [url, init] = upstream.mock.calls[0];
+      expect(String(url)).toBe(`https://hk.example.invalid/api/v1/${path}`);
+      expect(init.method).toBe(method);
+    },
+  );
+
   it("bootstraps the existing Web account without creating a node or key", async () => {
     const { deps, fetch } = setup();
     const result = await fetch(

@@ -150,7 +150,10 @@ export function createNativeClient(
       url.origin !== env.PUBLIC_ORIGIN ||
       !url.pathname.startsWith(prefix) ||
       /[%\\]|\/\//.test(url.pathname) ||
-      (!bootstrap && !logout && !allowedNativeUserRoute(request.method, path))
+      (!bootstrap &&
+        !logout &&
+        !allowedNativeUserRoute(request.method, path) &&
+        !(request.method === "GET" && path === "public/paxd/download"))
     )
       return json({ error: "not_found" }, 404);
     if (

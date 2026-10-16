@@ -182,6 +182,11 @@ func TestNodeDaemonReadAPIsForwardQueriesOverControlTunnel(t *testing.T) {
 		queryResult string
 	}{
 		{
+			path:        "daemon/directories?path=%2Fhome%2Ftest%2FMy%20Projects&after=alpha&show_hidden=true",
+			wantQuery:   `{"type":"directories.list","list_directories":{"path":"/home/test/My Projects","after":"alpha","show_hidden":true}}`,
+			queryResult: `{"type":"directories.list","directories":{"home":"/home/test","path":"/home/test/My Projects","entries":[]}}`,
+		},
+		{
 			path:        "daemon/status",
 			wantQuery:   `{"type":"status.get","get_status":{}}`,
 			queryResult: `{"type":"status.get","status":{"phase":"running"}}`,
