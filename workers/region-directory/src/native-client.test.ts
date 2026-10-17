@@ -80,6 +80,9 @@ afterEach(() => {
 
 describe("native WorkOS user gateway", () => {
   it.each([
+    ["GET", "user/self/attachments/att_1/content?ticket=1"],
+    ["GET", "user/self/artifacts/art_1/content/main"],
+    ["GET", "user/self/artifact-publications/apub_1/content/main"],
     ["POST", "user/self/projects"],
     ["GET", "user/self/nodes/node_1/agents"],
     ["GET", "user/self/nodes/node_1"],

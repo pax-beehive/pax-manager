@@ -7,6 +7,11 @@ const userRoutes: [string, string][] = [
   ["GET", "(?:me|sessions|projects|nodes|approvals)"],
   ["POST", "projects"],
   ["GET", `sessions/${id}/history`],
+  ["GET", `attachments/${id}/content`],
+  [
+    "GET",
+    `(?:artifacts|artifact-publications)/${id}/content/[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}`,
+  ],
   ["GET", `nodes/${id}/agents`],
   ["GET", `nodes/${id}`],
   ["GET", `nodes/${id}/daemon/(?:directories|status)`],

@@ -46,6 +46,32 @@ const req = (path: string, method = "GET", body?: unknown) =>
 afterEach(() => vi.unstubAllGlobals());
 
 describe("native gateway", () => {
+  it("allows only current-user attachment content reads", () => {
+    for (const path of [
+      "attachments/att_1/content",
+      "artifacts/art_1/content/main",
+      "artifact-publications/apub_1/content/main",
+    ]) {
+      expect(allowedNativeUserRoute("GET", "user/self/" + path)).toBe(true);
+      for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+        expect(allowedNativeUserRoute(method, "user/self/" + path)).toBe(false);
+      }
+      expect(allowedNativeUserRoute("GET", "user/other/" + path)).toBe(false);
+      expect(
+        allowedNativeUserRoute("GET", "user/self/" + path + "/extra"),
+      ).toBe(false);
+    }
+    for (const path of [
+      "artifacts",
+      "attachments",
+      "artifact-publications/apub_1/prepare",
+      "artifact-publications/apub_1/content/..",
+      "artifacts/art_1/content/%2e%2e",
+      "artifacts/art_1/content/main/secret",
+    ]) {
+      expect(allowedNativeUserRoute("GET", "user/self/" + path)).toBe(false);
+    }
+  });
   it("restricts daemon tools to exact authorized methods and current user", () => {
     for (const path of [
       "nodes/node_1",
