@@ -1,3 +1,8 @@
+import {
+  isAccountDirectory,
+  type DirectoryDatabase,
+} from "./account-directory";
+
 export type Region = "us" | "hk";
 export interface Assignment {
   user_id: string;
@@ -10,9 +15,10 @@ export interface Result {
 }
 
 export async function lookupUser(
-  db: D1Database,
+  db: DirectoryDatabase,
   userID: string,
 ): Promise<Pick<Assignment, "user_id" | "region"> | null> {
+  if (isAccountDirectory(db)) return db.lookupUser(userID);
   const sql = "SELECT user_id, region FROM user_regions WHERE user_id = ?";
   const result = await db
     .withSession("first-unconstrained")
@@ -30,10 +36,12 @@ const select =
   "SELECT user_id, identity_key, region FROM user_regions WHERE identity_key = ?";
 
 export async function lookup(
-  db: D1Database,
+  db: DirectoryDatabase,
   identity: string,
   bookmark?: string | null,
 ): Promise<Result> {
+  if (isAccountDirectory(db))
+    return { assignment: await db.lookup(identity), bookmark: null };
   const session = db.withSession(bookmark || "first-unconstrained");
   const assignment = await session
     .prepare(select)
@@ -52,10 +60,12 @@ export async function lookup(
 }
 
 export async function assign(
-  db: D1Database,
+  db: DirectoryDatabase,
   identity: string,
   region: Region,
 ): Promise<Result & { assignment: Assignment }> {
+  if (isAccountDirectory(db))
+    return { assignment: await db.assign(identity, region), bookmark: null };
   const session = db.withSession("first-primary");
   const rows = await session.batch([
     session

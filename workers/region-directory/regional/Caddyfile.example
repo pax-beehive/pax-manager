@@ -1,0 +1,4 @@
+# Replace this hostname and point its DNS-only A/AAAA records at this EC2.
+hk.example.com {
+    reverse_proxy 127.0.0.1:8080
+}

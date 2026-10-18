@@ -52,6 +52,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 039 | partial | [Native user sessions must not enroll nodes](039-native-user-sessions.md) | high | Worker / Android / auth |
 
+| 040 | partial | [Direct regional account directory](040-direct-regional-account-directory.md) | high | gateway / identity / Console |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

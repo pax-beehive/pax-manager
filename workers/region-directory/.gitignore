@@ -10,3 +10,5 @@ import-*.sql
 .coverage
 __pycache__/
 release-artifact/
+
+dist-regional/

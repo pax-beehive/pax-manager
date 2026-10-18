@@ -565,3 +565,10 @@ Admins can mint a token for another user:
 ```bash
 GOCACHE=/tmp/pax-manager-go-cache go test ./...
 ```
+
+## Direct regional access
+
+The opt-in [regional gateway](workers/region-directory/regional/README.md) runs
+WorkOS authentication and a replicated PostgreSQL account directory next to each
+Manager. It supports fixed US/HK routing without a Cloudflare request-path dependency.
+The linked runbook covers preserving existing users, cutover and rollback constraints.
