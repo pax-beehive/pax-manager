@@ -2118,3 +2118,21 @@ type UpgradeNodeHarnessRequest struct {
 	Version      string `json:"version"`
 	ConnectionID string `json:"connection_id,omitempty"`
 }
+
+type NodeHarnessAuthRequest struct {
+	UserID      string `json:"user_id"`
+	NodeID      string `json:"node_id"`
+	CommandID   string `json:"command_id"`
+	Harness     string `json:"harness"`
+	Operation   string `json:"operation"`
+	Action      string `json:"action,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	Profile     string `json:"profile,omitempty"`
+	Method      string `json:"method,omitempty"`
+	SecretStdin bool   `json:"secret_stdin,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	PromptID    string `json:"prompt_id,omitempty"`
+	Code        string `json:"code,omitempty"`
+}
+
+type GetNodeHarnessAuthRequest struct{ NodeID, Harness, SessionID, CommandID, Provider, Operation string }

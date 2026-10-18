@@ -85,4 +85,6 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/user/:user_id/approvals/:approval_id/decision", DecideUserApproval)
 	h.GET("/api/v1/user/:user_id/approval-grants", ListUserApprovalGrants)
 	h.POST("/api/v1/user/:user_id/approval-grants/:grant_id/revoke", RevokeUserApprovalGrant)
+	h.POST("/api/v1/user/:user_id/nodes/:node_id/harness/auth", NodeHarnessAuth)
+	h.GET("/api/v1/user/:user_id/nodes/:node_id/harness/auth", GetNodeHarnessAuth)
 }

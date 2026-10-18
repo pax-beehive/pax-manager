@@ -179,6 +179,8 @@ func Register(r *server.Hertz) {
 							}
 							{
 								_harness := _node_id.Group("/harness", _harnessMw()...)
+								_harness.GET("/auth", append(_getnodeharnessauthMw(), handler.GetNodeHarnessAuth)...)
+								_harness.POST("/auth", append(_nodeharnessauthMw(), handler.NodeHarnessAuth)...)
 								_harness.POST("/upgrade", append(_upgradenodeharnessMw(), handler.UpgradeNodeHarness)...)
 							}
 							{
