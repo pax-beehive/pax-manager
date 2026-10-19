@@ -65040,6 +65040,1334 @@ func (p *CancelNodeDaemonMaintenanceRequest) String() string {
 
 }
 
+type NodeHarnessAuthRequest struct {
+	UserID      *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID      *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	CommandID   *string `thrift:"command_id,3,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
+	Harness     *string `thrift:"harness,4,optional" form:"harness" json:"harness,omitempty" query:"harness"`
+	Operation   *string `thrift:"operation,5,optional" form:"operation" json:"operation,omitempty" query:"operation"`
+	Action      *string `thrift:"action,6,optional" form:"action" json:"action,omitempty" query:"action"`
+	Provider    *string `thrift:"provider,7,optional" form:"provider" json:"provider,omitempty" query:"provider"`
+	Profile     *string `thrift:"profile,8,optional" form:"profile" json:"profile,omitempty" query:"profile"`
+	Method      *string `thrift:"method,9,optional" form:"method" json:"method,omitempty" query:"method"`
+	SecretStdin *bool   `thrift:"secret_stdin,10,optional" form:"secret_stdin" json:"secret_stdin,omitempty" query:"secret_stdin"`
+	SessionID   *string `thrift:"session_id,11,optional" form:"session_id" json:"session_id,omitempty" query:"session_id"`
+	PromptID    *string `thrift:"prompt_id,12,optional" form:"prompt_id" json:"prompt_id,omitempty" query:"prompt_id"`
+	Code        *string `thrift:"code,13,optional" form:"code" json:"code,omitempty" query:"code"`
+}
+
+func NewNodeHarnessAuthRequest() *NodeHarnessAuthRequest {
+	return &NodeHarnessAuthRequest{}
+}
+
+func (p *NodeHarnessAuthRequest) InitDefault() {
+}
+
+var NodeHarnessAuthRequest_UserID_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return NodeHarnessAuthRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var NodeHarnessAuthRequest_NodeID_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return NodeHarnessAuthRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var NodeHarnessAuthRequest_CommandID_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetCommandID() (v string) {
+	if !p.IsSetCommandID() {
+		return NodeHarnessAuthRequest_CommandID_DEFAULT
+	}
+	return *p.CommandID
+}
+
+var NodeHarnessAuthRequest_Harness_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetHarness() (v string) {
+	if !p.IsSetHarness() {
+		return NodeHarnessAuthRequest_Harness_DEFAULT
+	}
+	return *p.Harness
+}
+
+var NodeHarnessAuthRequest_Operation_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetOperation() (v string) {
+	if !p.IsSetOperation() {
+		return NodeHarnessAuthRequest_Operation_DEFAULT
+	}
+	return *p.Operation
+}
+
+var NodeHarnessAuthRequest_Action_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetAction() (v string) {
+	if !p.IsSetAction() {
+		return NodeHarnessAuthRequest_Action_DEFAULT
+	}
+	return *p.Action
+}
+
+var NodeHarnessAuthRequest_Provider_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetProvider() (v string) {
+	if !p.IsSetProvider() {
+		return NodeHarnessAuthRequest_Provider_DEFAULT
+	}
+	return *p.Provider
+}
+
+var NodeHarnessAuthRequest_Profile_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetProfile() (v string) {
+	if !p.IsSetProfile() {
+		return NodeHarnessAuthRequest_Profile_DEFAULT
+	}
+	return *p.Profile
+}
+
+var NodeHarnessAuthRequest_Method_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetMethod() (v string) {
+	if !p.IsSetMethod() {
+		return NodeHarnessAuthRequest_Method_DEFAULT
+	}
+	return *p.Method
+}
+
+var NodeHarnessAuthRequest_SecretStdin_DEFAULT bool
+
+func (p *NodeHarnessAuthRequest) GetSecretStdin() (v bool) {
+	if !p.IsSetSecretStdin() {
+		return NodeHarnessAuthRequest_SecretStdin_DEFAULT
+	}
+	return *p.SecretStdin
+}
+
+var NodeHarnessAuthRequest_SessionID_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetSessionID() (v string) {
+	if !p.IsSetSessionID() {
+		return NodeHarnessAuthRequest_SessionID_DEFAULT
+	}
+	return *p.SessionID
+}
+
+var NodeHarnessAuthRequest_PromptID_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetPromptID() (v string) {
+	if !p.IsSetPromptID() {
+		return NodeHarnessAuthRequest_PromptID_DEFAULT
+	}
+	return *p.PromptID
+}
+
+var NodeHarnessAuthRequest_Code_DEFAULT string
+
+func (p *NodeHarnessAuthRequest) GetCode() (v string) {
+	if !p.IsSetCode() {
+		return NodeHarnessAuthRequest_Code_DEFAULT
+	}
+	return *p.Code
+}
+
+var fieldIDToName_NodeHarnessAuthRequest = map[int16]string{
+	1:  "user_id",
+	2:  "node_id",
+	3:  "command_id",
+	4:  "harness",
+	5:  "operation",
+	6:  "action",
+	7:  "provider",
+	8:  "profile",
+	9:  "method",
+	10: "secret_stdin",
+	11: "session_id",
+	12: "prompt_id",
+	13: "code",
+}
+
+func (p *NodeHarnessAuthRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetCommandID() bool {
+	return p.CommandID != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetHarness() bool {
+	return p.Harness != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetOperation() bool {
+	return p.Operation != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetAction() bool {
+	return p.Action != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetProvider() bool {
+	return p.Provider != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetProfile() bool {
+	return p.Profile != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetMethod() bool {
+	return p.Method != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetSecretStdin() bool {
+	return p.SecretStdin != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetSessionID() bool {
+	return p.SessionID != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetPromptID() bool {
+	return p.PromptID != nil
+}
+
+func (p *NodeHarnessAuthRequest) IsSetCode() bool {
+	return p.Code != nil
+}
+
+func (p *NodeHarnessAuthRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 8:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField8(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 9:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField9(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 10:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField10(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 11:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField11(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 12:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField12(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 13:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField13(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_NodeHarnessAuthRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.CommandID = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Harness = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Operation = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField6(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Action = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Provider = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField8(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Profile = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField9(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Method = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField10(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SecretStdin = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField11(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SessionID = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField12(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.PromptID = _field
+	return nil
+}
+func (p *NodeHarnessAuthRequest) ReadField13(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Code = _field
+	return nil
+}
+
+func (p *NodeHarnessAuthRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NodeHarnessAuthRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
+			goto WriteFieldError
+		}
+		if err = p.writeField8(oprot); err != nil {
+			fieldId = 8
+			goto WriteFieldError
+		}
+		if err = p.writeField9(oprot); err != nil {
+			fieldId = 9
+			goto WriteFieldError
+		}
+		if err = p.writeField10(oprot); err != nil {
+			fieldId = 10
+			goto WriteFieldError
+		}
+		if err = p.writeField11(oprot); err != nil {
+			fieldId = 11
+			goto WriteFieldError
+		}
+		if err = p.writeField12(oprot); err != nil {
+			fieldId = 12
+			goto WriteFieldError
+		}
+		if err = p.writeField13(oprot); err != nil {
+			fieldId = 13
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCommandID() {
+		if err = oprot.WriteFieldBegin("command_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.CommandID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetHarness() {
+		if err = oprot.WriteFieldBegin("harness", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Harness); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetOperation() {
+		if err = oprot.WriteFieldBegin("operation", thrift.STRING, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Operation); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAction() {
+		if err = oprot.WriteFieldBegin("action", thrift.STRING, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Action); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetProvider() {
+		if err = oprot.WriteFieldBegin("provider", thrift.STRING, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Provider); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetProfile() {
+		if err = oprot.WriteFieldBegin("profile", thrift.STRING, 8); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Profile); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetMethod() {
+		if err = oprot.WriteFieldBegin("method", thrift.STRING, 9); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Method); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSecretStdin() {
+		if err = oprot.WriteFieldBegin("secret_stdin", thrift.BOOL, 10); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.SecretStdin); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSessionID() {
+		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 11); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SessionID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField12(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPromptID() {
+		if err = oprot.WriteFieldBegin("prompt_id", thrift.STRING, 12); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.PromptID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 12 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 12 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) writeField13(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCode() {
+		if err = oprot.WriteFieldBegin("code", thrift.STRING, 13); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Code); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 13 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 13 end error: ", p), err)
+}
+
+func (p *NodeHarnessAuthRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeHarnessAuthRequest(%+v)", *p)
+
+}
+
+type GetNodeHarnessAuthRequest struct {
+	UserID    *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID    *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	Harness   *string `thrift:"harness,3,optional" json:"harness,omitempty" query:"harness"`
+	SessionID *string `thrift:"session_id,4,optional" json:"session_id,omitempty" query:"session_id"`
+	CommandID *string `thrift:"command_id,5,optional" json:"command_id,omitempty" query:"command_id"`
+	Provider  *string `thrift:"provider,6,optional" json:"provider,omitempty" query:"provider"`
+	Operation *string `thrift:"operation,7,optional" json:"operation,omitempty" query:"operation"`
+}
+
+func NewGetNodeHarnessAuthRequest() *GetNodeHarnessAuthRequest {
+	return &GetNodeHarnessAuthRequest{}
+}
+
+func (p *GetNodeHarnessAuthRequest) InitDefault() {
+}
+
+var GetNodeHarnessAuthRequest_UserID_DEFAULT string
+
+func (p *GetNodeHarnessAuthRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return GetNodeHarnessAuthRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var GetNodeHarnessAuthRequest_NodeID_DEFAULT string
+
+func (p *GetNodeHarnessAuthRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return GetNodeHarnessAuthRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var GetNodeHarnessAuthRequest_Harness_DEFAULT string
+
+func (p *GetNodeHarnessAuthRequest) GetHarness() (v string) {
+	if !p.IsSetHarness() {
+		return GetNodeHarnessAuthRequest_Harness_DEFAULT
+	}
+	return *p.Harness
+}
+
+var GetNodeHarnessAuthRequest_SessionID_DEFAULT string
+
+func (p *GetNodeHarnessAuthRequest) GetSessionID() (v string) {
+	if !p.IsSetSessionID() {
+		return GetNodeHarnessAuthRequest_SessionID_DEFAULT
+	}
+	return *p.SessionID
+}
+
+var GetNodeHarnessAuthRequest_CommandID_DEFAULT string
+
+func (p *GetNodeHarnessAuthRequest) GetCommandID() (v string) {
+	if !p.IsSetCommandID() {
+		return GetNodeHarnessAuthRequest_CommandID_DEFAULT
+	}
+	return *p.CommandID
+}
+
+var GetNodeHarnessAuthRequest_Provider_DEFAULT string
+
+func (p *GetNodeHarnessAuthRequest) GetProvider() (v string) {
+	if !p.IsSetProvider() {
+		return GetNodeHarnessAuthRequest_Provider_DEFAULT
+	}
+	return *p.Provider
+}
+
+var GetNodeHarnessAuthRequest_Operation_DEFAULT string
+
+func (p *GetNodeHarnessAuthRequest) GetOperation() (v string) {
+	if !p.IsSetOperation() {
+		return GetNodeHarnessAuthRequest_Operation_DEFAULT
+	}
+	return *p.Operation
+}
+
+var fieldIDToName_GetNodeHarnessAuthRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+	3: "harness",
+	4: "session_id",
+	5: "command_id",
+	6: "provider",
+	7: "operation",
+}
+
+func (p *GetNodeHarnessAuthRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *GetNodeHarnessAuthRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *GetNodeHarnessAuthRequest) IsSetHarness() bool {
+	return p.Harness != nil
+}
+
+func (p *GetNodeHarnessAuthRequest) IsSetSessionID() bool {
+	return p.SessionID != nil
+}
+
+func (p *GetNodeHarnessAuthRequest) IsSetCommandID() bool {
+	return p.CommandID != nil
+}
+
+func (p *GetNodeHarnessAuthRequest) IsSetProvider() bool {
+	return p.Provider != nil
+}
+
+func (p *GetNodeHarnessAuthRequest) IsSetOperation() bool {
+	return p.Operation != nil
+}
+
+func (p *GetNodeHarnessAuthRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_GetNodeHarnessAuthRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *GetNodeHarnessAuthRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *GetNodeHarnessAuthRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *GetNodeHarnessAuthRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Harness = _field
+	return nil
+}
+func (p *GetNodeHarnessAuthRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SessionID = _field
+	return nil
+}
+func (p *GetNodeHarnessAuthRequest) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.CommandID = _field
+	return nil
+}
+func (p *GetNodeHarnessAuthRequest) ReadField6(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Provider = _field
+	return nil
+}
+func (p *GetNodeHarnessAuthRequest) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Operation = _field
+	return nil
+}
+
+func (p *GetNodeHarnessAuthRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetNodeHarnessAuthRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *GetNodeHarnessAuthRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *GetNodeHarnessAuthRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *GetNodeHarnessAuthRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetHarness() {
+		if err = oprot.WriteFieldBegin("harness", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Harness); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *GetNodeHarnessAuthRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSessionID() {
+		if err = oprot.WriteFieldBegin("session_id", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SessionID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *GetNodeHarnessAuthRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCommandID() {
+		if err = oprot.WriteFieldBegin("command_id", thrift.STRING, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.CommandID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *GetNodeHarnessAuthRequest) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetProvider() {
+		if err = oprot.WriteFieldBegin("provider", thrift.STRING, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Provider); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *GetNodeHarnessAuthRequest) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetOperation() {
+		if err = oprot.WriteFieldBegin("operation", thrift.STRING, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Operation); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *GetNodeHarnessAuthRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("GetNodeHarnessAuthRequest(%+v)", *p)
+
+}
+
 type PaxManagerAPI interface {
 	GetNodeIdentity(ctx context.Context, request *EmptyRequest) (r *NodeIdentityResponse, err error)
 
@@ -65196,6 +66524,10 @@ type PaxManagerAPI interface {
 	ListUserApprovalGrants(ctx context.Context, request *ListUserApprovalGrantsRequest) (r *ApprovalGrantListResponse, err error)
 
 	RevokeUserApprovalGrant(ctx context.Context, request *RevokeUserApprovalGrantRequest) (r *ApprovalResponse, err error)
+
+	NodeHarnessAuth(ctx context.Context, request *NodeHarnessAuthRequest) (r *NodeDaemonQueryResponse, err error)
+
+	GetNodeHarnessAuth(ctx context.Context, request *GetNodeHarnessAuthRequest) (r *NodeDaemonQueryResponse, err error)
 }
 
 type PaxManagerAPIClient struct {
@@ -65926,6 +67258,24 @@ func (p *PaxManagerAPIClient) RevokeUserApprovalGrant(ctx context.Context, reque
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) NodeHarnessAuth(ctx context.Context, request *NodeHarnessAuthRequest) (r *NodeDaemonQueryResponse, err error) {
+	var _args PaxManagerAPINodeHarnessAuthArgs
+	_args.Request = request
+	var _result PaxManagerAPINodeHarnessAuthResult
+	if err = p.Client_().Call(ctx, "NodeHarnessAuth", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) GetNodeHarnessAuth(ctx context.Context, request *GetNodeHarnessAuthRequest) (r *NodeDaemonQueryResponse, err error) {
+	var _args PaxManagerAPIGetNodeHarnessAuthArgs
+	_args.Request = request
+	var _result PaxManagerAPIGetNodeHarnessAuthResult
+	if err = p.Client_().Call(ctx, "GetNodeHarnessAuth", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 
 type PaxManagerAPIProcessor struct {
 	processorMap map[string]thrift.TProcessorFunction
@@ -66025,6 +67375,8 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("DecideUserApproval", &paxManagerAPIProcessorDecideUserApproval{handler: handler})
 	self.AddToProcessorMap("ListUserApprovalGrants", &paxManagerAPIProcessorListUserApprovalGrants{handler: handler})
 	self.AddToProcessorMap("RevokeUserApprovalGrant", &paxManagerAPIProcessorRevokeUserApprovalGrant{handler: handler})
+	self.AddToProcessorMap("NodeHarnessAuth", &paxManagerAPIProcessorNodeHarnessAuth{handler: handler})
+	self.AddToProcessorMap("GetNodeHarnessAuth", &paxManagerAPIProcessorGetNodeHarnessAuth{handler: handler})
 	return self
 }
 func (p *PaxManagerAPIProcessor) Process(ctx context.Context, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -69772,6 +71124,102 @@ func (p *paxManagerAPIProcessorRevokeUserApprovalGrant) Process(ctx context.Cont
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("RevokeUserApprovalGrant", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorNodeHarnessAuth struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorNodeHarnessAuth) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPINodeHarnessAuthArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("NodeHarnessAuth", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPINodeHarnessAuthResult{}
+	var retval *NodeDaemonQueryResponse
+	if retval, err2 = p.handler.NodeHarnessAuth(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing NodeHarnessAuth: "+err2.Error())
+		oprot.WriteMessageBegin("NodeHarnessAuth", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("NodeHarnessAuth", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorGetNodeHarnessAuth struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorGetNodeHarnessAuth) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIGetNodeHarnessAuthArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("GetNodeHarnessAuth", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIGetNodeHarnessAuthResult{}
+	var retval *NodeDaemonQueryResponse
+	if retval, err2 = p.handler.GetNodeHarnessAuth(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing GetNodeHarnessAuth: "+err2.Error())
+		oprot.WriteMessageBegin("GetNodeHarnessAuth", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("GetNodeHarnessAuth", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -92718,5 +94166,593 @@ func (p *PaxManagerAPIRevokeUserApprovalGrantResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIRevokeUserApprovalGrantResult(%+v)", *p)
+
+}
+
+type PaxManagerAPINodeHarnessAuthArgs struct {
+	Request *NodeHarnessAuthRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPINodeHarnessAuthArgs() *PaxManagerAPINodeHarnessAuthArgs {
+	return &PaxManagerAPINodeHarnessAuthArgs{}
+}
+
+func (p *PaxManagerAPINodeHarnessAuthArgs) InitDefault() {
+}
+
+var PaxManagerAPINodeHarnessAuthArgs_Request_DEFAULT *NodeHarnessAuthRequest
+
+func (p *PaxManagerAPINodeHarnessAuthArgs) GetRequest() (v *NodeHarnessAuthRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPINodeHarnessAuthArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPINodeHarnessAuthArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPINodeHarnessAuthArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPINodeHarnessAuthArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPINodeHarnessAuthArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeHarnessAuthArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewNodeHarnessAuthRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPINodeHarnessAuthArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NodeHarnessAuth_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeHarnessAuthArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeHarnessAuthArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPINodeHarnessAuthArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPINodeHarnessAuthResult struct {
+	Success *NodeDaemonQueryResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPINodeHarnessAuthResult() *PaxManagerAPINodeHarnessAuthResult {
+	return &PaxManagerAPINodeHarnessAuthResult{}
+}
+
+func (p *PaxManagerAPINodeHarnessAuthResult) InitDefault() {
+}
+
+var PaxManagerAPINodeHarnessAuthResult_Success_DEFAULT *NodeDaemonQueryResponse
+
+func (p *PaxManagerAPINodeHarnessAuthResult) GetSuccess() (v *NodeDaemonQueryResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPINodeHarnessAuthResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPINodeHarnessAuthResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPINodeHarnessAuthResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPINodeHarnessAuthResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPINodeHarnessAuthResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeHarnessAuthResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNodeDaemonQueryResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPINodeHarnessAuthResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NodeHarnessAuth_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeHarnessAuthResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeHarnessAuthResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPINodeHarnessAuthResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetNodeHarnessAuthArgs struct {
+	Request *GetNodeHarnessAuthRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIGetNodeHarnessAuthArgs() *PaxManagerAPIGetNodeHarnessAuthArgs {
+	return &PaxManagerAPIGetNodeHarnessAuthArgs{}
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthArgs) InitDefault() {
+}
+
+var PaxManagerAPIGetNodeHarnessAuthArgs_Request_DEFAULT *GetNodeHarnessAuthRequest
+
+func (p *PaxManagerAPIGetNodeHarnessAuthArgs) GetRequest() (v *GetNodeHarnessAuthRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIGetNodeHarnessAuthArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIGetNodeHarnessAuthArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetNodeHarnessAuthArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewGetNodeHarnessAuthRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetNodeHarnessAuth_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetNodeHarnessAuthArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetNodeHarnessAuthResult struct {
+	Success *NodeDaemonQueryResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIGetNodeHarnessAuthResult() *PaxManagerAPIGetNodeHarnessAuthResult {
+	return &PaxManagerAPIGetNodeHarnessAuthResult{}
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthResult) InitDefault() {
+}
+
+var PaxManagerAPIGetNodeHarnessAuthResult_Success_DEFAULT *NodeDaemonQueryResponse
+
+func (p *PaxManagerAPIGetNodeHarnessAuthResult) GetSuccess() (v *NodeDaemonQueryResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIGetNodeHarnessAuthResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIGetNodeHarnessAuthResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetNodeHarnessAuthResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNodeDaemonQueryResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetNodeHarnessAuth_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessAuthResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetNodeHarnessAuthResult(%+v)", *p)
 
 }

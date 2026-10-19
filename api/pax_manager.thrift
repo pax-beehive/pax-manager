@@ -1373,6 +1373,32 @@ struct CancelNodeDaemonMaintenanceRequest {
   4: optional string command_id
 }
 
+struct NodeHarnessAuthRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string command_id
+  4: optional string harness
+  5: optional string operation
+  6: optional string action
+  7: optional string provider
+  8: optional string profile
+  9: optional string method
+  10: optional bool secret_stdin
+  11: optional string session_id
+  12: optional string prompt_id
+  13: optional string code
+}
+
+struct GetNodeHarnessAuthRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string harness (api.query = "harness")
+  4: optional string session_id (api.query = "session_id")
+  5: optional string command_id (api.query = "command_id")
+  6: optional string provider (api.query = "provider")
+  7: optional string operation (api.query = "operation")
+}
+
 service PaxManagerAPI {
   NodeIdentityResponse GetNodeIdentity(1: optional EmptyRequest request) (
     api.get = "/api/v1/node/identity",
@@ -2316,4 +2342,31 @@ service PaxManagerAPI {
     openapi.path.user_id = "User identifier.",
     openapi.path.grant_id = "Approval grant identifier."
   )
+
+  NodeDaemonQueryResponse NodeHarnessAuth(
+    1: optional NodeHarnessAuthRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/harness/auth",
+    openapi.tag = "user",
+    openapi.summary = "Start, submit or cancel an ephemeral harness authentication attempt",
+    openapi.description = "Forwards authentication to paxd and paxl. Inputs and challenges are not persisted in the command journal. Recover a lost acknowledgement using the start command id.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonQueryResponse GetNodeHarnessAuth(
+    1: optional GetNodeHarnessAuthRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/nodes/:node_id/harness/auth",
+    openapi.tag = "user",
+    openapi.summary = "Read native authentication methods, status or an owned attempt",
+    openapi.description = "Authenticated node control query. Session id or command id recovers an existing attempt without starting a new login. All responses must be treated as sensitive ephemeral data.",
+    openapi.status = "200",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
 }

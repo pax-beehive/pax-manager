@@ -1413,6 +1413,32 @@
         },
         "type": "object"
       },
+      "GetNodeHarnessAuthRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "GetNodeRequest": {
         "properties": {
           "node_id": {
@@ -2146,6 +2172,50 @@
             "type": "object"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NodeHarnessAuthRequest": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "command_id": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "prompt_id": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "secret_stdin": {
+            "type": "boolean"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "user_id": {
             "type": "string"
           }
         },
@@ -10213,6 +10283,216 @@
           }
         ],
         "summary": "Upgrade node daemon",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/harness/auth": {
+      "get": {
+        "description": "Authenticated node control query. Session id or command id recovers an existing attempt without starting a new login. All responses must be treated as sensitive ephemeral data.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetNodeHarnessAuthRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonQueryResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Read native authentication methods, status or an owned attempt",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "description": "Forwards authentication to paxd and paxl. Inputs and challenges are not persisted in the command journal. Recover a lost acknowledgement using the start command id.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeHarnessAuthRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonQueryResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Start, submit or cancel an ephemeral harness authentication attempt",
         "tags": [
           "user"
         ]

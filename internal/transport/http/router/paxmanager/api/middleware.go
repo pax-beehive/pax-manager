@@ -741,3 +741,13 @@ func _listnodedaemondirectoriesMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _getnodeharnessauthMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _nodeharnessauthMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
