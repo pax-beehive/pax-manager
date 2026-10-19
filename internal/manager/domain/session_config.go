@@ -45,8 +45,8 @@ type SessionModel struct {
 }
 
 // SessionLegacyModels preserves the never-stabilized models response used by
-// older agents. It is intentionally read-only; ACP config options are the
-// standard model-selection mechanism.
+// older agents. When no standard model option is advertised, the Manager
+// exposes this catalog through a compatibility selector using session/set_model.
 type SessionLegacyModels struct {
 	CurrentModelID string         `json:"current_model_id,omitempty"`
 	Available      []SessionModel `json:"available,omitempty"`

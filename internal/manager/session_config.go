@@ -285,6 +285,9 @@ type sessionConfigResponse struct {
 
 func sessionConfigAPIResponse(session domain.AgentSession) sessionConfigResponse {
 	options := session.ACPConfig.Options
+	if model := legacySessionModelOption(session.ACPConfig); model != nil {
+		options = append(append([]domain.SessionConfigOption{}, options...), *model)
+	}
 	if options == nil {
 		options = make([]domain.SessionConfigOption, 0)
 	}
@@ -424,6 +427,9 @@ func sessionConfigOptionByID(
 			return option
 		}
 	}
+	if id == "model" {
+		return legacySessionModelOption(config)
+	}
 	return nil
 }
 
@@ -521,6 +527,30 @@ func (s *Service) applySessionConfigOption(
 		agentConn:        agentConn,
 		managerSessionID: session.SessionID,
 	}
+	config, err := s.requestSessionConfigOption(ctx, &runner, session, option, value)
+	if err != nil {
+		return sessionConfigResponse{}, err
+	}
+	if err := s.store.UpdateSessionACPConfig(ctx, session.AgentID, session.SessionID, config); err != nil {
+		return sessionConfigResponse{}, err
+	}
+	session.ACPConfig = config
+	if model := sessionConfigCurrentModel(config); model != "" {
+		session.Model = model
+	}
+	return sessionConfigAPIResponse(session), nil
+}
+
+func (s *Service) requestSessionConfigOption(
+	ctx context.Context,
+	runner *conversationRunner,
+	session domain.AgentSession,
+	option domain.SessionConfigOption,
+	value any,
+) (domain.SessionACPConfig, error) {
+	if option.ID == "model" && legacySessionModelOption(session.ACPConfig) != nil {
+		return s.requestLegacySessionModel(ctx, runner, session.ACPConfig, value)
+	}
 	params := map[string]any{
 		"sessionId": session.SessionID,
 		"configId":  option.ID,
@@ -533,7 +563,7 @@ func (s *Service) applySessionConfigOption(
 	}
 	response, err := runner.request(ctx, "session/set_config_option", params, nil)
 	if err != nil {
-		return sessionConfigResponse{}, err
+		return domain.SessionACPConfig{}, err
 	}
 	config, found := parseSessionACPConfig(
 		response.Result,
@@ -541,19 +571,12 @@ func (s *Service) applySessionConfigOption(
 		s.clock().UTC(),
 	)
 	if !found {
-		return sessionConfigResponse{}, apperr.Error{
+		return domain.SessionACPConfig{}, apperr.Error{
 			Status:  http.StatusBadGateway,
 			Message: "ACP session/set_config_option did not return a complete config snapshot",
 		}
 	}
-	if err := s.store.UpdateSessionACPConfig(ctx, session.AgentID, session.SessionID, config); err != nil {
-		return sessionConfigResponse{}, err
-	}
-	session.ACPConfig = config
-	if model := sessionConfigCurrentModel(config); model != "" {
-		session.Model = model
-	}
-	return sessionConfigAPIResponse(session), nil
+	return config, nil
 }
 
 func sessionConfigCurrentModel(config domain.SessionACPConfig) string {

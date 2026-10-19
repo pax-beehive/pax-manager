@@ -54,6 +54,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 040 | partial | [Direct regional account directory](040-direct-regional-account-directory.md) | high | gateway / identity / Console |
 
+| 041 | resolved | [Legacy ACP model catalogs cannot be changed](041-legacy-model-selection.md) | medium | session / userapi / Console |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
