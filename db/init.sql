@@ -2026,3 +2026,19 @@ CREATE TABLE IF NOT EXISTS session_turn_queue (
     FOREIGN KEY (agent_id, session_id) REFERENCES agent_sessions(agent_id, session_id)
         ON DELETE CASCADE
 );
+
+-- Notification receiver registry.
+CREATE TABLE IF NOT EXISTS notification_receivers (
+    receiver_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    device_label TEXT NOT NULL,
+    enabled BOOLEAN NOT NULL,
+    expires_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    invalidated_at TIMESTAMPTZ,
+    record_json JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notification_receivers_owner
+    ON notification_receivers(owner_user_id, receiver_id);

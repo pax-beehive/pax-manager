@@ -56,6 +56,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 041 | resolved | [Legacy ACP model catalogs cannot be changed](041-legacy-model-selection.md) | medium | session / userapi / Console |
 
+| 042 | partial | [Turn completion notifications and subscription dashboard](042-turn-completion-notifications.md) | medium | notifications / storage / user API / Console |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
