@@ -69,6 +69,7 @@ type conversationSession struct {
 type conversationRunner struct {
 	service          *Service
 	agentConn        *ACPTunnelAgent
+	agentType        string
 	managerSessionID string
 	turnID           string
 }
@@ -182,6 +183,7 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 	runner := conversationRunner{
 		service:          s,
 		agentConn:        agentConn,
+		agentType:        agent.AgentType,
 		managerSessionID: session.managerID,
 	}
 	if session.nativeID == "" {
@@ -506,6 +508,7 @@ func (s *Service) createConversationSession(
 			"cwd": cwd,
 			"mcpServers": agentConversationMCPServers(domain.AgentSession{
 				AgentID:   runner.agentConn.agentID,
+				AgentType: runner.agentType,
 				SessionID: managerSessionID,
 			}),
 		},
@@ -551,6 +554,7 @@ func (s *Service) createConversationSession(
 	if _, err := s.store.CreateNodeAgentSession(ctx, principal, domain.CreateSessionRequest{
 		NodeID:           runner.agentConn.nodeID,
 		AgentID:          runner.agentConn.agentID,
+		AgentType:        runner.agentType,
 		SessionID:        managerSessionID,
 		Source:           domain.MessageSourceACPTunnel,
 		PrimaryProjectID: req.PrimaryProjectID,

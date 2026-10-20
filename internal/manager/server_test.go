@@ -5413,8 +5413,17 @@ func testUserPrincipal(t *testing.T, srv *Server, userEmail string) domain.UserP
 	return principal
 }
 
-func testNodeAgent(t *testing.T, srv *Server, userEmail string) conversationTestFixture {
+func testNodeAgent(
+	t *testing.T,
+	srv *Server,
+	userEmail string,
+	agentTypes ...string,
+) conversationTestFixture {
 	t.Helper()
+	agentType := "hermes"
+	if len(agentTypes) > 0 {
+		agentType = agentTypes[0]
+	}
 	tokenReq := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/user/self/node-registration-tokens",
@@ -5448,7 +5457,7 @@ func testNodeAgent(t *testing.T, srv *Server, userEmail string) conversationTest
 	createAgentReq := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/user/self/nodes/"+registeredNode.NodeID+"/agents",
-		bytes.NewReader([]byte(`{"name":"hermes-a","agent_type":"hermes"}`)),
+		bytes.NewReader([]byte(fmt.Sprintf(`{"name":"hermes-a","agent_type":%q}`, agentType))),
 	)
 	createAgentReq.Header.Set("X-User-Email", userEmail)
 	setJSON(createAgentReq)
