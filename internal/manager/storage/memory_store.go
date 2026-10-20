@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+	"github.com/pax-beehive/pax-manager/internal/manager/notifications"
 )
 
 type MemoryStore struct {
+	notificationReceivers        map[string]notifications.RegistrationRecord
 	shortPairingAttempts         map[string]domain.ShortPairingAttempt
 	shortPairingBudgets          map[string]shortPairingBudget
 	turnQueue                    map[string]domain.QueuedTurn

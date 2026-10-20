@@ -1,3 +1,7 @@
 /manager
 /mockagent
 coverage.out
+/workers/region-directory/node_modules
+/workers/region-directory/dist/
+/workers/region-directory/coverage/
+/workers/region-directory/.wrangler/

@@ -11,6 +11,10 @@ import { releaseHealth } from "./release-health";
 import { approvePaxlLogin } from "./paxl-login";
 import { customerAnalytics, customerAnalyticsPath } from "./customer-analytics";
 import {
+  notificationSubscriptions,
+  notificationSubscriptionsPath,
+} from "./notification-subscriptions";
+import {
   assign,
   lookup,
   lookupUser,
@@ -223,6 +227,8 @@ export function createWorker(
       if (login) return approvePaxlLogin(request, env, identity, deps.lookup);
       if (path === customerAnalyticsPath)
         return customerAnalytics(request, env);
+      if (path === notificationSubscriptionsPath)
+        return notificationSubscriptions(request, env);
       if (!bootstrap) {
         try {
           if (probe) return await probeOrigin(request, env, probe[1] as Region);

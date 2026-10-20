@@ -85,4 +85,9 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/user/:user_id/approvals/:approval_id/decision", DecideUserApproval)
 	h.GET("/api/v1/user/:user_id/approval-grants", ListUserApprovalGrants)
 	h.POST("/api/v1/user/:user_id/approval-grants/:grant_id/revoke", RevokeUserApprovalGrant)
+	h.GET("/api/v1/user/self/notification-subscriptions", ListNotificationSubscriptions)
+	h.GET("/api/v1/user/self/notifications/receivers", ListNotificationReceivers)
+	h.GET("/api/v1/user/self/notifications/config", GetNotificationConfiguration)
+	h.PUT("/api/v1/user/self/notifications/receivers/web-push", RegisterNotificationReceiver)
+	h.DELETE("/api/v1/user/self/notifications/receivers/:receiver_id", RevokeNotificationReceiver)
 }

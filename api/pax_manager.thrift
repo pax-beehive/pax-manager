@@ -1373,6 +1373,37 @@ struct CancelNodeDaemonMaintenanceRequest {
   4: optional string command_id
 }
 
+struct NotificationSubscriptionsRequest {
+  1: optional string search (api.query = "search")
+  2: optional string user_id (api.query = "user_id")
+  3: optional string status (api.query = "status")
+  4: optional string channel (api.query = "channel")
+  5: optional string after (api.query = "after")
+  6: optional i32 limit (api.query = "limit")
+  7: optional string after_us (api.query = "after_us")
+  8: optional string after_hk (api.query = "after_hk")
+  9: optional string after_local (api.query = "after_local")
+}
+
+struct RegisterNotificationReceiverRequest {
+  1: optional JSON subscription
+  2: optional string device_label
+  3: optional string vapid_key_id
+  4: optional string permission
+  5: optional bool enabled
+  6: optional string expires_at
+}
+
+struct RevokeNotificationReceiverRequest {
+  1: optional string receiver_id (api.path = "receiver_id")
+}
+
+struct NotificationResponse {
+  1: optional i32 code
+  2: optional string message
+  3: optional JSON data
+}
+
 service PaxManagerAPI {
   NodeIdentityResponse GetNodeIdentity(1: optional EmptyRequest request) (
     api.get = "/api/v1/node/identity",
@@ -2315,5 +2346,43 @@ service PaxManagerAPI {
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.grant_id = "Approval grant identifier."
+  )
+
+  NotificationResponse ListNotificationSubscriptions(1: optional NotificationSubscriptionsRequest request) (
+    api.get = "/api/v1/user/self/notification-subscriptions",
+    openapi.tag = "user",
+    openapi.summary = "List administrator-only notification subscription metadata",
+    openapi.description = "Requires current administrator authorization. Returns regional receiver metadata, matching status totals, and per-region pagination. Never returns endpoints or encryption keys. Provider acceptance is not device display.",
+    openapi.security = "cloudflareAccess"
+  )
+
+  NotificationResponse ListNotificationReceivers(1: optional NotificationSubscriptionsRequest request) (
+    api.get = "/api/v1/user/self/notifications/receivers",
+    openapi.tag = "user",
+    openapi.summary = "List the authenticated user's notification receivers",
+    openapi.security = "cloudflareAccess"
+  )
+
+  NotificationResponse GetNotificationConfiguration(1: optional EmptyRequest request) (
+    api.get = "/api/v1/user/self/notifications/config",
+    openapi.tag = "user",
+    openapi.summary = "Read public Web Push registration configuration",
+    openapi.security = "cloudflareAccess"
+  )
+
+  NotificationResponse RegisterNotificationReceiver(1: optional RegisterNotificationReceiverRequest request) (
+    api.put = "/api/v1/user/self/notifications/receivers/web-push",
+    openapi.tag = "user",
+    openapi.summary = "Idempotently register a receiver for the authenticated user",
+    openapi.description = "Owner is derived from authentication. Validates subscription keys and enforces receiver limits. A receiver bound to another account is rejected.",
+    openapi.security = "cloudflareAccess"
+  )
+
+  NotificationResponse RevokeNotificationReceiver(1: optional RevokeNotificationReceiverRequest request) (
+    api.delete = "/api/v1/user/self/notifications/receivers/:receiver_id",
+    openapi.tag = "user",
+    openapi.summary = "Revoke an owned receiver and erase its subscription secrets",
+    openapi.security = "cloudflareAccess",
+    openapi.path.receiver_id = "Receiver identifier."
   )
 }
