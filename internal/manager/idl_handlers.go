@@ -181,6 +181,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"PullNodeAgentSessionMailbox":   PullNodeAgentSessionMailbox,
 	"PullNodeMailbox":               PullNodeMailbox,
 	"RegisterNode":                  RegisterNode,
+	"RegisterNodeSession":           RegisterNodeSession,
 	"RegisterNodeAgent":             RegisterNodeAgent,
 	"ReportNodeMessageResult":       ReportNodeMessageResult,
 	"ReportNodeStatus":              ReportNodeStatus,

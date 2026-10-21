@@ -6,6 +6,7 @@ import (
 	context "context"
 
 	auth "github.com/pax-beehive/pax-manager/internal/manager/auth"
+
 	mock "github.com/stretchr/testify/mock"
 )
 

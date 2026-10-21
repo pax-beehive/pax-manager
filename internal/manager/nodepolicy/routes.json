@@ -56,6 +56,14 @@
     "caller": "paxd session reporter"
   },
   {
+    "method": "POST",
+    "path": "/api/v1/node/agents/:agent_id/sessions/register",
+    "auth": "node-key",
+    "owner_boundary": "Authenticated node and node-owned agent",
+    "rate_class": "status",
+    "caller": "paxd local session service"
+  },
+  {
     "method": "GET",
     "path": "/api/v1/node/mailbox",
     "auth": "node-key",

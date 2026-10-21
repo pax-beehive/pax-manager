@@ -791,3 +791,8 @@ func _testnotificationreceiverMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _registernodesessionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
