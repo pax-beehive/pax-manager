@@ -766,6 +766,10 @@ func (s *Service) initializeAgentConversationSession(
 }
 
 func agentConversationMCPServers(session domain.AgentSession) []any {
+	// OpenClaw's ACP bridge only accepts MCP configured on its Gateway or agent.
+	if strings.EqualFold(strings.TrimSpace(session.AgentType), "openclaw") {
+		return []any{}
+	}
 	env := []map[string]string{
 		{"name": "PAX_AGENT_ID", "value": session.AgentID},
 		{"name": "PAX_SESSION_ID", "value": session.SessionID},
