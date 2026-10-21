@@ -95,6 +95,15 @@ func TestTurnNotificationGivenDisconnectedBrowserAndStorageRetryThenSendsFromDur
 			"turn_id":            "turn-notify",
 		},
 	}
+	reply := frame
+	reply.Payload = json.RawMessage(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Final reply preview."}}}}`,
+	)
+	require.NoError(
+		t,
+		agent.dispatchReliableACPFrame(t.Context(), srv.agentACPFramePipeline(), reply),
+	)
+	frame.Key.Seq++
 	store.fail = true
 	require.ErrorContains(
 		t,
@@ -131,8 +140,9 @@ func TestTurnNotificationGivenDisconnectedBrowserAndStorageRetryThenSendsFromDur
 	require.NoError(t, worker.Drain(t.Context()))
 	require.Len(t, sender.payloads, 1)
 	assert.Equal(t, "turn.completed", sender.payloads[0].Type)
-	assert.Contains(t, sender.payloads[0].URL, "/sessions/notify-session?")
+	assert.Equal(t, "/?session_id=notify-session", sender.payloads[0].URL)
 	assert.NotContains(t, sender.payloads[0].Body, "private prompt")
+	assert.Equal(t, "Final reply preview.", sender.payloads[0].Body)
 	// A delayed inbox replay retains its original receipt time and cannot target
 	// a receiver that was registered after that terminal response arrived.
 	require.NoError(

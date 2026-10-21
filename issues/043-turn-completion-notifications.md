@@ -53,10 +53,20 @@ rechecks current session ownership. Config reports automatic availability when
 the sender is ready. Console shows the supported standard-session scope and uses
 a dedicated transparent PAX badge for Android's status bar.
 
+Delivery 4 is merged and the owner confirmed a real turn notification arrives.
+The follow-up snapshots a bounded preview of the latest visible assistant reply
+in the completed turn, excluding prompts, thoughts, tool output and other
+identities. The companion Console displays that preview and recovers notification
+click navigation when the selected window cannot be reused. Coverage includes
+PostgreSQL isolation, absent replies, Unicode limits, rollback/retry and the
+actual disconnected-browser ACP projection with flushed reply text.
+The notification target follows Home's canonical `/?session_id={encoded_id}`
+route. The worker converts older `/sessions/{id}` targets to the same Home view.
+
 Encrypted-session terminal signaling, retention/operational checks and final
-real-turn/device release acceptance remain open. The Console explicitly states
-that automatic alerts do not yet cover encrypted sessions. This PR is not a
-production deployment and does not claim OS display for an actual completed turn.
+notification-click device acceptance remain open. The Console explicitly states
+that automatic alerts do not yet cover encrypted sessions. This follow-up is
+not a production deployment.
 
 This file uses issue 043, matching the existing index; issue 042 belongs to the
 independent OpenClaw per-session MCP fix.

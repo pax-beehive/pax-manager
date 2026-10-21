@@ -108,7 +108,7 @@ func TestTurnCompletionGivenValidEventWhenBuiltThenIdentityIsStableAndPayloadIsM
 	assert.Equal(t, notification.ID, notification.Payload.NotificationID)
 	assert.Equal(
 		t,
-		"/sessions/session_one?agentId=agent_one&nodeId=node_one",
+		"/?session_id=session_one",
 		notification.Payload.URL,
 	)
 
@@ -155,9 +155,31 @@ func TestTurnCompletionGivenSpecialIDsWhenBuiltThenDeepLinkCannotEscapeSession(t
 	require.NoError(t, err)
 	assert.Empty(t, link.Host)
 	assert.Empty(t, link.Fragment)
-	assert.Equal(t, "/sessions/"+url.PathEscape(event.SessionID), link.EscapedPath())
-	assert.Equal(t, event.AgentID, link.Query().Get("agentId"))
-	assert.Equal(t, event.NodeID, link.Query().Get("nodeId"))
+	assert.Equal(t, "/", link.Path)
+	assert.Equal(t, event.SessionID, link.Query().Get("session_id"))
+	assert.Len(t, link.Query(), 1)
+}
+
+func TestTurnCompletionGivenReplyPreviewThenBodyIsBoundedAndIdentityUnchanged(t *testing.T) {
+	base, err := BuildTurnNotification(testCompletion())
+	require.NoError(t, err)
+	for _, scenario := range []struct{ name, preview, want string }{
+		{"empty", "", "Your turn has finished."},
+		{"controls", " \n\x00\t ", "Your turn has finished."},
+		{"single line", "Done.\n\tAll checks passed.\x00", "Done. All checks passed."},
+		{"unicode", strings.Repeat("\U0001f600", 250), strings.Repeat("\U0001f600", 199) + "\u2026"},
+		{"exact limit", strings.Repeat("a", 200), strings.Repeat("a", 200)},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			event := testCompletion()
+			event.ReplyPreview = scenario.preview
+			got, err := BuildTurnNotification(event)
+			require.NoError(t, err)
+			assert.Equal(t, scenario.want, got.Payload.Body)
+			assert.Equal(t, base.ID, got.ID)
+			assert.Equal(t, base.Payload.URL, got.Payload.URL)
+		})
+	}
 }
 
 func TestTurnCompletionGivenInvalidIdentityWhenBuiltThenRejected(t *testing.T) {
