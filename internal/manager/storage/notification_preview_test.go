@@ -84,7 +84,7 @@ func TestTurnNotificationGivenHistoryThenPreviewsOnlyLatestReplyInCompletedTurn(
 			require.NoError(t, err)
 			require.Len(t, jobs, 1)
 			assert.Equal(t, "Final reply with a preview.", jobs[0].Payload.Body)
-			assert.Equal(t, "/sessions/session?agentId=agent&nodeId=node", jobs[0].Payload.URL)
+			assert.Equal(t, "/?session_id=session", jobs[0].Payload.URL)
 		})
 	}
 }

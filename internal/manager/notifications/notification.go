@@ -56,14 +56,14 @@ func BuildTurnNotification(event TurnCompletion) (Notification, error) {
 		return Notification{}, ErrInvalidCompletion
 	}
 	id := stableID("ntf_", event.UserID, event.AgentID, event.SessionID, event.TurnID)
-	query := url.Values{"agentId": {event.AgentID}, "nodeId": {event.NodeID}}
+	query := url.Values{"session_id": {event.SessionID}}
 	return Notification{
 		ID: id, UserID: event.UserID,
 		ExpiresAt: event.CompletedAt.UTC().Add(NotificationTTL),
 		Payload: Payload{
 			Version: 1, NotificationID: id, Type: "turn.completed",
 			Title: "Pax Workspace", Body: turnNotificationBody(event.ReplyPreview),
-			URL: "/sessions/" + url.PathEscape(event.SessionID) + "?" + query.Encode(),
+			URL: "/?" + query.Encode(),
 			Tag: id,
 		},
 	}, nil

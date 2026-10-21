@@ -60,6 +60,8 @@ identities. The companion Console displays that preview and recovers notificatio
 click navigation when the selected window cannot be reused. Coverage includes
 PostgreSQL isolation, absent replies, Unicode limits, rollback/retry and the
 actual disconnected-browser ACP projection with flushed reply text.
+The notification target follows Home's canonical `/?session_id={encoded_id}`
+route. The worker converts older `/sessions/{id}` targets to the same Home view.
 
 Encrypted-session terminal signaling, retention/operational checks and final
 notification-click device acceptance remain open. The Console explicitly states

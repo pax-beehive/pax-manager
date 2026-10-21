@@ -36,6 +36,9 @@ so retries cannot replace it with later content. The OS may display this preview
 on its notification surfaces. The administrator dashboard still omits payloads.
 The payload includes an opaque notification ID and a relative session link;
 the authorized session API remains the source of full results.
+Notification links use the canonical Home route `/?session_id={encoded_id}`.
+Home resolves the session's node/agent and loads the embedded workbench. The
+worker also normalizes older `/sessions/{id}` notification links to Home.
 
 ## Verified integration points
 
@@ -53,8 +56,9 @@ the authorized session API remains the source of full results.
   completion and must not trigger a notification.
 - `pax-console/src/app/api/pax/[...path]/route.ts`: browser REST goes through the
   existing same-origin authenticated proxy and regional routing.
-- `pax-console/src/app/sessions/[sessionId]/page.tsx`: the current session route
-  accepts `agentId` and `nodeId` query parameters.
+- `pax-console/src/components/home/fleet-overview.tsx`: the canonical product
+  entry is `/?session_id={encoded_id}` and resolves the selected session into
+  the Home workbench. Notifications follow the same route as Home session links.
 - E2EE events and history are opaque to the Manager. An encrypted `turn_done`
   written by paxd is not a Manager-readable completion event.
 - The newer Console `origin/main` contains `/admin/customers`,

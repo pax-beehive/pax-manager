@@ -108,7 +108,7 @@ func TestTurnCompletionGivenValidEventWhenBuiltThenIdentityIsStableAndPayloadIsM
 	assert.Equal(t, notification.ID, notification.Payload.NotificationID)
 	assert.Equal(
 		t,
-		"/sessions/session_one?agentId=agent_one&nodeId=node_one",
+		"/?session_id=session_one",
 		notification.Payload.URL,
 	)
 
@@ -155,9 +155,9 @@ func TestTurnCompletionGivenSpecialIDsWhenBuiltThenDeepLinkCannotEscapeSession(t
 	require.NoError(t, err)
 	assert.Empty(t, link.Host)
 	assert.Empty(t, link.Fragment)
-	assert.Equal(t, "/sessions/"+url.PathEscape(event.SessionID), link.EscapedPath())
-	assert.Equal(t, event.AgentID, link.Query().Get("agentId"))
-	assert.Equal(t, event.NodeID, link.Query().Get("nodeId"))
+	assert.Equal(t, "/", link.Path)
+	assert.Equal(t, event.SessionID, link.Query().Get("session_id"))
+	assert.Len(t, link.Query(), 1)
 }
 
 func TestTurnCompletionGivenReplyPreviewThenBodyIsBoundedAndIdentityUnchanged(t *testing.T) {

@@ -419,7 +419,7 @@ func TestTurnNotificationGivenDurableNormalCompletionThenFansOutOnceWithoutABrow
 			for _, job := range jobs {
 				assert.Equal(t, owner, job.UserID)
 				assert.Equal(t, "turn.completed", job.Payload.Type)
-				assert.Equal(t, "/sessions/session?agentId=agent&nodeId=node", job.Payload.URL)
+				assert.Equal(t, "/?session_id=session", job.Payload.URL)
 				assert.NotContains(t, job.Payload.Body, "private")
 				require.NoError(
 					t,

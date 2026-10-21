@@ -140,7 +140,7 @@ func TestTurnNotificationGivenDisconnectedBrowserAndStorageRetryThenSendsFromDur
 	require.NoError(t, worker.Drain(t.Context()))
 	require.Len(t, sender.payloads, 1)
 	assert.Equal(t, "turn.completed", sender.payloads[0].Type)
-	assert.Contains(t, sender.payloads[0].URL, "/sessions/notify-session?")
+	assert.Equal(t, "/?session_id=notify-session", sender.payloads[0].URL)
 	assert.NotContains(t, sender.payloads[0].Body, "private prompt")
 	assert.Equal(t, "Final reply preview.", sender.payloads[0].Body)
 	// A delayed inbox replay retains its original receipt time and cannot target
