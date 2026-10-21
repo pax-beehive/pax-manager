@@ -1,9 +1,8 @@
 # Turn completion notifications
 
-Status: deliveries 1-3 are merged. The owner confirmed test pushes arrive after
-the backed-up VAPID bundle was configured in both regional Managers. Standard
-session completion integration is implemented on `codex/turn-completion-push`.
-Encrypted-session completion and final real-turn/device acceptance remain open.
+Status: deliveries 1-4 for standard sessions are merged. The owner confirmed a
+real turn notification arrives. The current follow-up adds reply previews and
+repairs Console click recovery. Encrypted-session completion remains open.
 
 Scope update, 2026-10-19: include an administrator dashboard for all notification
 subscriptions alongside the existing Customers dashboard. Deliver its registry
@@ -26,9 +25,17 @@ for each normally completed turn on every enabled receiver. Do not add presence
 tracking or an unreliable background-only promise. Cancellation, failure, and
 approval reminders are separate event types and are not emitted as completion.
 
-Notifications use a generic title/body without prompts, replies, cwd, or session
-names. The payload includes an opaque notification ID and a relative session
-link. The existing authorized session API remains the source of actual results.
+Notifications use the Pax Workspace title and a short preview of the latest
+assistant reply in the completed standard turn, as requested by the owner.
+The preview is at most 200 Unicode code points, with whitespace normalized;
+missing reply text retains the generic completion body. Read at most 1024
+characters from the first text part of the latest visible reply segment before
+the terminal sequence. Exclude user prompts, thought chunks, tools, and other
+owners/nodes/agents/sessions/turns. Snapshot the preview in the atomic outbox task
+so retries cannot replace it with later content. The OS may display this preview
+on its notification surfaces. The administrator dashboard still omits payloads.
+The payload includes an opaque notification ID and a relative session link;
+the authorized session API remains the source of full results.
 
 ## Verified integration points
 
@@ -259,9 +266,10 @@ view. Paginated rows and summary counts must use matching filter semantics.
    the remaining TTL so provider queuing cannot extend notification lifetime.
 6. Record provider acceptance, terminal failure, expiration, or next retry.
    An expired lease can be reclaimed; updates require the lease token.
-7. Service worker displays the generic notification using the stable ID as
-   `tag` and `renotify: false`. A click focuses/navigates an existing Console
-   window or opens the validated same-origin session link. Session authorization
+7. Service worker displays the bounded reply preview using the stable ID as
+   `tag` and `renotify: false`. A click prefers the exact session window and
+   focuses it before any navigation. A closed, embedded, or non-navigable client
+   does not block opening the validated same-origin session link. Session authorization
    runs again after navigation; no credentials are placed in the push payload.
 
 An uncertain send can be retried after the provider already accepted it. The
@@ -370,9 +378,10 @@ standard-session terminal history, the completion ledger and receiver fanout in
 one transaction. Reliable storage failures retry independently of browser sockets;
 original inbox timestamps bound TTL and late registration. Sending rechecks current
 session ownership. E2EE terminal signaling remains unsupported and visible in the
-Console; no encrypted payload is inspected by Manager. Real-turn OS display after
-deployment is still owner acceptance. A pending task with zero attempts is not
-shown as attempted.
+Console; no encrypted payload is inspected by Manager. The owner confirmed
+real-turn OS display after deployment. The current preview/click follow-up still
+requires device acceptance after deployment. A pending task with zero attempts
+is not shown as attempted.
 
 ## Sources
 

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const NotificationTTL = time.Hour
@@ -17,12 +18,13 @@ var ErrInvalidCompletion = errors.New("invalid turn completion")
 
 // TurnCompletion must come from an authenticated, durably recorded terminal turn.
 type TurnCompletion struct {
-	UserID      string
-	NodeID      string
-	AgentID     string
-	SessionID   string
-	TurnID      string
-	CompletedAt time.Time
+	UserID       string
+	NodeID       string
+	AgentID      string
+	SessionID    string
+	TurnID       string
+	CompletedAt  time.Time
+	ReplyPreview string
 }
 
 type Payload struct {
@@ -60,11 +62,25 @@ func BuildTurnNotification(event TurnCompletion) (Notification, error) {
 		ExpiresAt: event.CompletedAt.UTC().Add(NotificationTTL),
 		Payload: Payload{
 			Version: 1, NotificationID: id, Type: "turn.completed",
-			Title: "Pax Workspace", Body: "Your turn has finished.",
+			Title: "Pax Workspace", Body: turnNotificationBody(event.ReplyPreview),
 			URL: "/sessions/" + url.PathEscape(event.SessionID) + "?" + query.Encode(),
 			Tag: id,
 		},
 	}, nil
+}
+
+func turnNotificationBody(text string) string {
+	text = strings.Join(strings.FieldsFunc(text, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r)
+	}), " ")
+	if text == "" {
+		return "Your turn has finished."
+	}
+	runes := []rune(text)
+	if len(runes) > 200 {
+		return string(runes[:199]) + "\u2026"
+	}
+	return text
 }
 
 type Delivery struct {

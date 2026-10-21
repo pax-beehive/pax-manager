@@ -160,6 +160,28 @@ func TestTurnCompletionGivenSpecialIDsWhenBuiltThenDeepLinkCannotEscapeSession(t
 	assert.Equal(t, event.NodeID, link.Query().Get("nodeId"))
 }
 
+func TestTurnCompletionGivenReplyPreviewThenBodyIsBoundedAndIdentityUnchanged(t *testing.T) {
+	base, err := BuildTurnNotification(testCompletion())
+	require.NoError(t, err)
+	for _, scenario := range []struct{ name, preview, want string }{
+		{"empty", "", "Your turn has finished."},
+		{"controls", " \n\x00\t ", "Your turn has finished."},
+		{"single line", "Done.\n\tAll checks passed.\x00", "Done. All checks passed."},
+		{"unicode", strings.Repeat("\U0001f600", 250), strings.Repeat("\U0001f600", 199) + "\u2026"},
+		{"exact limit", strings.Repeat("a", 200), strings.Repeat("a", 200)},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			event := testCompletion()
+			event.ReplyPreview = scenario.preview
+			got, err := BuildTurnNotification(event)
+			require.NoError(t, err)
+			assert.Equal(t, scenario.want, got.Payload.Body)
+			assert.Equal(t, base.ID, got.ID)
+			assert.Equal(t, base.Payload.URL, got.Payload.URL)
+		})
+	}
+}
+
 func TestTurnCompletionGivenInvalidIdentityWhenBuiltThenRejected(t *testing.T) {
 	for _, field := range []string{"user", "node", "agent", "session", "turn", "time"} {
 		t.Run(field, func(t *testing.T) {

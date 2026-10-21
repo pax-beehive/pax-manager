@@ -62,10 +62,11 @@ func matchesCompletionPrompt(raw json.RawMessage, requestID string) bool {
 		string(bytes.TrimSpace(rpc.ID)) == requestID
 }
 
-func notificationForMessage(msg Message) (notifications.Notification, error) {
+func notificationForMessage(msg Message, preview string) (notifications.Notification, error) {
 	return notifications.BuildTurnNotification(notifications.TurnCompletion{
 		UserID: msg.OwnerUserID, NodeID: msg.NodeID, AgentID: msg.AgentID,
 		SessionID: msg.SessionID, TurnID: msg.TurnID, CompletedAt: msg.CreatedAt,
+		ReplyPreview: preview,
 	})
 }
 
@@ -118,7 +119,11 @@ func (s *PostgresStore) enqueueCompletedMessage(
 	if err != nil || !correlated {
 		return err
 	}
-	notification, err := notificationForMessage(msg)
+	preview, err := completionReplyPreview(ctx, tx, msg)
+	if err != nil {
+		return err
+	}
+	notification, err := notificationForMessage(msg, preview)
 	if err != nil {
 		return err
 	}
@@ -203,7 +208,7 @@ func (s *MemoryStore) enqueueCompletedMessageLocked(msg Message) {
 	if !correlated {
 		return
 	}
-	notification, err := notificationForMessage(msg)
+	notification, err := notificationForMessage(msg, s.completionReplyPreviewLocked(msg))
 	if err != nil {
 		return
 	}
