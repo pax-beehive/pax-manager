@@ -2021,6 +2021,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 	}
 	frame.nativeSessionID = frame.transportMetadata["native_session_id"]
 	frame.businessTurnID = frame.transportMetadata["turn_id"]
+	userWriteFailed := false
 	err := pipeline.Handle(ctx, frame, func(_ context.Context, frame *acpFrameContext) error {
 		if err := projectACPTransportMessageWithTextSinkForTurn(
 			ctx,
@@ -2039,6 +2040,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 			frame.managerSessionID,
 			frame.businessTurnID,
 			frame.payload,
+			reliableFrame.CreatedAt,
 		); err != nil {
 			return err
 		}
@@ -2096,7 +2098,9 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 		}
 		a.userWriteMu.Lock()
 		defer a.userWriteMu.Unlock()
-		return userWS.WriteMessage(frame.messageType, frame.payload)
+		err := userWS.WriteMessage(frame.messageType, frame.payload)
+		userWriteFailed = err != nil
+		return err
 	})
 	if frame.dropReason != "" {
 		logging.Warn(
@@ -2119,7 +2123,12 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 			logging.Err(err),
 		)
 	}
-	if err != nil && !frame.handled {
+	// Business writes must remain unapplied in the reliable inbox until retry.
+	// An absent browser or a failed browser socket does not block persistence.
+	if err != nil && !userWriteFailed {
+		return err
+	}
+	if userWriteFailed {
 		logging.Error(
 			ctx,
 			"agent acp tunnel failed to write user frame",

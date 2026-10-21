@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -135,6 +136,7 @@ func projectACPTransportMessageWithTextSinkForTurn(
 	fallbackSessionID string,
 	businessTurnID string,
 	payload json.RawMessage,
+	receivedAt ...time.Time,
 ) error {
 	if stream != domain.TransportStreamPaxdToManager {
 		return nil
@@ -225,6 +227,11 @@ func projectACPTransportMessageWithTextSinkForTurn(
 		TurnID:      fields.TurnID,
 		ResponseID:  fields.ResponseID,
 		LogicalKey:  logicalKey,
+	}
+	// Reliable inbox timestamps survive retries and process restarts. A replay
+	// must not extend the notification TTL or notify receivers registered later.
+	if fields.StopReason == "end_turn" && len(receivedAt) > 0 {
+		msg.CreatedAt = receivedAt[0]
 	}
 	rawPayload := cloneRawJSON(payload)
 	if mergeableToolCall {

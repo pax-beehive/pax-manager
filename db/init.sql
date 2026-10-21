@@ -2069,3 +2069,14 @@ CREATE INDEX IF NOT EXISTS idx_notification_deliveries_receiver
     ON notification_deliveries(receiver_id, updated_at DESC, delivery_id DESC);
 CREATE INDEX IF NOT EXISTS idx_notification_deliveries_owner_created
     ON notification_deliveries(owner_user_id, created_at DESC);
+
+-- The completion ledger and receiver fanout commit with terminal history.
+CREATE TABLE IF NOT EXISTS notification_completions (
+    notification_id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    completed_at TIMESTAMPTZ NOT NULL
+);

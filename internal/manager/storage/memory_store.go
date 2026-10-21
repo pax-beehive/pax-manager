@@ -15,6 +15,7 @@ import (
 )
 
 type MemoryStore struct {
+	notificationCompletions      map[string]notificationCompletionRow
 	notificationDeliveries       map[string]notificationDeliveryRow
 	notificationReceivers        map[string]notifications.RegistrationRecord
 	shortPairingAttempts         map[string]domain.ShortPairingAttempt

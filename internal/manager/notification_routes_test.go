@@ -98,6 +98,11 @@ func TestNotificationRoutesGivenRealAuthenticationThenGeneratedRoutesUseTheRegis
 	assert.Contains(t, response.Body.String(), "Pixel")
 	assert.NotContains(t, response.Body.String(), "fcm.googleapis.com")
 	svc.notificationSender = acceptedNotificationSender{}
+	configuration := decodeData[struct {
+		TurnCompletionEnabled bool `json:"turn_completion_enabled"`
+	}](t,
+		call("GET", userapi.NotificationConfigPath, "one@example.invalid", nil).Body.Bytes())
+	assert.True(t, configuration.TurnCompletionEnabled)
 	testPath := userapi.NotificationReceiversPath + "/" + notifications.ReceiverID(
 		input.Subscription.Endpoint,
 	) + "/test"

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"sort"
 	"time"
@@ -26,7 +27,10 @@ func (s *MemoryStore) EnqueueNotificationTest(
 		return notifications.DeliveryMetadata{}, err
 	}
 	for _, old := range s.notificationDeliveries {
-		if old.OwnerUserID == owner && old.CreatedAt.After(now.Add(-30*time.Second)) {
+		var payload notifications.Payload
+		_ = json.Unmarshal([]byte(old.PayloadJSON), &payload)
+		if old.OwnerUserID == owner && old.CreatedAt.After(now.Add(-30*time.Second)) &&
+			payload.Type == "notification.test" {
 			return notifications.DeliveryMetadata{}, notifications.ErrTestRateLimited
 		}
 	}

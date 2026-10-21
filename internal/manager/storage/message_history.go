@@ -18,12 +18,34 @@ func (s *PostgresStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	if msg.ConversationID == "" && msg.AgentID != "" && msg.SessionID != "" {
 		msg.ConversationID = s.messageConversationID(ctx, msg.AgentID, msg.SessionID)
 	}
+	if normalCompletionRPCID(*msg) == "" {
+		return s.upsertMessage(ctx, s.db, msg)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := s.upsertMessage(ctx, tx, msg); err != nil {
+		return err
+	}
+	if err := s.enqueueCompletedMessage(ctx, tx, *msg); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+type messageQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func (s *PostgresStore) upsertMessage(ctx context.Context, db messageQueryer, msg *Message) error {
 	now := s.now().UTC()
 	if msg.CreatedAt.IsZero() {
 		msg.CreatedAt = now
 	}
 	msg.UpdatedAt = now
-	row := s.db.QueryRowContext(ctx, `
+	row := db.QueryRowContext(ctx, `
 		WITH upserted AS (
 		INSERT INTO messages (
 			message_id, conversation_id, owner_user_id, node_id, agent_id, session_id, source, direction,
@@ -622,6 +644,7 @@ func (s *MemoryStore) UpsertMessage(ctx context.Context, msg *Message) error {
 	}
 	s.assignMessageSeqLocked(msg)
 	s.messages[msg.MessageID] = cloneMessage(*msg)
+	s.enqueueCompletedMessageLocked(*msg)
 	if msg.Direction == domain.MessageDirectionUserToAgent && msg.Role == "user" {
 		key := sessionKey(msg.AgentID, msg.SessionID)
 		if session, ok := s.sessions[key]; ok {

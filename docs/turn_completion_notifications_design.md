@@ -1,8 +1,9 @@
 # Turn completion notifications
 
-Status: deliveries 1-2 merged and deployed by the user. Delivery 3 is implemented
-on `codex/web-push-notifications`; actual installed-device acceptance is pending.
-Deliveries 4-5 remain open. No real provider/device push was sent by the agent.
+Status: deliveries 1-3 are merged. The owner confirmed test pushes arrive after
+the backed-up VAPID bundle was configured in both regional Managers. Standard
+session completion integration is implemented on `codex/turn-completion-push`.
+Encrypted-session completion and final real-turn/device acceptance remain open.
 
 Scope update, 2026-10-19: include an administrator dashboard for all notification
 subscriptions alongside the existing Customers dashboard. Deliver its registry
@@ -320,7 +321,9 @@ Subscription shape validation alone is not outbound request authorization.
 Keep automatic turn notifications disabled until deliveries 2-4 are complete
 and configured. Explicit device opt-in and manual test pushes are available in
 delivery 3 when both VAPID keys and the contact are configured. The public config
-keeps `turn_completion_enabled` false until the completion path is implemented.
+reports `turn_completion_enabled` once the standard-session completion path and
+sender are available. Console explicitly identifies encrypted sessions as
+unsupported; this flag does not claim encrypted-session completion support.
 Release backend before Console; incomplete/disabled backend config renders the
 UI unavailable without permission prompts. Disabling the feature stops task
 creation and sending. Expired jobs must not be replayed on re-enable.
@@ -361,11 +364,15 @@ performed. The following findings are incorporated, not deferred assumptions:
 Deliveries 1-2 are merged. Delivery 3 adds the durable test outbox and worker,
 VAPID sender with provider/dial restrictions, device opt-in controls, a push-only
 service worker, logout/reconciliation handling and actual attempt metadata.
-Browser QA uses explicit fictional permission/subscription fixtures; native OS
-display and installed TWA delivery still need real-device validation. Delivery 4
-still owns atomic normal-completion creation, disconnect/replay handling, and
-the E2EE terminal-signal release gate. Latest delivery remains absent until a
-real task exists; a pending task with zero attempts is not shown as attempted.
+Browser QA uses explicit fictional permission/subscription fixtures. The owner
+confirmed real test notifications arrive. Delivery 4 now commits correlated
+standard-session terminal history, the completion ledger and receiver fanout in
+one transaction. Reliable storage failures retry independently of browser sockets;
+original inbox timestamps bound TTL and late registration. Sending rechecks current
+session ownership. E2EE terminal signaling remains unsupported and visible in the
+Console; no encrypted payload is inspected by Manager. Real-turn OS display after
+deployment is still owner acceptance. A pending task with zero attempts is not
+shown as attempted.
 
 ## Sources
 

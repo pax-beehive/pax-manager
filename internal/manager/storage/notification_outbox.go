@@ -156,7 +156,7 @@ func (s *PostgresStore) EnqueueNotificationTest(
 			return err
 		}
 		var count int64
-		if err := tx.Model(&notificationDeliveryRow{}).Where("owner_user_id = ? AND created_at > ?", owner, now.Add(-30*time.Second)).Count(&count).Error; err != nil {
+		if err := tx.Model(&notificationDeliveryRow{}).Where("owner_user_id = ? AND created_at > ? AND payload_json ->> 'type' = ?", owner, now.Add(-30*time.Second), "notification.test").Count(&count).Error; err != nil {
 			return err
 		}
 		if count > 0 {
