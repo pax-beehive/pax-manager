@@ -27,6 +27,70 @@ func savePreviewText(t *testing.T, store completionHistoryWriter, msg Message, t
 	}))
 }
 
+func TestTurnNotificationGivenStreamedReplyThenPreviewsItsBeginningAcrossChunks(t *testing.T) {
+	for _, backend := range []string{"memory", "postgres"} {
+		for _, scenario := range []struct {
+			name     string
+			boundary string
+			chunks   []string
+			want     string
+		}{
+			{"contiguous chunks", "", []string{"The reply has ", "its own ", "quality bar."}, "The reply has its own quality bar."},
+			{"tool boundary", "tool_call_update", []string{"Final ", "response."}, "Final response."},
+			{"thought boundary", "agent_thought_chunk", []string{"Final ", "response."}, "Final response."},
+			{"bounded prefix", "", []string{strings.Repeat("a", 1100), "Tiny suffix."}, strings.Repeat("a", 199) + "\u2026"},
+		} {
+			t.Run(backend+"/"+scenario.name, func(t *testing.T) {
+				now := time.Now().UTC()
+				store, owner, _ := completionFixture(t, backend, func() time.Time { return now })
+				_, err := store.RegisterNotificationReceiver(
+					t.Context(),
+					owner,
+					notificationRegistration(t, "chunks"),
+				)
+				require.NoError(t, err)
+				saveCompletionPrompt(t, store, owner)
+				writer := store.(completionHistoryWriter)
+				base := Message{
+					OwnerUserID: owner, NodeID: "node", AgentID: "agent", SessionID: "session", TurnID: "turn",
+					Source: domain.MessageSourceACPTunnel, Direction: domain.MessageDirectionAgentToUser,
+					Role: "assistant", MessageType: "agent_message_chunk", RawJSON: json.RawMessage(`{"text_layout":"segment"}`),
+				}
+				if scenario.boundary != "" {
+					commentary := base
+					commentary.MessageID = "commentary"
+					savePreviewText(
+						t,
+						writer,
+						commentary,
+						"Earlier commentary must not be included. ",
+					)
+					boundary := base
+					boundary.MessageID = "boundary"
+					boundary.MessageType = scenario.boundary
+					savePreviewText(t, writer, boundary, "Private tool or thought text")
+				}
+				for i, text := range scenario.chunks {
+					chunk := base
+					chunk.MessageID = fmt.Sprintf("chunk-%d", i)
+					savePreviewText(t, writer, chunk, text)
+				}
+				terminal := completionMessage(
+					owner,
+					"terminal",
+					"end_turn",
+					json.RawMessage(`{"id":11,"result":{"stopReason":"end_turn"}}`),
+				)
+				require.NoError(t, writer.UpsertMessage(t.Context(), &terminal))
+				jobs, err := store.ClaimNotificationDeliveries(t.Context(), 10, time.Minute)
+				require.NoError(t, err)
+				require.Len(t, jobs, 1)
+				assert.Equal(t, scenario.want, jobs[0].Payload.Body)
+			})
+		}
+	}
+}
+
 func TestTurnNotificationGivenHistoryThenPreviewsOnlyLatestReplyInCompletedTurn(t *testing.T) {
 	for _, backend := range []string{"memory", "postgres"} {
 		t.Run(backend, func(t *testing.T) {

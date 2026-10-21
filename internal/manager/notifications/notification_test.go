@@ -101,6 +101,12 @@ func TestTurnCompletionGivenValidEventWhenBuiltThenIdentityIsStableAndPayloadIsM
 	event := testCompletion()
 	notification, err := BuildTurnNotification(event)
 	require.NoError(t, err)
+	// Console derives this v1 ID to dismiss an exact read turn on the local device.
+	assert.Equal(
+		t,
+		"ntf_c7d867a0e700d09be71a83529ee7c00cfcd98de06a3681edfe27794c3c0b7d7c",
+		notification.ID,
+	)
 	assert.Equal(t, event.UserID, notification.UserID)
 	assert.Equal(t, event.CompletedAt.Add(NotificationTTL), notification.ExpiresAt)
 	assert.Equal(t, "turn.completed", notification.Payload.Type)
@@ -143,6 +149,20 @@ func TestTurnCompletionGivenValidEventWhenBuiltThenIdentityIsStableAndPayloadIsM
 			assert.NotEqual(t, notification.ID, otherNotification.ID)
 		})
 	}
+}
+
+func TestTurnNotificationGivenEscapedIdentityThenMatchesConsoleV1ReadReceipt(t *testing.T) {
+	assert.Equal(
+		t,
+		"ntf_085f6bb6bb24524315402f7f042d19ef4a82e4b600c034f3099067feb40f6607",
+		stableID(
+			"ntf_",
+			"user<&>",
+			"agent\u2028line\u2029",
+			"\u4f1a\u8bdd/\"\\",
+			"turn\n\t\b\f\r\x00",
+		),
+	)
 }
 
 func TestTurnCompletionGivenSpecialIDsWhenBuiltThenDeepLinkCannotEscapeSession(t *testing.T) {

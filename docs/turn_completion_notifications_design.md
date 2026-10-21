@@ -29,13 +29,20 @@ Notifications use the Pax Workspace title and a short preview of the latest
 assistant reply in the completed standard turn, as requested by the owner.
 The preview is at most 200 Unicode code points, with whitespace normalized;
 missing reply text retains the generic completion body. Read at most 1024
-characters from the first text part of the latest visible reply segment before
-the terminal sequence. Exclude user prompts, thought chunks, tools, and other
+characters from the beginning of the latest visible reply segment before
+the terminal sequence. A segment can span consecutive `text_layout=segment`
+message rows after projector boundaries. Join their first text parts in sequence
+order, stopping at a sequence gap, different message kind or non-segment row.
+Legacy aggregate rows remain standalone. Do not mistake the last stream fragment
+for a full reply. Exclude user prompts, thought chunks, tools, and other
 owners/nodes/agents/sessions/turns. Snapshot the preview in the atomic outbox task
 so retries cannot replace it with later content. The OS may display this preview
 on its notification surfaces. The administrator dashboard still omits payloads.
 The payload includes an opaque notification ID and a relative session link;
 the authorized session API remains the source of full results.
+Console's local read-dismissal client mirrors the v1 stable notification ID
+(SHA256 of Go JSON `[user_id, agent_id, session_id, turn_id]`), with Go-generated
+compatibility vectors. Coordinate changes to this identity contract with Console.
 Notification links use the canonical Home route `/?session_id={encoded_id}`.
 Home resolves the session's node/agent and loads the embedded workbench. The
 worker also normalizes older `/sessions/{id}` notification links to Home.
