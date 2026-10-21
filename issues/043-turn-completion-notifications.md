@@ -63,6 +63,16 @@ actual disconnected-browser ACP projection with flushed reply text.
 The notification target follows Home's canonical `/?session_id={encoded_id}`
 route. The worker converts older `/sessions/{id}` targets to the same Home view.
 
+The streamed-preview follow-up reconstructs the last contiguous assistant text
+segment across adjacent segment rows before taking its bounded prefix. This
+fixes alerts containing only a final stream fragment. Legacy aggregate rows are
+unchanged, and gaps/tool/thought boundaries cannot pull earlier commentary or
+private output into the preview. Memory/PostgreSQL regression cases cover chunk
+joining, boundaries, prefix limits and the actual ACP projection/outbox path.
+The companion Console change dismisses an exact read turn on the current device
+after its durable final reply is visible, without cross-device read sync or a
+new Manager endpoint. The stable v1 notification identity remains unchanged.
+
 Encrypted-session terminal signaling, retention/operational checks and final
 notification-click device acceptance remain open. The Console explicitly states
 that automatic alerts do not yet cover encrypted sessions. This follow-up is

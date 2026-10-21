@@ -97,13 +97,23 @@ func TestTurnNotificationGivenDisconnectedBrowserAndStorageRetryThenSendsFromDur
 	}
 	reply := frame
 	reply.Payload = json.RawMessage(
-		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Final reply preview."}}}}`,
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Final reply preview has "}}}}`,
 	)
 	require.NoError(
 		t,
 		agent.dispatchReliableACPFrame(t.Context(), srv.agentACPFramePipeline(), reply),
 	)
-	frame.Key.Seq++
+	// A projector boundary can split one displayed reply into adjacent rows.
+	require.NoError(t, agent.flushHistoryTextBoundary(t.Context()))
+	reply.Key.Seq++
+	reply.Payload = json.RawMessage(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"its own quality bar."}}}}`,
+	)
+	require.NoError(
+		t,
+		agent.dispatchReliableACPFrame(t.Context(), srv.agentACPFramePipeline(), reply),
+	)
+	frame.Key.Seq = reply.Key.Seq + 1
 	store.fail = true
 	require.ErrorContains(
 		t,
@@ -142,7 +152,7 @@ func TestTurnNotificationGivenDisconnectedBrowserAndStorageRetryThenSendsFromDur
 	assert.Equal(t, "turn.completed", sender.payloads[0].Type)
 	assert.Equal(t, "/?session_id=notify-session", sender.payloads[0].URL)
 	assert.NotContains(t, sender.payloads[0].Body, "private prompt")
-	assert.Equal(t, "Final reply preview.", sender.payloads[0].Body)
+	assert.Equal(t, "Final reply preview has its own quality bar.", sender.payloads[0].Body)
 	// A delayed inbox replay retains its original receipt time and cannot target
 	// a receiver that was registered after that terminal response arrived.
 	require.NoError(
