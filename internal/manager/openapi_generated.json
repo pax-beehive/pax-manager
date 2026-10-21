@@ -2247,6 +2247,54 @@
         },
         "type": "object"
       },
+      "NotificationResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NotificationSubscriptionsRequest": {
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "after_hk": {
+            "type": "string"
+          },
+          "after_local": {
+            "type": "string"
+          },
+          "after_us": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "search": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "OKData": {
         "properties": {
           "ok": {
@@ -2734,6 +2782,29 @@
         },
         "type": "object"
       },
+      "RegisterNotificationReceiverRequest": {
+        "properties": {
+          "device_label": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "permission": {
+            "type": "string"
+          },
+          "subscription": {
+            "type": "object"
+          },
+          "vapid_key_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ReportMessageResultRequest": {
         "properties": {
           "completed_at": {
@@ -2884,6 +2955,14 @@
             "type": "integer"
           },
           "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RevokeNotificationReceiverRequest": {
+        "properties": {
+          "receiver_id": {
             "type": "string"
           }
         },
@@ -5260,6 +5339,544 @@
         "summary": "Report node status",
         "tags": [
           "node"
+        ]
+      }
+    },
+    "/api/v1/user/self/notification-subscriptions": {
+      "get": {
+        "description": "Requires current administrator authorization. Returns regional receiver metadata, matching status totals, and per-region pagination. Never returns endpoints or encryption keys. Provider acceptance is not device display.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationSubscriptionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List administrator-only notification subscription metadata",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/self/notifications/config": {
+      "get": {
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Read public Web Push registration configuration",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/self/notifications/receivers": {
+      "get": {
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationSubscriptionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List the authenticated user's notification receivers",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/self/notifications/receivers/web-push": {
+      "put": {
+        "description": "Owner is derived from authentication. Validates subscription keys and enforces receiver limits. A receiver bound to another account is rejected.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterNotificationReceiverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Idempotently register a receiver for the authenticated user",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/self/notifications/receivers/{receiver_id}": {
+      "delete": {
+        "description": "",
+        "parameters": [
+          {
+            "description": "Receiver identifier.",
+            "in": "path",
+            "name": "receiver_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeNotificationReceiverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Revoke an owned receiver and erase its subscription secrets",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/self/notifications/receivers/{receiver_id}/test": {
+      "post": {
+        "description": "Rate limited to one test per user per 30 seconds. Returns queued status; provider acceptance is not a display receipt.",
+        "parameters": [
+          {
+            "description": "Receiver identifier.",
+            "in": "path",
+            "name": "receiver_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeNotificationReceiverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Queue a real test notification for an owned enabled receiver",
+        "tags": [
+          "user"
         ]
       }
     },

@@ -20,11 +20,15 @@ import (
 	managerconfig "github.com/pax-beehive/pax-manager/internal/manager/config"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
+	"github.com/pax-beehive/pax-manager/internal/manager/notifications"
 	"github.com/pax-beehive/pax-manager/internal/manager/paxd"
 	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
 )
 
 type Service struct {
+	notificationRegistry  notifications.Registry
+	notificationOutbox    notifications.Outbox
+	notificationSender    notifications.Sender
 	customerAnalytics     domain.CustomerAnalyticsStore
 	customerAnalyticsMu   sync.Mutex
 	customerAnalyticsAt   time.Time
@@ -151,6 +155,8 @@ func newServer(cfg Config, store Store) *Service {
 	})
 	s.regionalUsers, _ = transportBaseStore.(regionalUserStore)
 	s.customerAnalytics, _ = transportBaseStore.(domain.CustomerAnalyticsStore)
+	s.notificationRegistry, _ = transportBaseStore.(notifications.Registry)
+	s.notificationOutbox, _ = transportBaseStore.(notifications.Outbox)
 	s.auth = authService
 	s.paxd = paxd.NewService(store, func() time.Time { return s.clock() }, authService, secrets)
 	s.userapi = userapi.NewService(

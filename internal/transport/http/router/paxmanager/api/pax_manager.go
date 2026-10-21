@@ -71,6 +71,24 @@ func Register(r *server.Hertz) {
 			{
 				_user := _v1.Group("/user", _userMw()...)
 				{
+					_self := _user.Group("/self", _selfMw()...)
+					_self.GET("/notification-subscriptions", append(_listnotificationsubscriptionsMw(), handler.ListNotificationSubscriptions)...)
+					{
+						_notifications := _self.Group("/notifications", _notificationsMw()...)
+						_notifications.GET("/config", append(_getnotificationconfigurationMw(), handler.GetNotificationConfiguration)...)
+						_notifications.GET("/receivers", append(_listnotificationreceiversMw(), handler.ListNotificationReceivers)...)
+						{
+							_receivers := _notifications.Group("/receivers", _receiversMw()...)
+							_receivers.DELETE("/:receiver_id", append(_revokenotificationreceiverMw(), handler.RevokeNotificationReceiver)...)
+							_receivers.PUT("/web-push", append(_registernotificationreceiverMw(), handler.RegisterNotificationReceiver)...)
+							{
+								_receiver_id := _receivers.Group("/:receiver_id", _receiver_idMw()...)
+								_receiver_id.POST("/test", append(_testnotificationreceiverMw(), handler.TestNotificationReceiver)...)
+							}
+						}
+					}
+				}
+				{
 					_user_id := _user.Group("/:user_id", _user_idMw()...)
 					_user_id.GET("/api-keys", append(_listuserapikeysMw(), handler.ListUserAPIKeys)...)
 					_user_id.POST("/api-keys", append(_createuserapikeyMw(), handler.CreateUserAPIKey)...)

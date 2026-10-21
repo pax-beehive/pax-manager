@@ -65040,6 +65040,1465 @@ func (p *CancelNodeDaemonMaintenanceRequest) String() string {
 
 }
 
+type NotificationSubscriptionsRequest struct {
+	Search     *string `thrift:"search,1,optional" json:"search,omitempty" query:"search"`
+	UserID     *string `thrift:"user_id,2,optional" json:"user_id,omitempty" query:"user_id"`
+	Status     *string `thrift:"status,3,optional" json:"status,omitempty" query:"status"`
+	Channel    *string `thrift:"channel,4,optional" json:"channel,omitempty" query:"channel"`
+	After      *string `thrift:"after,5,optional" json:"after,omitempty" query:"after"`
+	Limit      *int32  `thrift:"limit,6,optional" json:"limit,omitempty" query:"limit"`
+	AfterUs    *string `thrift:"after_us,7,optional" json:"after_us,omitempty" query:"after_us"`
+	AfterHk    *string `thrift:"after_hk,8,optional" json:"after_hk,omitempty" query:"after_hk"`
+	AfterLocal *string `thrift:"after_local,9,optional" json:"after_local,omitempty" query:"after_local"`
+}
+
+func NewNotificationSubscriptionsRequest() *NotificationSubscriptionsRequest {
+	return &NotificationSubscriptionsRequest{}
+}
+
+func (p *NotificationSubscriptionsRequest) InitDefault() {
+}
+
+var NotificationSubscriptionsRequest_Search_DEFAULT string
+
+func (p *NotificationSubscriptionsRequest) GetSearch() (v string) {
+	if !p.IsSetSearch() {
+		return NotificationSubscriptionsRequest_Search_DEFAULT
+	}
+	return *p.Search
+}
+
+var NotificationSubscriptionsRequest_UserID_DEFAULT string
+
+func (p *NotificationSubscriptionsRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return NotificationSubscriptionsRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var NotificationSubscriptionsRequest_Status_DEFAULT string
+
+func (p *NotificationSubscriptionsRequest) GetStatus() (v string) {
+	if !p.IsSetStatus() {
+		return NotificationSubscriptionsRequest_Status_DEFAULT
+	}
+	return *p.Status
+}
+
+var NotificationSubscriptionsRequest_Channel_DEFAULT string
+
+func (p *NotificationSubscriptionsRequest) GetChannel() (v string) {
+	if !p.IsSetChannel() {
+		return NotificationSubscriptionsRequest_Channel_DEFAULT
+	}
+	return *p.Channel
+}
+
+var NotificationSubscriptionsRequest_After_DEFAULT string
+
+func (p *NotificationSubscriptionsRequest) GetAfter() (v string) {
+	if !p.IsSetAfter() {
+		return NotificationSubscriptionsRequest_After_DEFAULT
+	}
+	return *p.After
+}
+
+var NotificationSubscriptionsRequest_Limit_DEFAULT int32
+
+func (p *NotificationSubscriptionsRequest) GetLimit() (v int32) {
+	if !p.IsSetLimit() {
+		return NotificationSubscriptionsRequest_Limit_DEFAULT
+	}
+	return *p.Limit
+}
+
+var NotificationSubscriptionsRequest_AfterUs_DEFAULT string
+
+func (p *NotificationSubscriptionsRequest) GetAfterUs() (v string) {
+	if !p.IsSetAfterUs() {
+		return NotificationSubscriptionsRequest_AfterUs_DEFAULT
+	}
+	return *p.AfterUs
+}
+
+var NotificationSubscriptionsRequest_AfterHk_DEFAULT string
+
+func (p *NotificationSubscriptionsRequest) GetAfterHk() (v string) {
+	if !p.IsSetAfterHk() {
+		return NotificationSubscriptionsRequest_AfterHk_DEFAULT
+	}
+	return *p.AfterHk
+}
+
+var NotificationSubscriptionsRequest_AfterLocal_DEFAULT string
+
+func (p *NotificationSubscriptionsRequest) GetAfterLocal() (v string) {
+	if !p.IsSetAfterLocal() {
+		return NotificationSubscriptionsRequest_AfterLocal_DEFAULT
+	}
+	return *p.AfterLocal
+}
+
+var fieldIDToName_NotificationSubscriptionsRequest = map[int16]string{
+	1: "search",
+	2: "user_id",
+	3: "status",
+	4: "channel",
+	5: "after",
+	6: "limit",
+	7: "after_us",
+	8: "after_hk",
+	9: "after_local",
+}
+
+func (p *NotificationSubscriptionsRequest) IsSetSearch() bool {
+	return p.Search != nil
+}
+
+func (p *NotificationSubscriptionsRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *NotificationSubscriptionsRequest) IsSetStatus() bool {
+	return p.Status != nil
+}
+
+func (p *NotificationSubscriptionsRequest) IsSetChannel() bool {
+	return p.Channel != nil
+}
+
+func (p *NotificationSubscriptionsRequest) IsSetAfter() bool {
+	return p.After != nil
+}
+
+func (p *NotificationSubscriptionsRequest) IsSetLimit() bool {
+	return p.Limit != nil
+}
+
+func (p *NotificationSubscriptionsRequest) IsSetAfterUs() bool {
+	return p.AfterUs != nil
+}
+
+func (p *NotificationSubscriptionsRequest) IsSetAfterHk() bool {
+	return p.AfterHk != nil
+}
+
+func (p *NotificationSubscriptionsRequest) IsSetAfterLocal() bool {
+	return p.AfterLocal != nil
+}
+
+func (p *NotificationSubscriptionsRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 8:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField8(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 9:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField9(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_NotificationSubscriptionsRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Search = _field
+	return nil
+}
+func (p *NotificationSubscriptionsRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *NotificationSubscriptionsRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Status = _field
+	return nil
+}
+func (p *NotificationSubscriptionsRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Channel = _field
+	return nil
+}
+func (p *NotificationSubscriptionsRequest) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.After = _field
+	return nil
+}
+func (p *NotificationSubscriptionsRequest) ReadField6(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Limit = _field
+	return nil
+}
+func (p *NotificationSubscriptionsRequest) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AfterUs = _field
+	return nil
+}
+func (p *NotificationSubscriptionsRequest) ReadField8(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AfterHk = _field
+	return nil
+}
+func (p *NotificationSubscriptionsRequest) ReadField9(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AfterLocal = _field
+	return nil
+}
+
+func (p *NotificationSubscriptionsRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NotificationSubscriptionsRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
+			goto WriteFieldError
+		}
+		if err = p.writeField8(oprot); err != nil {
+			fieldId = 8
+			goto WriteFieldError
+		}
+		if err = p.writeField9(oprot); err != nil {
+			fieldId = 9
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSearch() {
+		if err = oprot.WriteFieldBegin("search", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Search); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetStatus() {
+		if err = oprot.WriteFieldBegin("status", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Status); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetChannel() {
+		if err = oprot.WriteFieldBegin("channel", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Channel); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAfter() {
+		if err = oprot.WriteFieldBegin("after", thrift.STRING, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.After); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetLimit() {
+		if err = oprot.WriteFieldBegin("limit", thrift.I32, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.Limit); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAfterUs() {
+		if err = oprot.WriteFieldBegin("after_us", thrift.STRING, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.AfterUs); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAfterHk() {
+		if err = oprot.WriteFieldBegin("after_hk", thrift.STRING, 8); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.AfterHk); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAfterLocal() {
+		if err = oprot.WriteFieldBegin("after_local", thrift.STRING, 9); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.AfterLocal); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 end error: ", p), err)
+}
+
+func (p *NotificationSubscriptionsRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NotificationSubscriptionsRequest(%+v)", *p)
+
+}
+
+type RegisterNotificationReceiverRequest struct {
+	Subscription JSON    `thrift:"subscription,1,optional" form:"subscription" json:"subscription,omitempty" query:"subscription"`
+	DeviceLabel  *string `thrift:"device_label,2,optional" form:"device_label" json:"device_label,omitempty" query:"device_label"`
+	VapidKeyID   *string `thrift:"vapid_key_id,3,optional" form:"vapid_key_id" json:"vapid_key_id,omitempty" query:"vapid_key_id"`
+	Permission   *string `thrift:"permission,4,optional" form:"permission" json:"permission,omitempty" query:"permission"`
+	Enabled      *bool   `thrift:"enabled,5,optional" form:"enabled" json:"enabled,omitempty" query:"enabled"`
+	ExpiresAt    *string `thrift:"expires_at,6,optional" form:"expires_at" json:"expires_at,omitempty" query:"expires_at"`
+}
+
+func NewRegisterNotificationReceiverRequest() *RegisterNotificationReceiverRequest {
+	return &RegisterNotificationReceiverRequest{}
+}
+
+func (p *RegisterNotificationReceiverRequest) InitDefault() {
+}
+
+var RegisterNotificationReceiverRequest_Subscription_DEFAULT JSON
+
+func (p *RegisterNotificationReceiverRequest) GetSubscription() (v JSON) {
+	if !p.IsSetSubscription() {
+		return RegisterNotificationReceiverRequest_Subscription_DEFAULT
+	}
+	return p.Subscription
+}
+
+var RegisterNotificationReceiverRequest_DeviceLabel_DEFAULT string
+
+func (p *RegisterNotificationReceiverRequest) GetDeviceLabel() (v string) {
+	if !p.IsSetDeviceLabel() {
+		return RegisterNotificationReceiverRequest_DeviceLabel_DEFAULT
+	}
+	return *p.DeviceLabel
+}
+
+var RegisterNotificationReceiverRequest_VapidKeyID_DEFAULT string
+
+func (p *RegisterNotificationReceiverRequest) GetVapidKeyID() (v string) {
+	if !p.IsSetVapidKeyID() {
+		return RegisterNotificationReceiverRequest_VapidKeyID_DEFAULT
+	}
+	return *p.VapidKeyID
+}
+
+var RegisterNotificationReceiverRequest_Permission_DEFAULT string
+
+func (p *RegisterNotificationReceiverRequest) GetPermission() (v string) {
+	if !p.IsSetPermission() {
+		return RegisterNotificationReceiverRequest_Permission_DEFAULT
+	}
+	return *p.Permission
+}
+
+var RegisterNotificationReceiverRequest_Enabled_DEFAULT bool
+
+func (p *RegisterNotificationReceiverRequest) GetEnabled() (v bool) {
+	if !p.IsSetEnabled() {
+		return RegisterNotificationReceiverRequest_Enabled_DEFAULT
+	}
+	return *p.Enabled
+}
+
+var RegisterNotificationReceiverRequest_ExpiresAt_DEFAULT string
+
+func (p *RegisterNotificationReceiverRequest) GetExpiresAt() (v string) {
+	if !p.IsSetExpiresAt() {
+		return RegisterNotificationReceiverRequest_ExpiresAt_DEFAULT
+	}
+	return *p.ExpiresAt
+}
+
+var fieldIDToName_RegisterNotificationReceiverRequest = map[int16]string{
+	1: "subscription",
+	2: "device_label",
+	3: "vapid_key_id",
+	4: "permission",
+	5: "enabled",
+	6: "expires_at",
+}
+
+func (p *RegisterNotificationReceiverRequest) IsSetSubscription() bool {
+	return p.Subscription != nil
+}
+
+func (p *RegisterNotificationReceiverRequest) IsSetDeviceLabel() bool {
+	return p.DeviceLabel != nil
+}
+
+func (p *RegisterNotificationReceiverRequest) IsSetVapidKeyID() bool {
+	return p.VapidKeyID != nil
+}
+
+func (p *RegisterNotificationReceiverRequest) IsSetPermission() bool {
+	return p.Permission != nil
+}
+
+func (p *RegisterNotificationReceiverRequest) IsSetEnabled() bool {
+	return p.Enabled != nil
+}
+
+func (p *RegisterNotificationReceiverRequest) IsSetExpiresAt() bool {
+	return p.ExpiresAt != nil
+}
+
+func (p *RegisterNotificationReceiverRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_RegisterNotificationReceiverRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *RegisterNotificationReceiverRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field JSON
+	if v, err := iprot.ReadBinary(); err != nil {
+		return err
+	} else {
+		_field = JSON(v)
+	}
+	p.Subscription = _field
+	return nil
+}
+func (p *RegisterNotificationReceiverRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.DeviceLabel = _field
+	return nil
+}
+func (p *RegisterNotificationReceiverRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.VapidKeyID = _field
+	return nil
+}
+func (p *RegisterNotificationReceiverRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Permission = _field
+	return nil
+}
+func (p *RegisterNotificationReceiverRequest) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Enabled = _field
+	return nil
+}
+func (p *RegisterNotificationReceiverRequest) ReadField6(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ExpiresAt = _field
+	return nil
+}
+
+func (p *RegisterNotificationReceiverRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RegisterNotificationReceiverRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *RegisterNotificationReceiverRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSubscription() {
+		if err = oprot.WriteFieldBegin("subscription", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBinary([]byte(p.Subscription)); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *RegisterNotificationReceiverRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDeviceLabel() {
+		if err = oprot.WriteFieldBegin("device_label", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.DeviceLabel); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *RegisterNotificationReceiverRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetVapidKeyID() {
+		if err = oprot.WriteFieldBegin("vapid_key_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.VapidKeyID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *RegisterNotificationReceiverRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPermission() {
+		if err = oprot.WriteFieldBegin("permission", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Permission); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *RegisterNotificationReceiverRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetEnabled() {
+		if err = oprot.WriteFieldBegin("enabled", thrift.BOOL, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.Enabled); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *RegisterNotificationReceiverRequest) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetExpiresAt() {
+		if err = oprot.WriteFieldBegin("expires_at", thrift.STRING, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ExpiresAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *RegisterNotificationReceiverRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("RegisterNotificationReceiverRequest(%+v)", *p)
+
+}
+
+type RevokeNotificationReceiverRequest struct {
+	ReceiverID *string `thrift:"receiver_id,1,optional" json:"receiver_id,omitempty" path:"receiver_id"`
+}
+
+func NewRevokeNotificationReceiverRequest() *RevokeNotificationReceiverRequest {
+	return &RevokeNotificationReceiverRequest{}
+}
+
+func (p *RevokeNotificationReceiverRequest) InitDefault() {
+}
+
+var RevokeNotificationReceiverRequest_ReceiverID_DEFAULT string
+
+func (p *RevokeNotificationReceiverRequest) GetReceiverID() (v string) {
+	if !p.IsSetReceiverID() {
+		return RevokeNotificationReceiverRequest_ReceiverID_DEFAULT
+	}
+	return *p.ReceiverID
+}
+
+var fieldIDToName_RevokeNotificationReceiverRequest = map[int16]string{
+	1: "receiver_id",
+}
+
+func (p *RevokeNotificationReceiverRequest) IsSetReceiverID() bool {
+	return p.ReceiverID != nil
+}
+
+func (p *RevokeNotificationReceiverRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_RevokeNotificationReceiverRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *RevokeNotificationReceiverRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ReceiverID = _field
+	return nil
+}
+
+func (p *RevokeNotificationReceiverRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RevokeNotificationReceiverRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *RevokeNotificationReceiverRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetReceiverID() {
+		if err = oprot.WriteFieldBegin("receiver_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ReceiverID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *RevokeNotificationReceiverRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("RevokeNotificationReceiverRequest(%+v)", *p)
+
+}
+
+type NotificationResponse struct {
+	Code    *int32  `thrift:"code,1,optional" form:"code" json:"code,omitempty" query:"code"`
+	Message *string `thrift:"message,2,optional" form:"message" json:"message,omitempty" query:"message"`
+	Data    JSON    `thrift:"data,3,optional" form:"data" json:"data,omitempty" query:"data"`
+}
+
+func NewNotificationResponse() *NotificationResponse {
+	return &NotificationResponse{}
+}
+
+func (p *NotificationResponse) InitDefault() {
+}
+
+var NotificationResponse_Code_DEFAULT int32
+
+func (p *NotificationResponse) GetCode() (v int32) {
+	if !p.IsSetCode() {
+		return NotificationResponse_Code_DEFAULT
+	}
+	return *p.Code
+}
+
+var NotificationResponse_Message_DEFAULT string
+
+func (p *NotificationResponse) GetMessage() (v string) {
+	if !p.IsSetMessage() {
+		return NotificationResponse_Message_DEFAULT
+	}
+	return *p.Message
+}
+
+var NotificationResponse_Data_DEFAULT JSON
+
+func (p *NotificationResponse) GetData() (v JSON) {
+	if !p.IsSetData() {
+		return NotificationResponse_Data_DEFAULT
+	}
+	return p.Data
+}
+
+var fieldIDToName_NotificationResponse = map[int16]string{
+	1: "code",
+	2: "message",
+	3: "data",
+}
+
+func (p *NotificationResponse) IsSetCode() bool {
+	return p.Code != nil
+}
+
+func (p *NotificationResponse) IsSetMessage() bool {
+	return p.Message != nil
+}
+
+func (p *NotificationResponse) IsSetData() bool {
+	return p.Data != nil
+}
+
+func (p *NotificationResponse) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_NotificationResponse[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *NotificationResponse) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Code = _field
+	return nil
+}
+func (p *NotificationResponse) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Message = _field
+	return nil
+}
+func (p *NotificationResponse) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field JSON
+	if v, err := iprot.ReadBinary(); err != nil {
+		return err
+	} else {
+		_field = JSON(v)
+	}
+	p.Data = _field
+	return nil
+}
+
+func (p *NotificationResponse) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NotificationResponse"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *NotificationResponse) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCode() {
+		if err = oprot.WriteFieldBegin("code", thrift.I32, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.Code); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *NotificationResponse) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetMessage() {
+		if err = oprot.WriteFieldBegin("message", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Message); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *NotificationResponse) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetData() {
+		if err = oprot.WriteFieldBegin("data", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBinary([]byte(p.Data)); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *NotificationResponse) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NotificationResponse(%+v)", *p)
+
+}
+
 type PaxManagerAPI interface {
 	GetNodeIdentity(ctx context.Context, request *EmptyRequest) (r *NodeIdentityResponse, err error)
 
@@ -65196,6 +66655,18 @@ type PaxManagerAPI interface {
 	ListUserApprovalGrants(ctx context.Context, request *ListUserApprovalGrantsRequest) (r *ApprovalGrantListResponse, err error)
 
 	RevokeUserApprovalGrant(ctx context.Context, request *RevokeUserApprovalGrantRequest) (r *ApprovalResponse, err error)
+
+	ListNotificationSubscriptions(ctx context.Context, request *NotificationSubscriptionsRequest) (r *NotificationResponse, err error)
+
+	ListNotificationReceivers(ctx context.Context, request *NotificationSubscriptionsRequest) (r *NotificationResponse, err error)
+
+	GetNotificationConfiguration(ctx context.Context, request *EmptyRequest) (r *NotificationResponse, err error)
+
+	RegisterNotificationReceiver(ctx context.Context, request *RegisterNotificationReceiverRequest) (r *NotificationResponse, err error)
+
+	RevokeNotificationReceiver(ctx context.Context, request *RevokeNotificationReceiverRequest) (r *NotificationResponse, err error)
+
+	TestNotificationReceiver(ctx context.Context, request *RevokeNotificationReceiverRequest) (r *NotificationResponse, err error)
 }
 
 type PaxManagerAPIClient struct {
@@ -65926,6 +67397,60 @@ func (p *PaxManagerAPIClient) RevokeUserApprovalGrant(ctx context.Context, reque
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) ListNotificationSubscriptions(ctx context.Context, request *NotificationSubscriptionsRequest) (r *NotificationResponse, err error) {
+	var _args PaxManagerAPIListNotificationSubscriptionsArgs
+	_args.Request = request
+	var _result PaxManagerAPIListNotificationSubscriptionsResult
+	if err = p.Client_().Call(ctx, "ListNotificationSubscriptions", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) ListNotificationReceivers(ctx context.Context, request *NotificationSubscriptionsRequest) (r *NotificationResponse, err error) {
+	var _args PaxManagerAPIListNotificationReceiversArgs
+	_args.Request = request
+	var _result PaxManagerAPIListNotificationReceiversResult
+	if err = p.Client_().Call(ctx, "ListNotificationReceivers", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) GetNotificationConfiguration(ctx context.Context, request *EmptyRequest) (r *NotificationResponse, err error) {
+	var _args PaxManagerAPIGetNotificationConfigurationArgs
+	_args.Request = request
+	var _result PaxManagerAPIGetNotificationConfigurationResult
+	if err = p.Client_().Call(ctx, "GetNotificationConfiguration", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) RegisterNotificationReceiver(ctx context.Context, request *RegisterNotificationReceiverRequest) (r *NotificationResponse, err error) {
+	var _args PaxManagerAPIRegisterNotificationReceiverArgs
+	_args.Request = request
+	var _result PaxManagerAPIRegisterNotificationReceiverResult
+	if err = p.Client_().Call(ctx, "RegisterNotificationReceiver", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) RevokeNotificationReceiver(ctx context.Context, request *RevokeNotificationReceiverRequest) (r *NotificationResponse, err error) {
+	var _args PaxManagerAPIRevokeNotificationReceiverArgs
+	_args.Request = request
+	var _result PaxManagerAPIRevokeNotificationReceiverResult
+	if err = p.Client_().Call(ctx, "RevokeNotificationReceiver", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) TestNotificationReceiver(ctx context.Context, request *RevokeNotificationReceiverRequest) (r *NotificationResponse, err error) {
+	var _args PaxManagerAPITestNotificationReceiverArgs
+	_args.Request = request
+	var _result PaxManagerAPITestNotificationReceiverResult
+	if err = p.Client_().Call(ctx, "TestNotificationReceiver", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 
 type PaxManagerAPIProcessor struct {
 	processorMap map[string]thrift.TProcessorFunction
@@ -66025,6 +67550,12 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("DecideUserApproval", &paxManagerAPIProcessorDecideUserApproval{handler: handler})
 	self.AddToProcessorMap("ListUserApprovalGrants", &paxManagerAPIProcessorListUserApprovalGrants{handler: handler})
 	self.AddToProcessorMap("RevokeUserApprovalGrant", &paxManagerAPIProcessorRevokeUserApprovalGrant{handler: handler})
+	self.AddToProcessorMap("ListNotificationSubscriptions", &paxManagerAPIProcessorListNotificationSubscriptions{handler: handler})
+	self.AddToProcessorMap("ListNotificationReceivers", &paxManagerAPIProcessorListNotificationReceivers{handler: handler})
+	self.AddToProcessorMap("GetNotificationConfiguration", &paxManagerAPIProcessorGetNotificationConfiguration{handler: handler})
+	self.AddToProcessorMap("RegisterNotificationReceiver", &paxManagerAPIProcessorRegisterNotificationReceiver{handler: handler})
+	self.AddToProcessorMap("RevokeNotificationReceiver", &paxManagerAPIProcessorRevokeNotificationReceiver{handler: handler})
+	self.AddToProcessorMap("TestNotificationReceiver", &paxManagerAPIProcessorTestNotificationReceiver{handler: handler})
 	return self
 }
 func (p *PaxManagerAPIProcessor) Process(ctx context.Context, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -69772,6 +71303,294 @@ func (p *paxManagerAPIProcessorRevokeUserApprovalGrant) Process(ctx context.Cont
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("RevokeUserApprovalGrant", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorListNotificationSubscriptions struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorListNotificationSubscriptions) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIListNotificationSubscriptionsArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("ListNotificationSubscriptions", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIListNotificationSubscriptionsResult{}
+	var retval *NotificationResponse
+	if retval, err2 = p.handler.ListNotificationSubscriptions(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListNotificationSubscriptions: "+err2.Error())
+		oprot.WriteMessageBegin("ListNotificationSubscriptions", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("ListNotificationSubscriptions", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorListNotificationReceivers struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorListNotificationReceivers) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIListNotificationReceiversArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("ListNotificationReceivers", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIListNotificationReceiversResult{}
+	var retval *NotificationResponse
+	if retval, err2 = p.handler.ListNotificationReceivers(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListNotificationReceivers: "+err2.Error())
+		oprot.WriteMessageBegin("ListNotificationReceivers", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("ListNotificationReceivers", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorGetNotificationConfiguration struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorGetNotificationConfiguration) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIGetNotificationConfigurationArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("GetNotificationConfiguration", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIGetNotificationConfigurationResult{}
+	var retval *NotificationResponse
+	if retval, err2 = p.handler.GetNotificationConfiguration(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing GetNotificationConfiguration: "+err2.Error())
+		oprot.WriteMessageBegin("GetNotificationConfiguration", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("GetNotificationConfiguration", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorRegisterNotificationReceiver struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorRegisterNotificationReceiver) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIRegisterNotificationReceiverArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("RegisterNotificationReceiver", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIRegisterNotificationReceiverResult{}
+	var retval *NotificationResponse
+	if retval, err2 = p.handler.RegisterNotificationReceiver(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing RegisterNotificationReceiver: "+err2.Error())
+		oprot.WriteMessageBegin("RegisterNotificationReceiver", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("RegisterNotificationReceiver", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorRevokeNotificationReceiver struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorRevokeNotificationReceiver) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIRevokeNotificationReceiverArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("RevokeNotificationReceiver", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIRevokeNotificationReceiverResult{}
+	var retval *NotificationResponse
+	if retval, err2 = p.handler.RevokeNotificationReceiver(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing RevokeNotificationReceiver: "+err2.Error())
+		oprot.WriteMessageBegin("RevokeNotificationReceiver", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("RevokeNotificationReceiver", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorTestNotificationReceiver struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorTestNotificationReceiver) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPITestNotificationReceiverArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("TestNotificationReceiver", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPITestNotificationReceiverResult{}
+	var retval *NotificationResponse
+	if retval, err2 = p.handler.TestNotificationReceiver(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing TestNotificationReceiver: "+err2.Error())
+		oprot.WriteMessageBegin("TestNotificationReceiver", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("TestNotificationReceiver", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -92718,5 +94537,1769 @@ func (p *PaxManagerAPIRevokeUserApprovalGrantResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIRevokeUserApprovalGrantResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIListNotificationSubscriptionsArgs struct {
+	Request *NotificationSubscriptionsRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIListNotificationSubscriptionsArgs() *PaxManagerAPIListNotificationSubscriptionsArgs {
+	return &PaxManagerAPIListNotificationSubscriptionsArgs{}
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsArgs) InitDefault() {
+}
+
+var PaxManagerAPIListNotificationSubscriptionsArgs_Request_DEFAULT *NotificationSubscriptionsRequest
+
+func (p *PaxManagerAPIListNotificationSubscriptionsArgs) GetRequest() (v *NotificationSubscriptionsRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIListNotificationSubscriptionsArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIListNotificationSubscriptionsArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListNotificationSubscriptionsArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewNotificationSubscriptionsRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListNotificationSubscriptions_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListNotificationSubscriptionsArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIListNotificationSubscriptionsResult struct {
+	Success *NotificationResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIListNotificationSubscriptionsResult() *PaxManagerAPIListNotificationSubscriptionsResult {
+	return &PaxManagerAPIListNotificationSubscriptionsResult{}
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsResult) InitDefault() {
+}
+
+var PaxManagerAPIListNotificationSubscriptionsResult_Success_DEFAULT *NotificationResponse
+
+func (p *PaxManagerAPIListNotificationSubscriptionsResult) GetSuccess() (v *NotificationResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIListNotificationSubscriptionsResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIListNotificationSubscriptionsResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListNotificationSubscriptionsResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNotificationResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListNotificationSubscriptions_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationSubscriptionsResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListNotificationSubscriptionsResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIListNotificationReceiversArgs struct {
+	Request *NotificationSubscriptionsRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIListNotificationReceiversArgs() *PaxManagerAPIListNotificationReceiversArgs {
+	return &PaxManagerAPIListNotificationReceiversArgs{}
+}
+
+func (p *PaxManagerAPIListNotificationReceiversArgs) InitDefault() {
+}
+
+var PaxManagerAPIListNotificationReceiversArgs_Request_DEFAULT *NotificationSubscriptionsRequest
+
+func (p *PaxManagerAPIListNotificationReceiversArgs) GetRequest() (v *NotificationSubscriptionsRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIListNotificationReceiversArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIListNotificationReceiversArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIListNotificationReceiversArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIListNotificationReceiversArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListNotificationReceiversArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationReceiversArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewNotificationSubscriptionsRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListNotificationReceiversArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListNotificationReceivers_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationReceiversArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationReceiversArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListNotificationReceiversArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIListNotificationReceiversResult struct {
+	Success *NotificationResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIListNotificationReceiversResult() *PaxManagerAPIListNotificationReceiversResult {
+	return &PaxManagerAPIListNotificationReceiversResult{}
+}
+
+func (p *PaxManagerAPIListNotificationReceiversResult) InitDefault() {
+}
+
+var PaxManagerAPIListNotificationReceiversResult_Success_DEFAULT *NotificationResponse
+
+func (p *PaxManagerAPIListNotificationReceiversResult) GetSuccess() (v *NotificationResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIListNotificationReceiversResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIListNotificationReceiversResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIListNotificationReceiversResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIListNotificationReceiversResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListNotificationReceiversResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationReceiversResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNotificationResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListNotificationReceiversResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListNotificationReceivers_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationReceiversResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNotificationReceiversResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListNotificationReceiversResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetNotificationConfigurationArgs struct {
+	Request *EmptyRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIGetNotificationConfigurationArgs() *PaxManagerAPIGetNotificationConfigurationArgs {
+	return &PaxManagerAPIGetNotificationConfigurationArgs{}
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationArgs) InitDefault() {
+}
+
+var PaxManagerAPIGetNotificationConfigurationArgs_Request_DEFAULT *EmptyRequest
+
+func (p *PaxManagerAPIGetNotificationConfigurationArgs) GetRequest() (v *EmptyRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIGetNotificationConfigurationArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIGetNotificationConfigurationArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetNotificationConfigurationArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewEmptyRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetNotificationConfiguration_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetNotificationConfigurationArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetNotificationConfigurationResult struct {
+	Success *NotificationResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIGetNotificationConfigurationResult() *PaxManagerAPIGetNotificationConfigurationResult {
+	return &PaxManagerAPIGetNotificationConfigurationResult{}
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationResult) InitDefault() {
+}
+
+var PaxManagerAPIGetNotificationConfigurationResult_Success_DEFAULT *NotificationResponse
+
+func (p *PaxManagerAPIGetNotificationConfigurationResult) GetSuccess() (v *NotificationResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIGetNotificationConfigurationResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIGetNotificationConfigurationResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetNotificationConfigurationResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNotificationResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetNotificationConfiguration_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNotificationConfigurationResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetNotificationConfigurationResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIRegisterNotificationReceiverArgs struct {
+	Request *RegisterNotificationReceiverRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIRegisterNotificationReceiverArgs() *PaxManagerAPIRegisterNotificationReceiverArgs {
+	return &PaxManagerAPIRegisterNotificationReceiverArgs{}
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverArgs) InitDefault() {
+}
+
+var PaxManagerAPIRegisterNotificationReceiverArgs_Request_DEFAULT *RegisterNotificationReceiverRequest
+
+func (p *PaxManagerAPIRegisterNotificationReceiverArgs) GetRequest() (v *RegisterNotificationReceiverRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIRegisterNotificationReceiverArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIRegisterNotificationReceiverArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIRegisterNotificationReceiverArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewRegisterNotificationReceiverRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RegisterNotificationReceiver_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIRegisterNotificationReceiverArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIRegisterNotificationReceiverResult struct {
+	Success *NotificationResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIRegisterNotificationReceiverResult() *PaxManagerAPIRegisterNotificationReceiverResult {
+	return &PaxManagerAPIRegisterNotificationReceiverResult{}
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverResult) InitDefault() {
+}
+
+var PaxManagerAPIRegisterNotificationReceiverResult_Success_DEFAULT *NotificationResponse
+
+func (p *PaxManagerAPIRegisterNotificationReceiverResult) GetSuccess() (v *NotificationResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIRegisterNotificationReceiverResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIRegisterNotificationReceiverResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIRegisterNotificationReceiverResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNotificationResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RegisterNotificationReceiver_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRegisterNotificationReceiverResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIRegisterNotificationReceiverResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIRevokeNotificationReceiverArgs struct {
+	Request *RevokeNotificationReceiverRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIRevokeNotificationReceiverArgs() *PaxManagerAPIRevokeNotificationReceiverArgs {
+	return &PaxManagerAPIRevokeNotificationReceiverArgs{}
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverArgs) InitDefault() {
+}
+
+var PaxManagerAPIRevokeNotificationReceiverArgs_Request_DEFAULT *RevokeNotificationReceiverRequest
+
+func (p *PaxManagerAPIRevokeNotificationReceiverArgs) GetRequest() (v *RevokeNotificationReceiverRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIRevokeNotificationReceiverArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIRevokeNotificationReceiverArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIRevokeNotificationReceiverArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewRevokeNotificationReceiverRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RevokeNotificationReceiver_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIRevokeNotificationReceiverArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIRevokeNotificationReceiverResult struct {
+	Success *NotificationResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIRevokeNotificationReceiverResult() *PaxManagerAPIRevokeNotificationReceiverResult {
+	return &PaxManagerAPIRevokeNotificationReceiverResult{}
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverResult) InitDefault() {
+}
+
+var PaxManagerAPIRevokeNotificationReceiverResult_Success_DEFAULT *NotificationResponse
+
+func (p *PaxManagerAPIRevokeNotificationReceiverResult) GetSuccess() (v *NotificationResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIRevokeNotificationReceiverResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIRevokeNotificationReceiverResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIRevokeNotificationReceiverResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNotificationResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RevokeNotificationReceiver_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeNotificationReceiverResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIRevokeNotificationReceiverResult(%+v)", *p)
+
+}
+
+type PaxManagerAPITestNotificationReceiverArgs struct {
+	Request *RevokeNotificationReceiverRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPITestNotificationReceiverArgs() *PaxManagerAPITestNotificationReceiverArgs {
+	return &PaxManagerAPITestNotificationReceiverArgs{}
+}
+
+func (p *PaxManagerAPITestNotificationReceiverArgs) InitDefault() {
+}
+
+var PaxManagerAPITestNotificationReceiverArgs_Request_DEFAULT *RevokeNotificationReceiverRequest
+
+func (p *PaxManagerAPITestNotificationReceiverArgs) GetRequest() (v *RevokeNotificationReceiverRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPITestNotificationReceiverArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPITestNotificationReceiverArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPITestNotificationReceiverArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPITestNotificationReceiverArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPITestNotificationReceiverArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPITestNotificationReceiverArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewRevokeNotificationReceiverRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPITestNotificationReceiverArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("TestNotificationReceiver_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPITestNotificationReceiverArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPITestNotificationReceiverArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPITestNotificationReceiverArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPITestNotificationReceiverResult struct {
+	Success *NotificationResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPITestNotificationReceiverResult() *PaxManagerAPITestNotificationReceiverResult {
+	return &PaxManagerAPITestNotificationReceiverResult{}
+}
+
+func (p *PaxManagerAPITestNotificationReceiverResult) InitDefault() {
+}
+
+var PaxManagerAPITestNotificationReceiverResult_Success_DEFAULT *NotificationResponse
+
+func (p *PaxManagerAPITestNotificationReceiverResult) GetSuccess() (v *NotificationResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPITestNotificationReceiverResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPITestNotificationReceiverResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPITestNotificationReceiverResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPITestNotificationReceiverResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPITestNotificationReceiverResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPITestNotificationReceiverResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNotificationResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPITestNotificationReceiverResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("TestNotificationReceiver_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPITestNotificationReceiverResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPITestNotificationReceiverResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPITestNotificationReceiverResult(%+v)", *p)
 
 }

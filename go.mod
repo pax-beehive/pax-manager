@@ -4,6 +4,7 @@ go 1.25.8
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/apache/thrift v0.13.0
 	github.com/aws/aws-sdk-go-v2 v1.43.6
 	github.com/aws/aws-sdk-go-v2/config v1.32.37
@@ -125,6 +126,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godoc-lint/godoc-lint v0.11.2 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golangci/asciicheck v0.5.0 // indirect
 	github.com/golangci/dupl v0.0.0-20260401084720-c99c5cf5c202 // indirect

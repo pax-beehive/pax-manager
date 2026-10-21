@@ -29,6 +29,11 @@ func Run(ctx context.Context) error {
 	defer closeStore()
 
 	srv := newServer(cfg, store)
+	stopNotifications, err := srv.startNotificationWorker(ctx)
+	if err != nil {
+		return err
+	}
+	defer stopNotifications()
 	if cfg.DatabaseURL != "" {
 		listener := newE2EENotificationListener(cfg.DatabaseURL, srv)
 		go listener.Run(ctx)

@@ -741,3 +741,53 @@ func _listnodedaemondirectoriesMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _selfMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnotificationsubscriptionsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _notificationsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getnotificationconfigurationMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listnotificationreceiversMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _receiversMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _revokenotificationreceiverMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _registernotificationreceiverMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _receiver_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _testnotificationreceiverMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
