@@ -38,6 +38,10 @@ type Sender interface {
 	Send(context.Context, RegistrationRecord, Payload, time.Time) AttemptResult
 }
 
+type DeliveryAuthorizer interface {
+	CanDeliverTurnNotification(context.Context, LeasedDelivery) (bool, error)
+}
+
 type Worker struct {
 	Store   Outbox
 	Sender  Sender
@@ -74,23 +78,44 @@ func (w Worker) Drain(ctx context.Context) error {
 			return nil
 		}
 		job := jobs[0]
-		receiver, err := w.Store.LoadNotificationReceiver(ctx, job.UserID, job.ReceiverID)
+		result, err := w.attempt(ctx, job)
 		if err != nil {
 			return err
-		}
-		result := AttemptResult{Suppressed: true, ErrorCategory: "receiver_changed"}
-		if job.CanSendTo(receiver.Receiver, w.Now()) && receiver.RevokedAt == nil &&
-			receiver.InvalidatedAt == nil &&
-			receiver.VAPIDKeyID == w.KeyID {
-			sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			result = w.Sender.Send(sendCtx, receiver, job.Payload, job.ExpiresAt)
-			cancel()
 		}
 		if err := w.Store.CompleteNotificationDelivery(ctx, job, result); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (w Worker) attempt(ctx context.Context, job LeasedDelivery) (AttemptResult, error) {
+	receiver, err := w.Store.LoadNotificationReceiver(ctx, job.UserID, job.ReceiverID)
+	if err != nil {
+		return AttemptResult{}, err
+	}
+	result := AttemptResult{Suppressed: true, ErrorCategory: "receiver_changed"}
+	if !job.CanSendTo(receiver.Receiver, w.Now()) || receiver.RevokedAt != nil ||
+		receiver.InvalidatedAt != nil ||
+		receiver.VAPIDKeyID != w.KeyID {
+		return result, nil
+	}
+	if job.Payload.Type == "turn.completed" {
+		authorizer, ok := w.Store.(DeliveryAuthorizer)
+		if !ok {
+			return AttemptResult{Suppressed: true, ErrorCategory: "session_access_changed"}, nil
+		}
+		allowed, err := authorizer.CanDeliverTurnNotification(ctx, job)
+		if err != nil {
+			return AttemptResult{}, err
+		}
+		if !allowed {
+			return AttemptResult{Suppressed: true, ErrorCategory: "session_access_changed"}, nil
+		}
+	}
+	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return w.Sender.Send(sendCtx, receiver, job.Payload, job.ExpiresAt), nil
 }
 
 func BuildTestNotification(owner, nonce string, now time.Time) Notification {

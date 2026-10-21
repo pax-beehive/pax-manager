@@ -39,13 +39,26 @@ metadata, device enable/disable/test controls, subscription repair and a
 push-only service worker. Signing out revokes the owned browser receiver before
 the ordinary gateway logout, with bounded local cleanup.
 
-Deliveries 4-5 remain open: canonical turn-completion integration, atomic event
-fanout, E2EE terminal signaling, retention/operational checks and real-device
-release validation. Public config explicitly reports `turn_completion_enabled`
-false; UI does not promise automatic turn alerts. Browser fixtures exercised the
-installed worker without an app page, but native OS display and an installed
-Android TWA still need validation after deployment and secret configuration.
-No production deployment, production secret change or real push was performed
-by the agent in delivery 3.
+The owner merged delivery 3, backed up one VAPID bundle, and authorized its
+configuration in both regional Managers. Both healthy Managers now persist that
+bundle; the owner confirmed the test notification reaches the device.
+
+Delivery 4 for standard sessions is implemented on `codex/turn-completion-push`:
+normal `end_turn` responses correlate against durable prompt history, then commit
+terminal history, the completion ledger and receiver fanout atomically. Browser
+disconnect does not control task creation; replay uses the original inbox time,
+does not extend TTL, and does not notify newly registered receivers. Business
+write failures remain retryable in the reliable inbox. The delivery worker
+rechecks current session ownership. Config reports automatic availability when
+the sender is ready. Console shows the supported standard-session scope and uses
+a dedicated transparent PAX badge for Android's status bar.
+
+Encrypted-session terminal signaling, retention/operational checks and final
+real-turn/device release acceptance remain open. The Console explicitly states
+that automatic alerts do not yet cover encrypted sessions. This PR is not a
+production deployment and does not claim OS display for an actual completed turn.
+
+This file uses issue 043, matching the existing index; issue 042 belongs to the
+independent OpenClaw per-session MCP fix.
 
 See [design and review](../docs/turn_completion_notifications_design.md).
