@@ -26,11 +26,15 @@ func RegisterNotificationReceiver(c context.Context, ctx *app.RequestContext) {
 func RevokeNotificationReceiver(c context.Context, ctx *app.RequestContext) {
 	serveNotificationRequest(c, ctx)
 }
+func TestNotificationReceiver(c context.Context, ctx *app.RequestContext) {
+	serveNotificationRequest(c, ctx)
+}
 
 func serveNotificationRequest(c context.Context, ctx *app.RequestContext) {
 	s := serviceFromContext(ctx)
 	api := &userapi.NotificationHandler{
 		Registry: s.notificationRegistry, Region: s.cfg.Region,
+		Outbox: s.notificationOutbox, SendingEnabled: s.notificationSender != nil,
 		PublicKey: s.cfg.NotificationPublicKey, KeyID: s.cfg.NotificationKeyID, Now: s.clock,
 		Principal: func(r *http.Request) (domain.UserPrincipal, error) {
 			return s.auth.Principal(r.Context(), httpRequestMetadata(r))

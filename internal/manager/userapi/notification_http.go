@@ -21,12 +21,14 @@ const (
 )
 
 type NotificationHandler struct {
-	Registry  notifications.Registry
-	Principal func(*http.Request) (domain.UserPrincipal, error)
-	Region    string
-	PublicKey string
-	KeyID     string
-	Now       func() time.Time
+	Registry       notifications.Registry
+	Outbox         notifications.Outbox
+	SendingEnabled bool
+	Principal      func(*http.Request) (domain.UserPrincipal, error)
+	Region         string
+	PublicKey      string
+	KeyID          string
+	Now            func() time.Time
 }
 
 func (h *NotificationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -49,21 +51,13 @@ func (h *NotificationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	defer cancel()
 	switch {
 	case r.URL.Path == NotificationConfigPath && r.Method == http.MethodGet:
-		notificationResponse(
-			w,
-			200,
-			"",
-			map[string]any{
-				"enabled":    h.PublicKey != "",
-				"public_key": h.PublicKey,
-				"key_id":     h.KeyID,
-				"channel":    "web_push",
-			},
-		)
+		h.configuration(w)
 	case (r.URL.Path == NotificationSubscriptionsPath || r.URL.Path == NotificationReceiversPath) && r.Method == http.MethodGet:
 		h.list(ctx, w, r, principal)
 	case r.URL.Path == NotificationReceiversPath+"/web-push" && r.Method == http.MethodPut:
 		h.register(ctx, w, r, principal)
+	case notificationTestRequest(r):
+		h.sendTest(ctx, w, r, principal)
 	case strings.HasPrefix(r.URL.Path, NotificationReceiversPath+"/") && r.Method == http.MethodDelete:
 		id := strings.TrimPrefix(r.URL.Path, NotificationReceiversPath+"/")
 		if id == "" || strings.Contains(id, "/") {
@@ -83,6 +77,43 @@ func (h *NotificationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			notificationResponse(w, 404, "not found", nil)
 		}
 	}
+}
+
+func notificationTestRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost &&
+		strings.HasPrefix(r.URL.Path, NotificationReceiversPath+"/") &&
+		strings.HasSuffix(r.URL.Path, "/test")
+}
+
+func (h *NotificationHandler) configuration(w http.ResponseWriter) {
+	notificationResponse(w, 200, "", map[string]any{
+		"enabled": h.PublicKey != "", "test_enabled": h.SendingEnabled && h.Outbox != nil,
+		"turn_completion_enabled": false, "public_key": h.PublicKey,
+		"key_id": h.KeyID, "channel": "web_push",
+	})
+}
+
+func (h *NotificationHandler) sendTest(
+	ctx context.Context,
+	w http.ResponseWriter,
+	r *http.Request,
+	principal domain.UserPrincipal,
+) {
+	if h.Outbox == nil || !h.SendingEnabled {
+		notificationResponse(w, 503, "notification sending is not configured", nil)
+		return
+	}
+	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, NotificationReceiversPath+"/"), "/test")
+	if id == "" || strings.Contains(id, "/") {
+		notificationResponse(w, 404, "receiver not found", nil)
+		return
+	}
+	metadata, err := h.Outbox.EnqueueNotificationTest(ctx, principal.User.UserID, id)
+	if err != nil {
+		notificationRegistryError(w, err)
+		return
+	}
+	notificationResponse(w, 202, "", map[string]any{"delivery": metadata})
 }
 
 func (h *NotificationHandler) list(
@@ -180,6 +211,11 @@ func notificationRegistryError(w http.ResponseWriter, err error) {
 		status, message = 409, err.Error()
 	case errors.Is(err, notifications.ErrReceiverNotFound):
 		status, message = 404, err.Error()
+	case errors.Is(err, notifications.ErrReceiverDisabled):
+		status, message = 409, err.Error()
+	case errors.Is(err, notifications.ErrTestRateLimited):
+		w.Header().Set("Retry-After", "30")
+		status, message = 429, err.Error()
 	}
 	notificationResponse(w, status, message, nil)
 }

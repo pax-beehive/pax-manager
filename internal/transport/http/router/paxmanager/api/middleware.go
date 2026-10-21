@@ -781,3 +781,13 @@ func _registernotificationreceiverMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _receiver_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _testnotificationreceiverMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

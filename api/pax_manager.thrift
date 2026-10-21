@@ -2385,4 +2385,14 @@ service PaxManagerAPI {
     openapi.security = "cloudflareAccess",
     openapi.path.receiver_id = "Receiver identifier."
   )
+
+  NotificationResponse TestNotificationReceiver(1: optional RevokeNotificationReceiverRequest request) (
+    api.post = "/api/v1/user/self/notifications/receivers/:receiver_id/test",
+    openapi.tag = "user",
+    openapi.summary = "Queue a real test notification for an owned enabled receiver",
+    openapi.description = "Rate limited to one test per user per 30 seconds. Returns queued status; provider acceptance is not a display receipt.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.receiver_id = "Receiver identifier."
+  )
 }

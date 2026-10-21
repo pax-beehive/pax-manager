@@ -81,6 +81,10 @@ func Register(r *server.Hertz) {
 							_receivers := _notifications.Group("/receivers", _receiversMw()...)
 							_receivers.DELETE("/:receiver_id", append(_revokenotificationreceiverMw(), handler.RevokeNotificationReceiver)...)
 							_receivers.PUT("/web-push", append(_registernotificationreceiverMw(), handler.RegisterNotificationReceiver)...)
+							{
+								_receiver_id := _receivers.Group("/:receiver_id", _receiver_idMw()...)
+								_receiver_id.POST("/test", append(_testnotificationreceiverMw(), handler.TestNotificationReceiver)...)
+							}
 						}
 					}
 				}

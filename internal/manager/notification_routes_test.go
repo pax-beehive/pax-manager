@@ -2,6 +2,7 @@ package manager
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdh"
 	"encoding/base64"
 	"encoding/json"
@@ -16,6 +17,17 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/notifications"
 	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
 )
+
+type acceptedNotificationSender struct{}
+
+func (acceptedNotificationSender) Send(
+	context.Context,
+	notifications.RegistrationRecord,
+	notifications.Payload,
+	time.Time,
+) notifications.AttemptResult {
+	return notifications.AttemptResult{Status: 201}
+}
 
 func TestNotificationRoutesGivenRealAuthenticationThenGeneratedRoutesUseTheRegistry(t *testing.T) {
 	store := NewMemoryStore(time.Now)
@@ -85,6 +97,24 @@ func TestNotificationRoutesGivenRealAuthenticationThenGeneratedRoutesUseTheRegis
 	assert.Equal(t, 200, response.Code, response.Body.String())
 	assert.Contains(t, response.Body.String(), "Pixel")
 	assert.NotContains(t, response.Body.String(), "fcm.googleapis.com")
+	svc.notificationSender = acceptedNotificationSender{}
+	testPath := userapi.NotificationReceiversPath + "/" + notifications.ReceiverID(
+		input.Subscription.Endpoint,
+	) + "/test"
+	assert.Equal(t, 401, call("POST", testPath, "", nil).Code)
+	assert.Equal(t, 404, call("POST", testPath, "other@example.invalid", nil).Code)
+	response = call("POST", testPath, "one@example.invalid", nil)
+	require.Equal(t, 202, response.Code, response.Body.String())
+	assert.Equal(t, 429, call("POST", testPath, "one@example.invalid", nil).Code)
+	worker := notifications.Worker{
+		Store:  svc.notificationOutbox,
+		Sender: svc.notificationSender,
+		KeyID:  "dev-key",
+		Now:    time.Now,
+	}
+	require.NoError(t, worker.Drain(t.Context()))
+	response = call("GET", userapi.NotificationReceiversPath, "one@example.invalid", nil)
+	assert.Contains(t, response.Body.String(), `"status":"accepted"`)
 	response = call(
 		http.MethodDelete,
 		userapi.NotificationReceiversPath+"/"+notifications.ReceiverID(input.Subscription.Endpoint),

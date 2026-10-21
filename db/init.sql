@@ -2042,3 +2042,30 @@ CREATE TABLE IF NOT EXISTS notification_receivers (
 );
 CREATE INDEX IF NOT EXISTS idx_notification_receivers_owner
     ON notification_receivers(owner_user_id, receiver_id);
+
+CREATE TABLE IF NOT EXISTS notification_deliveries (
+    delivery_id TEXT PRIMARY KEY,
+    notification_id TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    receiver_id TEXT NOT NULL REFERENCES notification_receivers(receiver_id) ON DELETE CASCADE,
+    receiver_revision BIGINT NOT NULL,
+    state TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    attempted_at TIMESTAMPTZ,
+    lease_token TEXT NOT NULL DEFAULT '',
+    lease_until TIMESTAMPTZ,
+    provider_status INTEGER NOT NULL DEFAULT 0,
+    error_category TEXT NOT NULL DEFAULT '',
+    payload_json JSONB NOT NULL,
+    UNIQUE(notification_id, receiver_id)
+);
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_due
+    ON notification_deliveries(state, next_attempt_at, lease_until);
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_receiver
+    ON notification_deliveries(receiver_id, updated_at DESC, delivery_id DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_owner_created
+    ON notification_deliveries(owner_user_id, created_at DESC);

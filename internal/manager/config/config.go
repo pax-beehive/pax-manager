@@ -17,6 +17,9 @@ const DefaultPaxdVerificationBaseURL = "https://paxworkspace.net"
 type Config struct {
 	NotificationPublicKey            string
 	NotificationKeyID                string
+	NotificationPrivateKey           string
+	NotificationSubscriber           string
+	NotificationAllowedHosts         string
 	Region                           string
 	RegionProvisioningSecret         string
 	Port                             string
@@ -61,6 +64,9 @@ func Load() Config {
 	return Config{
 		NotificationPublicKey:    os.Getenv("PAX_WEB_PUSH_PUBLIC_KEY"),
 		NotificationKeyID:        envDefault("PAX_WEB_PUSH_KEY_ID", "default"),
+		NotificationPrivateKey:   os.Getenv("PAX_WEB_PUSH_PRIVATE_KEY"),
+		NotificationSubscriber:   os.Getenv("PAX_WEB_PUSH_SUBSCRIBER"),
+		NotificationAllowedHosts: os.Getenv("PAX_WEB_PUSH_ALLOWED_HOSTS"),
 		Region:                   os.Getenv("PAX_REGION"),
 		RegionProvisioningSecret: os.Getenv("REGION_PROVISIONING_SECRET"),
 		Port:                     envDefault("PORT", "9879"),

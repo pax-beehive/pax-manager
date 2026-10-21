@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/notifications"
@@ -20,6 +21,63 @@ type notificationRegistryFixture struct {
 	filter notifications.SubscriptionFilter
 	owner  string
 	err    error
+}
+
+type notificationOutboxFixture struct {
+	notifications.Outbox
+	owner string
+	id    string
+	err   error
+	calls int
+}
+
+func (f *notificationOutboxFixture) EnqueueNotificationTest(
+	_ context.Context,
+	owner, id string,
+) (notifications.DeliveryMetadata, error) {
+	f.owner, f.id = owner, id
+	f.calls++
+	return notifications.DeliveryMetadata{Status: "pending"}, f.err
+}
+func TestNotificationHTTPGivenTestRequestThenOnlyOwnedQueuedDeliveryIsAccepted(t *testing.T) {
+	outbox := &notificationOutboxFixture{}
+	handler := &NotificationHandler{
+		Registry:       &notificationRegistryFixture{},
+		Outbox:         outbox,
+		PublicKey:      "public",
+		SendingEnabled: true,
+		Now:            time.Now,
+		Principal: func(*http.Request) (domain.UserPrincipal, error) {
+			return domain.UserPrincipal{User: domain.User{UserID: "owner"}}, nil
+		},
+	}
+	call := func(path string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, httptest.NewRequest("POST", path, nil))
+		return w
+	}
+	path := NotificationReceiversPath + "/receiver/test"
+	response := call(path)
+	require.Equal(t, 202, response.Code)
+	assert.Equal(t, "owner", outbox.owner)
+	assert.Equal(t, "receiver", outbox.id)
+	assert.Contains(t, response.Body.String(), "pending")
+	for _, tc := range []struct {
+		err    error
+		status int
+	}{{notifications.ErrReceiverNotFound, 404}, {notifications.ErrReceiverDisabled, 409}, {notifications.ErrTestRateLimited, 429}, {errors.New("private provider response"), 503}} {
+		outbox.err = tc.err
+		response = call(path)
+		assert.Equal(t, tc.status, response.Code)
+		assert.NotContains(t, response.Body.String(), "private provider")
+		if tc.status == 429 {
+			assert.Equal(t, "30", response.Header().Get("Retry-After"))
+		}
+	}
+	assert.Equal(t, 404, call(NotificationReceiversPath+"/a/b/test").Code)
+	assert.Equal(t, 404, call(NotificationReceiversPath+"//test").Code)
+	handler.SendingEnabled = false
+	assert.Equal(t, 503, call(path).Code)
 }
 
 func (f *notificationRegistryFixture) RegisterNotificationReceiver(

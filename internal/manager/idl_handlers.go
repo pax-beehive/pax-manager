@@ -175,6 +175,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"GetNotificationConfiguration":  GetNotificationConfiguration,
 	"RegisterNotificationReceiver":  RegisterNotificationReceiver,
 	"RevokeNotificationReceiver":    RevokeNotificationReceiver,
+	"TestNotificationReceiver":      TestNotificationReceiver,
 	"MarkNodeMessageDelivered":      MarkNodeMessageDelivered,
 	"PullNodeAgentMailbox":          PullNodeAgentMailbox,
 	"PullNodeAgentSessionMailbox":   PullNodeAgentSessionMailbox,
