@@ -75,6 +75,7 @@ func (s *MemoryStore) ListNotificationSubscriptions(
 	search := strings.ToLower(strings.TrimSpace(filter.Search))
 	for _, record := range s.notificationReceivers {
 		view := record.Metadata(s.users[record.UserID].Email, s.now())
+		view.LatestDelivery = s.latestNotificationAttempt(record.ID)
 		if filter.UserID != "" && view.UserID != filter.UserID ||
 			filter.Status != "" && view.Status != filter.Status ||
 			filter.Channel != "" && view.Channel != filter.Channel {

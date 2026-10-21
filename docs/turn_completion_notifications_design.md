@@ -1,7 +1,8 @@
 # Turn completion notifications
 
-Status: deliveries 1-2 implemented in the notification-subscriptions development
-worktrees; deliveries 3-5 pending. No production deployment or push delivery.
+Status: deliveries 1-2 merged and deployed by the user. Delivery 3 is implemented
+on `codex/web-push-notifications`; actual installed-device acceptance is pending.
+Deliveries 4-5 remain open. No real provider/device push was sent by the agent.
 
 Scope update, 2026-10-19: include an administrator dashboard for all notification
 subscriptions alongside the existing Customers dashboard. Deliver its registry
@@ -316,7 +317,10 @@ Subscription shape validation alone is not outbound request authorization.
 | 4. Turn integration | Reliable normal-completion projection and atomic outbox/fanout; disconnect/replay coverage | Completing a real turn sends once per eligible device across browser disconnect and Manager restart |
 | 5. Release validation | Multi-replica recovery, metrics/retention, docs and rollout | Real device test, click routing, logout/disable, retry/expiry and rollback verified |
 
-Keep notifications disabled until deliveries 2-4 are complete and configured.
+Keep automatic turn notifications disabled until deliveries 2-4 are complete
+and configured. Explicit device opt-in and manual test pushes are available in
+delivery 3 when both VAPID keys and the contact are configured. The public config
+keeps `turn_completion_enabled` false until the completion path is implemented.
 Release backend before Console; incomplete/disabled backend config renders the
 UI unavailable without permission prompts. Disabling the feature stops task
 creation and sending. Expired jobs must not be replayed on re-enable.
@@ -354,11 +358,14 @@ performed. The following findings are incorporated, not deferred assumptions:
 | Registered receiver does not prove current device permission or delivery | Separate subscription state, timestamped client report, and provider outcome |
 | Existing Customers merges email across regions | Retain regional user references and never merge receiver identity by email |
 
-Deliveries 1-2 are implemented: receiver persistence, generated API and OpenAPI,
-the authenticated regional metadata read, and the administrator dashboard beside
-Customers. The atomic completion boundary and actual device delivery remain
-required implementation work in deliveries 3-5. Latest delivery stays null until
-real sending exists; the dashboard explicitly shows no delivery attempts.
+Deliveries 1-2 are merged. Delivery 3 adds the durable test outbox and worker,
+VAPID sender with provider/dial restrictions, device opt-in controls, a push-only
+service worker, logout/reconciliation handling and actual attempt metadata.
+Browser QA uses explicit fictional permission/subscription fixtures; native OS
+display and installed TWA delivery still need real-device validation. Delivery 4
+still owns atomic normal-completion creation, disconnect/replay handling, and
+the E2EE terminal-signal release gate. Latest delivery remains absent until a
+real task exists; a pending task with zero attempts is not shown as attempted.
 
 ## Sources
 

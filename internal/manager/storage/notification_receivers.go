@@ -228,6 +228,19 @@ func (s *PostgresStore) ListNotificationSubscriptions(
 			}
 			page.Receivers = append(page.Receivers, record.Metadata(row.Email, now))
 		}
+		ids := make([]string, 0, len(page.Receivers))
+		for _, receiver := range page.Receivers {
+			ids = append(ids, receiver.ID)
+		}
+		latest, err := latestNotificationAttempts(tx, ids)
+		if err != nil {
+			return err
+		}
+		for i := range page.Receivers {
+			if attempt, exists := latest[page.Receivers[i].ID]; exists {
+				page.Receivers[i].LatestDelivery = &attempt
+			}
+		}
 		return nil
 	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	return page, err

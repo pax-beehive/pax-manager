@@ -90,4 +90,5 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/user/self/notifications/config", GetNotificationConfiguration)
 	h.PUT("/api/v1/user/self/notifications/receivers/web-push", RegisterNotificationReceiver)
 	h.DELETE("/api/v1/user/self/notifications/receivers/:receiver_id", RevokeNotificationReceiver)
+	h.POST("/api/v1/user/self/notifications/receivers/:receiver_id/test", TestNotificationReceiver)
 }
