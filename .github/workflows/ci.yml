@@ -25,6 +25,7 @@ jobs:
       GOLANGCI_LINT_CACHE: /tmp/golangci-lint-cache
       GOPRIVATE: github.com/pax-beehive/*
       PAX_NOTIFICATIONS_TEST_DATABASE_URL: postgresql://postgres:notification-test-only@127.0.0.1:5432/notifications?sslmode=disable
+      PAX_MANAGER_PAIRING_TEST_DATABASE_URL: postgresql://postgres:notification-test-only@127.0.0.1:5432/notifications?sslmode=disable
     services:
       notifications-postgres:
         image: postgres:17

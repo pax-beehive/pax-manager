@@ -2462,6 +2462,7 @@ func (s *PostgresStore) FindReusableApprovalGrant(
 		WHERE owner_user_id = $1
 			AND domain = $2
 			AND operation = $3
+			AND md5(action_fingerprint) = md5($4::text)
 			AND action_fingerprint = $4
 			AND status = 'decided'
 			AND decision = 'allow'
