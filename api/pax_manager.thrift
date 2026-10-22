@@ -239,6 +239,36 @@ struct User {
   7: optional string last_seen_at
 }
 
+struct NodeDaemonMaintenanceConfirmation {
+  1: optional string command_id
+  2: optional string requested_boot_id
+  3: optional string observed_boot_id
+  4: optional string expected_version
+  5: optional string observed_version
+  6: optional string status
+  7: optional string updated_at
+}
+
+struct NodeDaemonCommand {
+  1: optional string command_id
+  2: optional string node_id
+  3: optional string requested_by_user_id
+  4: optional string type
+  5: optional JSON target
+  6: optional string target_version
+  7: optional string state
+  8: optional string status
+  9: optional string phase
+  10: optional string error_code
+  11: optional string error_message
+  12: optional JSON result
+  13: optional NodeDaemonMaintenanceConfirmation maintenance_confirmation
+  14: optional string created_at
+  15: optional string updated_at
+  16: optional string observed_at
+  17: optional string completed_at
+}
+
 struct Node {
   1: optional string node_id
   2: optional string owner_user_id
@@ -256,6 +286,7 @@ struct Node {
   14: optional JSON metadata
   15: optional string description
   16: optional JSON user_metadata
+  17: optional list<NodeDaemonCommand> latest_daemon_commands
 }
 
 struct Agent {
@@ -1293,6 +1324,7 @@ struct NodeDaemonCommandData {
   6: optional string dispatch_status
   7: optional string dispatch_error
   8: optional JSON command_ack
+  9: optional NodeDaemonCommand daemon_command
 }
 
 struct NodeDaemonCommandResponse {
@@ -1312,6 +1344,24 @@ struct GetNodeDaemonCommandRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
   3: optional string command_id (api.path = "command_id")
+}
+
+struct ListNodeDaemonCommandsRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string type (api.query = "type")
+  4: optional string state (api.query = "state")
+  5: optional i32 limit (api.query = "limit")
+}
+
+struct NodeDaemonCommandListData {
+  1: optional list<NodeDaemonCommand> commands
+}
+
+struct NodeDaemonCommandListResponse {
+  1: optional NodeDaemonCommandListData data
+  2: optional i32 code
+  3: optional string message
 }
 
 struct NodeBrowserControlRequest {
@@ -1948,13 +1998,25 @@ service PaxManagerAPI {
     openapi.path.connection_id = "Agent connection identifier."
   )
 
+  NodeDaemonCommandListResponse ListNodeDaemonCommands(
+    1: optional ListNodeDaemonCommandsRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/nodes/:node_id/daemon/commands",
+    openapi.tag = "user",
+    openapi.summary = "List node daemon commands",
+    openapi.description = "Lists recorded paxd restart, paxd upgrade, maintenance cancel, paxl upgrade, and harness upgrade commands for a node, newest first. Optional filters: type, state (in_progress, succeeded, failed), limit (default 20, max 100). Reads stored records only; in-progress records are refreshed from paxd on heartbeats.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
   NodeDaemonQueryResponse GetNodeDaemonCommand(
     1: optional GetNodeDaemonCommandRequest request
   ) (
     api.get = "/api/v1/user/:user_id/nodes/:node_id/daemon/commands/:command_id",
     openapi.tag = "user",
     openapi.summary = "Get node daemon command",
-    openapi.description = "Forwards command.get to the connected paxd control tunnel.",
+    openapi.description = "Forwards command.get to the connected paxd control tunnel and refreshes the stored record as daemon_command. When paxd is unreachable, a recorded command is served from storage with stale set to true.",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier.",

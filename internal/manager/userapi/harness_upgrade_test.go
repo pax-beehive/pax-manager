@@ -33,6 +33,7 @@ func testUpgradeNodeHarnessVersion(t *testing.T, version, expected string) {
 	principals := userapimocks.NewMockPrincipalResolver(t)
 	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil)
 	store.EXPECT().GetNode(ctx, principal, "node1").Return(domain.Node{NodeID: "node1"}, nil)
+	expectRecordedNodeDaemonCommand(store)
 	client := &fakeNodeControlClient{
 		remoteID:   "remote1",
 		commandAck: json.RawMessage(`{"command_id":"upgrade1","ok":true,"status":"received"}`),

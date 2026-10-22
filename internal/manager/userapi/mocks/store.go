@@ -1073,6 +1073,70 @@ func (_c *MockStore_CreateNodeAgentSession_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// CreateNodeDaemonCommand provides a mock function with given fields: ctx, command
+func (_m *MockStore) CreateNodeDaemonCommand(ctx context.Context, command domain.NodeDaemonCommand) (domain.NodeDaemonCommand, bool, error) {
+	ret := _m.Called(ctx, command)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateNodeDaemonCommand")
+	}
+
+	var r0 domain.NodeDaemonCommand
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.NodeDaemonCommand) (domain.NodeDaemonCommand, bool, error)); ok {
+		return rf(ctx, command)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, domain.NodeDaemonCommand) domain.NodeDaemonCommand); ok {
+		r0 = rf(ctx, command)
+	} else {
+		r0 = ret.Get(0).(domain.NodeDaemonCommand)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, domain.NodeDaemonCommand) bool); ok {
+		r1 = rf(ctx, command)
+	} else {
+		r1 = ret.Get(1).(bool)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, domain.NodeDaemonCommand) error); ok {
+		r2 = rf(ctx, command)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockStore_CreateNodeDaemonCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateNodeDaemonCommand'
+type MockStore_CreateNodeDaemonCommand_Call struct {
+	*mock.Call
+}
+
+// CreateNodeDaemonCommand is a helper method to define mock.On call
+//   - ctx context.Context
+//   - command domain.NodeDaemonCommand
+func (_e *MockStore_Expecter) CreateNodeDaemonCommand(ctx interface{}, command interface{}) *MockStore_CreateNodeDaemonCommand_Call {
+	return &MockStore_CreateNodeDaemonCommand_Call{Call: _e.mock.On("CreateNodeDaemonCommand", ctx, command)}
+}
+
+func (_c *MockStore_CreateNodeDaemonCommand_Call) Run(run func(ctx context.Context, command domain.NodeDaemonCommand)) *MockStore_CreateNodeDaemonCommand_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.NodeDaemonCommand))
+	})
+	return _c
+}
+
+func (_c *MockStore_CreateNodeDaemonCommand_Call) Return(_a0 domain.NodeDaemonCommand, _a1 bool, _a2 error) *MockStore_CreateNodeDaemonCommand_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockStore_CreateNodeDaemonCommand_Call) RunAndReturn(run func(context.Context, domain.NodeDaemonCommand) (domain.NodeDaemonCommand, bool, error)) *MockStore_CreateNodeDaemonCommand_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateProject provides a mock function with given fields: ctx, principal, req
 func (_m *MockStore) CreateProject(ctx context.Context, principal domain.UserPrincipal, req domain.CreateProjectRequest) (domain.Project, error) {
 	ret := _m.Called(ctx, principal, req)
@@ -2289,6 +2353,64 @@ func (_c *MockStore_GetNode_Call) RunAndReturn(run func(context.Context, domain.
 	return _c
 }
 
+// GetNodeDaemonCommand provides a mock function with given fields: ctx, nodeID, commandID
+func (_m *MockStore) GetNodeDaemonCommand(ctx context.Context, nodeID string, commandID string) (domain.NodeDaemonCommand, error) {
+	ret := _m.Called(ctx, nodeID, commandID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetNodeDaemonCommand")
+	}
+
+	var r0 domain.NodeDaemonCommand
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (domain.NodeDaemonCommand, error)); ok {
+		return rf(ctx, nodeID, commandID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) domain.NodeDaemonCommand); ok {
+		r0 = rf(ctx, nodeID, commandID)
+	} else {
+		r0 = ret.Get(0).(domain.NodeDaemonCommand)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, nodeID, commandID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_GetNodeDaemonCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetNodeDaemonCommand'
+type MockStore_GetNodeDaemonCommand_Call struct {
+	*mock.Call
+}
+
+// GetNodeDaemonCommand is a helper method to define mock.On call
+//   - ctx context.Context
+//   - nodeID string
+//   - commandID string
+func (_e *MockStore_Expecter) GetNodeDaemonCommand(ctx interface{}, nodeID interface{}, commandID interface{}) *MockStore_GetNodeDaemonCommand_Call {
+	return &MockStore_GetNodeDaemonCommand_Call{Call: _e.mock.On("GetNodeDaemonCommand", ctx, nodeID, commandID)}
+}
+
+func (_c *MockStore_GetNodeDaemonCommand_Call) Run(run func(ctx context.Context, nodeID string, commandID string)) *MockStore_GetNodeDaemonCommand_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
+	})
+	return _c
+}
+
+func (_c *MockStore_GetNodeDaemonCommand_Call) Return(_a0 domain.NodeDaemonCommand, _a1 error) *MockStore_GetNodeDaemonCommand_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_GetNodeDaemonCommand_Call) RunAndReturn(run func(context.Context, string, string) (domain.NodeDaemonCommand, error)) *MockStore_GetNodeDaemonCommand_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetProject provides a mock function with given fields: ctx, principal, projectID
 func (_m *MockStore) GetProject(ctx context.Context, principal domain.UserPrincipal, projectID string) (domain.Project, error) {
 	ret := _m.Called(ctx, principal, projectID)
@@ -2808,6 +2930,65 @@ func (_c *MockStore_GetUserByEmail_Call) Return(_a0 domain.User, _a1 error) *Moc
 }
 
 func (_c *MockStore_GetUserByEmail_Call) RunAndReturn(run func(context.Context, string) (domain.User, error)) *MockStore_GetUserByEmail_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// LatestNodeDaemonCommands provides a mock function with given fields: ctx, nodeIDs
+func (_m *MockStore) LatestNodeDaemonCommands(ctx context.Context, nodeIDs []string) (map[string][]domain.NodeDaemonCommand, error) {
+	ret := _m.Called(ctx, nodeIDs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for LatestNodeDaemonCommands")
+	}
+
+	var r0 map[string][]domain.NodeDaemonCommand
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) (map[string][]domain.NodeDaemonCommand, error)); ok {
+		return rf(ctx, nodeIDs)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) map[string][]domain.NodeDaemonCommand); ok {
+		r0 = rf(ctx, nodeIDs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string][]domain.NodeDaemonCommand)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, nodeIDs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_LatestNodeDaemonCommands_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LatestNodeDaemonCommands'
+type MockStore_LatestNodeDaemonCommands_Call struct {
+	*mock.Call
+}
+
+// LatestNodeDaemonCommands is a helper method to define mock.On call
+//   - ctx context.Context
+//   - nodeIDs []string
+func (_e *MockStore_Expecter) LatestNodeDaemonCommands(ctx interface{}, nodeIDs interface{}) *MockStore_LatestNodeDaemonCommands_Call {
+	return &MockStore_LatestNodeDaemonCommands_Call{Call: _e.mock.On("LatestNodeDaemonCommands", ctx, nodeIDs)}
+}
+
+func (_c *MockStore_LatestNodeDaemonCommands_Call) Run(run func(ctx context.Context, nodeIDs []string)) *MockStore_LatestNodeDaemonCommands_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockStore_LatestNodeDaemonCommands_Call) Return(_a0 map[string][]domain.NodeDaemonCommand, _a1 error) *MockStore_LatestNodeDaemonCommands_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_LatestNodeDaemonCommands_Call) RunAndReturn(run func(context.Context, []string) (map[string][]domain.NodeDaemonCommand, error)) *MockStore_LatestNodeDaemonCommands_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -3762,6 +3943,66 @@ func (_c *MockStore_ListNodeAgents_Call) Return(_a0 []domain.Agent, _a1 error) *
 }
 
 func (_c *MockStore_ListNodeAgents_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) ([]domain.Agent, error)) *MockStore_ListNodeAgents_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListNodeDaemonCommands provides a mock function with given fields: ctx, nodeID, filter
+func (_m *MockStore) ListNodeDaemonCommands(ctx context.Context, nodeID string, filter domain.NodeDaemonCommandFilter) ([]domain.NodeDaemonCommand, error) {
+	ret := _m.Called(ctx, nodeID, filter)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListNodeDaemonCommands")
+	}
+
+	var r0 []domain.NodeDaemonCommand
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, domain.NodeDaemonCommandFilter) ([]domain.NodeDaemonCommand, error)); ok {
+		return rf(ctx, nodeID, filter)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, domain.NodeDaemonCommandFilter) []domain.NodeDaemonCommand); ok {
+		r0 = rf(ctx, nodeID, filter)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]domain.NodeDaemonCommand)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, domain.NodeDaemonCommandFilter) error); ok {
+		r1 = rf(ctx, nodeID, filter)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockStore_ListNodeDaemonCommands_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListNodeDaemonCommands'
+type MockStore_ListNodeDaemonCommands_Call struct {
+	*mock.Call
+}
+
+// ListNodeDaemonCommands is a helper method to define mock.On call
+//   - ctx context.Context
+//   - nodeID string
+//   - filter domain.NodeDaemonCommandFilter
+func (_e *MockStore_Expecter) ListNodeDaemonCommands(ctx interface{}, nodeID interface{}, filter interface{}) *MockStore_ListNodeDaemonCommands_Call {
+	return &MockStore_ListNodeDaemonCommands_Call{Call: _e.mock.On("ListNodeDaemonCommands", ctx, nodeID, filter)}
+}
+
+func (_c *MockStore_ListNodeDaemonCommands_Call) Run(run func(ctx context.Context, nodeID string, filter domain.NodeDaemonCommandFilter)) *MockStore_ListNodeDaemonCommands_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(domain.NodeDaemonCommandFilter))
+	})
+	return _c
+}
+
+func (_c *MockStore_ListNodeDaemonCommands_Call) Return(_a0 []domain.NodeDaemonCommand, _a1 error) *MockStore_ListNodeDaemonCommands_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockStore_ListNodeDaemonCommands_Call) RunAndReturn(run func(context.Context, string, domain.NodeDaemonCommandFilter) ([]domain.NodeDaemonCommand, error)) *MockStore_ListNodeDaemonCommands_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -4943,6 +5184,53 @@ func (_c *MockStore_RevokeUserAPIKey_Call) Return(_a0 error) *MockStore_RevokeUs
 }
 
 func (_c *MockStore_RevokeUserAPIKey_Call) RunAndReturn(run func(context.Context, domain.UserPrincipal, string) error) *MockStore_RevokeUserAPIKey_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SaveNodeDaemonCommand provides a mock function with given fields: ctx, command
+func (_m *MockStore) SaveNodeDaemonCommand(ctx context.Context, command domain.NodeDaemonCommand) error {
+	ret := _m.Called(ctx, command)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SaveNodeDaemonCommand")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, domain.NodeDaemonCommand) error); ok {
+		r0 = rf(ctx, command)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockStore_SaveNodeDaemonCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SaveNodeDaemonCommand'
+type MockStore_SaveNodeDaemonCommand_Call struct {
+	*mock.Call
+}
+
+// SaveNodeDaemonCommand is a helper method to define mock.On call
+//   - ctx context.Context
+//   - command domain.NodeDaemonCommand
+func (_e *MockStore_Expecter) SaveNodeDaemonCommand(ctx interface{}, command interface{}) *MockStore_SaveNodeDaemonCommand_Call {
+	return &MockStore_SaveNodeDaemonCommand_Call{Call: _e.mock.On("SaveNodeDaemonCommand", ctx, command)}
+}
+
+func (_c *MockStore_SaveNodeDaemonCommand_Call) Run(run func(ctx context.Context, command domain.NodeDaemonCommand)) *MockStore_SaveNodeDaemonCommand_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(domain.NodeDaemonCommand))
+	})
+	return _c
+}
+
+func (_c *MockStore_SaveNodeDaemonCommand_Call) Return(_a0 error) *MockStore_SaveNodeDaemonCommand_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockStore_SaveNodeDaemonCommand_Call) RunAndReturn(run func(context.Context, domain.NodeDaemonCommand) error) *MockStore_SaveNodeDaemonCommand_Call {
 	_c.Call.Return(run)
 	return _c
 }

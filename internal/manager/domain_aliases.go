@@ -141,6 +141,7 @@ type UpgradeNodeDaemonRequest = domain.UpgradeNodeDaemonRequest
 type CancelNodeDaemonMaintenanceRequest = domain.CancelNodeDaemonMaintenanceRequest
 type NodeDaemonAgentConnectionActionRequest = domain.NodeDaemonAgentConnectionActionRequest
 type PushNodeDaemonSecretChannelRequest = domain.PushNodeDaemonSecretChannelRequest
+type NodeDaemonCommandFilter = domain.NodeDaemonCommandFilter
 type UpdateNodeRequest = domain.UpdateNodeRequest
 type DeleteNodeRequest = domain.DeleteNodeRequest
 type UpdateAgentProfileRequest = domain.UpdateAgentProfileRequest

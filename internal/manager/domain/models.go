@@ -89,6 +89,9 @@ type Node struct {
 	RegisteredAt  time.Time       `json:"registered_at"`
 	UserMetadata  json.RawMessage `json:"user_metadata,omitempty"`
 	Metadata      json.RawMessage `json:"metadata,omitempty"`
+	// LatestDaemonCommands holds the newest recorded command per type. Only
+	// the user API fills it.
+	LatestDaemonCommands []NodeDaemonCommand `json:"latest_daemon_commands,omitempty"`
 }
 
 type AgentSession struct {

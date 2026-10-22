@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -30,6 +31,7 @@ type Store interface {
 	TeamStore
 	TeamMemexStore
 	MailboxStore
+	domain.NodeDaemonCommandStore
 }
 
 const (
@@ -549,6 +551,8 @@ type Service struct {
 	memexExecutor     TeamMemexExecutor
 	nodeControl       NodeControlClient
 	historyReconciler func(context.Context, string, string) error
+	commandSyncMu     sync.Mutex
+	commandSyncAt     map[string]time.Time
 }
 
 func NewService(
@@ -744,6 +748,7 @@ func (s *Service) ListNodes(c context.Context, meta auth.RequestMetadata) (int, 
 	if err != nil {
 		return 0, nil, err
 	}
+	s.attachLatestDaemonCommands(c, nodes)
 	return http.StatusOK, map[string]any{"nodes": nodes}, nil
 }
 
@@ -763,7 +768,9 @@ func (s *Service) GetNode(
 	if err != nil {
 		return 0, nil, err
 	}
-	return http.StatusOK, node, nil
+	nodes := []domain.Node{node}
+	s.attachLatestDaemonCommands(c, nodes)
+	return http.StatusOK, nodes[0], nil
 }
 
 func (s *Service) GetNodeDaemonStatus(
@@ -869,62 +876,6 @@ func (s *Service) ListNodeDaemonAgentConnections(
 		return 0, nil, err
 	}
 	return http.StatusOK, result, nil
-}
-
-func (s *Service) GetNodeDaemonCommand(
-	c context.Context,
-	meta auth.RequestMetadata,
-	nodeID string,
-	commandID string,
-) (int, any, error) {
-	commandID = strings.TrimSpace(commandID)
-	if commandID == "" {
-		return 0, nil, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "command_id is required",
-		}
-	}
-	status, data, err := s.queryNodeDaemon(c, meta, nodeID, map[string]any{
-		"type": "command.get",
-		"get_command": map[string]any{
-			"command_id": commandID,
-		},
-	})
-	if err != nil {
-		return status, data, err
-	}
-	tracker, ok := s.nodeControl.(nodeMaintenanceTracker)
-	if !ok {
-		return status, data, nil
-	}
-	raw, ok := data.(json.RawMessage)
-	if !ok {
-		return status, data, nil
-	}
-	var result map[string]any
-	if json.Unmarshal(raw, &result) != nil || result == nil {
-		return status, data, nil
-	}
-	confirmation, found := tracker.MaintenanceConfirmation(nodeID, commandID)
-	if !found {
-		command, _ := result["command"].(map[string]any)
-		maintenanceResult, _ := command["result"].(map[string]any)
-		requestedBootID, _ := maintenanceResult["requested_boot_id"].(string)
-		commandType, _ := command["type"].(string)
-		expectedVersion := ""
-		if commandType == "paxd.upgrade" {
-			expectedVersion, _ = maintenanceResult["target_version"].(string)
-		}
-		if requestedBootID != "" &&
-			(commandType == "paxd.restart" || commandType == "paxd.upgrade") {
-			tracker.TrackMaintenance(nodeID, commandID, requestedBootID, expectedVersion)
-			confirmation, found = tracker.MaintenanceConfirmation(nodeID, commandID)
-		}
-	}
-	if found {
-		result["maintenance_confirmation"] = confirmation
-	}
-	return status, result, nil
 }
 
 func (s *Service) queryNodeDaemon(
@@ -1312,9 +1263,13 @@ func (s *Service) RestartNodeDaemon(
 	data := map[string]any{
 		"command_id": req.CommandID, "remote_id": remoteID, "dispatch_status": "unknown",
 	}
-	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+	return s.dispatchRecordedNodeDaemonCommand(c, principal, node, nodeDaemonCommandIntent{
+		CommandID: req.CommandID,
+		Type:      domain.NodeDaemonCommandPaxdRestart,
+		Target:    map[string]any{"mode": mode},
+	}, map[string]any{
 		"command_id":   req.CommandID,
-		"type":         "paxd.restart",
+		"type":         domain.NodeDaemonCommandPaxdRestart,
 		"restart_paxd": restart,
 	}, data)
 }
@@ -1390,9 +1345,14 @@ func (s *Service) UpgradeNodeDaemon(
 		"expected_version":    req.Version,
 		"confirmation_status": "awaiting_new_boot",
 	}
-	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+	return s.dispatchRecordedNodeDaemonCommand(c, principal, node, nodeDaemonCommandIntent{
+		CommandID:     req.CommandID,
+		Type:          domain.NodeDaemonCommandPaxdUpgrade,
+		Target:        map[string]any{"tag": tag, "mode": mode},
+		TargetVersion: req.Version,
+	}, map[string]any{
 		"command_id":   req.CommandID,
-		"type":         "paxd.upgrade",
+		"type":         domain.NodeDaemonCommandPaxdUpgrade,
 		"upgrade_paxd": upgrade,
 	}, data)
 }
@@ -1432,9 +1392,13 @@ func (s *Service) CancelNodeDaemonMaintenance(
 		"remote_id":              remoteID,
 		"dispatch_status":        "unknown",
 	}
-	return s.dispatchNodeDaemonCommand(c, node.NodeID, req.CommandID, map[string]any{
+	return s.dispatchRecordedNodeDaemonCommand(c, principal, node, nodeDaemonCommandIntent{
+		CommandID: req.CommandID,
+		Type:      domain.NodeDaemonCommandPaxdCancel,
+		Target:    map[string]any{"maintenance_command_id": req.MaintenanceCommandID},
+	}, map[string]any{
 		"command_id": req.CommandID,
-		"type":       "paxd.maintenance.cancel",
+		"type":       domain.NodeDaemonCommandPaxdCancel,
 		"cancel_paxd_maintenance": map[string]any{
 			"maintenance_command_id": req.MaintenanceCommandID,
 		},

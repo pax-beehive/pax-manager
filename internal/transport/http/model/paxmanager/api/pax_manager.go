@@ -11037,23 +11037,1577 @@ func (p *User) String() string {
 
 }
 
+type NodeDaemonMaintenanceConfirmation struct {
+	CommandID       *string `thrift:"command_id,1,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
+	RequestedBootID *string `thrift:"requested_boot_id,2,optional" form:"requested_boot_id" json:"requested_boot_id,omitempty" query:"requested_boot_id"`
+	ObservedBootID  *string `thrift:"observed_boot_id,3,optional" form:"observed_boot_id" json:"observed_boot_id,omitempty" query:"observed_boot_id"`
+	ExpectedVersion *string `thrift:"expected_version,4,optional" form:"expected_version" json:"expected_version,omitempty" query:"expected_version"`
+	ObservedVersion *string `thrift:"observed_version,5,optional" form:"observed_version" json:"observed_version,omitempty" query:"observed_version"`
+	Status          *string `thrift:"status,6,optional" form:"status" json:"status,omitempty" query:"status"`
+	UpdatedAt       *string `thrift:"updated_at,7,optional" form:"updated_at" json:"updated_at,omitempty" query:"updated_at"`
+}
+
+func NewNodeDaemonMaintenanceConfirmation() *NodeDaemonMaintenanceConfirmation {
+	return &NodeDaemonMaintenanceConfirmation{}
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) InitDefault() {
+}
+
+var NodeDaemonMaintenanceConfirmation_CommandID_DEFAULT string
+
+func (p *NodeDaemonMaintenanceConfirmation) GetCommandID() (v string) {
+	if !p.IsSetCommandID() {
+		return NodeDaemonMaintenanceConfirmation_CommandID_DEFAULT
+	}
+	return *p.CommandID
+}
+
+var NodeDaemonMaintenanceConfirmation_RequestedBootID_DEFAULT string
+
+func (p *NodeDaemonMaintenanceConfirmation) GetRequestedBootID() (v string) {
+	if !p.IsSetRequestedBootID() {
+		return NodeDaemonMaintenanceConfirmation_RequestedBootID_DEFAULT
+	}
+	return *p.RequestedBootID
+}
+
+var NodeDaemonMaintenanceConfirmation_ObservedBootID_DEFAULT string
+
+func (p *NodeDaemonMaintenanceConfirmation) GetObservedBootID() (v string) {
+	if !p.IsSetObservedBootID() {
+		return NodeDaemonMaintenanceConfirmation_ObservedBootID_DEFAULT
+	}
+	return *p.ObservedBootID
+}
+
+var NodeDaemonMaintenanceConfirmation_ExpectedVersion_DEFAULT string
+
+func (p *NodeDaemonMaintenanceConfirmation) GetExpectedVersion() (v string) {
+	if !p.IsSetExpectedVersion() {
+		return NodeDaemonMaintenanceConfirmation_ExpectedVersion_DEFAULT
+	}
+	return *p.ExpectedVersion
+}
+
+var NodeDaemonMaintenanceConfirmation_ObservedVersion_DEFAULT string
+
+func (p *NodeDaemonMaintenanceConfirmation) GetObservedVersion() (v string) {
+	if !p.IsSetObservedVersion() {
+		return NodeDaemonMaintenanceConfirmation_ObservedVersion_DEFAULT
+	}
+	return *p.ObservedVersion
+}
+
+var NodeDaemonMaintenanceConfirmation_Status_DEFAULT string
+
+func (p *NodeDaemonMaintenanceConfirmation) GetStatus() (v string) {
+	if !p.IsSetStatus() {
+		return NodeDaemonMaintenanceConfirmation_Status_DEFAULT
+	}
+	return *p.Status
+}
+
+var NodeDaemonMaintenanceConfirmation_UpdatedAt_DEFAULT string
+
+func (p *NodeDaemonMaintenanceConfirmation) GetUpdatedAt() (v string) {
+	if !p.IsSetUpdatedAt() {
+		return NodeDaemonMaintenanceConfirmation_UpdatedAt_DEFAULT
+	}
+	return *p.UpdatedAt
+}
+
+var fieldIDToName_NodeDaemonMaintenanceConfirmation = map[int16]string{
+	1: "command_id",
+	2: "requested_boot_id",
+	3: "observed_boot_id",
+	4: "expected_version",
+	5: "observed_version",
+	6: "status",
+	7: "updated_at",
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) IsSetCommandID() bool {
+	return p.CommandID != nil
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) IsSetRequestedBootID() bool {
+	return p.RequestedBootID != nil
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) IsSetObservedBootID() bool {
+	return p.ObservedBootID != nil
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) IsSetExpectedVersion() bool {
+	return p.ExpectedVersion != nil
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) IsSetObservedVersion() bool {
+	return p.ObservedVersion != nil
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) IsSetStatus() bool {
+	return p.Status != nil
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) IsSetUpdatedAt() bool {
+	return p.UpdatedAt != nil
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_NodeDaemonMaintenanceConfirmation[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.CommandID = _field
+	return nil
+}
+func (p *NodeDaemonMaintenanceConfirmation) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.RequestedBootID = _field
+	return nil
+}
+func (p *NodeDaemonMaintenanceConfirmation) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ObservedBootID = _field
+	return nil
+}
+func (p *NodeDaemonMaintenanceConfirmation) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ExpectedVersion = _field
+	return nil
+}
+func (p *NodeDaemonMaintenanceConfirmation) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ObservedVersion = _field
+	return nil
+}
+func (p *NodeDaemonMaintenanceConfirmation) ReadField6(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Status = _field
+	return nil
+}
+func (p *NodeDaemonMaintenanceConfirmation) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UpdatedAt = _field
+	return nil
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NodeDaemonMaintenanceConfirmation"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCommandID() {
+		if err = oprot.WriteFieldBegin("command_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.CommandID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRequestedBootID() {
+		if err = oprot.WriteFieldBegin("requested_boot_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.RequestedBootID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetObservedBootID() {
+		if err = oprot.WriteFieldBegin("observed_boot_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ObservedBootID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetExpectedVersion() {
+		if err = oprot.WriteFieldBegin("expected_version", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ExpectedVersion); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetObservedVersion() {
+		if err = oprot.WriteFieldBegin("observed_version", thrift.STRING, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ObservedVersion); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetStatus() {
+		if err = oprot.WriteFieldBegin("status", thrift.STRING, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Status); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUpdatedAt() {
+		if err = oprot.WriteFieldBegin("updated_at", thrift.STRING, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UpdatedAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *NodeDaemonMaintenanceConfirmation) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeDaemonMaintenanceConfirmation(%+v)", *p)
+
+}
+
+type NodeDaemonCommand struct {
+	CommandID               *string                            `thrift:"command_id,1,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
+	NodeID                  *string                            `thrift:"node_id,2,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
+	RequestedByUserID       *string                            `thrift:"requested_by_user_id,3,optional" form:"requested_by_user_id" json:"requested_by_user_id,omitempty" query:"requested_by_user_id"`
+	Type                    *string                            `thrift:"type,4,optional" form:"type" json:"type,omitempty" query:"type"`
+	Target                  JSON                               `thrift:"target,5,optional" form:"target" json:"target,omitempty" query:"target"`
+	TargetVersion           *string                            `thrift:"target_version,6,optional" form:"target_version" json:"target_version,omitempty" query:"target_version"`
+	State                   *string                            `thrift:"state,7,optional" form:"state" json:"state,omitempty" query:"state"`
+	Status                  *string                            `thrift:"status,8,optional" form:"status" json:"status,omitempty" query:"status"`
+	Phase                   *string                            `thrift:"phase,9,optional" form:"phase" json:"phase,omitempty" query:"phase"`
+	ErrorCode               *string                            `thrift:"error_code,10,optional" form:"error_code" json:"error_code,omitempty" query:"error_code"`
+	ErrorMessage            *string                            `thrift:"error_message,11,optional" form:"error_message" json:"error_message,omitempty" query:"error_message"`
+	Result                  JSON                               `thrift:"result,12,optional" form:"result" json:"result,omitempty" query:"result"`
+	MaintenanceConfirmation *NodeDaemonMaintenanceConfirmation `thrift:"maintenance_confirmation,13,optional" form:"maintenance_confirmation" json:"maintenance_confirmation,omitempty" query:"maintenance_confirmation"`
+	CreatedAt               *string                            `thrift:"created_at,14,optional" form:"created_at" json:"created_at,omitempty" query:"created_at"`
+	UpdatedAt               *string                            `thrift:"updated_at,15,optional" form:"updated_at" json:"updated_at,omitempty" query:"updated_at"`
+	ObservedAt              *string                            `thrift:"observed_at,16,optional" form:"observed_at" json:"observed_at,omitempty" query:"observed_at"`
+	CompletedAt             *string                            `thrift:"completed_at,17,optional" form:"completed_at" json:"completed_at,omitempty" query:"completed_at"`
+}
+
+func NewNodeDaemonCommand() *NodeDaemonCommand {
+	return &NodeDaemonCommand{}
+}
+
+func (p *NodeDaemonCommand) InitDefault() {
+}
+
+var NodeDaemonCommand_CommandID_DEFAULT string
+
+func (p *NodeDaemonCommand) GetCommandID() (v string) {
+	if !p.IsSetCommandID() {
+		return NodeDaemonCommand_CommandID_DEFAULT
+	}
+	return *p.CommandID
+}
+
+var NodeDaemonCommand_NodeID_DEFAULT string
+
+func (p *NodeDaemonCommand) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return NodeDaemonCommand_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var NodeDaemonCommand_RequestedByUserID_DEFAULT string
+
+func (p *NodeDaemonCommand) GetRequestedByUserID() (v string) {
+	if !p.IsSetRequestedByUserID() {
+		return NodeDaemonCommand_RequestedByUserID_DEFAULT
+	}
+	return *p.RequestedByUserID
+}
+
+var NodeDaemonCommand_Type_DEFAULT string
+
+func (p *NodeDaemonCommand) GetType() (v string) {
+	if !p.IsSetType() {
+		return NodeDaemonCommand_Type_DEFAULT
+	}
+	return *p.Type
+}
+
+var NodeDaemonCommand_Target_DEFAULT JSON
+
+func (p *NodeDaemonCommand) GetTarget() (v JSON) {
+	if !p.IsSetTarget() {
+		return NodeDaemonCommand_Target_DEFAULT
+	}
+	return p.Target
+}
+
+var NodeDaemonCommand_TargetVersion_DEFAULT string
+
+func (p *NodeDaemonCommand) GetTargetVersion() (v string) {
+	if !p.IsSetTargetVersion() {
+		return NodeDaemonCommand_TargetVersion_DEFAULT
+	}
+	return *p.TargetVersion
+}
+
+var NodeDaemonCommand_State_DEFAULT string
+
+func (p *NodeDaemonCommand) GetState() (v string) {
+	if !p.IsSetState() {
+		return NodeDaemonCommand_State_DEFAULT
+	}
+	return *p.State
+}
+
+var NodeDaemonCommand_Status_DEFAULT string
+
+func (p *NodeDaemonCommand) GetStatus() (v string) {
+	if !p.IsSetStatus() {
+		return NodeDaemonCommand_Status_DEFAULT
+	}
+	return *p.Status
+}
+
+var NodeDaemonCommand_Phase_DEFAULT string
+
+func (p *NodeDaemonCommand) GetPhase() (v string) {
+	if !p.IsSetPhase() {
+		return NodeDaemonCommand_Phase_DEFAULT
+	}
+	return *p.Phase
+}
+
+var NodeDaemonCommand_ErrorCode_DEFAULT string
+
+func (p *NodeDaemonCommand) GetErrorCode() (v string) {
+	if !p.IsSetErrorCode() {
+		return NodeDaemonCommand_ErrorCode_DEFAULT
+	}
+	return *p.ErrorCode
+}
+
+var NodeDaemonCommand_ErrorMessage_DEFAULT string
+
+func (p *NodeDaemonCommand) GetErrorMessage() (v string) {
+	if !p.IsSetErrorMessage() {
+		return NodeDaemonCommand_ErrorMessage_DEFAULT
+	}
+	return *p.ErrorMessage
+}
+
+var NodeDaemonCommand_Result_DEFAULT JSON
+
+func (p *NodeDaemonCommand) GetResult() (v JSON) {
+	if !p.IsSetResult() {
+		return NodeDaemonCommand_Result_DEFAULT
+	}
+	return p.Result
+}
+
+var NodeDaemonCommand_MaintenanceConfirmation_DEFAULT *NodeDaemonMaintenanceConfirmation
+
+func (p *NodeDaemonCommand) GetMaintenanceConfirmation() (v *NodeDaemonMaintenanceConfirmation) {
+	if !p.IsSetMaintenanceConfirmation() {
+		return NodeDaemonCommand_MaintenanceConfirmation_DEFAULT
+	}
+	return p.MaintenanceConfirmation
+}
+
+var NodeDaemonCommand_CreatedAt_DEFAULT string
+
+func (p *NodeDaemonCommand) GetCreatedAt() (v string) {
+	if !p.IsSetCreatedAt() {
+		return NodeDaemonCommand_CreatedAt_DEFAULT
+	}
+	return *p.CreatedAt
+}
+
+var NodeDaemonCommand_UpdatedAt_DEFAULT string
+
+func (p *NodeDaemonCommand) GetUpdatedAt() (v string) {
+	if !p.IsSetUpdatedAt() {
+		return NodeDaemonCommand_UpdatedAt_DEFAULT
+	}
+	return *p.UpdatedAt
+}
+
+var NodeDaemonCommand_ObservedAt_DEFAULT string
+
+func (p *NodeDaemonCommand) GetObservedAt() (v string) {
+	if !p.IsSetObservedAt() {
+		return NodeDaemonCommand_ObservedAt_DEFAULT
+	}
+	return *p.ObservedAt
+}
+
+var NodeDaemonCommand_CompletedAt_DEFAULT string
+
+func (p *NodeDaemonCommand) GetCompletedAt() (v string) {
+	if !p.IsSetCompletedAt() {
+		return NodeDaemonCommand_CompletedAt_DEFAULT
+	}
+	return *p.CompletedAt
+}
+
+var fieldIDToName_NodeDaemonCommand = map[int16]string{
+	1:  "command_id",
+	2:  "node_id",
+	3:  "requested_by_user_id",
+	4:  "type",
+	5:  "target",
+	6:  "target_version",
+	7:  "state",
+	8:  "status",
+	9:  "phase",
+	10: "error_code",
+	11: "error_message",
+	12: "result",
+	13: "maintenance_confirmation",
+	14: "created_at",
+	15: "updated_at",
+	16: "observed_at",
+	17: "completed_at",
+}
+
+func (p *NodeDaemonCommand) IsSetCommandID() bool {
+	return p.CommandID != nil
+}
+
+func (p *NodeDaemonCommand) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *NodeDaemonCommand) IsSetRequestedByUserID() bool {
+	return p.RequestedByUserID != nil
+}
+
+func (p *NodeDaemonCommand) IsSetType() bool {
+	return p.Type != nil
+}
+
+func (p *NodeDaemonCommand) IsSetTarget() bool {
+	return p.Target != nil
+}
+
+func (p *NodeDaemonCommand) IsSetTargetVersion() bool {
+	return p.TargetVersion != nil
+}
+
+func (p *NodeDaemonCommand) IsSetState() bool {
+	return p.State != nil
+}
+
+func (p *NodeDaemonCommand) IsSetStatus() bool {
+	return p.Status != nil
+}
+
+func (p *NodeDaemonCommand) IsSetPhase() bool {
+	return p.Phase != nil
+}
+
+func (p *NodeDaemonCommand) IsSetErrorCode() bool {
+	return p.ErrorCode != nil
+}
+
+func (p *NodeDaemonCommand) IsSetErrorMessage() bool {
+	return p.ErrorMessage != nil
+}
+
+func (p *NodeDaemonCommand) IsSetResult() bool {
+	return p.Result != nil
+}
+
+func (p *NodeDaemonCommand) IsSetMaintenanceConfirmation() bool {
+	return p.MaintenanceConfirmation != nil
+}
+
+func (p *NodeDaemonCommand) IsSetCreatedAt() bool {
+	return p.CreatedAt != nil
+}
+
+func (p *NodeDaemonCommand) IsSetUpdatedAt() bool {
+	return p.UpdatedAt != nil
+}
+
+func (p *NodeDaemonCommand) IsSetObservedAt() bool {
+	return p.ObservedAt != nil
+}
+
+func (p *NodeDaemonCommand) IsSetCompletedAt() bool {
+	return p.CompletedAt != nil
+}
+
+func (p *NodeDaemonCommand) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 8:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField8(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 9:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField9(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 10:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField10(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 11:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField11(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 12:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField12(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 13:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField13(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 14:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField14(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 15:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField15(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 16:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField16(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 17:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField17(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_NodeDaemonCommand[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.CommandID = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.RequestedByUserID = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Type = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field JSON
+	if v, err := iprot.ReadBinary(); err != nil {
+		return err
+	} else {
+		_field = JSON(v)
+	}
+	p.Target = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField6(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.TargetVersion = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.State = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField8(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Status = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField9(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Phase = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField10(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ErrorCode = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField11(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ErrorMessage = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField12(iprot thrift.TProtocol) error {
+
+	var _field JSON
+	if v, err := iprot.ReadBinary(); err != nil {
+		return err
+	} else {
+		_field = JSON(v)
+	}
+	p.Result = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField13(iprot thrift.TProtocol) error {
+	_field := NewNodeDaemonMaintenanceConfirmation()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.MaintenanceConfirmation = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField14(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.CreatedAt = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField15(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UpdatedAt = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField16(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ObservedAt = _field
+	return nil
+}
+func (p *NodeDaemonCommand) ReadField17(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.CompletedAt = _field
+	return nil
+}
+
+func (p *NodeDaemonCommand) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NodeDaemonCommand"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
+			goto WriteFieldError
+		}
+		if err = p.writeField8(oprot); err != nil {
+			fieldId = 8
+			goto WriteFieldError
+		}
+		if err = p.writeField9(oprot); err != nil {
+			fieldId = 9
+			goto WriteFieldError
+		}
+		if err = p.writeField10(oprot); err != nil {
+			fieldId = 10
+			goto WriteFieldError
+		}
+		if err = p.writeField11(oprot); err != nil {
+			fieldId = 11
+			goto WriteFieldError
+		}
+		if err = p.writeField12(oprot); err != nil {
+			fieldId = 12
+			goto WriteFieldError
+		}
+		if err = p.writeField13(oprot); err != nil {
+			fieldId = 13
+			goto WriteFieldError
+		}
+		if err = p.writeField14(oprot); err != nil {
+			fieldId = 14
+			goto WriteFieldError
+		}
+		if err = p.writeField15(oprot); err != nil {
+			fieldId = 15
+			goto WriteFieldError
+		}
+		if err = p.writeField16(oprot); err != nil {
+			fieldId = 16
+			goto WriteFieldError
+		}
+		if err = p.writeField17(oprot); err != nil {
+			fieldId = 17
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCommandID() {
+		if err = oprot.WriteFieldBegin("command_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.CommandID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRequestedByUserID() {
+		if err = oprot.WriteFieldBegin("requested_by_user_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.RequestedByUserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetType() {
+		if err = oprot.WriteFieldBegin("type", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Type); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTarget() {
+		if err = oprot.WriteFieldBegin("target", thrift.STRING, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBinary([]byte(p.Target)); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTargetVersion() {
+		if err = oprot.WriteFieldBegin("target_version", thrift.STRING, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.TargetVersion); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetState() {
+		if err = oprot.WriteFieldBegin("state", thrift.STRING, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.State); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetStatus() {
+		if err = oprot.WriteFieldBegin("status", thrift.STRING, 8); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Status); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPhase() {
+		if err = oprot.WriteFieldBegin("phase", thrift.STRING, 9); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Phase); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErrorCode() {
+		if err = oprot.WriteFieldBegin("error_code", thrift.STRING, 10); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ErrorCode); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErrorMessage() {
+		if err = oprot.WriteFieldBegin("error_message", thrift.STRING, 11); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ErrorMessage); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField12(oprot thrift.TProtocol) (err error) {
+	if p.IsSetResult() {
+		if err = oprot.WriteFieldBegin("result", thrift.STRING, 12); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBinary([]byte(p.Result)); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 12 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 12 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField13(oprot thrift.TProtocol) (err error) {
+	if p.IsSetMaintenanceConfirmation() {
+		if err = oprot.WriteFieldBegin("maintenance_confirmation", thrift.STRUCT, 13); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.MaintenanceConfirmation.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 13 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 13 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField14(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCreatedAt() {
+		if err = oprot.WriteFieldBegin("created_at", thrift.STRING, 14); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.CreatedAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 14 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 14 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField15(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUpdatedAt() {
+		if err = oprot.WriteFieldBegin("updated_at", thrift.STRING, 15); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UpdatedAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 15 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 15 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField16(oprot thrift.TProtocol) (err error) {
+	if p.IsSetObservedAt() {
+		if err = oprot.WriteFieldBegin("observed_at", thrift.STRING, 16); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ObservedAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 16 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 16 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) writeField17(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCompletedAt() {
+		if err = oprot.WriteFieldBegin("completed_at", thrift.STRING, 17); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.CompletedAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 17 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 17 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommand) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeDaemonCommand(%+v)", *p)
+
+}
+
 type Node struct {
-	NodeID        *string `thrift:"node_id,1,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
-	OwnerUserID   *string `thrift:"owner_user_id,2,optional" form:"owner_user_id" json:"owner_user_id,omitempty" query:"owner_user_id"`
-	Name          *string `thrift:"name,3,optional" form:"name" json:"name,omitempty" query:"name"`
-	Hostname      *string `thrift:"hostname,4,optional" form:"hostname" json:"hostname,omitempty" query:"hostname"`
-	MachineType   *string `thrift:"machine_type,5,optional" form:"machine_type" json:"machine_type,omitempty" query:"machine_type"`
-	Os            *string `thrift:"os,6,optional" form:"os" json:"os,omitempty" query:"os"`
-	Arch          *string `thrift:"arch,7,optional" form:"arch" json:"arch,omitempty" query:"arch"`
-	PaxdVersion   *string `thrift:"paxd_version,8,optional" form:"paxd_version" json:"paxd_version,omitempty" query:"paxd_version"`
-	APIEndpoint   *string `thrift:"api_endpoint,9,optional" form:"api_endpoint" json:"api_endpoint,omitempty" query:"api_endpoint"`
-	Status        *string `thrift:"status,10,optional" form:"status" json:"status,omitempty" query:"status"`
-	Online        *bool   `thrift:"online,11,optional" form:"online" json:"online,omitempty" query:"online"`
-	LastHeartbeat *string `thrift:"last_heartbeat,12,optional" form:"last_heartbeat" json:"last_heartbeat,omitempty" query:"last_heartbeat"`
-	RegisteredAt  *string `thrift:"registered_at,13,optional" form:"registered_at" json:"registered_at,omitempty" query:"registered_at"`
-	Metadata      JSON    `thrift:"metadata,14,optional" form:"metadata" json:"metadata,omitempty" query:"metadata"`
-	Description   *string `thrift:"description,15,optional" form:"description" json:"description,omitempty" query:"description"`
-	UserMetadata  JSON    `thrift:"user_metadata,16,optional" form:"user_metadata" json:"user_metadata,omitempty" query:"user_metadata"`
+	NodeID               *string              `thrift:"node_id,1,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
+	OwnerUserID          *string              `thrift:"owner_user_id,2,optional" form:"owner_user_id" json:"owner_user_id,omitempty" query:"owner_user_id"`
+	Name                 *string              `thrift:"name,3,optional" form:"name" json:"name,omitempty" query:"name"`
+	Hostname             *string              `thrift:"hostname,4,optional" form:"hostname" json:"hostname,omitempty" query:"hostname"`
+	MachineType          *string              `thrift:"machine_type,5,optional" form:"machine_type" json:"machine_type,omitempty" query:"machine_type"`
+	Os                   *string              `thrift:"os,6,optional" form:"os" json:"os,omitempty" query:"os"`
+	Arch                 *string              `thrift:"arch,7,optional" form:"arch" json:"arch,omitempty" query:"arch"`
+	PaxdVersion          *string              `thrift:"paxd_version,8,optional" form:"paxd_version" json:"paxd_version,omitempty" query:"paxd_version"`
+	APIEndpoint          *string              `thrift:"api_endpoint,9,optional" form:"api_endpoint" json:"api_endpoint,omitempty" query:"api_endpoint"`
+	Status               *string              `thrift:"status,10,optional" form:"status" json:"status,omitempty" query:"status"`
+	Online               *bool                `thrift:"online,11,optional" form:"online" json:"online,omitempty" query:"online"`
+	LastHeartbeat        *string              `thrift:"last_heartbeat,12,optional" form:"last_heartbeat" json:"last_heartbeat,omitempty" query:"last_heartbeat"`
+	RegisteredAt         *string              `thrift:"registered_at,13,optional" form:"registered_at" json:"registered_at,omitempty" query:"registered_at"`
+	Metadata             JSON                 `thrift:"metadata,14,optional" form:"metadata" json:"metadata,omitempty" query:"metadata"`
+	Description          *string              `thrift:"description,15,optional" form:"description" json:"description,omitempty" query:"description"`
+	UserMetadata         JSON                 `thrift:"user_metadata,16,optional" form:"user_metadata" json:"user_metadata,omitempty" query:"user_metadata"`
+	LatestDaemonCommands []*NodeDaemonCommand `thrift:"latest_daemon_commands,17,optional,list<NodeDaemonCommand>" form:"latest_daemon_commands" json:"latest_daemon_commands,omitempty" query:"latest_daemon_commands"`
 }
 
 func NewNode() *Node {
@@ -11207,6 +12761,15 @@ func (p *Node) GetUserMetadata() (v JSON) {
 	return p.UserMetadata
 }
 
+var Node_LatestDaemonCommands_DEFAULT []*NodeDaemonCommand
+
+func (p *Node) GetLatestDaemonCommands() (v []*NodeDaemonCommand) {
+	if !p.IsSetLatestDaemonCommands() {
+		return Node_LatestDaemonCommands_DEFAULT
+	}
+	return p.LatestDaemonCommands
+}
+
 var fieldIDToName_Node = map[int16]string{
 	1:  "node_id",
 	2:  "owner_user_id",
@@ -11224,6 +12787,7 @@ var fieldIDToName_Node = map[int16]string{
 	14: "metadata",
 	15: "description",
 	16: "user_metadata",
+	17: "latest_daemon_commands",
 }
 
 func (p *Node) IsSetNodeID() bool {
@@ -11288,6 +12852,10 @@ func (p *Node) IsSetDescription() bool {
 
 func (p *Node) IsSetUserMetadata() bool {
 	return p.UserMetadata != nil
+}
+
+func (p *Node) IsSetLatestDaemonCommands() bool {
+	return p.LatestDaemonCommands != nil
 }
 
 func (p *Node) Read(iprot thrift.TProtocol) (err error) {
@@ -11432,6 +13000,14 @@ func (p *Node) Read(iprot thrift.TProtocol) (err error) {
 		case 16:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField16(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 17:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField17(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -11642,6 +13218,29 @@ func (p *Node) ReadField16(iprot thrift.TProtocol) error {
 	p.UserMetadata = _field
 	return nil
 }
+func (p *Node) ReadField17(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]*NodeDaemonCommand, 0, size)
+	values := make([]NodeDaemonCommand, size)
+	for i := 0; i < size; i++ {
+		_elem := &values[i]
+		_elem.InitDefault()
+
+		if err := _elem.Read(iprot); err != nil {
+			return err
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.LatestDaemonCommands = _field
+	return nil
+}
 
 func (p *Node) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -11711,6 +13310,10 @@ func (p *Node) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField16(oprot); err != nil {
 			fieldId = 16
+			goto WriteFieldError
+		}
+		if err = p.writeField17(oprot); err != nil {
+			fieldId = 17
 			goto WriteFieldError
 		}
 	}
@@ -12033,6 +13636,33 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 16 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 16 end error: ", p), err)
+}
+
+func (p *Node) writeField17(oprot thrift.TProtocol) (err error) {
+	if p.IsSetLatestDaemonCommands() {
+		if err = oprot.WriteFieldBegin("latest_daemon_commands", thrift.LIST, 17); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRUCT, len(p.LatestDaemonCommands)); err != nil {
+			return err
+		}
+		for _, v := range p.LatestDaemonCommands {
+			if err := v.Write(oprot); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 17 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 17 end error: ", p), err)
 }
 
 func (p *Node) String() string {
@@ -60717,14 +62347,15 @@ func (p *UpdateNodeDaemonAgentConnectionRequest) String() string {
 }
 
 type NodeDaemonCommandData struct {
-	RemoteID          *string `thrift:"remote_id,1,optional" form:"remote_id" json:"remote_id,omitempty" query:"remote_id"`
-	ConnectionID      *string `thrift:"connection_id,2,optional" form:"connection_id" json:"connection_id,omitempty" query:"connection_id"`
-	CommandID         *string `thrift:"command_id,3,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
-	CommandStatus     *string `thrift:"command_status,4,optional" form:"command_status" json:"command_status,omitempty" query:"command_status"`
-	DesiredGeneration *int64  `thrift:"desired_generation,5,optional" form:"desired_generation" json:"desired_generation,omitempty" query:"desired_generation"`
-	DispatchStatus    *string `thrift:"dispatch_status,6,optional" form:"dispatch_status" json:"dispatch_status,omitempty" query:"dispatch_status"`
-	DispatchError     *string `thrift:"dispatch_error,7,optional" form:"dispatch_error" json:"dispatch_error,omitempty" query:"dispatch_error"`
-	CommandAck        JSON    `thrift:"command_ack,8,optional" form:"command_ack" json:"command_ack,omitempty" query:"command_ack"`
+	RemoteID          *string            `thrift:"remote_id,1,optional" form:"remote_id" json:"remote_id,omitempty" query:"remote_id"`
+	ConnectionID      *string            `thrift:"connection_id,2,optional" form:"connection_id" json:"connection_id,omitempty" query:"connection_id"`
+	CommandID         *string            `thrift:"command_id,3,optional" form:"command_id" json:"command_id,omitempty" query:"command_id"`
+	CommandStatus     *string            `thrift:"command_status,4,optional" form:"command_status" json:"command_status,omitempty" query:"command_status"`
+	DesiredGeneration *int64             `thrift:"desired_generation,5,optional" form:"desired_generation" json:"desired_generation,omitempty" query:"desired_generation"`
+	DispatchStatus    *string            `thrift:"dispatch_status,6,optional" form:"dispatch_status" json:"dispatch_status,omitempty" query:"dispatch_status"`
+	DispatchError     *string            `thrift:"dispatch_error,7,optional" form:"dispatch_error" json:"dispatch_error,omitempty" query:"dispatch_error"`
+	CommandAck        JSON               `thrift:"command_ack,8,optional" form:"command_ack" json:"command_ack,omitempty" query:"command_ack"`
+	DaemonCommand     *NodeDaemonCommand `thrift:"daemon_command,9,optional" form:"daemon_command" json:"daemon_command,omitempty" query:"daemon_command"`
 }
 
 func NewNodeDaemonCommandData() *NodeDaemonCommandData {
@@ -60806,6 +62437,15 @@ func (p *NodeDaemonCommandData) GetCommandAck() (v JSON) {
 	return p.CommandAck
 }
 
+var NodeDaemonCommandData_DaemonCommand_DEFAULT *NodeDaemonCommand
+
+func (p *NodeDaemonCommandData) GetDaemonCommand() (v *NodeDaemonCommand) {
+	if !p.IsSetDaemonCommand() {
+		return NodeDaemonCommandData_DaemonCommand_DEFAULT
+	}
+	return p.DaemonCommand
+}
+
 var fieldIDToName_NodeDaemonCommandData = map[int16]string{
 	1: "remote_id",
 	2: "connection_id",
@@ -60815,6 +62455,7 @@ var fieldIDToName_NodeDaemonCommandData = map[int16]string{
 	6: "dispatch_status",
 	7: "dispatch_error",
 	8: "command_ack",
+	9: "daemon_command",
 }
 
 func (p *NodeDaemonCommandData) IsSetRemoteID() bool {
@@ -60847,6 +62488,10 @@ func (p *NodeDaemonCommandData) IsSetDispatchError() bool {
 
 func (p *NodeDaemonCommandData) IsSetCommandAck() bool {
 	return p.CommandAck != nil
+}
+
+func (p *NodeDaemonCommandData) IsSetDaemonCommand() bool {
+	return p.DaemonCommand != nil
 }
 
 func (p *NodeDaemonCommandData) Read(iprot thrift.TProtocol) (err error) {
@@ -60927,6 +62572,14 @@ func (p *NodeDaemonCommandData) Read(iprot thrift.TProtocol) (err error) {
 		case 8:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField8(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 9:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField9(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -61049,6 +62702,14 @@ func (p *NodeDaemonCommandData) ReadField8(iprot thrift.TProtocol) error {
 	p.CommandAck = _field
 	return nil
 }
+func (p *NodeDaemonCommandData) ReadField9(iprot thrift.TProtocol) error {
+	_field := NewNodeDaemonCommand()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.DaemonCommand = _field
+	return nil
+}
 
 func (p *NodeDaemonCommandData) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -61086,6 +62747,10 @@ func (p *NodeDaemonCommandData) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField8(oprot); err != nil {
 			fieldId = 8
+			goto WriteFieldError
+		}
+		if err = p.writeField9(oprot); err != nil {
+			fieldId = 9
 			goto WriteFieldError
 		}
 	}
@@ -61256,6 +62921,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 8 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 8 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommandData) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDaemonCommand() {
+		if err = oprot.WriteFieldBegin("daemon_command", thrift.STRUCT, 9); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.DaemonCommand.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 end error: ", p), err)
 }
 
 func (p *NodeDaemonCommandData) String() string {
@@ -62112,6 +63796,818 @@ func (p *GetNodeDaemonCommandRequest) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("GetNodeDaemonCommandRequest(%+v)", *p)
+
+}
+
+type ListNodeDaemonCommandsRequest struct {
+	UserID *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	Type   *string `thrift:"type,3,optional" json:"type,omitempty" query:"type"`
+	State  *string `thrift:"state,4,optional" json:"state,omitempty" query:"state"`
+	Limit  *int32  `thrift:"limit,5,optional" json:"limit,omitempty" query:"limit"`
+}
+
+func NewListNodeDaemonCommandsRequest() *ListNodeDaemonCommandsRequest {
+	return &ListNodeDaemonCommandsRequest{}
+}
+
+func (p *ListNodeDaemonCommandsRequest) InitDefault() {
+}
+
+var ListNodeDaemonCommandsRequest_UserID_DEFAULT string
+
+func (p *ListNodeDaemonCommandsRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return ListNodeDaemonCommandsRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var ListNodeDaemonCommandsRequest_NodeID_DEFAULT string
+
+func (p *ListNodeDaemonCommandsRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return ListNodeDaemonCommandsRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var ListNodeDaemonCommandsRequest_Type_DEFAULT string
+
+func (p *ListNodeDaemonCommandsRequest) GetType() (v string) {
+	if !p.IsSetType() {
+		return ListNodeDaemonCommandsRequest_Type_DEFAULT
+	}
+	return *p.Type
+}
+
+var ListNodeDaemonCommandsRequest_State_DEFAULT string
+
+func (p *ListNodeDaemonCommandsRequest) GetState() (v string) {
+	if !p.IsSetState() {
+		return ListNodeDaemonCommandsRequest_State_DEFAULT
+	}
+	return *p.State
+}
+
+var ListNodeDaemonCommandsRequest_Limit_DEFAULT int32
+
+func (p *ListNodeDaemonCommandsRequest) GetLimit() (v int32) {
+	if !p.IsSetLimit() {
+		return ListNodeDaemonCommandsRequest_Limit_DEFAULT
+	}
+	return *p.Limit
+}
+
+var fieldIDToName_ListNodeDaemonCommandsRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+	3: "type",
+	4: "state",
+	5: "limit",
+}
+
+func (p *ListNodeDaemonCommandsRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *ListNodeDaemonCommandsRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *ListNodeDaemonCommandsRequest) IsSetType() bool {
+	return p.Type != nil
+}
+
+func (p *ListNodeDaemonCommandsRequest) IsSetState() bool {
+	return p.State != nil
+}
+
+func (p *ListNodeDaemonCommandsRequest) IsSetLimit() bool {
+	return p.Limit != nil
+}
+
+func (p *ListNodeDaemonCommandsRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_ListNodeDaemonCommandsRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *ListNodeDaemonCommandsRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *ListNodeDaemonCommandsRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *ListNodeDaemonCommandsRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Type = _field
+	return nil
+}
+func (p *ListNodeDaemonCommandsRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.State = _field
+	return nil
+}
+func (p *ListNodeDaemonCommandsRequest) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Limit = _field
+	return nil
+}
+
+func (p *ListNodeDaemonCommandsRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListNodeDaemonCommandsRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *ListNodeDaemonCommandsRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *ListNodeDaemonCommandsRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *ListNodeDaemonCommandsRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetType() {
+		if err = oprot.WriteFieldBegin("type", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Type); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *ListNodeDaemonCommandsRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetState() {
+		if err = oprot.WriteFieldBegin("state", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.State); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *ListNodeDaemonCommandsRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetLimit() {
+		if err = oprot.WriteFieldBegin("limit", thrift.I32, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.Limit); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *ListNodeDaemonCommandsRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("ListNodeDaemonCommandsRequest(%+v)", *p)
+
+}
+
+type NodeDaemonCommandListData struct {
+	Commands []*NodeDaemonCommand `thrift:"commands,1,optional,list<NodeDaemonCommand>" form:"commands" json:"commands,omitempty" query:"commands"`
+}
+
+func NewNodeDaemonCommandListData() *NodeDaemonCommandListData {
+	return &NodeDaemonCommandListData{}
+}
+
+func (p *NodeDaemonCommandListData) InitDefault() {
+}
+
+var NodeDaemonCommandListData_Commands_DEFAULT []*NodeDaemonCommand
+
+func (p *NodeDaemonCommandListData) GetCommands() (v []*NodeDaemonCommand) {
+	if !p.IsSetCommands() {
+		return NodeDaemonCommandListData_Commands_DEFAULT
+	}
+	return p.Commands
+}
+
+var fieldIDToName_NodeDaemonCommandListData = map[int16]string{
+	1: "commands",
+}
+
+func (p *NodeDaemonCommandListData) IsSetCommands() bool {
+	return p.Commands != nil
+}
+
+func (p *NodeDaemonCommandListData) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_NodeDaemonCommandListData[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *NodeDaemonCommandListData) ReadField1(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]*NodeDaemonCommand, 0, size)
+	values := make([]NodeDaemonCommand, size)
+	for i := 0; i < size; i++ {
+		_elem := &values[i]
+		_elem.InitDefault()
+
+		if err := _elem.Read(iprot); err != nil {
+			return err
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.Commands = _field
+	return nil
+}
+
+func (p *NodeDaemonCommandListData) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NodeDaemonCommandListData"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *NodeDaemonCommandListData) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCommands() {
+		if err = oprot.WriteFieldBegin("commands", thrift.LIST, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRUCT, len(p.Commands)); err != nil {
+			return err
+		}
+		for _, v := range p.Commands {
+			if err := v.Write(oprot); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommandListData) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeDaemonCommandListData(%+v)", *p)
+
+}
+
+type NodeDaemonCommandListResponse struct {
+	Data    *NodeDaemonCommandListData `thrift:"data,1,optional" form:"data" json:"data,omitempty" query:"data"`
+	Code    *int32                     `thrift:"code,2,optional" form:"code" json:"code,omitempty" query:"code"`
+	Message *string                    `thrift:"message,3,optional" form:"message" json:"message,omitempty" query:"message"`
+}
+
+func NewNodeDaemonCommandListResponse() *NodeDaemonCommandListResponse {
+	return &NodeDaemonCommandListResponse{}
+}
+
+func (p *NodeDaemonCommandListResponse) InitDefault() {
+}
+
+var NodeDaemonCommandListResponse_Data_DEFAULT *NodeDaemonCommandListData
+
+func (p *NodeDaemonCommandListResponse) GetData() (v *NodeDaemonCommandListData) {
+	if !p.IsSetData() {
+		return NodeDaemonCommandListResponse_Data_DEFAULT
+	}
+	return p.Data
+}
+
+var NodeDaemonCommandListResponse_Code_DEFAULT int32
+
+func (p *NodeDaemonCommandListResponse) GetCode() (v int32) {
+	if !p.IsSetCode() {
+		return NodeDaemonCommandListResponse_Code_DEFAULT
+	}
+	return *p.Code
+}
+
+var NodeDaemonCommandListResponse_Message_DEFAULT string
+
+func (p *NodeDaemonCommandListResponse) GetMessage() (v string) {
+	if !p.IsSetMessage() {
+		return NodeDaemonCommandListResponse_Message_DEFAULT
+	}
+	return *p.Message
+}
+
+var fieldIDToName_NodeDaemonCommandListResponse = map[int16]string{
+	1: "data",
+	2: "code",
+	3: "message",
+}
+
+func (p *NodeDaemonCommandListResponse) IsSetData() bool {
+	return p.Data != nil
+}
+
+func (p *NodeDaemonCommandListResponse) IsSetCode() bool {
+	return p.Code != nil
+}
+
+func (p *NodeDaemonCommandListResponse) IsSetMessage() bool {
+	return p.Message != nil
+}
+
+func (p *NodeDaemonCommandListResponse) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_NodeDaemonCommandListResponse[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *NodeDaemonCommandListResponse) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewNodeDaemonCommandListData()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Data = _field
+	return nil
+}
+func (p *NodeDaemonCommandListResponse) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Code = _field
+	return nil
+}
+func (p *NodeDaemonCommandListResponse) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Message = _field
+	return nil
+}
+
+func (p *NodeDaemonCommandListResponse) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NodeDaemonCommandListResponse"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *NodeDaemonCommandListResponse) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetData() {
+		if err = oprot.WriteFieldBegin("data", thrift.STRUCT, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Data.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommandListResponse) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCode() {
+		if err = oprot.WriteFieldBegin("code", thrift.I32, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.Code); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommandListResponse) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetMessage() {
+		if err = oprot.WriteFieldBegin("message", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Message); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *NodeDaemonCommandListResponse) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeDaemonCommandListResponse(%+v)", *p)
 
 }
 
@@ -67212,6 +69708,8 @@ type PaxManagerAPI interface {
 
 	RemoveNodeDaemonAgentConnection(ctx context.Context, request *NodeDaemonAgentConnectionActionRequest) (r *NodeDaemonCommandResponse, err error)
 
+	ListNodeDaemonCommands(ctx context.Context, request *ListNodeDaemonCommandsRequest) (r *NodeDaemonCommandListResponse, err error)
+
 	GetNodeDaemonCommand(ctx context.Context, request *GetNodeDaemonCommandRequest) (r *NodeDaemonQueryResponse, err error)
 
 	NodeBrowserControl(ctx context.Context, request *NodeBrowserControlRequest) (r *NodeDaemonQueryResponse, err error)
@@ -67731,6 +70229,15 @@ func (p *PaxManagerAPIClient) RemoveNodeDaemonAgentConnection(ctx context.Contex
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) ListNodeDaemonCommands(ctx context.Context, request *ListNodeDaemonCommandsRequest) (r *NodeDaemonCommandListResponse, err error) {
+	var _args PaxManagerAPIListNodeDaemonCommandsArgs
+	_args.Request = request
+	var _result PaxManagerAPIListNodeDaemonCommandsResult
+	if err = p.Client_().Call(ctx, "ListNodeDaemonCommands", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) GetNodeDaemonCommand(ctx context.Context, request *GetNodeDaemonCommandRequest) (r *NodeDaemonQueryResponse, err error) {
 	var _args PaxManagerAPIGetNodeDaemonCommandArgs
 	_args.Request = request
@@ -68149,6 +70656,7 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("StopNodeDaemonAgentConnection", &paxManagerAPIProcessorStopNodeDaemonAgentConnection{handler: handler})
 	self.AddToProcessorMap("RestartNodeDaemonAgentConnection", &paxManagerAPIProcessorRestartNodeDaemonAgentConnection{handler: handler})
 	self.AddToProcessorMap("RemoveNodeDaemonAgentConnection", &paxManagerAPIProcessorRemoveNodeDaemonAgentConnection{handler: handler})
+	self.AddToProcessorMap("ListNodeDaemonCommands", &paxManagerAPIProcessorListNodeDaemonCommands{handler: handler})
 	self.AddToProcessorMap("GetNodeDaemonCommand", &paxManagerAPIProcessorGetNodeDaemonCommand{handler: handler})
 	self.AddToProcessorMap("NodeBrowserControl", &paxManagerAPIProcessorNodeBrowserControl{handler: handler})
 	self.AddToProcessorMap("OpenNodeDaemonSecretChannel", &paxManagerAPIProcessorOpenNodeDaemonSecretChannel{handler: handler})
@@ -70399,6 +72907,54 @@ func (p *paxManagerAPIProcessorRemoveNodeDaemonAgentConnection) Process(ctx cont
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("RemoveNodeDaemonAgentConnection", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorListNodeDaemonCommands struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorListNodeDaemonCommands) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIListNodeDaemonCommandsArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("ListNodeDaemonCommands", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIListNodeDaemonCommandsResult{}
+	var retval *NodeDaemonCommandListResponse
+	if retval, err2 = p.handler.ListNodeDaemonCommands(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListNodeDaemonCommands: "+err2.Error())
+		oprot.WriteMessageBegin("ListNodeDaemonCommands", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("ListNodeDaemonCommands", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -85817,6 +88373,300 @@ func (p *PaxManagerAPIRemoveNodeDaemonAgentConnectionResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIRemoveNodeDaemonAgentConnectionResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIListNodeDaemonCommandsArgs struct {
+	Request *ListNodeDaemonCommandsRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIListNodeDaemonCommandsArgs() *PaxManagerAPIListNodeDaemonCommandsArgs {
+	return &PaxManagerAPIListNodeDaemonCommandsArgs{}
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsArgs) InitDefault() {
+}
+
+var PaxManagerAPIListNodeDaemonCommandsArgs_Request_DEFAULT *ListNodeDaemonCommandsRequest
+
+func (p *PaxManagerAPIListNodeDaemonCommandsArgs) GetRequest() (v *ListNodeDaemonCommandsRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIListNodeDaemonCommandsArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIListNodeDaemonCommandsArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListNodeDaemonCommandsArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewListNodeDaemonCommandsRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListNodeDaemonCommands_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListNodeDaemonCommandsArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIListNodeDaemonCommandsResult struct {
+	Success *NodeDaemonCommandListResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIListNodeDaemonCommandsResult() *PaxManagerAPIListNodeDaemonCommandsResult {
+	return &PaxManagerAPIListNodeDaemonCommandsResult{}
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsResult) InitDefault() {
+}
+
+var PaxManagerAPIListNodeDaemonCommandsResult_Success_DEFAULT *NodeDaemonCommandListResponse
+
+func (p *PaxManagerAPIListNodeDaemonCommandsResult) GetSuccess() (v *NodeDaemonCommandListResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIListNodeDaemonCommandsResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIListNodeDaemonCommandsResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListNodeDaemonCommandsResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNodeDaemonCommandListResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListNodeDaemonCommands_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListNodeDaemonCommandsResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListNodeDaemonCommandsResult(%+v)", *p)
 
 }
 

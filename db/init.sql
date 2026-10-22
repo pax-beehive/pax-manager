@@ -167,6 +167,39 @@ CREATE INDEX IF NOT EXISTS idx_agent_commands_pending
     ON agent_commands(agent_id, id)
     WHERE acknowledged_at IS NULL;
 
+-- Durable record of paxd maintenance commands issued through the user API.
+-- paxd owns execution state; status, phase, error and result mirror the last
+-- command.get observation so the console can show progress after reloads and
+-- while the node is offline.
+CREATE TABLE IF NOT EXISTS node_daemon_commands (
+    node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+    command_id TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    requested_by_user_id TEXT NOT NULL DEFAULT '',
+    command_type TEXT NOT NULL,
+    target JSONB NOT NULL DEFAULT '{}'::jsonb,
+    target_version TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL DEFAULT 'in_progress',
+    status TEXT NOT NULL DEFAULT 'dispatching',
+    phase TEXT NOT NULL DEFAULT '',
+    error_code TEXT NOT NULL DEFAULT '',
+    error_message TEXT NOT NULL DEFAULT '',
+    result JSONB,
+    maintenance_confirmation JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    observed_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    PRIMARY KEY (node_id, command_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_daemon_commands_node_created
+    ON node_daemon_commands(node_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_node_daemon_commands_in_progress
+    ON node_daemon_commands(node_id)
+    WHERE state = 'in_progress';
+
 CREATE TABLE IF NOT EXISTS agent_events (
     cursor BIGSERIAL PRIMARY KEY,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,

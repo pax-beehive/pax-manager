@@ -26,6 +26,7 @@ type MemoryStore struct {
 	nextMailbox                  int64
 	nextSession                  int64
 	nodes                        map[string]Node
+	nodeDaemonCommands           map[string]domain.NodeDaemonCommand
 	agents                       map[string]Agent
 	nextAgentACPRequestIDs       map[string]int64
 	apiKeys                      map[string]string
@@ -1205,6 +1206,11 @@ func (s *MemoryStore) DeleteNode(
 		}
 		s.deleteAgentAPIKeysLocked(agentID)
 		delete(s.agents, agentID)
+	}
+	for key, command := range s.nodeDaemonCommands {
+		if command.NodeID == req.NodeID {
+			delete(s.nodeDaemonCommands, key)
+		}
 	}
 	delete(s.nodes, req.NodeID)
 	return node, nil
