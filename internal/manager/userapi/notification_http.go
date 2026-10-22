@@ -89,7 +89,8 @@ func (h *NotificationHandler) configuration(w http.ResponseWriter) {
 	notificationResponse(w, 200, "", map[string]any{
 		"enabled": h.PublicKey != "", "test_enabled": h.SendingEnabled && h.Outbox != nil,
 		"turn_completion_enabled": h.SendingEnabled && h.Outbox != nil, "public_key": h.PublicKey,
-		"key_id": h.KeyID, "channel": "web_push",
+		"approval_required_enabled": h.SendingEnabled && h.Outbox != nil,
+		"key_id":                    h.KeyID, "channel": "web_push",
 	})
 }
 

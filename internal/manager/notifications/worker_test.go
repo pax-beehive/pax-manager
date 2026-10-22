@@ -74,6 +74,13 @@ func (s authorizedOutboxStub) CanDeliverTurnNotification(
 	return s.allowed, s.authErr
 }
 
+func (s authorizedOutboxStub) CanDeliverApprovalNotification(
+	context.Context,
+	LeasedDelivery,
+) (bool, error) {
+	return s.allowed, s.authErr
+}
+
 func TestWorkerGivenTurnTaskThenRequiresCurrentSessionAuthorization(t *testing.T) {
 	now := time.Now().UTC()
 	for _, scenario := range []string{"allowed", "denied", "unavailable", "unsupported"} {
@@ -127,6 +134,64 @@ func TestWorkerGivenTurnTaskThenRequiresCurrentSessionAuthorization(t *testing.T
 			assert.Equal(t, scenario == "allowed", sender.calls == 1)
 			if scenario == "denied" || scenario == "unsupported" {
 				assert.Equal(t, "session_access_changed", stub.result.ErrorCategory)
+			}
+		})
+	}
+}
+
+func TestWorkerGivenApprovalTaskThenRequiresActionableRequest(t *testing.T) {
+	now := time.Now().UTC()
+	for _, scenario := range []string{"allowed", "denied", "unavailable", "unsupported"} {
+		t.Run(scenario, func(t *testing.T) {
+			stub := &outboxStub{
+				jobs: []LeasedDelivery{
+					{
+						Delivery: Delivery{
+							ID:               "job",
+							UserID:           "owner",
+							ReceiverID:       "receiver",
+							ReceiverRevision: 1,
+							Channel:          ChannelWebPush,
+							State:            StatePending,
+							NextAttemptAt:    now,
+							ExpiresAt:        now.Add(time.Hour),
+						},
+						Payload: Payload{Type: "approval.required"},
+					},
+				},
+				receiver: RegistrationRecord{
+					Receiver: Receiver{
+						ID:           "receiver",
+						UserID:       "owner",
+						Revision:     1,
+						Channel:      ChannelWebPush,
+						Enabled:      true,
+						Subscription: testSubscription(t),
+					},
+					VAPIDKeyID: "key",
+				},
+			}
+			var store Outbox = authorizedOutboxStub{outboxStub: stub, allowed: scenario == "allowed"}
+			if scenario == "unavailable" {
+				store = authorizedOutboxStub{outboxStub: stub, authErr: errors.New("unavailable")}
+			}
+			if scenario == "unsupported" {
+				store = stub
+			}
+			sender := &senderStub{result: AttemptResult{Status: 201}}
+			err := (Worker{Store: store, Sender: sender, KeyID: "key", Now: func() time.Time { return now }}).Drain(
+				t.Context(),
+			)
+			if scenario == "unavailable" {
+				require.Error(t, err)
+				assert.Zero(t, stub.completed)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, 1, stub.completed)
+			}
+			assert.Equal(t, scenario == "allowed", sender.calls == 1)
+			if scenario == "denied" || scenario == "unsupported" {
+				assert.Equal(t, "approval_not_actionable", stub.result.ErrorCategory)
 			}
 		})
 	}

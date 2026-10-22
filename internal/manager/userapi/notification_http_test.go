@@ -2,6 +2,7 @@ package userapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -78,6 +79,28 @@ func TestNotificationHTTPGivenTestRequestThenOnlyOwnedQueuedDeliveryIsAccepted(t
 	assert.Equal(t, 404, call(NotificationReceiversPath+"//test").Code)
 	handler.SendingEnabled = false
 	assert.Equal(t, 503, call(path).Code)
+}
+
+func TestNotificationHTTPGivenConfiguredSenderThenAdvertisesApprovalReminders(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		handler := &NotificationHandler{
+			Registry: &notificationRegistryFixture{}, Outbox: &notificationOutboxFixture{},
+			SendingEnabled: enabled, PublicKey: "public",
+			Principal: func(*http.Request) (domain.UserPrincipal, error) {
+				return domain.UserPrincipal{User: domain.User{UserID: "owner"}}, nil
+			},
+		}
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, httptest.NewRequest("GET", NotificationConfigPath, nil))
+		require.Equal(t, 200, w.Code)
+		var response struct {
+			Data struct {
+				Enabled bool `json:"approval_required_enabled"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, enabled, response.Data.Enabled)
+	}
 }
 
 func (f *notificationRegistryFixture) RegisterNotificationReceiver(

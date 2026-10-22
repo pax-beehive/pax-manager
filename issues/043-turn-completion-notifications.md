@@ -13,6 +13,14 @@ had no subscription registry, Web Push sender, or device push handler.
 
 ## Current note
 
+2026-10-22: pending approvals now use `approval.required` notifications on
+standard sessions. Pax Auto Approve is excluded at enqueue and delivery time;
+saved grants bypass manual approval creation. The worker also suppresses
+resolved, expired, or inaccessible requests. Clicking opens the session for
+review and does not approve the request. Creation and PostgreSQL fanout share
+one transaction. The configuration advertises `approval_required_enabled` for
+the companion Console description. No database migration is required.
+
 The module design and delivery order have been reviewed against current code.
 Delivery 1 implements the notification core: subscription shape/key validation,
 minimal versioned payload and session link, stable event/delivery identities,

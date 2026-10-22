@@ -2297,7 +2297,12 @@ func (s *PostgresStore) CreateApproval(
 		return AgentApproval{}, err
 	}
 	now := s.now().UTC()
-	row := s.db.QueryRowContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return AgentApproval{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	row := tx.QueryRowContext(ctx, `
 		INSERT INTO agent_approvals (
 			approval_id, owner_user_id, request_node_id, request_agent_id, request_session_id,
 			source_message_id, domain, operation, resource_type, resource_ref, title, description,
@@ -2316,6 +2321,12 @@ func (s *PostgresStore) CreateApproval(
 		jsonOrDefault(req.Options, "[]"), now, req.ExpiresAt, jsonDefault(req.RawPayload, "{}"))
 	approval, err := scanApproval(row)
 	if err != nil {
+		return AgentApproval{}, err
+	}
+	if err := s.enqueueApprovalNotification(ctx, tx, approval); err != nil {
+		return AgentApproval{}, err
+	}
+	if err := tx.Commit(); err != nil {
 		return AgentApproval{}, err
 	}
 	if err := upsertAuditEvents(ctx, s, auditEventsForApprovalRequested(approval)); err != nil {

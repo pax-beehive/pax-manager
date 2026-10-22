@@ -31,6 +31,7 @@ type Payload struct {
 	Version        int    `json:"version"`
 	NotificationID string `json:"notification_id"`
 	Type           string `json:"type"`
+	ApprovalID     string `json:"approval_id,omitempty"`
 	Title          string `json:"title"`
 	Body           string `json:"body"`
 	URL            string `json:"url"`
