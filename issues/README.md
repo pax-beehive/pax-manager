@@ -60,6 +60,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 043 | partial | [Turn notifications, streamed reply previews and subscription dashboard](043-turn-completion-notifications.md) | medium | notifications / storage / user API / Console |
 
+| 043 | resolved | [Long approval fingerprints overflow the grant lookup index](043-approval-fingerprint-index-overflow.md) | high | storage |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

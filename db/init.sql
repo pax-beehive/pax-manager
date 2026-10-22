@@ -1708,18 +1708,21 @@ CREATE INDEX IF NOT EXISTS idx_agent_approvals_owner_status
     ON agent_approvals(owner_user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_approvals_request_origin
     ON agent_approvals(owner_user_id, request_node_id, request_agent_id, request_session_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_agent_approvals_grant_lookup
+-- Bound index entries while retaining the original fingerprint for exact matching.
+CREATE INDEX IF NOT EXISTS idx_agent_approvals_grant_lookup_digest
     ON agent_approvals(
         owner_user_id,
         domain,
         operation,
-        action_fingerprint,
+        md5(action_fingerprint),
         decision,
         grant_node_id,
         grant_agent_id,
         grant_session_id,
         decided_at DESC
     );
+-- Create the replacement before removing the legacy unbounded index.
+DROP INDEX IF EXISTS idx_agent_approvals_grant_lookup;
 CREATE INDEX IF NOT EXISTS idx_agent_approvals_resource
     ON agent_approvals(owner_user_id, resource_type, resource_ref, created_at DESC);
 
