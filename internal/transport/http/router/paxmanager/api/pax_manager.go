@@ -42,6 +42,7 @@ func Register(r *server.Hertz) {
 						}
 						{
 							_sessions := _agent_id.Group("/sessions", _sessionsMw()...)
+							_sessions.POST("/register", append(_registernodesessionMw(), handler.RegisterNodeSession)...)
 							{
 								_session_id := _sessions.Group("/:session_id", _session_idMw()...)
 								_session_id.GET("/mailbox", append(_pullnodeagentsessionmailboxMw(), handler.PullNodeAgentSessionMailbox)...)

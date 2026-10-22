@@ -191,6 +191,20 @@ struct CreateRegistrationTokenRequest {
   3: optional i64 expires_in_seconds
 }
 
+struct SessionOrigin {
+  1: required string kind
+  2: required string registration_id
+  3: required string cronjob_id
+  4: required string run_id
+  5: required string name
+}
+
+struct RegisterNodeSessionRequest {
+  1: required string native_id
+  2: required string cwd
+  3: required SessionOrigin origin
+}
+
 struct NodeAgentSessionReportRequest {
   1: optional list<SessionStatusInput> sessions
 }
@@ -1446,6 +1460,16 @@ service PaxManagerAPI {
     openapi.summary = "Report node status",
     openapi.description = "Upserts node, hosted agents, and agent session status.",
     openapi.security = "nodeBearer"
+  )
+
+  AgentSessionResponse RegisterNodeSession(
+    1: required RegisterNodeSessionRequest request
+  ) (
+    api.post = "/api/v1/node/agents/:agent_id/sessions/register",
+    openapi.tag = "node",
+    openapi.summary = "Register a node-created session idempotently",
+    openapi.security = "nodeBearer",
+    openapi.path.agent_id = "Agent identifier."
   )
 
   OKResponse ReportNodeAgentSessions(

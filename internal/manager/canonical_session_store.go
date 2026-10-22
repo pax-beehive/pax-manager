@@ -3,6 +3,8 @@ package manager
 import (
 	"context"
 
+	"github.com/pax-beehive/pax-manager/internal/manager/paxd"
+
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
@@ -127,4 +129,17 @@ func (s canonicalSessionStore) canonicalSessionID(
 		}
 	}
 	return sessionID, nil
+}
+
+func (s canonicalSessionStore) RegisterNodeSession(
+	ctx context.Context,
+	node domain.Node,
+	agentID string,
+	req *domain.RegisterNodeSessionRequest,
+) (domain.AgentSession, error) {
+	registrar, ok := s.Store.(paxd.NodeSessionRegistrar)
+	if !ok {
+		return domain.AgentSession{}, domain.ErrConflict
+	}
+	return registrar.RegisterNodeSession(ctx, node, agentID, req)
 }

@@ -2782,6 +2782,25 @@
         },
         "type": "object"
       },
+      "RegisterNodeSessionRequest": {
+        "properties": {
+          "cwd": {
+            "type": "string"
+          },
+          "native_id": {
+            "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/SessionOrigin"
+          }
+        },
+        "required": [
+          "native_id",
+          "cwd",
+          "origin"
+        ],
+        "type": "object"
+      },
       "RegisterNotificationReceiverRequest": {
         "properties": {
           "device_label": {
@@ -3136,6 +3155,33 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "SessionOrigin": {
+        "properties": {
+          "cronjob_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "registration_id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "registration_id",
+          "cronjob_id",
+          "run_id",
+          "name"
+        ],
         "type": "object"
       },
       "SessionPaxConfig": {
@@ -4290,6 +4336,103 @@
           }
         ],
         "summary": "Report node agent sessions",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/agents/{agent_id}/sessions/register": {
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterNodeSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Register a node-created session idempotently",
         "tags": [
           "node"
         ]
