@@ -74,16 +74,9 @@ func (s *MemoryStore) ListTurnTranscript(
 		if !isToolMessage(messages[i].MessageType) {
 			continue
 		}
-		u := toolUpdate(messages[i].RawJSON)
-		title := []rune(toolSummaryString(u, "title", "name"))
-		if len(title) > 512 {
-			title = title[:512]
-		}
-		messages[i].RawJSON, _ = json.Marshal(domain.MessageToolSummary{
-			ToolCallID: toolSummaryString(u, "toolCallId", "tool_call_id"),
-			Title:      string(title), Status: toolSummaryString(u, "status"),
-			Kind: toolSummaryString(u, "kind"), ContextCompaction: toolSummaryCompaction(u),
-		})
+		messages[i].RawJSON, _ = json.Marshal(
+			toolSummaryFromUpdate(toolUpdate(messages[i].RawJSON)),
+		)
 	}
 	return buildTurnTranscript(ctx, sessionID, messages, s.ListMessageSummaryParts)
 }

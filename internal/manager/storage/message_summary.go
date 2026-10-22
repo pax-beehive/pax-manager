@@ -19,11 +19,18 @@ const toolUpdateSQL = `COALESCE(NULLIF(raw_json #> '{params,update}', 'null'::js
 var messageSummaryReturningSQL = strings.Replace(messageReturningSQL,
 	`COALESCE(raw_json, '{}'::jsonb)`,
 	`CASE WHEN `+toolMessageSQL+` THEN (
- SELECT jsonb_build_object(
+ SELECT jsonb_strip_nulls(jsonb_build_object(
  'tool_call_id', COALESCE(u->>'toolCallId', u->>'tool_call_id', ''),
  'title', LEFT(COALESCE(u->>'title', u->>'name', ''), 512),
  'status', COALESCE(u->>'status', ''), 'kind', COALESCE(u->>'kind', ''),
- 'context_compaction', COALESCE(u #> '{_meta,contextCompaction}', u #> '{_meta,context_compaction}', 'false'::jsonb) = 'true'::jsonb)
+ 'context_compaction', COALESCE(u #> '{_meta,contextCompaction}', u #> '{_meta,context_compaction}', 'false'::jsonb) = 'true'::jsonb,
+ 'subagent', CASE WHEN u #>> '{_meta,claudeCode,toolName}' IN ('Agent', 'Task')
+ AND COALESCE(u #>> '{_meta,claudeCode,parentToolUseId}', '') = '' THEN jsonb_build_object(
+ 'background', CASE WHEN u #> '{rawInput,run_in_background}' = 'true'::jsonb
+ OR u #>> '{_meta,claudeCode,toolResponse,status}' = 'async_launched' THEN true END,
+ 'description', NULLIF(LEFT(COALESCE(u #>> '{rawInput,description}', ''), 512), ''),
+ 'agent_type', NULLIF(LEFT(COALESCE(u #>> '{rawInput,subagent_type}', ''), 128), '')) END,
+ 'parent_tool_call_id', NULLIF(COALESCE(u #>> '{_meta,claudeCode,parentToolUseId}', ''), '')))
  FROM (SELECT `+toolUpdateSQL+` AS u) tool
  ) ELSE COALESCE(raw_json, '{}'::jsonb) END`, 1)
 
@@ -126,16 +133,7 @@ func summarizeMemoryMessages(page domain.MessageHistoryPage) (domain.MessageHist
 		if !isToolMessage(msg.MessageType) {
 			continue
 		}
-		u := toolUpdate(msg.RawJSON)
-		title := []rune(toolSummaryString(u, "title", "name"))
-		if len(title) > 512 {
-			title = title[:512]
-		}
-		msg.RawJSON, err = json.Marshal(domain.MessageToolSummary{
-			ToolCallID: toolSummaryString(u, "toolCallId", "tool_call_id"), Title: string(title),
-			Status: toolSummaryString(u, "status"), Kind: toolSummaryString(u, "kind"),
-			ContextCompaction: toolSummaryCompaction(u),
-		})
+		msg.RawJSON, err = json.Marshal(toolSummaryFromUpdate(toolUpdate(msg.RawJSON)))
 		if err != nil {
 			return page, err
 		}
@@ -294,4 +292,40 @@ func (s *MemoryStore) GetMessageDetailPage(
 func toolSummaryCompaction(u map[string]any) bool {
 	meta, _ := u["_meta"].(map[string]any)
 	return meta["contextCompaction"] == true || meta["context_compaction"] == true
+}
+
+// toolSummaryFromUpdate is the Go twin of the summary projection in
+// messageSummaryReturningSQL.
+func toolSummaryFromUpdate(u map[string]any) domain.MessageToolSummary {
+	meta, _ := u["_meta"].(map[string]any)
+	claudeCode, _ := meta["claudeCode"].(map[string]any)
+	parentToolCallID := toolSummaryString(claudeCode, "parentToolUseId")
+	summary := domain.MessageToolSummary{
+		ToolCallID:        toolSummaryString(u, "toolCallId", "tool_call_id"),
+		Title:             truncateRunes(toolSummaryString(u, "title", "name"), 512),
+		Status:            toolSummaryString(u, "status"),
+		Kind:              toolSummaryString(u, "kind"),
+		ContextCompaction: toolSummaryCompaction(u),
+		ParentToolCallID:  parentToolCallID,
+	}
+	toolName := toolSummaryString(claudeCode, "toolName")
+	if (toolName == "Agent" || toolName == "Task") && parentToolCallID == "" {
+		rawInput, _ := u["rawInput"].(map[string]any)
+		toolResponse, _ := claudeCode["toolResponse"].(map[string]any)
+		summary.Subagent = &domain.MessageToolSubagent{
+			Background: rawInput["run_in_background"] == true ||
+				toolSummaryString(toolResponse, "status") == "async_launched",
+			Description: truncateRunes(toolSummaryString(rawInput, "description"), 512),
+			AgentType:   truncateRunes(toolSummaryString(rawInput, "subagent_type"), 128),
+		}
+	}
+	return summary
+}
+
+func truncateRunes(value string, limit int) string {
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit])
 }

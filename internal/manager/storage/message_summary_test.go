@@ -100,6 +100,36 @@ func TestMessageSummaryCursorAndTerminalDetail(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
+func TestMessageSummaryMarksSubagentCalls(t *testing.T) {
+	store := NewMemoryStore(time.Now)
+	ctx := t.Context()
+	frames := map[string]string{
+		"agent": `{"params":{"update":{"toolCallId":"agent_1","title":"Read files","status":"completed",
+			"rawInput":{"description":"Read files","subagent_type":"general-purpose","run_in_background":true},
+			"_meta":{"claudeCode":{"toolName":"Agent","toolResponse":{"status":"async_launched","agentId":"a1"}}}}}}`,
+		"child": `{"params":{"update":{"toolCallId":"read_1","title":"Read file1.txt","status":"completed",
+			"_meta":{"claudeCode":{"toolName":"Read","parentToolUseId":"agent_1"}}}}}`,
+		"plain": `{"params":{"update":{"toolCallId":"bash_1","title":"ls","status":"completed",
+			"_meta":{"claudeCode":{"toolName":"Bash"}}}}}`,
+	}
+	for _, id := range []string{"agent", "child", "plain"} {
+		msg := Message{MessageID: id, AgentID: "agent", SessionID: "session",
+			Source: domain.MessageSourceACPTunnel, Direction: domain.MessageDirectionAgentToUser,
+			MessageType: "tool_call", RawJSON: json.RawMessage(frames[id])}
+		require.NoError(t, store.UpsertMessage(ctx, &msg))
+	}
+	page, err := store.ListMessageSummaryPage(ctx, "agent", "session", 0, 0, 10)
+	require.NoError(t, err)
+	require.Len(t, page.Messages, 3)
+	require.JSONEq(t, `{"tool_call_id":"agent_1","title":"Read files","status":"completed",
+		"subagent":{"background":true,"description":"Read files","agent_type":"general-purpose"}}`,
+		string(page.Messages[0].RawJSON))
+	require.JSONEq(t, `{"tool_call_id":"read_1","title":"Read file1.txt","status":"completed",
+		"parent_tool_call_id":"agent_1"}`, string(page.Messages[1].RawJSON))
+	require.JSONEq(t, `{"tool_call_id":"bash_1","title":"ls","status":"completed"}`,
+		string(page.Messages[2].RawJSON))
+}
+
 func TestPostgresMessageDetailSlicesBeforeReturning(t *testing.T) {
 	now := time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC)
 	script := &scriptedPostgresScript{queries: []scriptedRows{
