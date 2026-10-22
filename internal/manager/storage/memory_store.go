@@ -1964,6 +1964,7 @@ func (s *MemoryStore) CreateApproval(
 		RawPayload:        jsonDefault(req.RawPayload, "{}"),
 	}
 	s.approvals[approvalID] = approval
+	s.enqueueApprovalNotificationLocked(approval)
 	for _, event := range auditEventsForApprovalRequested(approval) {
 		s.upsertAuditEventLocked(event)
 	}

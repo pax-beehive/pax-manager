@@ -58,7 +58,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 042 | resolved | [OpenClaw session creation rejects per-session MCP injection](042-openclaw-session-mcp.md) | high | session / ACP |
 
-| 043 | partial | [Turn notifications, streamed reply previews and subscription dashboard](043-turn-completion-notifications.md) | medium | notifications / storage / user API / Console |
+| 043 | partial | [Turn and manual approval notifications, reply previews and subscription dashboard](043-turn-completion-notifications.md) | medium | notifications / storage / user API / Console |
 
 | 043 | resolved | [Long approval fingerprints overflow the grant lookup index](043-approval-fingerprint-index-overflow.md) | high | storage |
 

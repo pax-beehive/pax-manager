@@ -42,6 +42,10 @@ type DeliveryAuthorizer interface {
 	CanDeliverTurnNotification(context.Context, LeasedDelivery) (bool, error)
 }
 
+type ApprovalDeliveryAuthorizer interface {
+	CanDeliverApprovalNotification(context.Context, LeasedDelivery) (bool, error)
+}
+
 type Worker struct {
 	Store   Outbox
 	Sender  Sender
@@ -111,6 +115,19 @@ func (w Worker) attempt(ctx context.Context, job LeasedDelivery) (AttemptResult,
 		}
 		if !allowed {
 			return AttemptResult{Suppressed: true, ErrorCategory: "session_access_changed"}, nil
+		}
+	}
+	if job.Payload.Type == "approval.required" {
+		authorizer, ok := w.Store.(ApprovalDeliveryAuthorizer)
+		if !ok {
+			return AttemptResult{Suppressed: true, ErrorCategory: "approval_not_actionable"}, nil
+		}
+		allowed, err := authorizer.CanDeliverApprovalNotification(ctx, job)
+		if err != nil {
+			return AttemptResult{}, err
+		}
+		if !allowed {
+			return AttemptResult{Suppressed: true, ErrorCategory: "approval_not_actionable"}, nil
 		}
 	}
 	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
