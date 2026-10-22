@@ -23,6 +23,21 @@ func TestPostgresSchemaGivenArtifactPublicationsThenDefinesOwnerSessionLookup(t 
 	assert.Contains(t, sql, "ALTER TABLE artifact_uploads ADD COLUMN IF NOT EXISTS artifact_id")
 	assert.Contains(t, sql, "ALTER TABLE artifact_uploads ADD COLUMN IF NOT EXISTS node_id")
 	assert.Contains(t, sql, "ALTER TABLE artifact_uploads ADD COLUMN IF NOT EXISTS agent_id")
+	assert.Contains(
+		t,
+		sql,
+		"ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'agent'",
+	)
+	assert.Contains(
+		t,
+		sql,
+		"ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS requested_by_user_id TEXT NOT NULL DEFAULT ''",
+	)
+	assert.Contains(
+		t,
+		sql,
+		"ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS requested_path TEXT NOT NULL DEFAULT ''",
+	)
 	assert.Contains(t, sql, "idx_artifact_uploads_node_identity")
 	assert.Contains(t, sql, "ON artifact_uploads(owner_user_id, session_id, filename, sha256)")
 	assert.Contains(t, sql, "WHERE node_id <> '' AND sha256 <> ''")

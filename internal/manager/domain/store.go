@@ -136,6 +136,15 @@ type Store interface {
 		principal UserPrincipal,
 		publicationID string,
 	) (ArtifactPublication, error)
+	// MarkArtifactPublicationUserFetch records that the owner requested this
+	// publication from the console. It only touches origin and audit fields so
+	// it is safe in either order relative to the paxd worker registration.
+	MarkArtifactPublicationUserFetch(
+		ctx context.Context,
+		publicationID string,
+		requestedByUserID string,
+		requestedPath string,
+	) (ArtifactPublication, error)
 	FailArtifactPublication(
 		ctx context.Context,
 		node Node,

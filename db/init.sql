@@ -1139,6 +1139,12 @@ CREATE TABLE IF NOT EXISTS artifact_publications (
 CREATE INDEX IF NOT EXISTS idx_artifact_publications_session_created
     ON artifact_publications(owner_user_id, session_id, created_at);
 
+-- origin is 'agent' for agent publish-tool publications and 'user_fetch' for
+-- console-requested local file fetches; the requested_* columns are audit data.
+ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'agent';
+ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS requested_by_user_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS requested_path TEXT NOT NULL DEFAULT '';
+
 CREATE TABLE IF NOT EXISTS artifact_uploads (
     upload_id TEXT PRIMARY KEY,
     artifact_id TEXT NOT NULL DEFAULT '',

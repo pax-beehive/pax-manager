@@ -129,12 +129,7 @@ func normalizeRegisterArtifactPublicationRequest(
 		return RegisterArtifactPublicationRequest{}, invalidArtifactPublication(
 			"source.agent_id and source.session_id are required",
 		)
-	case req.Filename == "" ||
-		req.Filename == "." ||
-		req.Filename == ".." ||
-		len(req.Filename) > maxArtifactFilenameLength ||
-		filepath.Base(req.Filename) != req.Filename ||
-		strings.Contains(req.Filename, `\`):
+	case !validArtifactFilename(req.Filename):
 		return RegisterArtifactPublicationRequest{}, invalidArtifactPublication(
 			"filename must be a basename",
 		)
@@ -145,6 +140,15 @@ func normalizeRegisterArtifactPublicationRequest(
 	default:
 		return req, nil
 	}
+}
+
+func validArtifactFilename(filename string) bool {
+	return filename != "" &&
+		filename != "." &&
+		filename != ".." &&
+		len(filename) <= maxArtifactFilenameLength &&
+		filepath.Base(filename) == filename &&
+		!strings.Contains(filename, `\`)
 }
 
 func invalidArtifactPublication(message string) error {

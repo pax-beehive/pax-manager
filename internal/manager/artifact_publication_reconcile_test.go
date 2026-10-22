@@ -302,3 +302,34 @@ func assertArtifactDisplay(
 		parts[0].ArtifactURI,
 	)
 }
+
+func TestArtifactDisplayGivenUserFetchPublicationWhenReconciledThenInjectsNoCard(
+	t *testing.T,
+) {
+	srv, fixture := artifactDisplayFixture(t)
+	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	_, err := srv.store.PutArtifactPublication(t.Context(), ArtifactPublication{
+		PublicationID:     "apub_user_fetch",
+		OwnerUserID:       principal.User.UserID,
+		NodeID:            fixture.nodeID,
+		AgentID:           fixture.agentID,
+		SessionID:         "sess_artifact_display",
+		Filename:          "report.pdf",
+		Status:            domain.ArtifactPublicationStatusQueued,
+		Origin:            domain.ArtifactPublicationOriginUserFetch,
+		RequestedByUserID: principal.User.UserID,
+		RequestedPath:     "/home/u/report.pdf",
+	})
+	require.NoError(t, err)
+	require.NoError(t, reconcileArtifactPublicationDisplaysForSession(
+		t.Context(), srv.store, fixture.agentID, "sess_artifact_display",
+	))
+	require.Empty(t, artifactDisplayMessages(t, srv, fixture))
+
+	projectArtifactToolLifecycle(t, srv, fixture, "tool_user_fetch", "apub_user_fetch", 70)
+	require.NoError(t, reconcileArtifactPublicationDisplaysForSession(
+		t.Context(), srv.store, fixture.agentID, "sess_artifact_display",
+	))
+
+	require.Empty(t, artifactDisplayMessages(t, srv, fixture))
+}
