@@ -125,6 +125,8 @@ func TestOpenAPIDocumentUsesRequestHost(t *testing.T) {
 		"/api/v1/node/artifact-publications/{publication_id}/failed",
 		"/api/v1/user/{user_id}/artifact-publications/{publication_id}",
 		"/api/v1/user/{user_id}/artifact-publications/{publication_id}/content/{content_ref}",
+		"/api/v1/user/{user_id}/sessions/{session_id}/artifact-fetches",
+		"/api/v1/user/{user_id}/sessions/{session_id}/artifact-fetches/check",
 		"/api/v1/public/artifacts/download",
 		"/api/v1/public/paxd/download",
 		"/api/v1/public/paxl/download",

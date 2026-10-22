@@ -66,6 +66,7 @@ func openAPIDocument(serverURL string) ([]byte, error) {
 	addSessionHistoryPath(doc)
 	addNodeConversationDeliveryPath(doc)
 	addArtifactPublicationPaths(doc)
+	addArtifactFetchPaths(doc)
 	addPaxdArtifactPaths(doc)
 	return json.MarshalIndent(doc, "", "  ")
 }

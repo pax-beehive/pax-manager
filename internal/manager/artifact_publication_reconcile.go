@@ -73,6 +73,12 @@ func reconcileArtifactPublicationDisplay(
 		}
 		return err
 	}
+	// User-requested fetches never belong to an agent tool call, so they must
+	// not be projected into the chat transcript even if a tool output echoes
+	// the publication id.
+	if publication.Origin == domain.ArtifactPublicationOriginUserFetch {
+		return nil
+	}
 	if publication.OwnerUserID != terminal.OwnerUserID ||
 		publication.NodeID != terminal.NodeID ||
 		publication.AgentID != terminal.AgentID ||

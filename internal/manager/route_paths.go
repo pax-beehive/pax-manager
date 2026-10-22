@@ -92,6 +92,8 @@ const (
 	routeCompleteNodeArtifactUpload = "/api/v1/node/artifact-uploads/:upload_id/complete"
 	routeGetArtifactPublication     = "/api/v1/user/:user_id/artifact-publications/:publication_id"
 	routeArtifactPublicationContent = "/api/v1/user/:user_id/artifact-publications/:publication_id/content/:content_ref"
+	routeCreateArtifactFetch        = "/api/v1/user/:user_id/sessions/:session_id/artifact-fetches"
+	routeCheckArtifactFetch         = routeCreateArtifactFetch + "/check"
 
 	routeOpenAPI     = "/openapi"
 	routeOpenAPIJSON = "/openapi.json"
@@ -165,4 +167,6 @@ const (
 	openAPINodeArtifactFailure          = "/api/v1/node/artifact-publications/{publication_id}/failed"
 	openAPIUserArtifactPublication      = "/api/v1/user/{user_id}/artifact-publications/{publication_id}"
 	openAPIUserArtifactContent          = "/api/v1/user/{user_id}/artifact-publications/{publication_id}/content/{content_ref}"
+	openAPIUserArtifactFetches          = "/api/v1/user/{user_id}/sessions/{session_id}/artifact-fetches"
+	openAPIUserArtifactFetchCheck       = openAPIUserArtifactFetches + "/check"
 )

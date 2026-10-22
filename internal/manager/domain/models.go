@@ -1266,20 +1266,35 @@ const (
 	ArtifactPublicationStatusFailed    = "failed"
 )
 
+// Artifact publication origins. Agent publications come from the agent publish
+// tool; user_fetch publications come from a console user requesting a local
+// file on the session node.
+const (
+	ArtifactPublicationOriginAgent     = "agent"
+	ArtifactPublicationOriginUserFetch = "user_fetch"
+)
+
+// ArtifactPublication.RequestedByUserID and RequestedPath are audit metadata
+// for user_fetch publications. RequestedByUserID is always the owner today, so
+// it is not exposed; RequestedPath is the owner's own node path and
+// publications are owner-scoped, so exposing it does not widen access.
 type ArtifactPublication struct {
-	PublicationID string    `json:"publication_id"`
-	OwnerUserID   string    `json:"owner_user_id,omitempty"`
-	NodeID        string    `json:"node_id"`
-	AgentID       string    `json:"agent_id"`
-	SessionID     string    `json:"session_id"`
-	Filename      string    `json:"filename"`
-	Title         string    `json:"title,omitempty"`
-	Status        string    `json:"status"`
-	ArtifactID    string    `json:"artifact_id,omitempty"`
-	ErrorCode     string    `json:"error_code,omitempty"`
-	ErrorMessage  string    `json:"error_message,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	PublicationID     string    `json:"publication_id"`
+	OwnerUserID       string    `json:"owner_user_id,omitempty"`
+	NodeID            string    `json:"node_id"`
+	AgentID           string    `json:"agent_id"`
+	SessionID         string    `json:"session_id"`
+	Filename          string    `json:"filename"`
+	Title             string    `json:"title,omitempty"`
+	Status            string    `json:"status"`
+	ArtifactID        string    `json:"artifact_id,omitempty"`
+	ErrorCode         string    `json:"error_code,omitempty"`
+	ErrorMessage      string    `json:"error_message,omitempty"`
+	Origin            string    `json:"origin"`
+	RequestedByUserID string    `json:"-"`
+	RequestedPath     string    `json:"requested_path,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type ArtifactPublicationSource struct {
