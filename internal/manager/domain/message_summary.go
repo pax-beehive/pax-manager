@@ -9,6 +9,16 @@ type MessageToolSummary struct {
 	Status            string `json:"status"`
 	Kind              string `json:"kind,omitempty"`
 	ContextCompaction bool   `json:"context_compaction,omitempty"`
+	// Subagent marks an Agent or Task call of the main agent, and
+	// ParentToolCallID marks a call made inside such a subagent.
+	Subagent         *MessageToolSubagent `json:"subagent,omitempty"`
+	ParentToolCallID string               `json:"parent_tool_call_id,omitempty"`
+}
+
+type MessageToolSubagent struct {
+	Background  bool   `json:"background,omitempty"`
+	Description string `json:"description,omitempty"`
+	AgentType   string `json:"agent_type,omitempty"`
 }
 
 // MessageDetailPage offsets count Unicode code points, not bytes. A revision
