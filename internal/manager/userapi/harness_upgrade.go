@@ -56,7 +56,16 @@ func (s *Service) UpgradeNodeHarness(
 	if err != nil {
 		return 0, nil, nodeControlUnavailableError()
 	}
-	return s.dispatchNodeDaemonCommand(ctx, node.NodeID, req.CommandID, map[string]any{
-		"command_id": req.CommandID, "type": "harness.upgrade", "upgrade_harness": map[string]any{"harness": req.Harness, "component": req.Component, "version": req.Version, "connection_id": req.ConnectionID},
+	target := map[string]any{"harness": req.Harness, "component": req.Component}
+	if req.ConnectionID != "" {
+		target["connection_id"] = req.ConnectionID
+	}
+	return s.dispatchRecordedNodeDaemonCommand(ctx, principal, node, nodeDaemonCommandIntent{
+		CommandID:     req.CommandID,
+		Type:          domain.NodeDaemonCommandHarnessUpgrade,
+		Target:        target,
+		TargetVersion: req.Version,
+	}, map[string]any{
+		"command_id": req.CommandID, "type": domain.NodeDaemonCommandHarnessUpgrade, "upgrade_harness": map[string]any{"harness": req.Harness, "component": req.Component, "version": req.Version, "connection_id": req.ConnectionID},
 	}, map[string]any{"command_id": req.CommandID, "remote_id": remoteID, "dispatch_status": "unknown", "expected_version": req.Version})
 }

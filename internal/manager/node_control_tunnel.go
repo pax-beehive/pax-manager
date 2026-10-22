@@ -265,12 +265,18 @@ func (s *Server) handleNodeControlTunnelFrameWithFence(
 			heartbeat.ObservedAt = observedAt
 		}
 		s.nodeControls.ObserveHeartbeat(node.NodeID, heartbeat)
-		return s.store.UpsertNodeStatus(ctx, node, domain.NodeStatusReport{
+		if err := s.store.UpsertNodeStatus(ctx, node, domain.NodeStatusReport{
 			NodeID:      node.NodeID,
 			PaxdVersion: heartbeat.PaxdVersion,
 			Paxl:        heartbeat.Paxl,
 			Timestamp:   observedAt,
-		})
+		}); err != nil {
+			return err
+		}
+		if s.userapi != nil {
+			s.userapi.TriggerNodeDaemonCommandSync(ctx, node.NodeID)
+		}
+		return nil
 	case "runtime.snapshot":
 		return s.upsertRuntimeSnapshotReport(ctx, node, connectionFence, frame.Report)
 	case "session_runtime.snapshot":

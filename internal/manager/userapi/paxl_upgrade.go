@@ -51,7 +51,12 @@ func (s *Service) UpgradeNodePaxl(
 	if err != nil {
 		return 0, nil, nodeControlUnavailableError()
 	}
-	return s.dispatchNodeDaemonCommand(ctx, node.NodeID, req.CommandID, map[string]any{
-		"command_id": req.CommandID, "type": "paxl.upgrade", "upgrade_paxl": map[string]any{"version": req.Version, "tag": req.Tag},
+	return s.dispatchRecordedNodeDaemonCommand(ctx, principal, node, nodeDaemonCommandIntent{
+		CommandID:     req.CommandID,
+		Type:          domain.NodeDaemonCommandPaxlUpgrade,
+		Target:        map[string]any{"tag": req.Tag},
+		TargetVersion: req.Version,
+	}, map[string]any{
+		"command_id": req.CommandID, "type": domain.NodeDaemonCommandPaxlUpgrade, "upgrade_paxl": map[string]any{"version": req.Version, "tag": req.Tag},
 	}, map[string]any{"command_id": req.CommandID, "remote_id": remoteID, "dispatch_status": "unknown", "expected_version": req.Version})
 }

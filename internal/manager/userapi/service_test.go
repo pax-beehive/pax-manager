@@ -889,6 +889,10 @@ func TestGetNodeDaemonCommand(t *testing.T) {
 	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
 	secrets.EXPECT().New("ctlq").Return("ctlq_command_1", nil).Once()
+	store.EXPECT().
+		GetNodeDaemonCommand(ctx, "node_1", "cmd_1").
+		Return(domain.NodeDaemonCommand{}, domain.ErrNotFound).
+		Once()
 
 	svc := userapi.NewService(store, fixedUserClock, principals, secrets)
 	svc.SetNodeControlClient(client)
@@ -1457,6 +1461,7 @@ func TestRestartNodeDaemon(t *testing.T) {
 
 	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Once()
+	expectRecordedNodeDaemonCommand(store)
 	svc := userapi.NewService(
 		store,
 		fixedUserClock,
@@ -1531,6 +1536,7 @@ func TestUpgradeAndCancelNodeDaemon(t *testing.T) {
 	}
 	principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Twice()
 	store.EXPECT().GetNode(ctx, principal, "node_1").Return(node, nil).Twice()
+	expectRecordedNodeDaemonCommand(store)
 	svc := userapi.NewService(
 		store,
 		fixedUserClock,
@@ -2910,6 +2916,7 @@ func TestNodeService(t *testing.T) {
 
 			principals.EXPECT().Principal(ctx, auth.RequestMetadata{}).Return(principal, nil).Once()
 			store.EXPECT().ListNodes(ctx, principal).Return(nodes, nil).Once()
+			expectNoNodeDaemonCommands(store)
 
 			svc := userapi.NewService(
 				store,

@@ -796,3 +796,8 @@ func _registernodesessionMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _listnodedaemoncommandsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
