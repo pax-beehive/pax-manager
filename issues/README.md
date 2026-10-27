@@ -70,3 +70,6 @@ See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 | --- | -------- | --------------------------------------------------------------------------------------------------- | -------- | --------------------- |
 | 016 | resolved | [Public Node API exposure needs a reviewed launch boundary](016-public-node-api-launch-boundary.md) | blocker  | deployment / auth     |
 | 017 | partial  | [Trusted proxy and origin boundary](017-trusted-proxy-origin-boundary.md)                           | high     | security / deployment |
+
+2026-10-26 update for #043: optional original-event timestamps let Chrome for
+Android show when a notification's event happened without changing its text.

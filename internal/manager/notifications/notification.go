@@ -36,6 +36,7 @@ type Payload struct {
 	Body           string `json:"body"`
 	URL            string `json:"url"`
 	Tag            string `json:"tag"`
+	OccurredAt     int64  `json:"occurred_at,omitempty"`
 }
 
 type Notification struct {
@@ -65,7 +66,7 @@ func BuildTurnNotification(event TurnCompletion) (Notification, error) {
 			Version: 1, NotificationID: id, Type: "turn.completed",
 			Title: "Pax Workspace", Body: turnNotificationBody(event.ReplyPreview),
 			URL: "/?" + query.Encode(),
-			Tag: id,
+			Tag: id, OccurredAt: event.CompletedAt.UnixMilli(),
 		},
 	}, nil
 }

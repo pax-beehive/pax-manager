@@ -40,6 +40,7 @@ func BuildApprovalNotification(event ApprovalRequest) (Notification, error) {
 			Title: "Approval needed",
 			Body:  "Your session is waiting for your approval. Tap to review the request.",
 			URL:   "/?" + url.Values{"session_id": {event.SessionID}}.Encode(), Tag: id,
+			OccurredAt: event.CreatedAt.UnixMilli(),
 		},
 	}, nil
 }

@@ -400,3 +400,15 @@ is not shown as attempted.
 - [Google: subscribe a user](https://web.dev/articles/push-notifications-subscribing-a-user)
 - [Chromium: TWA permission delegation](https://chromium.googlesource.com/chromium/src/+/HEAD/chrome/android/java/src/org/chromium/chrome/browser/browserservices/permissiondelegation/README.md)
 - Installed Next.js guide: `pax-console/node_modules/next/dist/docs/01-app/02-guides/progressive-web-apps.md`.
+
+
+## Original event time (2026-10-26)
+
+The v1 payload optionally includes `occurred_at` as Unix milliseconds from the
+persisted turn completion, approval creation, or test enqueue time. Storage keeps
+this value with the payload; sending and retries do not replace it with delivery
+time. The companion Console passes a valid value only to the system notification
+`timestamp`, without adding text to the title/body. Missing values retain the
+browser default for compatibility. The original delivery expiry, per-turn tags,
+read cleanup, and session links remain unchanged. This is an internal payload
+extension and needs no database migration or generated API changes.

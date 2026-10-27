@@ -13,6 +13,11 @@ had no subscription registry, Web Push sender, or device push handler.
 
 ## Current note
 
+2026-10-26: notification payloads now include the original event time as optional
+`occurred_at` Unix milliseconds. The companion Console uses the native notification
+timestamp without changing notification text, delivery expiry, or read cleanup.
+Existing queued payloads without the field retain their previous behavior.
+
 2026-10-22: pending approvals now use `approval.required` notifications on
 standard sessions. Pax Auto Approve is excluded at enqueue and delivery time;
 saved grants bypass manual approval creation. The worker also suppresses
