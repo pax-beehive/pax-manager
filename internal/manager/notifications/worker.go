@@ -144,6 +144,7 @@ func BuildTestNotification(owner, nonce string, now time.Time) Notification {
 		Payload: Payload{
 			Version: 1, NotificationID: id, Type: "notification.test", Title: "Pax Workspace",
 			Body: "Notifications are working on this device.", URL: "/settings/notifications", Tag: id,
+			OccurredAt: now.UnixMilli(),
 		},
 	}
 }

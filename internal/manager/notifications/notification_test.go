@@ -108,7 +108,8 @@ func TestTurnCompletionGivenValidEventWhenBuiltThenIdentityIsStableAndPayloadIsM
 		notification.ID,
 	)
 	assert.Equal(t, event.UserID, notification.UserID)
-	assert.Equal(t, event.CompletedAt.Add(NotificationTTL), notification.ExpiresAt)
+	assert.Equal(t, event.CompletedAt.Add(time.Hour), notification.ExpiresAt)
+	assert.Equal(t, event.CompletedAt.UnixMilli(), notification.Payload.OccurredAt)
 	assert.Equal(t, "turn.completed", notification.Payload.Type)
 	assert.Equal(t, notification.ID, notification.Payload.Tag)
 	assert.Equal(t, notification.ID, notification.Payload.NotificationID)

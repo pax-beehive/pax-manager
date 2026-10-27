@@ -303,3 +303,10 @@ func TestWorkerGivenBatchOrStorageFailureThenBoundsWorkAndReportsFailure(t *test
 	)
 	assert.True(t, reported)
 }
+
+func TestTestNotificationGivenQueuedEventThenCarriesOriginalEventTime(t *testing.T) {
+	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
+	notification := BuildTestNotification("owner", "nonce", now)
+	assert.Equal(t, now.UnixMilli(), notification.Payload.OccurredAt)
+	assert.Equal(t, now.Add(5*time.Minute), notification.ExpiresAt)
+}
