@@ -73,6 +73,7 @@ func sameArtifactPublicationSource(left ArtifactPublication, right ArtifactPubli
 		left.NodeID == right.NodeID &&
 		left.AgentID == right.AgentID &&
 		left.SessionID == right.SessionID &&
+		left.TurnID == right.TurnID &&
 		left.Filename == right.Filename
 }
 

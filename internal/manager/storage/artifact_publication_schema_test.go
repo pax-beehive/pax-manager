@@ -16,6 +16,11 @@ func TestPostgresSchemaGivenArtifactPublicationsThenDefinesOwnerSessionLookup(t 
 
 	sql := string(initSQL)
 	assert.Contains(t, sql, "CREATE TABLE IF NOT EXISTS artifact_publications")
+	assert.Contains(
+		t,
+		sql,
+		"ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS turn_id TEXT NOT NULL DEFAULT ''",
+	)
 	assert.Contains(t, sql, "publication_id TEXT PRIMARY KEY")
 	assert.Contains(t, sql, "owner_user_id TEXT NOT NULL REFERENCES users(user_id)")
 	assert.Contains(t, sql, "idx_artifact_publications_session_created")

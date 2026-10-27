@@ -61,6 +61,7 @@ func (s *Service) handlePutArtifactPublication(
 		NodeID:        node.NodeID,
 		AgentID:       req.Source.AgentID,
 		SessionID:     session.SessionID,
+		TurnID:        req.Source.TurnID,
 		Filename:      req.Filename,
 		Title:         req.Title,
 		Status:        domain.ArtifactPublicationStatusQueued,
@@ -118,6 +119,7 @@ func normalizeRegisterArtifactPublicationRequest(
 ) (RegisterArtifactPublicationRequest, error) {
 	req.Source.AgentID = strings.TrimSpace(req.Source.AgentID)
 	req.Source.SessionID = strings.TrimSpace(req.Source.SessionID)
+	req.Source.TurnID = strings.TrimSpace(req.Source.TurnID)
 	req.Filename = strings.TrimSpace(req.Filename)
 	req.Title = strings.TrimSpace(req.Title)
 	switch {
@@ -128,6 +130,10 @@ func normalizeRegisterArtifactPublicationRequest(
 	case req.Source.AgentID == "" || req.Source.SessionID == "":
 		return RegisterArtifactPublicationRequest{}, invalidArtifactPublication(
 			"source.agent_id and source.session_id are required",
+		)
+	case len(req.Source.TurnID) > 512:
+		return RegisterArtifactPublicationRequest{}, invalidArtifactPublication(
+			"source.turn_id is too long",
 		)
 	case !validArtifactFilename(req.Filename):
 		return RegisterArtifactPublicationRequest{}, invalidArtifactPublication(

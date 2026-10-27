@@ -1111,6 +1111,7 @@ CREATE INDEX IF NOT EXISTS idx_artifact_publications_session_created
 ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'agent';
 ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS requested_by_user_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS requested_path TEXT NOT NULL DEFAULT '';
+ALTER TABLE artifact_publications ADD COLUMN IF NOT EXISTS turn_id TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS artifact_uploads (
     upload_id TEXT PRIMARY KEY,
