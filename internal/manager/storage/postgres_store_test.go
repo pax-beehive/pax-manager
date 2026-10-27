@@ -60,16 +60,18 @@ func TestPostgresSchemaGivenLegacyDuplicateActiveInvocationsThenExpiresOlderRows
 	assert.Contains(t, sql, "AND target_session_id <> ''")
 }
 
-func TestPostgresSchemaPersistsAndBackfillsInboundConsumerACKWatermark(t *testing.T) {
+func TestPostgresSchemaGivenExistingJournalThenKeepsWatermarksWithoutStartupBackfills(
+	t *testing.T,
+) {
 	initSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "init.sql"))
 	require.NoError(t, err)
 
 	sql := string(initSQL)
 	assert.Contains(t, sql, "inbound_acked_through BIGINT NOT NULL DEFAULT 0")
 	assert.Contains(t, sql, "ADD COLUMN IF NOT EXISTS inbound_acked_through")
-	assert.Contains(t, sql, "ROW_NUMBER() OVER")
-	assert.Contains(t, sql, "WHERE seq = ordinal")
-	assert.NotContains(t, sql, "journal.seq > candidate.inbound_applied_through")
+	assert.NotContains(t, sql, "INSERT INTO transport_queue_state")
+	assert.NotContains(t, sql, "WITH queue_candidates AS")
+	assert.NotContains(t, sql, "FROM inbound_watermarks")
 	assert.Contains(t, sql, "idx_transport_journal_inbound_ack")
 }
 
