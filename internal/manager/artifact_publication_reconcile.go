@@ -13,6 +13,7 @@ const artifactPublicationURIProtocol = "artifact-publication://"
 
 type artifactPublicationDisplayRaw struct {
 	PublicationID     string   `json:"publication_id"`
+	SourceSessionSeq  int64    `json:"source_session_seq,omitempty"`
 	ReplacesMessageID []string `json:"replaces_message_ids"`
 }
 
@@ -89,15 +90,25 @@ func reconcileArtifactPublicationDisplay(
 	if toolCallID == "" {
 		return nil
 	}
-	replaces := acpHistoryToolCallReplaceMessageIDs(messages, toolCallID, "", "")
+	scopedMessages := make([]domain.Message, 0, len(messages))
+	for _, message := range messages {
+		if message.TurnID == terminal.TurnID {
+			scopedMessages = append(scopedMessages, message)
+		}
+	}
+	replaces := acpHistoryToolCallReplaceMessageIDs(scopedMessages, toolCallID, "", "")
 	raw, err := json.Marshal(artifactPublicationDisplayRaw{
 		PublicationID:     publication.PublicationID,
+		SourceSessionSeq:  terminal.SessionSeq,
 		ReplacesMessageID: replaces,
 	})
 	if err != nil {
 		return err
 	}
 	logicalKey := "artifact-publication:" + terminal.SessionID + ":" + toolCallID + ":display"
+	if terminal.TurnID != "" {
+		logicalKey += ":turn:" + terminal.TurnID
+	}
 	message := domain.Message{
 		MessageID:       acpHistoryMessageID(logicalKey),
 		ConversationID:  terminal.ConversationID,

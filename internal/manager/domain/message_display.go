@@ -1,6 +1,9 @@
 package domain
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"sort"
+)
 
 type invocationDisplayRaw struct {
 	ReplacesMessageIDs []string `json:"replaces_message_ids"`
@@ -68,7 +71,42 @@ func NormalTranscriptMessages(messages []MessageWithParts) []MessageWithParts {
 		}
 		out = append(out, display)
 	}
-	return out
+	return orderArtifactDisplays(messages, out)
+}
+
+func orderArtifactDisplays(source, projected []MessageWithParts) []MessageWithParts {
+	positions := make(map[string]int64, len(source))
+	for _, message := range source {
+		if message.SessionSeq <= 0 {
+			return projected
+		}
+		positions[message.MessageID] = message.SessionSeq
+	}
+	hasArtifactPosition := false
+	for _, message := range projected {
+		if isInvocationDisplayMessage(message.MessageType) &&
+			positions[message.ParentMessageID] > 0 {
+			positions[message.MessageID] = positions[message.ParentMessageID]
+		}
+		if message.MessageType != MessageTypePaxArtifact {
+			continue
+		}
+		var raw struct {
+			SourceSessionSeq int64 `json:"source_session_seq"`
+		}
+		if json.Unmarshal(message.RawJSON, &raw) == nil &&
+			raw.SourceSessionSeq > 0 && raw.SourceSessionSeq < message.SessionSeq {
+			positions[message.MessageID] = raw.SourceSessionSeq
+			hasArtifactPosition = true
+		}
+	}
+	if hasArtifactPosition {
+		// These are display positions only; durable sequences remain cursor keys.
+		sort.SliceStable(projected, func(i, j int) bool {
+			return positions[projected[i].MessageID] < positions[projected[j].MessageID]
+		})
+	}
+	return projected
 }
 
 func isInvocationDisplayMessage(messageType string) bool {

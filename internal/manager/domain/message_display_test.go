@@ -93,3 +93,44 @@ func TestNormalTranscriptMessagesGivenPendingInvocationThenShowsPendingAndHidesR
 	assert.Equal(t, "Asked target for input.", normal[0].Parts[0].Text)
 	assert.Equal(t, "msg_visible", normal[1].MessageID)
 }
+
+func TestNormalTranscriptGivenArtifactSourceOutsidePageThenPlacesCardWithinItsTurn(t *testing.T) {
+	messages := []MessageWithParts{
+		{Message: Message{MessageID: "prompt", SessionSeq: 1}},
+		{Message: Message{MessageID: "answer", SessionSeq: 5}},
+		{Message: Message{MessageID: "done", SessionSeq: 6}},
+		{Message: Message{MessageID: "next_prompt", SessionSeq: 7}},
+		{Message: Message{
+			MessageID: "artifact", MessageType: MessageTypePaxArtifact, SessionSeq: 8,
+			ParentMessageID: "source", RawJSON: json.RawMessage(`{"source_session_seq":3}`),
+		}},
+	}
+	normal := NormalTranscriptMessages(messages)
+	var ids []string
+	for _, message := range normal {
+		ids = append(ids, message.MessageID)
+	}
+	assert.Equal(t, []string{"prompt", "artifact", "answer", "done", "next_prompt"}, ids)
+	assert.Equal(t, int64(8), normal[1].SessionSeq)
+}
+
+func TestNormalTranscriptGivenArtifactAndInvocationThenPreservesBothSourcePositions(t *testing.T) {
+	messages := []MessageWithParts{
+		{Message: Message{MessageID: "invocation_source", SessionSeq: 1}},
+		{Message: Message{MessageID: "artifact_source", SessionSeq: 2}},
+		{Message: Message{MessageID: "done", SessionSeq: 3}},
+		{Message: Message{
+			MessageID: "invocation", MessageType: MessageTypePaxInvocation, SessionSeq: 4,
+			ParentMessageID: "invocation_source",
+		}},
+		{Message: Message{
+			MessageID: "artifact", MessageType: MessageTypePaxArtifact, SessionSeq: 5,
+			ParentMessageID: "artifact_source", RawJSON: json.RawMessage(`{"source_session_seq":2}`),
+		}},
+	}
+	var ids []string
+	for _, message := range NormalTranscriptMessages(messages) {
+		ids = append(ids, message.MessageID)
+	}
+	assert.Equal(t, []string{"invocation", "artifact", "done"}, ids)
+}
