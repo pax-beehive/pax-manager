@@ -63,6 +63,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 043 | resolved | [Long approval fingerprints overflow the grant lookup index](043-approval-fingerprint-index-overflow.md) | high | storage |
 
+| 045 | resolved | [Late artifact publications appear after their turn footer](045-artifact-turn-placement.md) | medium | history / storage / Console |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
