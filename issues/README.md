@@ -4,6 +4,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| 044 | resolved | [Completed transport journal history grows without bound](044-transport-journal-retention.md) | high | storage / transport |
 | 001 | resolved | [Agent-to-user outbound message endpoint missing](001-outbound-message-endpoint.md)                                                     | blocker  | api / mailbox                |
 | 002 | resolved | [Session auto-creation on first message](002-session-auto-creation.md)                                                                  | blocker  | session / mailbox            |
 | 003 | resolved | [Missing mailbox "delivered" status transition](003-delivered-status.md)                                                                | high     | mailbox                      |

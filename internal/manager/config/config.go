@@ -15,6 +15,10 @@ import (
 const DefaultPaxdVerificationBaseURL = "https://paxworkspace.net"
 
 type Config struct {
+	TransportJournalGCDisabled       bool
+	TransportJournalRetention        time.Duration
+	TransportJournalGCInterval       time.Duration
+	TransportJournalGCBatchSize      int
 	NotificationPublicKey            string
 	NotificationKeyID                string
 	NotificationPrivateKey           string
@@ -62,23 +66,31 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		NotificationPublicKey:    os.Getenv("PAX_WEB_PUSH_PUBLIC_KEY"),
-		NotificationKeyID:        envDefault("PAX_WEB_PUSH_KEY_ID", "default"),
-		NotificationPrivateKey:   os.Getenv("PAX_WEB_PUSH_PRIVATE_KEY"),
-		NotificationSubscriber:   os.Getenv("PAX_WEB_PUSH_SUBSCRIBER"),
-		NotificationAllowedHosts: os.Getenv("PAX_WEB_PUSH_ALLOWED_HOSTS"),
-		Region:                   os.Getenv("PAX_REGION"),
-		RegionProvisioningSecret: os.Getenv("REGION_PROVISIONING_SECRET"),
-		Port:                     envDefault("PORT", "9879"),
-		DatabaseURL:              os.Getenv("DATABASE_URL"),
-		RegistrationToken:        os.Getenv("REGISTRATION_TOKEN"),
-		RegistrationOwnerEmail:   os.Getenv("REGISTRATION_TOKEN_OWNER_EMAIL"),
-		LocalUserID:              envDefault("LOCAL_USER_ID", "local@example.local"),
-		AllowLocalUserHeader:     parseBool(os.Getenv("ALLOW_LOCAL_USER_HEADER")),
-		CloudflareAccessDisabled: parseBool(os.Getenv("CLOUDFLARE_ACCESS_DISABLED")),
-		CloudflareAccessIssuer:   os.Getenv("CLOUDFLARE_ACCESS_ISSUER"),
-		CloudflareAccessAud:      os.Getenv("CLOUDFLARE_ACCESS_AUD"),
-		CloudflareAccessJWKS:     os.Getenv("CLOUDFLARE_ACCESS_JWKS_URL"),
+		TransportJournalGCDisabled: parseBool(os.Getenv("TRANSPORT_JOURNAL_GC_DISABLED")),
+		TransportJournalRetention: time.Duration(parseIntEnv(
+			"TRANSPORT_JOURNAL_RETENTION_HOURS", 72,
+		)) * time.Hour,
+		TransportJournalGCInterval: time.Duration(parseIntEnv(
+			"TRANSPORT_JOURNAL_GC_INTERVAL_SECONDS", 10,
+		)) * time.Second,
+		TransportJournalGCBatchSize: parseIntEnv("TRANSPORT_JOURNAL_GC_BATCH_SIZE", 1000),
+		NotificationPublicKey:       os.Getenv("PAX_WEB_PUSH_PUBLIC_KEY"),
+		NotificationKeyID:           envDefault("PAX_WEB_PUSH_KEY_ID", "default"),
+		NotificationPrivateKey:      os.Getenv("PAX_WEB_PUSH_PRIVATE_KEY"),
+		NotificationSubscriber:      os.Getenv("PAX_WEB_PUSH_SUBSCRIBER"),
+		NotificationAllowedHosts:    os.Getenv("PAX_WEB_PUSH_ALLOWED_HOSTS"),
+		Region:                      os.Getenv("PAX_REGION"),
+		RegionProvisioningSecret:    os.Getenv("REGION_PROVISIONING_SECRET"),
+		Port:                        envDefault("PORT", "9879"),
+		DatabaseURL:                 os.Getenv("DATABASE_URL"),
+		RegistrationToken:           os.Getenv("REGISTRATION_TOKEN"),
+		RegistrationOwnerEmail:      os.Getenv("REGISTRATION_TOKEN_OWNER_EMAIL"),
+		LocalUserID:                 envDefault("LOCAL_USER_ID", "local@example.local"),
+		AllowLocalUserHeader:        parseBool(os.Getenv("ALLOW_LOCAL_USER_HEADER")),
+		CloudflareAccessDisabled:    parseBool(os.Getenv("CLOUDFLARE_ACCESS_DISABLED")),
+		CloudflareAccessIssuer:      os.Getenv("CLOUDFLARE_ACCESS_ISSUER"),
+		CloudflareAccessAud:         os.Getenv("CLOUDFLARE_ACCESS_AUD"),
+		CloudflareAccessJWKS:        os.Getenv("CLOUDFLARE_ACCESS_JWKS_URL"),
 		CloudflareAccessMigrationEnabled: parseBool(
 			os.Getenv("CLOUDFLARE_ACCESS_MIGRATION_ENABLED"),
 		),
