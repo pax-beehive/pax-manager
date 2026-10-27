@@ -9,7 +9,7 @@ import (
 const artifactPublicationSelectColumns = `
 	publication_id, owner_user_id, node_id, agent_id, session_id, filename, title,
 	status, COALESCE(artifact_id, ''), error_code, error_message, origin,
-	requested_by_user_id, requested_path, created_at, updated_at
+	requested_by_user_id, requested_path, created_at, updated_at, turn_id
 `
 
 func (s *PostgresStore) PutArtifactPublication(
@@ -25,15 +25,15 @@ func (s *PostgresStore) PutArtifactPublication(
 		INSERT INTO artifact_publications (
 			publication_id, owner_user_id, node_id, agent_id, session_id, filename,
 			title, status, artifact_id, error_code, error_message, origin,
-			requested_by_user_id, requested_path, created_at, updated_at
+			requested_by_user_id, requested_path, created_at, updated_at, turn_id
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,$12,$13,$14,$15,$15)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,$12,$13,$14,$15,$15,$16)
 		ON CONFLICT (publication_id) DO NOTHING
 	`, publication.PublicationID, publication.OwnerUserID, publication.NodeID,
 		publication.AgentID, publication.SessionID, publication.Filename,
 		publication.Title, publication.Status, publication.ArtifactID,
 		publication.ErrorCode, publication.ErrorMessage, publication.Origin,
-		publication.RequestedByUserID, publication.RequestedPath, now); err != nil {
+		publication.RequestedByUserID, publication.RequestedPath, now, publication.TurnID); err != nil {
 		return ArtifactPublication{}, err
 	}
 	stored, err := scanArtifactPublication(s.db.QueryRowContext(ctx, `
@@ -96,6 +96,7 @@ func scanArtifactPublication(row rowScanner) (ArtifactPublication, error) {
 		&publication.RequestedPath,
 		&publication.CreatedAt,
 		&publication.UpdatedAt,
+		&publication.TurnID,
 	); err != nil {
 		return ArtifactPublication{}, mapSQLError(err)
 	}

@@ -2,6 +2,8 @@ package manager
 
 import (
 	"encoding/json"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,6 +11,69 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
+
+func TestArtifactPublicationGivenInvalidSourceTurnThenRejectsOversizedID(t *testing.T) {
+	_, err := normalizeRegisterArtifactPublicationRequest(
+		"apub_invalid",
+		RegisterArtifactPublicationRequest{
+			Source: ArtifactPublicationSource{
+				AgentID:   "agent",
+				SessionID: "session",
+				TurnID:    strings.Repeat("t", 513),
+			},
+			Filename: "board.mmd",
+		},
+	)
+	assert.ErrorContains(t, err, "source.turn_id is too long")
+}
+
+func TestArtifactDisplayGivenCapturedTurnWhenRegisteredLaterThenKeepsOriginalTurn(t *testing.T) {
+	srv, fixture := artifactDisplayFixture(t)
+	terminal := artifactTurnTerminal(t, srv, fixture, "", "tool_original", "apub_captured")
+	artifactTurnDone(t, srv, fixture, "turn_original")
+	artifactTurnTerminal(t, srv, fixture, "turn_next", "tool_next", "apub_next")
+
+	rec := registerArtifactPublication(
+		t,
+		srv,
+		fixture.nodeAPIKey,
+		"apub_captured",
+		`{"source":{"agent_id":"`+fixture.agentID+`","session_id":"sess_artifact_display","turn_id":"turn_original"},"filename":"board.mmd"}`,
+	)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	displays := artifactDisplayMessages(t, srv, fixture)
+	require.Len(t, displays, 1)
+	assert.Equal(t, "turn_original", displays[0].TurnID)
+	assert.Equal(t, terminal.MessageID, displays[0].ParentMessageID)
+	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	publication, err := srv.store.GetArtifactPublication(t.Context(), principal, "apub_captured")
+	require.NoError(t, err)
+	assert.Equal(t, "turn_original", publication.TurnID)
+
+	rec = registerArtifactPublication(
+		t,
+		srv,
+		fixture.nodeAPIKey,
+		"apub_captured",
+		`{"source":{"agent_id":"`+fixture.agentID+`","session_id":"sess_artifact_display","turn_id":"turn_next"},"filename":"board.mmd"}`,
+	)
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Len(t, artifactDisplayMessages(t, srv, fixture), 1)
+}
+
+func TestArtifactDisplayGivenDifferentSourceTurnThenDoesNotAttachToEchoingTool(t *testing.T) {
+	srv, fixture := artifactDisplayFixture(t)
+	artifactTurnTerminal(t, srv, fixture, "turn_other", "tool_echo", "apub_captured")
+	rec := registerArtifactPublication(
+		t,
+		srv,
+		fixture.nodeAPIKey,
+		"apub_captured",
+		`{"source":{"agent_id":"`+fixture.agentID+`","session_id":"sess_artifact_display","turn_id":"turn_original"},"filename":"board.mmd"}`,
+	)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Empty(t, artifactDisplayMessages(t, srv, fixture))
+}
 
 func TestArtifactDisplayGivenLatePublicationThenKeepsSourceTurnAndPosition(t *testing.T) {
 	srv, fixture := artifactDisplayFixture(t)

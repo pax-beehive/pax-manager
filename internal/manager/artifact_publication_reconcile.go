@@ -90,6 +90,12 @@ func reconcileArtifactPublicationDisplay(
 	if toolCallID == "" {
 		return nil
 	}
+	if publication.TurnID != "" {
+		if terminal.TurnID != "" && terminal.TurnID != publication.TurnID {
+			return nil
+		}
+		terminal.TurnID = publication.TurnID
+	}
 	scopedMessages := make([]domain.Message, 0, len(messages))
 	for _, message := range messages {
 		if message.TurnID == terminal.TurnID {

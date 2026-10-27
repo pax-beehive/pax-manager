@@ -2,7 +2,7 @@
 
 **Status:** resolved
 **Severity:** medium
-**Component:** history / Console
+**Component:** paxd / history / storage / Console
 **Found:** 2026-10-27
 **Resolved:** 2026-10-27
 
@@ -20,9 +20,17 @@ turn-scoped display keys and replacement lists keep reused tool IDs separate.
 Backend transcript projection and the companion Console page merge use the
 source sequence for display while preserving durable pagination cursors.
 
+Follow-up: paxd captures the active source turn at publication acceptance and
+persists it in the upload job. Registration carries `source.turn_id`; Manager
+stores it as immutable publication source metadata and rejects a conflicting
+tool attribution. Console history calibration also uses the source sequence,
+so its second merge cannot undo page-level display ordering.
+
 The fix applies to new artifact writes. Historical-data migration and Mermaid
 MIME handling are outside its scope. Existing publication reconciliation remains
-in place. Deploy Manager before Console. Deployment is pending.
+in place. Apply the additive `artifact_publications.turn_id` schema change and
+deploy Manager before paxd. Console can then preserve the complete display
+ordering path. Deployment is pending.
 
 ## BDD verification
 

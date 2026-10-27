@@ -1283,6 +1283,7 @@ const (
 // publications are owner-scoped, so exposing it does not widen access.
 type ArtifactPublication struct {
 	PublicationID     string    `json:"publication_id"`
+	TurnID            string    `json:"turn_id,omitempty"`
 	OwnerUserID       string    `json:"owner_user_id,omitempty"`
 	NodeID            string    `json:"node_id"`
 	AgentID           string    `json:"agent_id"`
@@ -1303,6 +1304,7 @@ type ArtifactPublication struct {
 type ArtifactPublicationSource struct {
 	AgentID   string `json:"agent_id"`
 	SessionID string `json:"session_id"`
+	TurnID    string `json:"turn_id,omitempty"`
 }
 
 type RegisterArtifactPublicationRequest struct {
