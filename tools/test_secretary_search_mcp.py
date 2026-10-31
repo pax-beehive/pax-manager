@@ -48,6 +48,47 @@ class AdapterTests(unittest.TestCase):
         self.assertNotIn("test-secret", request.data.decode())
         self.assertGreater(timeout, 0)
 
+    def test_native_bases_keep_gateway_prefix_for_all_tools(self):
+        opener = self.client.opener
+        calls = [
+            ("search", {"query": "database"}, ""),
+            ("read", {"ref": {"kind": "message", "id": "m"}}, "/read"),
+            ("expand", {"message_id": "m", "content_hash": "hash", "canonicalization_version": "v1", "view": "full"}, "/read"),
+            ("publish_summary", {"summary_id": "s", "subject_type": "fragment", "subject_id": "f", "expected_revision": 0, "request_id": "once", "title": "Title", "body": "Summary", "coverage": []}, "/summaries"),
+        ]
+        for gateway in ("us", "hk", "client"):
+            for trailing in ("", "/"):
+                base = "https://manager.test/api/v1/native/" + gateway
+                self.client = mcp.ManagerClient(base + trailing, "test-secret", opener)
+                self.server = mcp.Server(self.client)
+                for name, arguments, suffix in calls:
+                    with self.subTest(gateway=gateway, trailing=trailing, tool=name):
+                        result = self.call(name, arguments)
+                        self.assertNotIn("error", result)
+                        request = self.calls[-1][0]
+                        self.assertEqual(base + "/user/self/search" + suffix, request.full_url)
+                        self.assertEqual("Bearer test-secret", request.get_header("Authorization"))
+                        self.assertNotIn("test-secret", request.full_url + request.data.decode())
+                        self.assertIsNone(request.get_header("Cookie"))
+
+    def test_configuration_accepts_only_origins_or_exact_native_base_paths(self):
+        paths = [
+            "/arbitrary", "/api/v1/user/self", "/api/v1/native", "/api/v1/native/uk",
+            "/api/v1/native/US", "/api/v1/native/us/user/self/search",
+            "/api/v1/native/client/bootstrap", "/api/v1/native/us//", "/api/v1/native//us",
+            "//api/v1/native/us", "/api/v1/native/us/../hk", "/api/v1/native/%75s",
+            "/api/v1/native/us%2f", "/api/v1/native/us;other", "/api/v1/native/us\\other",
+            "/api/v1/native/us?", "/api/v1/native/us#", "/api/v1/native/us?key=x",
+        ]
+        for path in paths:
+            with self.subTest(path=path), self.assertRaises(mcp.ConfigurationError):
+                mcp.ManagerClient("https://manager.test" + path, "key")
+        for base in ["https://@manager.test/api/v1/native/us", " https://manager.test/api/v1/native/us", "https://manager.test\n/api/v1/native/us", "https://manager.test\\other/api/v1/native/us", "https://manager.test:bad/api/v1/native/us", "https://[bad]/api/v1/native/us"]:
+            with self.subTest(base=base), self.assertRaises(mcp.ConfigurationError):
+                mcp.ManagerClient(base, "key")
+        for base in ["https://manager.test/", "http://127.0.0.1:9879/api/v1/native/us", "http://[::1]:9879/api/v1/native/client/"]:
+            mcp.ManagerClient(base, "key")
+
     def test_read_expand_and_publish_exact_contract(self):
         ref = {"kind": "message", "id": "m", "content_hash": "hash", "canonicalization_version": "v1"}
         self.call("read", {"ref": ref, "view": "last", "before": 1})

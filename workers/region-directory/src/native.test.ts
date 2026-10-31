@@ -46,6 +46,106 @@ const req = (path: string, method = "GET", body?: unknown) =>
 afterEach(() => vi.unstubAllGlobals());
 
 describe("native gateway", () => {
+  it.each(["us", "hk"])(
+    "forwards only authenticated search POSTs to the selected Manager: %s",
+    async (region) => {
+      const upstream = vi
+        .fn()
+        .mockImplementation(async () =>
+          Response.json(
+            { data: { accepted: true } },
+            { headers: { "Set-Cookie": "upstream=secret" } },
+          ),
+        );
+      vi.stubGlobal("fetch", upstream);
+      for (const suffix of ["search", "search/read", "search/summaries"]) {
+        const body = '{ "query": "database", "limit": 4 }\n';
+        const request = req(`${region}/user/self/${suffix}`, "POST", body);
+        for (const name of [
+          "Cookie",
+          "X-User-Email",
+          "Cf-Access-Jwt-Assertion",
+          "X-Pax-Identity-Assertion",
+          "CF-Access-Client-Id",
+          "CF-Access-Client-Secret",
+        ])
+          request.headers.set(name, "forged");
+        const result = await createWorker().fetch(request, env());
+        expect(result.status).toBe(200);
+        const [url, options] = upstream.mock.calls.at(-1)!;
+        expect(String(url)).toBe(
+          `https://${region}.example.invalid/api/v1/user/self/${suffix}`,
+        );
+        expect(options.method).toBe("POST");
+        expect(new TextDecoder().decode(options.body)).toBe(body);
+        expect(options.headers.get("Authorization")).toBe(
+          "Bearer paxu_fixture",
+        );
+        expect(options.headers.get("CF-Access-Client-Id")).toBe(
+          `${region}-service`,
+        );
+        expect(options.headers.get("CF-Access-Client-Secret")).toBe(
+          `${region}-secret`,
+        );
+        for (const name of [
+          "Cookie",
+          "X-User-Email",
+          "Cf-Access-Jwt-Assertion",
+          "X-Pax-Identity-Assertion",
+        ])
+          expect(options.headers.has(name)).toBe(false);
+        expect(result.headers.has("Set-Cookie")).toBe(false);
+        expect(await result.json()).toEqual({ data: { accepted: true } });
+      }
+      expect(upstream).toHaveBeenCalledTimes(3);
+    },
+  );
+  it.each([
+    ["GET", "user/self/search"],
+    ["PATCH", "user/self/search/read"],
+    ["DELETE", "user/self/search/summaries"],
+    ["POST", "user/other/search"],
+    ["POST", "user/self/search/extra"],
+    ["POST", "user/self/search/read/extra"],
+    ["POST", "user/self/search/summaries/extra"],
+    ["POST", "user/self/searching"],
+    ["GET", "user/self/secretary"],
+    ["PATCH", "user/self/secretary"],
+    ["GET", "user/self/secretary/progress"],
+    ["POST", "user/self/secretary/run"],
+  ])(
+    "keeps search siblings and Secretary controls private: %s %s",
+    async (method, path) => {
+      const upstream = vi.fn();
+      vi.stubGlobal("fetch", upstream);
+      expect(allowedNativeUserRoute(method, path)).toBe(false);
+      const request = req(
+        `us/${path}`,
+        method,
+        ["POST", "PATCH"].includes(method) ? {} : undefined,
+      );
+      expect((await createWorker().fetch(request, env())).status).toBe(404);
+      expect(upstream).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["search", "search/read", "search/summaries"])(
+    "retains bearer and origin checks for search POSTs: %s",
+    async (suffix) => {
+      const upstream = vi.fn();
+      vi.stubGlobal("fetch", upstream);
+      for (const [name, value, status] of [
+        ["Authorization", "", 401],
+        ["Authorization", "Bearer paxn_node", 401],
+        ["Origin", "https://evil.example.invalid", 403],
+        ["Sec-Fetch-Site", "cross-site", 403],
+      ] as const) {
+        const request = req(`us/user/self/${suffix}`, "POST", {});
+        request.headers.set(name, value);
+        expect((await nativeFetch(request, env())).status).toBe(status);
+      }
+      expect(upstream).not.toHaveBeenCalled();
+    },
+  );
   it("allows only current-user attachment content reads", () => {
     for (const path of [
       "attachments/att_1/content",

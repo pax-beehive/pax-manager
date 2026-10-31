@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 
 MAX_BYTES = 4 * 1024 * 1024
+NATIVE_BASE_PATHS = {"/api/v1/native/" + region for region in ("us", "hk", "client")}
 
 
 class ConfigurationError(ValueError):
@@ -107,13 +108,28 @@ class ManagerClient:
                     loopback = ipaddress.ip_address(host).is_loopback
                 except ValueError:
                     pass
-            valid = (url.scheme == "https" or url.scheme == "http" and loopback) and host and not url.username and not url.password and not url.query and not url.fragment
+            base_path = url.path.removesuffix("/")
+            valid_path = url.path in ("", "/") or (
+                base_path in NATIVE_BASE_PATHS
+                and url.path in (base_path, base_path + "/")
+            )
+            valid = (
+                (url.scheme == "https" or url.scheme == "http" and loopback)
+                and host
+                and url.username is None
+                and url.password is None
+                and not url.query
+                and not url.fragment
+                and valid_path
+                and not any(ord(c) <= 32 or c in "\\?#" for c in base_url)
+            )
             _ = url.port
         except ValueError:
             valid = False
         if not valid or not api_key or any(c in api_key for c in "\r\n"):
-            raise ConfigurationError("Set PAX_MANAGER_URL to HTTPS (HTTP only on loopback) and PAX_USER_API_KEY to a valid user API key.")
-        self.base_url = base_url.rstrip("/")
+            raise ConfigurationError("Set PAX_MANAGER_URL to an HTTPS origin or /api/v1/native/{us,hk,client} base (HTTP only on loopback), and PAX_USER_API_KEY to a valid bearer credential.")
+        self.base_url = urllib.parse.urlunsplit((url.scheme, url.netloc, base_path, "", ""))
+        self.search_url = self.base_url + ("/user/self/search" if base_path else "/api/v1/user/self/search")
         self.api_key = api_key
         self.opener = opener or urllib.request.build_opener(NoRedirect()).open
 
@@ -121,7 +137,7 @@ class ManagerClient:
         raw = json.dumps(payload, ensure_ascii=True).encode()
         if len(raw) > MAX_BYTES:
             raise ToolFailure("invalid_request", "Request exceeds the adapter size limit.")
-        request = urllib.request.Request(self.base_url + "/api/v1/user/self/search" + path, data=raw, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self.api_key}, method="POST")
+        request = urllib.request.Request(self.search_url + path, data=raw, headers={"Content-Type": "application/json", "Authorization": "Bearer " + self.api_key}, method="POST")
         try:
             with self.opener(request, timeout=15) as response:
                 raw = response.read(MAX_BYTES + 1)

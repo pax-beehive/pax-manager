@@ -54,7 +54,26 @@ printf 'Verifying Secretary settings, real ACP execution, immutable summaries an
 if ! go test -json -tags=integration -count=1 -timeout=120s \
   ./internal/manager ./internal/manager/storage ./internal/manager/userapi \
   -run '^TestSecretary' >"${secretary_logs}/go.json" 2>&1; then
-  tail -n 60 "${secretary_logs}/go.json" >&2
+  python3 - "${secretary_logs}/go.json" <<'PY'
+import json
+import sys
+
+lines = open(sys.argv[1], encoding="utf-8").read().splitlines()
+events = []
+for line in lines:
+    try:
+        events.append(json.loads(line))
+    except json.JSONDecodeError:
+        pass
+failed = {(event.get("Package"), event.get("Test")) for event in events
+          if event.get("Action") == "fail" and event.get("Test")}
+if failed:
+    for event in events:
+        if (event.get("Package"), event.get("Test")) in failed and event.get("Output"):
+            print(event["Output"], end="", file=sys.stderr)
+else:
+    print("\n".join(lines[-120:]), file=sys.stderr)
+PY
   exit 1
 fi
 if ! go test -json -count=1 ./internal/manager/secretary >"${secretary_logs}/worker.json" 2>&1; then

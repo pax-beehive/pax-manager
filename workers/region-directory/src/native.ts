@@ -6,6 +6,7 @@ const id = "[A-Za-z0-9_-]{1,128}";
 const userRoutes: [string, string][] = [
   ["GET", "(?:me|sessions|projects|nodes|approvals)"],
   ["POST", "projects"],
+  ["POST", "search(?:/(?:read|summaries))?"],
   ["GET", `sessions/${id}/history`],
   ["GET", `attachments/${id}/content`],
   [

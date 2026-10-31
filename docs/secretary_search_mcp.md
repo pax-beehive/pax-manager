@@ -14,9 +14,14 @@ Its selected-agent execution and checkpoint are independent of this stdio adapte
 Configure these environment variables in the MCP client's secret/environment
 settings, then launch the script as a stdio child process:
 
-- `PAX_MANAGER_URL`: the Manager origin, for example `https://paxworkspace.net`.
-- `PAX_USER_API_KEY`: an existing user API key. The adapter sends it as a Bearer
-  header. Do not place it in tool arguments, URLs, committed configuration, or logs.
+- `PAX_MANAGER_URL`: an explicit native gateway base for your account's region,
+  for example `https://paxworkspace.net/api/v1/native/us` or
+  `https://paxworkspace.net/api/v1/native/hk`. This path requires the gateway's
+  existing `NATIVE_API_ENABLED` policy to be enabled. A trusted direct Manager
+  origin or local `http://127.0.0.1:9879` also works.
+- `PAX_USER_API_KEY`: an existing regional PAX user API key. The adapter sends it
+  as a Bearer header. Do not place it in tool arguments, URLs, committed
+  configuration, or logs.
 
 Launch definition, adapting the absolute path to the checkout:
 
@@ -33,6 +38,21 @@ HTTPS is required except for loopback development addresses, such as
 `http://127.0.0.1:9879`. Redirects are refused so credentials cannot be forwarded.
 The adapter exposes no owner/user selection: Manager resolves the authenticated
 owner and rechecks PG visibility.
+
+The public origin's ordinary `/api/v1/user/...` paths use browser authentication;
+an API key does not turn them into a native route. The adapter accepts only an
+origin or an exact `/api/v1/native/us`, `/api/v1/native/hk`, or
+`/api/v1/native/client` base, with an optional trailing slash. It preserves that
+base when constructing the three search endpoints and rejects arbitrary paths,
+encoded path aliases, credentials, query strings and fragments.
+
+The `/api/v1/native/client` base has a different existing authentication contract:
+the public and direct regional client gateways require a WorkOS native access
+token, not a PAX `paxu_` API key. Use that base only when an external native login
+supplies its valid bearer token through the credential environment setting. The
+adapter does not perform WorkOS login, refresh tokens or automatically switch
+regions. A PAX API key should use the public region-specific `us` or `hk` base,
+or a trusted direct Manager origin.
 
 This process can run alongside Secretary's existing local board MCP server.
 Register it as a separate server, for example `pax-manager-search`; use the MCP
