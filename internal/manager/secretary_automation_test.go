@@ -89,8 +89,12 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 		secretary.WorkerConfig{
 			SettleDuration:      time.Nanosecond,
 			PollInterval:        5 * time.Millisecond,
+			RetryInterval:       5 * time.Millisecond,
 			ExecutionTimeout:    10 * time.Second,
 			ActiveCheckInterval: time.Millisecond,
+			OnError: func(err error) {
+				t.Logf("Secretary worker error: %v", err)
+			},
 		},
 	)
 	require.NoError(t, worker.ProcessOnce(t.Context()), "default-off never schedules a model")
