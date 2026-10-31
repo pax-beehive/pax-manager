@@ -39,7 +39,7 @@ func completionFixture(
 		for _, ddl := range []string{
 			`CREATE TABLE nodes(node_id TEXT PRIMARY KEY, owner_user_id TEXT, deleted_at TIMESTAMPTZ)`,
 			`CREATE TABLE agents(agent_id TEXT PRIMARY KEY, node_id TEXT, owner_user_id TEXT, deleted_at TIMESTAMPTZ)`,
-			`CREATE TABLE agent_sessions(id BIGSERIAL PRIMARY KEY, agent_id TEXT, session_id TEXT, transport TEXT, conversation_id TEXT, last_user_message_at TIMESTAMPTZ)`,
+			`CREATE TABLE agent_sessions(id BIGSERIAL PRIMARY KEY, agent_id TEXT, session_id TEXT, source TEXT, transport TEXT, conversation_id TEXT, last_user_message_at TIMESTAMPTZ)`,
 			`CREATE TABLE messages(id BIGSERIAL PRIMARY KEY,message_id TEXT UNIQUE NOT NULL,conversation_id TEXT,owner_user_id TEXT REFERENCES users(user_id),node_id TEXT,agent_id TEXT,session_id TEXT,source TEXT,direction TEXT,role TEXT,status TEXT,message_type TEXT,parent_message_id TEXT,turn_id TEXT,response_id TEXT,logical_key TEXT UNIQUE,raw_json JSONB,session_seq BIGINT,conversation_seq BIGINT,created_at TIMESTAMPTZ,updated_at TIMESTAMPTZ)`,
 			`CREATE TABLE message_parts(id BIGSERIAL PRIMARY KEY,message_id TEXT,part_index INTEGER,part_type TEXT,text TEXT,payload_json JSONB,artifact_uri TEXT,created_at TIMESTAMPTZ,updated_at TIMESTAMPTZ,UNIQUE(message_id,part_index))`,
 		} {

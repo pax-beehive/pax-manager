@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -47,12 +48,16 @@ func isUniqueViolation(err error) bool {
 }
 
 func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
-	initSQL, err := os.ReadFile("db/init.sql")
-	if err != nil {
-		return err
+	for _, path := range []string{"db/init.sql", "db/summaries.sql", "db/search.sql", "db/secretary.sql"} {
+		ddl, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if _, err = s.db.ExecContext(ctx, string(ddl)); err != nil {
+			return fmt.Errorf("apply schema %s: %w", path, err)
+		}
 	}
-	_, err = s.db.ExecContext(ctx, string(initSQL))
-	return err
+	return nil
 }
 
 func (s *PostgresStore) EnsureUser(

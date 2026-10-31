@@ -3,10 +3,10 @@
 package mocks
 
 import (
+	context "context"
+
 	app "github.com/cloudwego/hertz/pkg/app"
 	api "github.com/pax-beehive/pax-manager/internal/transport/http/model/paxmanager/api"
-
-	context "context"
 
 	mock "github.com/stretchr/testify/mock"
 )

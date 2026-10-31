@@ -24,6 +24,10 @@ type Config struct {
 	NotificationPrivateKey           string
 	NotificationSubscriber           string
 	NotificationAllowedHosts         string
+	SearchURL                        string
+	SearchIndex                      string
+	SearchAPIKey                     string
+	SearchReadReceiptSecret          string
 	Region                           string
 	RegionProvisioningSecret         string
 	Port                             string
@@ -66,6 +70,10 @@ type Config struct {
 
 func Load() Config {
 	return Config{
+		SearchURL:                  strings.TrimSpace(os.Getenv("SEARCH_URL")),
+		SearchIndex:                envDefault("SEARCH_INDEX", "pax-search-v1"),
+		SearchAPIKey:               strings.TrimSpace(os.Getenv("SEARCH_API_KEY")),
+		SearchReadReceiptSecret:    os.Getenv("SEARCH_READ_RECEIPT_SECRET"),
 		TransportJournalGCDisabled: parseBool(os.Getenv("TRANSPORT_JOURNAL_GC_DISABLED")),
 		TransportJournalRetention: time.Duration(parseIntEnv(
 			"TRANSPORT_JOURNAL_RETENTION_HOURS", 72,
@@ -138,6 +146,9 @@ func Load() Config {
 }
 
 func (c Config) Validate() error {
+	if err := c.ValidateSearch(); err != nil {
+		return err
+	}
 	if err := c.validateRegion(); err != nil {
 		return err
 	}

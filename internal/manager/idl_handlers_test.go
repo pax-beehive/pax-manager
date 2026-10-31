@@ -1,10 +1,46 @@
 package manager
 
 import (
+	"context"
+	"net/http"
 	"testing"
 
+	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
+	generated "github.com/pax-beehive/pax-manager/internal/transport/http/handler"
 )
+
+func TestGeneratedHandlersGivenWorkspaceMethodsThenRequireAuthenticatedOwner(t *testing.T) {
+	svc := &Service{
+		workspaceSearch: userapi.NewWorkspaceSearchService(nil, nil, nil, nil, nil),
+		secretary:       userapi.NewSecretaryService(nil, nil, nil, nil),
+	}
+	for _, test := range []struct {
+		name    string
+		handler func(context.Context, *app.RequestContext)
+		body    string
+	}{
+		{"SearchWorkspace", generated.SearchWorkspace, `{}`},
+		{"ReadWorkspaceSearchSource", generated.ReadWorkspaceSearchSource, `{}`},
+		{"PublishWorkspaceSummary", generated.PublishWorkspaceSummary, `{}`},
+		{"GetSecretarySettings", generated.GetSecretarySettings, ""},
+		{"UpdateSecretarySettings", generated.UpdateSecretarySettings,
+			`{"agent_id":"","enabled":false,"expected_revision":0}`},
+		{"RunSecretaryNow", generated.RunSecretaryNow, ""},
+		{"GetSecretaryProgress", generated.GetSecretaryProgress, ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := app.NewContext(0)
+			ctx.Set("service", svc)
+			ctx.Request.SetBodyString(test.body)
+			test.handler(t.Context(), ctx)
+			require.Equal(t, http.StatusUnauthorized, ctx.Response.StatusCode(),
+				string(ctx.Response.Body()))
+		})
+	}
+}
 
 func TestAgentIDFromPath(t *testing.T) {
 	t.Run("Given legacy agent path then it returns agent ID", func(t *testing.T) {

@@ -7,6 +7,13 @@ import (
 )
 
 func registerIDLRoutes(h *hertzserver.Hertz) {
+	h.GET("/api/v1/user/:user_id/secretary/progress", GetSecretaryProgress)
+	h.GET("/api/v1/user/:user_id/secretary", GetSecretarySettings)
+	h.PATCH("/api/v1/user/:user_id/secretary", UpdateSecretarySettings)
+	h.POST("/api/v1/user/:user_id/secretary/run", RunSecretaryNow)
+	h.POST("/api/v1/user/:user_id/search", SearchWorkspace)
+	h.POST("/api/v1/user/:user_id/search/read", ReadWorkspaceSearchSource)
+	h.POST("/api/v1/user/:user_id/search/summaries", PublishWorkspaceSummary)
 	h.GET("/api/v1/node/identity", NodeAuth(), GetNodeIdentity)
 	h.GET("/api/v1/health", Health)
 	h.POST("/api/v1/node/register", RegisterNode)
