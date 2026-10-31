@@ -7,6 +7,7 @@ GOLANGCI_LINT_CACHE ?= /tmp/pax-manager-golangci-lint-cache
 DATABASE_URL ?= postgres://pax:pax@localhost:5432/paxdb?sslmode=disable
 PORT ?= 9879
 INTEGRATION_PORT ?= 19879
+INTEGRATION_PROJECT ?= pax-manager-integration
 MINIO_PORT ?= 19000
 MINIO_ROOT_USER ?= minioadmin
 MINIO_ROOT_PASSWORD ?= minioadmin
@@ -44,6 +45,11 @@ help:
 	@printf "  make test-coverage  Run Go tests with coverage\n"
 	@printf "  make test-race      Run Go tests with race detector\n"
 	@printf "  make integration-test Start Docker Compose and run integration tests\n"
+	@printf "  make search-acceptance Run isolated search and summary acceptance checks\n"
+	@printf "  make search-live-acceptance Run real Manager HTTP and stdio MCP acceptance\n"
+	@printf "  make search-live-up Start an isolated seeded local Manager stack\n"
+	@printf "  make search-live-down Stop the printed SEARCH_LIVE_PROJECT stack\n"
+	@printf "  make secretary-acceptance Run isolated Secretary HTTP/ACP/PG checks\n"
 	@printf "  make integration-down Stop the integration Docker Compose stack\n"
 	@printf "  make paxd-integration-up Start manager + postgres + paxd integration stack\n"
 	@printf "  make paxd-integration-down Stop the paxd integration Docker Compose stack\n"
@@ -94,15 +100,35 @@ test-coverage:
 test-race:
 	GOCACHE=$(GOCACHE) go test -race -count=1 $(PKG)
 
+.PHONY: search-acceptance
+.PHONY: secretary-acceptance
+secretary-acceptance:
+	./tools/verify_secretary.sh
+
+search-acceptance:
+	./tools/verify_search_mvp.sh
+	$(MAKE) search-live-acceptance
+
+.PHONY: search-live-acceptance search-live-up search-live-down
+search-live-acceptance:
+	./tools/search_live_stack.sh test
+
+search-live-up:
+	./tools/search_live_stack.sh up
+
+search-live-down:
+	@test -n "$(SEARCH_LIVE_PROJECT)" || { printf 'Set SEARCH_LIVE_PROJECT to the project printed by search-live-up.\n' >&2; exit 2; }
+	./tools/search_live_stack.sh down "$(SEARCH_LIVE_PROJECT)"
+
 .PHONY: integration-test
 integration-test:
-	INTEGRATION_PORT=$(INTEGRATION_PORT) MINIO_PORT=$(MINIO_PORT) docker compose -f docker-compose.integration.yml -p pax-manager-integration down -v --remove-orphans
-	INTEGRATION_PORT=$(INTEGRATION_PORT) MINIO_PORT=$(MINIO_PORT) docker compose -f docker-compose.integration.yml -p pax-manager-integration up --build -d postgres manager
+	INTEGRATION_PORT=$(INTEGRATION_PORT) MINIO_PORT=$(MINIO_PORT) docker compose -f docker-compose.integration.yml -p $(INTEGRATION_PROJECT) down -v --remove-orphans
+	INTEGRATION_PORT=$(INTEGRATION_PORT) MINIO_PORT=$(MINIO_PORT) docker compose -f docker-compose.integration.yml -p $(INTEGRATION_PROJECT) up --build -d --wait postgres elasticsearch manager
 	INTEGRATION_BASE_URL=http://localhost:$(INTEGRATION_PORT) PAX_MANAGER_OBJECT_STORAGE_BUCKET="$(OBJECT_STORAGE_BUCKET)" PAX_MANAGER_OBJECT_STORAGE_PUBLIC_ENDPOINT=http://localhost:$(MINIO_PORT) GOCACHE=$(GOCACHE) go test -tags=integration -count=1 ./integration
 
 .PHONY: integration-down
 integration-down:
-	INTEGRATION_PORT=$(INTEGRATION_PORT) MINIO_PORT=$(MINIO_PORT) docker compose -f docker-compose.integration.yml -p pax-manager-integration down -v --remove-orphans
+	INTEGRATION_PORT=$(INTEGRATION_PORT) MINIO_PORT=$(MINIO_PORT) docker compose -f docker-compose.integration.yml -p $(INTEGRATION_PROJECT) down -v --remove-orphans
 
 .PHONY: paxd-integration-up
 paxd-integration-up:

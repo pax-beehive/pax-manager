@@ -51,6 +51,10 @@ func Run(ctx context.Context) error {
 			logging.Warn(ctx, "close transport store failed", slog.String("error", err.Error()))
 		}
 	}()
+	stopSearch := srv.startWorkspaceSearchWorker(ctx, store)
+	defer stopSearch()
+	stopSecretary := srv.startSecretaryWorker(ctx)
+	defer stopSecretary()
 	addr := ":" + cfg.Port
 
 	logging.Info(ctx, "pax-manager listening", slog.String("addr", "http://localhost"+addr))

@@ -79,6 +79,58 @@ afterEach(() => {
 });
 
 describe("native WorkOS user gateway", () => {
+  it.each(["search", "search/read", "search/summaries"])(
+    "routes current-user search POSTs with verified native identity: %s",
+    async (suffix) => {
+      const { deps, fetch } = setup();
+      const upstream = vi
+        .fn()
+        .mockImplementation(async () => Response.json({ data: {} }));
+      vi.stubGlobal("fetch", upstream);
+      const body = '{ "query": "database", "limit": 4 }\n';
+      const request = new Request(
+        `${base}/api/v1/native/client/user/self/${suffix}`,
+        {
+          method: "POST",
+          body,
+          headers: {
+            Authorization: "Bearer fixture",
+            "Content-Type": "application/json",
+            Cookie: "forged=1",
+            "X-User-Email": "other@example.invalid",
+            "Cf-Access-Jwt-Assertion": "forged",
+            "X-Pax-Identity-Assertion": "forged",
+          },
+        },
+      );
+      expect((await fetch(request, env())).status).toBe(200);
+      expect(deps.verify).toHaveBeenCalledWith(request, expect.anything());
+      const [url, options] = upstream.mock.calls[0];
+      expect(String(url)).toBe(
+        `https://hk.example.invalid/api/v1/user/self/${suffix}`,
+      );
+      expect(options.method).toBe("POST");
+      expect(await new Response(options.body).text()).toBe(body);
+      for (const name of [
+        "Authorization",
+        "Cookie",
+        "X-User-Email",
+        "Cf-Access-Jwt-Assertion",
+      ])
+        expect(options.headers.has(name)).toBe(false);
+      expect(options.headers.get("CF-Access-Client-Secret")).toBe("secret");
+      const proof = options.headers.get("X-Pax-Identity-Assertion")!;
+      expect(proof).not.toBe("forged");
+      expect(
+        JSON.parse(Buffer.from(proof.split(".")[0], "base64url").toString()),
+      ).toMatchObject({
+        user_id: assignment.user_id,
+        subject: "user_fixture",
+        method: "POST",
+        path: `/api/v1/user/self/${suffix}`,
+      });
+    },
+  );
   it.each([
     ["GET", "user/self/attachments/att_1/content?ticket=1"],
     ["GET", "user/self/artifacts/art_1/content/main"],

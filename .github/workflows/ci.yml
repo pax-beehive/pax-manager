@@ -123,6 +123,28 @@ jobs:
       - name: Run integration tests
         run: make integration-test
 
+      - name: Release shared integration fixtures before feature acceptance
+        run: make integration-down
+
+      - name: Verify search, source versions, and MCP over PostgreSQL and Elasticsearch
+        run: make search-acceptance
+
+      - name: Verify automatic Secretary execution and coverage progress
+        run: make secretary-acceptance
+
+      - name: Preserve feature test diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: feature-acceptance-diagnostics
+          path: |
+            /tmp/pax-secretary-acceptance.*/go.json
+            /tmp/pax-secretary-acceptance.*/worker.json
+            /tmp/pax-search-acceptance.*/go.jsonl
+            /tmp/pax-search-acceptance.*/go.stderr
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Clean integration stack
         if: always()
         run: make integration-down

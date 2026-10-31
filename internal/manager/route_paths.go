@@ -1,13 +1,19 @@
 package manager
 
 const (
-	routeLegacyHealth         = "/health"
-	routeLegacyAgentRegister  = "/api/agent/register"
-	routeLegacyAgentStatus    = "/api/agent/status"
-	routeLegacyAgentMailbox   = "/api/agent/mailbox"
-	routeLegacySessionMailbox = "/api/agent/sessions/:sessionId/mailbox"
-	routeLegacyAgentOffset    = "/api/agent/messages/offset"
-	routeLegacyMessageResult  = "/api/agent/messages/:messageId/result"
+	routeSecretarySettings       = "/api/v1/user/:user_id/secretary"
+	routeSecretaryRun            = "/api/v1/user/:user_id/secretary/run"
+	routeSecretaryProgress       = "/api/v1/user/:user_id/secretary/progress"
+	routeWorkspaceSearch         = "/api/v1/user/:user_id/search"
+	routeWorkspaceRead           = "/api/v1/user/:user_id/search/read"
+	routeWorkspacePublishSummary = "/api/v1/user/:user_id/search/summaries"
+	routeLegacyHealth            = "/health"
+	routeLegacyAgentRegister     = "/api/agent/register"
+	routeLegacyAgentStatus       = "/api/agent/status"
+	routeLegacyAgentMailbox      = "/api/agent/mailbox"
+	routeLegacySessionMailbox    = "/api/agent/sessions/:sessionId/mailbox"
+	routeLegacyAgentOffset       = "/api/agent/messages/offset"
+	routeLegacyMessageResult     = "/api/agent/messages/:messageId/result"
 
 	routeLegacyListAgents           = "/api/user/agents"
 	routeLegacyGetAgent             = "/api/user/agents/:agentId"

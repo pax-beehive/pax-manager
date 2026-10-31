@@ -101,6 +101,9 @@ func Register(r *server.Hertz) {
 					_user_id.GET("/nodes", append(_listnodesMw(), handler.ListNodes)...)
 					_user_id.GET("/projects", append(_listprojectsMw(), handler.ListProjects)...)
 					_user_id.POST("/projects", append(_createprojectMw(), handler.CreateProject)...)
+					_user_id.POST("/search", append(_searchworkspaceMw(), handler.SearchWorkspace)...)
+					_user_id.GET("/secretary", append(_getsecretarysettingsMw(), handler.GetSecretarySettings)...)
+					_user_id.PATCH("/secretary", append(_updatesecretarysettingsMw(), handler.UpdateSecretarySettings)...)
 					_user_id.GET("/secrets", append(_listusersecretsMw(), handler.ListUserSecrets)...)
 					_user_id.POST("/secrets", append(_createusersecretMw(), handler.CreateUserSecret)...)
 					_user_id.GET("/sessions", append(_listusersessionsMw(), handler.ListUserSessions)...)
@@ -222,6 +225,16 @@ func Register(r *server.Hertz) {
 								_targets.PATCH("/:target_id", append(_updateprojecttargetMw(), handler.UpdateProjectTarget)...)
 							}
 						}
+					}
+					{
+						_search := _user_id.Group("/search", _searchMw()...)
+						_search.POST("/read", append(_readworkspacesearchsourceMw(), handler.ReadWorkspaceSearchSource)...)
+						_search.POST("/summaries", append(_publishworkspacesummaryMw(), handler.PublishWorkspaceSummary)...)
+					}
+					{
+						_secretary := _user_id.Group("/secretary", _secretaryMw()...)
+						_secretary.GET("/progress", append(_getsecretaryprogressMw(), handler.GetSecretaryProgress)...)
+						_secretary.POST("/run", append(_runsecretarynowMw(), handler.RunSecretaryNow)...)
 					}
 					{
 						_secrets0 := _user_id.Group("/secrets", _secrets0Mw()...)

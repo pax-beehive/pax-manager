@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
@@ -101,6 +102,8 @@ const notificationSessionSQL = `SELECT EXISTS (
 	WHERE a.agent_id=$1 AND s.session_id=$2 AND a.node_id=$3
 	AND a.owner_user_id=$4 AND n.owner_user_id=$4
 	AND a.deleted_at IS NULL AND n.deleted_at IS NULL AND s.transport='manager'
+	AND COALESCE(s.source,'') <> 'secretary_internal'
+	AND NOT starts_with(s.session_id,'sess_secretary_')
 )`
 
 func (s *PostgresStore) enqueueCompletedMessage(
@@ -175,6 +178,12 @@ func (s *MemoryStore) notificationSessionAllowed(row notificationCompletionRow) 
 		session.Transport != "e2ee"
 }
 
+func (s *MemoryStore) completionNotificationSessionAllowed(row notificationCompletionRow) bool {
+	session := s.sessions[sessionKey(row.AgentID, row.SessionID)]
+	return s.notificationSessionAllowed(row) && session.Source != domain.SecretaryInternalSource &&
+		!strings.HasPrefix(session.SessionID, domain.SecretaryInternalSessionPrefix)
+}
+
 func (s *MemoryStore) enqueueCompletedMessageLocked(msg Message) {
 	requestID := normalCompletionRPCID(msg)
 	if requestID == "" {
@@ -188,7 +197,7 @@ func (s *MemoryStore) enqueueCompletedMessageLocked(msg Message) {
 		TurnID:      msg.TurnID,
 		CompletedAt: msg.CreatedAt,
 	}
-	if !s.notificationSessionAllowed(row) {
+	if !s.completionNotificationSessionAllowed(row) {
 		return
 	}
 	correlated := false
@@ -241,7 +250,7 @@ func (s *MemoryStore) CanDeliverTurnNotification(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	row, ok := s.notificationCompletions[job.NotificationID]
-	return ok && row.OwnerUserID == job.UserID && s.notificationSessionAllowed(row), nil
+	return ok && row.OwnerUserID == job.UserID && s.completionNotificationSessionAllowed(row), nil
 }
 
 func (s *PostgresStore) CanDeliverTurnNotification(
@@ -255,6 +264,8 @@ func (s *PostgresStore) CanDeliverTurnNotification(
 		WHERE c.notification_id=$1 AND c.owner_user_id=$2 AND a.owner_user_id=c.owner_user_id
 		AND n.owner_user_id=c.owner_user_id AND a.node_id=c.node_id
 		AND a.deleted_at IS NULL AND n.deleted_at IS NULL AND s.transport='manager'
+		AND COALESCE(s.source,'') <> 'secretary_internal'
+		AND NOT starts_with(s.session_id,'sess_secretary_')
 	)`, job.NotificationID, job.UserID).Scan(&allowed)
 	return allowed, err
 }

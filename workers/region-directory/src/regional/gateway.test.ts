@@ -210,6 +210,98 @@ it("supports native bearer bootstrap, local API access and provider logout", asy
   );
   expect(app.authenticate).not.toHaveBeenCalled();
 });
+it.each(["search", "search/read", "search/summaries"])(
+  "routes regional native search POSTs with the verified owner: %s",
+  async (suffix) => {
+    const body = '{ "query": "database", "limit": 4 }\n';
+    const input = new Request(
+      `https://hk.example/api/v1/native/client/user/self/${suffix}`,
+      {
+        method: "POST",
+        body,
+        headers: {
+          Authorization: "Bearer fixture",
+          "Content-Type": "application/json",
+          Cookie: "forged=1",
+          "X-User-Email": "other@example.invalid",
+          "Cf-Access-Jwt-Assertion": "forged",
+          "X-Pax-Identity-Assertion": "forged",
+        },
+      },
+    );
+    const plan = (await app.handle(input)) as ProxyPlan;
+    expect(plan.target).toBe(config.managerURL);
+    expect(plan.path).toBe(`/api/v1/user/self/${suffix}`);
+    expect(await input.text()).toBe(body);
+    expect(app.verifyNative).toHaveBeenCalledWith(input, app.env);
+    expect(app.authenticate).not.toHaveBeenCalled();
+    expect(plan.cookies).toEqual([]);
+    for (const name of [
+      "Authorization",
+      "Cookie",
+      "X-User-Email",
+      "Cf-Access-Jwt-Assertion",
+    ])
+      expect(plan.headers!.has(name)).toBe(false);
+    const proof = plan.headers!.get("X-Pax-Identity-Assertion")!;
+    expect(proof).not.toBe("forged");
+    expect(
+      JSON.parse(Buffer.from(proof.split(".")[0], "base64url").toString()),
+    ).toMatchObject({
+      user_id: account.user_id,
+      subject: "user_fixture",
+      method: "POST",
+      path: plan.path,
+    });
+  },
+);
+it.each([
+  ["GET", "search"],
+  ["PATCH", "search/read"],
+  ["POST", "search/extra"],
+  ["POST", "search/summaries/extra"],
+  ["GET", "secretary"],
+  ["PATCH", "secretary"],
+  ["POST", "secretary/run"],
+  ["GET", "secretary/progress"],
+])(
+  "rejects regional native search siblings and controls: %s %s",
+  async (method, suffix) => {
+    const result = await app.handle(
+      new Request(
+        `https://hk.example/api/v1/native/client/user/self/${suffix}`,
+        {
+          method,
+        },
+      ),
+    );
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(404);
+    expect(app.verifyNative).not.toHaveBeenCalled();
+  },
+);
+it.each(["search", "search/read", "search/summaries"])(
+  "retains native authentication and origin checks for regional search: %s",
+  async (suffix) => {
+    app.verifyNative.mockRejectedValueOnce({ status: 401 });
+    expect(
+      (await response(`/api/v1/native/client/user/self/${suffix}`, {})).status,
+    ).toBe(401);
+    expect(
+      (
+        await response(
+          `/api/v1/native/client/user/self/${suffix}`,
+          {},
+          {
+            Origin: "https://evil.example",
+          },
+        )
+      ).status,
+    ).toBe(403);
+    expect(app.verifyNative).toHaveBeenCalledTimes(1);
+    expect(app.authenticate).not.toHaveBeenCalled();
+  },
+);
 it("keeps auth endpoints local and refuses unknown APIs, origins and malformed bootstrap", async () => {
   expect((await response("/auth/login")).status).toBe(303);
   expect(app.auth).toHaveBeenCalled();

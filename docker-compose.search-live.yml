@@ -1,0 +1,75 @@
+# Local acceptance only. No service or data volume is shared with other stacks.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pax
+      POSTGRES_PASSWORD: pax
+      POSTGRES_DB: pax_search_live
+    volumes:
+      - search-live-postgres:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+      - ./db/summaries.sql:/docker-entrypoint-initdb.d/002-summaries.sql:ro
+      - ./db/search.sql:/docker-entrypoint-initdb.d/003-search.sql:ro
+      - ./db/secretary.sql:/docker-entrypoint-initdb.d/004-secretary.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pax -d pax_search_live"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    mem_limit: 2g
+    volumes:
+      - search-live-elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s' >/dev/null"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+
+  manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      secrets:
+        - github_token
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      PORT: "9879"
+      DATABASE_URL: postgres://pax:pax@postgres:5432/pax_search_live?sslmode=disable
+      SEARCH_URL: http://elasticsearch:9200
+      SEARCH_INDEX: pax-search-live-v1
+      SEARCH_READ_RECEIPT_SECRET: ${SEARCH_LIVE_RECEIPT_SECRET:?set by the local launcher}
+      LOCAL_USER_ID: local@example.local
+      CLOUDFLARE_ACCESS_DISABLED: "true"
+      ALLOW_LOCAL_USER_HEADER: "true"
+      API_RATE_LIMIT_PER_MINUTE: "6000"
+      API_RATE_LIMIT_BURST: "1000"
+      # Search does not use artifacts; keep SDK credentials local and deterministic.
+      OBJECT_STORAGE_BUCKET: pax-search-live
+      OBJECT_STORAGE_REGION: us-east-1
+      OBJECT_STORAGE_ENDPOINT: http://127.0.0.1:1
+      OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+      AWS_ACCESS_KEY_ID: search-live
+      AWS_SECRET_ACCESS_KEY: search-live
+      AWS_EC2_METADATA_DISABLED: "true"
+    ports:
+      - "127.0.0.1:0:9879"
+
+volumes:
+  search-live-postgres:
+  search-live-elasticsearch:
+
+secrets:
+  github_token:
+    environment: PAX_BEEHIVE_READ_TOKEN

@@ -61,6 +61,10 @@ type Service struct {
 	secrets           auth.Secrets
 	paxd              *paxd.Service
 	userapi           *userapi.Service
+	workspaceSearch   *userapi.WorkspaceSearchService
+	secretary         *userapi.SecretaryService
+	secretaryStore    domain.SecretaryStore
+	searchBackend     domain.SearchBackend
 	paxdArtifacts     paxdArtifactBackend
 	backgroundRunner  func(context.Context, func(context.Context))
 	e2eeEventWakes    *e2eeWakeRegistry
@@ -166,6 +170,8 @@ func newServer(cfg Config, store Store) *Service {
 		secrets,
 	)
 	s.userapi.SetNodeControlClient(s.nodeControls)
+	s.configureWorkspaceSearch(transportBaseStore)
+	s.configureSecretary(transportBaseStore)
 	s.userapi.SetHistoryReconciler(func(
 		ctx context.Context,
 		agentID string,

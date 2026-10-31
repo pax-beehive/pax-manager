@@ -3266,6 +3266,52 @@
         },
         "type": "object"
       },
+      "SecretaryProgressRequest": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SecretarySettingsRequest": {
+        "properties": {
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SecretarySettingsUpdateRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id",
+          "enabled",
+          "expected_revision"
+        ],
+        "type": "object"
+      },
       "SessionListData": {
         "properties": {
           "pagination": {
@@ -3779,6 +3825,264 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "WorkspaceMessageVersionRef": {
+        "properties": {
+          "canonicalization_version": {
+            "type": "string"
+          },
+          "content_hash": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "read_receipt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id",
+          "content_hash",
+          "canonicalization_version"
+        ],
+        "type": "object"
+      },
+      "WorkspacePublishSummaryRequest": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceSummaryClaim"
+            },
+            "type": "array"
+          },
+          "coverage": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceMessageVersionRef"
+            },
+            "type": "array"
+          },
+          "expected_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "subject_id": {
+            "type": "string"
+          },
+          "subject_type": {
+            "type": "string"
+          },
+          "summary_id": {
+            "type": "string"
+          },
+          "summary_sources": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceSummaryRef"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary_id",
+          "subject_type",
+          "subject_id",
+          "expected_revision",
+          "request_id",
+          "body",
+          "coverage"
+        ],
+        "type": "object"
+      },
+      "WorkspaceReadRequest": {
+        "properties": {
+          "after": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "before": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/WorkspaceSourceRef"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "view": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "type": "object"
+      },
+      "WorkspaceSearchRequest": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "session_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "WorkspaceSearchResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WorkspaceSourceRef": {
+        "properties": {
+          "canonicalization_version": {
+            "type": "string"
+          },
+          "content_hash": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "type": "object"
+      },
+      "WorkspaceSummaryClaim": {
+        "properties": {
+          "basis": {
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceSummaryEvidence"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "supersedes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "type": "object"
+      },
+      "WorkspaceSummaryEvidence": {
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/WorkspaceMessageVersionRef"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "read_receipt": {
+            "type": "string"
+          },
+          "view": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "quote"
+        ],
+        "type": "object"
+      },
+      "WorkspaceSummaryRef": {
+        "properties": {
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "summary_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "summary_id",
+          "revision"
+        ],
         "type": "object"
       },
       "WriteNodeSecretVersionRequest": {
@@ -12361,6 +12665,571 @@
         "summary": "Update project target",
         "tags": [
           "project"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/search": {
+      "post": {
+        "description": "Literal substring search. Owner identity comes from authentication. Results are revalidated against PostgreSQL before snippets are returned.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Search owned messages, session titles and current summaries",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/search/read": {
+      "post": {
+        "description": "Reads message views or exact summary revisions. Message reads return a signed receipt bound to the full source version and exposed view.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceReadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Read a versioned search source",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/search/summaries": {
+      "post": {
+        "description": "Validates read receipts and freezes every covered message version. Existing exact child summary revisions may be referenced.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspacePublishSummaryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Publish an immutable summary version",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/secretary": {
+      "get": {
+        "description": "Returns the selected owned agent, persistent enable switch and bounded background task status. Disabled by default.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretarySettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Read owned Secretary settings and task status",
+        "tags": [
+          "user"
+        ]
+      },
+      "patch": {
+        "description": "Persists owner-scoped settings with optimistic revision checks. Disabling fences unfinished publication. Offline owned agents may be selected.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretarySettingsUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Configure an owned agent as Secretary",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/secretary/progress": {
+      "get": {
+        "description": "Returns current owner-visible aggregate coverage and paginated source sessions. Limit defaults to 20 and is capped at 100. Cursor is opaque and owner-bound. Counts use exact current message versions; turn counts include only persisted nonempty turn IDs.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretaryProgressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Read exact Secretary coverage and paginated source progress",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/secretary/run": {
+      "post": {
+        "description": "Queues work for the enabled owner without running a model in the HTTP request. The worker uses the selected owned agent.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretarySettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Queue pending Secretary work and retry failures",
+        "tags": [
+          "user"
         ]
       }
     },

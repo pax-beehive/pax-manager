@@ -1468,7 +1468,149 @@ struct NotificationResponse {
   3: optional JSON data
 }
 
+struct WorkspaceSearchRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string query
+  3: optional list<string> kinds
+  4: optional list<string> session_ids
+  5: optional string cursor
+  6: optional i32 limit
+}
+
+struct WorkspaceSourceRef {
+  1: required string kind
+  2: required string id
+  3: optional i64 revision
+  4: optional string content_hash
+  5: optional string canonicalization_version
+}
+
+struct WorkspaceReadRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required WorkspaceSourceRef ref
+  3: optional string view
+  4: optional i32 offset
+  5: optional i32 limit
+  6: optional i32 before
+  7: optional i32 after
+}
+
+struct WorkspaceMessageVersionRef {
+  1: required string message_id
+  2: required string content_hash
+  3: required string canonicalization_version
+  4: optional string read_receipt
+}
+
+struct WorkspaceSummaryRef {
+  1: required string summary_id
+  2: required i64 revision
+}
+
+struct WorkspaceSummaryEvidence {
+  1: required WorkspaceMessageVersionRef message
+  2: required string quote
+  3: optional string view
+  4: optional string read_receipt
+}
+
+struct WorkspaceSummaryClaim {
+  1: required string id
+  2: required string text
+  3: optional string kind
+  4: optional string basis
+  5: optional string state
+  6: optional list<string> supersedes
+  7: optional list<WorkspaceSummaryEvidence> evidence
+}
+
+struct WorkspacePublishSummaryRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string summary_id
+  3: required string subject_type
+  4: required string subject_id
+  5: required i64 expected_revision
+  6: required string request_id
+  7: optional string title
+  8: required string body
+  9: optional list<WorkspaceSummaryClaim> claims
+  10: required list<WorkspaceMessageVersionRef> coverage
+  11: optional list<WorkspaceSummaryRef> summary_sources
+}
+
+struct WorkspaceSearchResponse {
+  1: optional i32 code
+  2: optional string message
+  3: optional JSON data
+}
+
+struct SecretarySettingsRequest {
+  1: optional string user_id (api.path = "user_id")
+}
+
+struct SecretarySettingsUpdateRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string agent_id
+  3: required bool enabled
+  4: required i64 expected_revision
+}
+
+struct SecretaryProgressRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string cursor (api.query = "cursor")
+  3: optional i32 limit (api.query = "limit")
+}
+
 service PaxManagerAPI {
+  WorkspaceSearchResponse GetSecretaryProgress(1: optional SecretaryProgressRequest request) (
+    api.get = "/api/v1/user/:user_id/secretary/progress",
+    openapi.tag = "user",
+    openapi.summary = "Read exact Secretary coverage and paginated source progress",
+    openapi.description = "Returns current owner-visible aggregate coverage and paginated source sessions. Limit defaults to 20 and is capped at 100. Cursor is opaque and owner-bound. Counts use exact current message versions; turn counts include only persisted nonempty turn IDs."
+  )
+
+  WorkspaceSearchResponse GetSecretarySettings(1: optional SecretarySettingsRequest request) (
+    api.get = "/api/v1/user/:user_id/secretary",
+    openapi.tag = "user",
+    openapi.summary = "Read owned Secretary settings and task status",
+    openapi.description = "Returns the selected owned agent, persistent enable switch and bounded background task status. Disabled by default."
+  )
+
+  WorkspaceSearchResponse UpdateSecretarySettings(1: optional SecretarySettingsUpdateRequest request) (
+    api.patch = "/api/v1/user/:user_id/secretary",
+    openapi.tag = "user",
+    openapi.summary = "Configure an owned agent as Secretary",
+    openapi.description = "Persists owner-scoped settings with optimistic revision checks. Disabling fences unfinished publication. Offline owned agents may be selected."
+  )
+
+  WorkspaceSearchResponse RunSecretaryNow(1: optional SecretarySettingsRequest request) (
+    api.post = "/api/v1/user/:user_id/secretary/run",
+    openapi.tag = "user",
+    openapi.summary = "Queue pending Secretary work and retry failures",
+    openapi.description = "Queues work for the enabled owner without running a model in the HTTP request. The worker uses the selected owned agent."
+  )
+
+  WorkspaceSearchResponse SearchWorkspace(1: optional WorkspaceSearchRequest request) (
+    api.post = "/api/v1/user/:user_id/search",
+    openapi.tag = "user",
+    openapi.summary = "Search owned messages, session titles and current summaries",
+    openapi.description = "Literal substring search. Owner identity comes from authentication. Results are revalidated against PostgreSQL before snippets are returned."
+  )
+
+  WorkspaceSearchResponse ReadWorkspaceSearchSource(1: optional WorkspaceReadRequest request) (
+    api.post = "/api/v1/user/:user_id/search/read",
+    openapi.tag = "user",
+    openapi.summary = "Read a versioned search source",
+    openapi.description = "Reads message views or exact summary revisions. Message reads return a signed receipt bound to the full source version and exposed view."
+  )
+
+  WorkspaceSearchResponse PublishWorkspaceSummary(1: optional WorkspacePublishSummaryRequest request) (
+    api.post = "/api/v1/user/:user_id/search/summaries",
+    openapi.tag = "user",
+    openapi.summary = "Publish an immutable summary version",
+    openapi.description = "Validates read receipts and freezes every covered message version. Existing exact child summary revisions may be referenced."
+  )
+
   NodeIdentityResponse GetNodeIdentity(1: optional EmptyRequest request) (
     api.get = "/api/v1/node/identity",
     openapi.tag = "node",
