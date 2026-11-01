@@ -69,6 +69,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 048 | resolved | [VM deployment leaves workspace search disabled](048-vm-search-not-enabled.md) | high | deployment / search |
 | 049 | open | [Production Console has no workspace search page](049-production-console-search-route.md) | medium | deployment / Console |
 
+| 050 | resolved | [Historical message backfill starves titles and live changes](050-search-backfill-starvation.md) | high | storage / search indexing |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
