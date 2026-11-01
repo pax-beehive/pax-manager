@@ -115,13 +115,13 @@ func TestSearchIsLiteralOwnerScopedAndPaginatesWithinPIT(t *testing.T) {
 				assert.NotContains(t, body, "search_after")
 				_, _ = w.Write(
 					[]byte(
-						`{"pit_id":"pit-two","hits":{"hits":[{"_source":{"kind":"message","source_id":"one","owner_user_id":"owner","body":"first"},"sort":[12,"message:one",1]},{"_source":{"kind":"message","source_id":"two","owner_user_id":"owner","body":"second"},"sort":[11,"message:two",2]}]}}`,
+						`{"pit_id":"pit-two","hits":{"hits":[{"_source":{"kind":"message","source_id":"one","owner_user_id":"owner","body":"first"},"sort":[1,12,"message:one",1]},{"_source":{"kind":"message","source_id":"two","owner_user_id":"owner","body":"second"},"sort":[0,11,"message:two",2]}]}}`,
 					),
 				)
 			} else {
-				assert.Equal(t, []any{float64(12), "message:one", float64(1)}, body["search_after"])
+				assert.Equal(t, []any{float64(1), float64(12), "message:one", float64(1)}, body["search_after"])
 				assert.Equal(t, "pit-two", body["pit"].(map[string]any)["id"])
-				_, _ = w.Write([]byte(`{"hits":{"hits":[{"_source":{"kind":"message","source_id":"two","owner_user_id":"owner"},"sort":[11,"message:two",2]}]}}`))
+				_, _ = w.Write([]byte(`{"hits":{"hits":[{"_source":{"kind":"message","source_id":"two","owner_user_id":"owner"},"sort":[0,11,"message:two",2]}]}}`))
 			}
 		default:
 			t.Errorf("unexpected request %s", r.URL.Path)
@@ -193,4 +193,36 @@ func (s *testServer) Client() *http.Client {
 		s.handler.ServeHTTP(w, r)
 		return w.Result(), nil
 	})}
+}
+
+func TestSearchRejectsInvalidBackendSortAndClosesPIT(t *testing.T) {
+	closed := false
+	srv := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/test/_pit":
+			_, _ = w.Write([]byte(`{"id":"pit"}`))
+		case "/_search":
+			_, _ = w.Write(
+				[]byte(
+					`{"hits":{"hits":[{"sort":[12,"message:one",1]},{"sort":[11,"message:two",2]}]}}`,
+				),
+			)
+		case "/_pit":
+			closed = true
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	client, err := NewClient(Config{URL: srv.URL, HTTPClient: srv.Client(), Index: "test"})
+	require.NoError(t, err)
+	page, err := client.Search(
+		context.Background(),
+		domain.SearchQuery{OwnerUserID: "owner", Query: "port", Limit: 1},
+	)
+	require.ErrorContains(t, err, "invalid search sort response")
+	assert.Empty(t, page.Hits)
+	assert.Empty(t, page.NextCursor)
+	assert.True(t, closed, "invalid sort must not leave an unusable PIT cursor")
 }
