@@ -806,25 +806,15 @@ CREATE TABLE IF NOT EXISTS transport_journal (
 );
 
 ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS queue_id TEXT;
-UPDATE transport_journal SET queue_id = agent_id WHERE queue_id IS NULL OR queue_id = '';
 ALTER TABLE transport_journal ALTER COLUMN queue_id SET NOT NULL;
 
 ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS direction TEXT;
-UPDATE transport_journal SET direction = local_direction WHERE direction IS NULL OR direction = '';
 ALTER TABLE transport_journal ALTER COLUMN direction SET NOT NULL;
 
 ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'data';
 ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE transport_journal ADD COLUMN IF NOT EXISTS error_message TEXT NOT NULL DEFAULT '';
-UPDATE transport_journal
-SET error_message = error
-WHERE error_message = ''
-  AND error IS NOT NULL
-  AND error <> '';
 ALTER TABLE transport_journal ALTER COLUMN payload_json DROP NOT NULL;
-UPDATE transport_journal
-SET stream = 'acp'
-WHERE stream IN ('manager_to_paxd', 'paxd_to_manager');
 
 DO $$
 BEGIN

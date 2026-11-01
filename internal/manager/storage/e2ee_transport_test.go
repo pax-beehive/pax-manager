@@ -49,7 +49,7 @@ func TestPostgresSchemaGivenSessionTransportThenDefaultsPlainAndBackfillsEncrypt
 	assert.Contains(t, schema, "FROM e2ee_messages")
 }
 
-func TestPostgresSchemaSkipsEmptyTransportJournalErrorBackfill(t *testing.T) {
+func TestPostgresSchemaGivenExistingJournalThenDoesNotBackfillErrorsAtStartup(t *testing.T) {
 	t.Parallel()
 	initSQL, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "init.sql"))
 	require.NoError(t, err)
@@ -58,8 +58,9 @@ func TestPostgresSchemaSkipsEmptyTransportJournalErrorBackfill(t *testing.T) {
 	assert.Contains(
 		t,
 		schema,
-		"WHERE error_message = ''\n  AND error IS NOT NULL\n  AND error <> ''",
+		"ADD COLUMN IF NOT EXISTS error_message TEXT NOT NULL DEFAULT ''",
 	)
+	assert.NotContains(t, schema, "SET error_message = error")
 	assert.NotContains(
 		t,
 		schema,

@@ -65,6 +65,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 045 | resolved | [Late artifact publications appear after their turn footer](045-artifact-turn-placement.md) | medium | paxd / history / storage / Console |
 | 046 | open | [Legacy container test assumes an active mailbox poller](046-legacy-container-mailbox-runtime.md) | medium | integration / deployment |
+| 047 | resolved | [Legacy journal conversions still scan history during startup](047-legacy-journal-startup-backfills.md) | high | storage / startup |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
