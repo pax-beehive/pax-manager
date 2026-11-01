@@ -69,6 +69,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 048 | resolved | [VM deployment leaves workspace search disabled](048-vm-search-not-enabled.md) | high | deployment / search |
 | 049 | open | [Production Console has no workspace search page](049-production-console-search-route.md) | medium | deployment / Console |
 | 051 | resolved | [Search backfill repeatedly sorts and scans unrelated messages](051-search-backfill-query-indexes.md) | high | storage / search indexing |
+| 052 | resolved | [Substring search ignores identifier boundaries and relevance tiers](052-search-literal-ranking.md) | medium | search |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
