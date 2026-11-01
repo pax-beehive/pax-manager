@@ -5,6 +5,11 @@ titles, and current summary versions. PostgreSQL owns source content and access.
 Elasticsearch is a disposable derived projection. No embedding, model call, or
 Chinese tokenizer is used by search. Summary generation belongs to Secretary.
 
+Administrators can also browse their own current summaries and inspect exact
+revisions without ES or a search query. See
+[developer_summaries.md](developer_summaries.md) for the separate read-only
+developer endpoint contract and current source-visibility rules.
+
 ## HTTP entry points
 
 All requests use normal Manager user authentication, including an owner-bound

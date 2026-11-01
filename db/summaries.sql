@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS summary_versions (
 CREATE INDEX IF NOT EXISTS summary_versions_subject_idx
     ON summary_versions (owner_user_id, subject_type, subject_id, summary_id, revision DESC);
 
+CREATE INDEX IF NOT EXISTS summary_versions_owner_browse_idx
+    ON summary_versions (owner_user_id, summary_id, revision DESC);
+
 CREATE TABLE IF NOT EXISTS message_snapshots (
     message_id TEXT NOT NULL,
     canonicalization_version TEXT NOT NULL,

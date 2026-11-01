@@ -1468,6 +1468,18 @@ struct NotificationResponse {
   3: optional JSON data
 }
 
+struct DeveloperSummaryListRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string cursor (api.query = "cursor")
+  3: optional i32 limit (api.query = "limit")
+}
+
+struct DeveloperSummaryReadRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string summary_id (api.path = "summary_id")
+  3: optional i64 revision (api.query = "revision")
+}
+
 struct WorkspaceSearchRequest {
   1: optional string user_id (api.path = "user_id")
   2: required string query
@@ -1570,6 +1582,20 @@ struct SecretaryProgressRequest {
 }
 
 service PaxManagerAPI {
+  WorkspaceSearchResponse ListDeveloperSummaries(1: optional DeveloperSummaryListRequest request) (
+    api.get = "/api/v1/user/:user_id/developer/summaries",
+    openapi.tag = "user",
+    openapi.summary = "Browse current owned summaries as an administrator",
+    openapi.description = "Requires the current authenticated user to be an administrator. Lists only that user's summaries from PostgreSQL without a search query. Current source visibility is revalidated. Limit defaults to 20 and is capped at 100. Results are ordered by summary ID with an opaque owner-bound cursor. Inaccessible candidates may produce an empty page with a next cursor."
+  )
+
+  WorkspaceSearchResponse ReadDeveloperSummary(1: required DeveloperSummaryReadRequest request) (
+    api.get = "/api/v1/user/:user_id/developer/summaries/:summary_id",
+    openapi.tag = "user",
+    openapi.summary = "Inspect an owned summary revision as an administrator",
+    openapi.description = "Requires the current authenticated user to be an administrator. Returns full structured summary data including claims and pinned source references. Omit revision or use zero for the current version. Positive revisions select an exact historical version. Current owner and source visibility checks always apply."
+  )
+
   WorkspaceSearchResponse GetSecretaryProgress(1: optional SecretaryProgressRequest request) (
     api.get = "/api/v1/user/:user_id/secretary/progress",
     openapi.tag = "user",
