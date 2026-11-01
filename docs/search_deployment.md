@@ -216,8 +216,12 @@ This also sends retained tombstones into the new index. Keep the old index until
 the new one is populated and checked. Do not delete or replace an active index
 while workers are running.
 
-Wildcard fields provide literal contiguous substring matching. `*`, `?`, and
-backslash in user input are escaped as text. One-character queries remain valid
+Wildcard fields provide literal contiguous substring matching for each
+whitespace-separated keyword (up to 16 distinct case-insensitive terms). More
+matched terms rank first, so all-term results precede partial matches; then
+ASCII identifier-boundary term count and creation time break ties. `*`, `?`,
+and backslash in user input are escaped as text. No mapping change or reindex
+is needed for this query-only ranking. One-character queries remain valid
 but can scan many candidates; limit requests and measure latency for real data.
 Pagination uses a point-in-time snapshot and `search_after`. Cursors expire after
 one minute of inactivity; clients should restart a search after expiration.

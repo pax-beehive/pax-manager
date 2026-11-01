@@ -115,13 +115,13 @@ func TestSearchIsLiteralOwnerScopedAndPaginatesWithinPIT(t *testing.T) {
 				assert.NotContains(t, body, "search_after")
 				_, _ = w.Write(
 					[]byte(
-						`{"pit_id":"pit-two","hits":{"hits":[{"_source":{"kind":"message","source_id":"one","owner_user_id":"owner","body":"first"},"sort":[1,12,"message:one",1]},{"_source":{"kind":"message","source_id":"two","owner_user_id":"owner","body":"second"},"sort":[0,11,"message:two",2]}]}}`,
+						`{"pit_id":"pit-two","hits":{"hits":[{"_source":{"kind":"message","source_id":"one","owner_user_id":"owner","body":"first"},"sort":[3,12,"message:one",1]},{"_source":{"kind":"message","source_id":"two","owner_user_id":"owner","body":"second"},"sort":[2,11,"message:two",2]}]}}`,
 					),
 				)
 			} else {
-				assert.Equal(t, []any{float64(1), float64(12), "message:one", float64(1)}, body["search_after"])
+				assert.Equal(t, []any{float64(3), float64(12), "message:one", float64(1)}, body["search_after"])
 				assert.Equal(t, "pit-two", body["pit"].(map[string]any)["id"])
-				_, _ = w.Write([]byte(`{"hits":{"hits":[{"_source":{"kind":"message","source_id":"two","owner_user_id":"owner"},"sort":[0,11,"message:two",2]}]}}`))
+				_, _ = w.Write([]byte(`{"hits":{"hits":[{"_source":{"kind":"message","source_id":"two","owner_user_id":"owner"},"sort":[2,11,"message:two",2]}]}}`))
 			}
 		default:
 			t.Errorf("unexpected request %s", r.URL.Path)

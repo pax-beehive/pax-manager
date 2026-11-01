@@ -13000,7 +13000,7 @@
     },
     "/api/v1/user/{user_id}/search": {
       "post": {
-        "description": "Literal substring search. Owner identity comes from authentication. Results are revalidated against PostgreSQL before snippets are returned.",
+        "description": "Whitespace-separated literal keywords match title or body within one object. At most 16 case-insensitively distinct terms and 256 Unicode code points. Rank by matched term count, then ASCII identifier-boundary term count, then newest; all-term hits precede partial matches. Owner identity comes from authentication; PostgreSQL revalidates that a current term still matches before returning snippets.",
         "requestBody": {
           "content": {
             "application/json": {

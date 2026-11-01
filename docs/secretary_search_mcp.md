@@ -68,8 +68,12 @@ messages already ingested into Manager are available through this adapter.
 
 ## Tools and flow
 
-1. `search({query, kinds?, session_ids?, cursor?, limit?})` finds literal title/body
-   matches. Kinds are `message`, `session`, and `summary`. Limits are at most 50.
+1. `search({query, kinds?, session_ids?, cursor?, limit?})` splits Unicode
+   whitespace into at most 16 distinct case-insensitive literal keywords. Terms
+   may appear in either title or body of the same object, in any order. More
+   matched terms rank first, so all-term results precede partial matches; then
+   ASCII identifier-boundary term count and newest time break ties. Punctuation
+   stays literal. Kinds are `message`, `session`, and `summary`; limits are at most 50.
    Search snippets are leads; use the returned stable `ref` for reads.
 2. `read({ref, view?, offset?, limit?, before?, after?})` reads an exact source
    reference. Views are `last`, `first`, and `full`; the backend applies its own
