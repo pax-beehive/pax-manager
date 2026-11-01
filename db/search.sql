@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS search_sync_state (
     source_id TEXT NOT NULL,
     desired_revision BIGINT NOT NULL DEFAULT 1 CHECK (desired_revision > 0),
     indexed_revision BIGINT NOT NULL DEFAULT 0,
+    is_backfill BOOLEAN NOT NULL DEFAULT TRUE,
     available_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     lease_until TIMESTAMPTZ,
     lease_token TEXT NOT NULL DEFAULT '',
@@ -10,6 +11,13 @@ CREATE TABLE IF NOT EXISTS search_sync_state (
     last_error TEXT NOT NULL DEFAULT '',
     PRIMARY KEY(kind, source_id)
 );
+-- A constant default classifies legacy work without rewriting existing rows.
+ALTER TABLE search_sync_state ADD COLUMN IF NOT EXISTS is_backfill BOOLEAN NOT NULL DEFAULT TRUE;
+CREATE INDEX IF NOT EXISTS idx_search_sync_pending_priority ON search_sync_state(
+    is_backfill,
+    (CASE WHEN is_backfill THEN CASE kind WHEN 'session' THEN 0 WHEN 'summary' THEN 1 ELSE 2 END ELSE 0 END),
+    available_at, kind, source_id
+) WHERE desired_revision > indexed_revision;
 CREATE INDEX IF NOT EXISTS idx_search_sync_pending ON search_sync_state(available_at)
     WHERE desired_revision > indexed_revision;
 
@@ -19,11 +27,12 @@ DECLARE
     dependent_id TEXT;
 BEGIN
     IF document_id IS NULL OR document_id = '' THEN RETURN; END IF;
-    INSERT INTO search_sync_state(kind, source_id)
-    VALUES (document_kind, document_id)
+    INSERT INTO search_sync_state(kind, source_id, is_backfill)
+    VALUES (document_kind, document_id, FALSE)
     ON CONFLICT (kind, source_id) DO UPDATE
     SET desired_revision = search_sync_state.desired_revision + 1,
-        available_at = NOW();
+        available_at = NOW(),
+        is_backfill = FALSE;
     IF document_kind = 'message' THEN
         FOR dependent_id IN WITH RECURSIVE affected(summary_id) AS (
             SELECT summary_id FROM summary_sources WHERE message_id = document_id

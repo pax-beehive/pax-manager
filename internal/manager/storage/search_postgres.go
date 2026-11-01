@@ -216,13 +216,49 @@ func scanSearchIDs(rows *sql.Rows) ([]string, error) {
 
 // Backfill only inserts missing queue rows. Triggers capture concurrent changes.
 func (s *PostgresStore) BackfillSearch(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO search_sync_state(kind,source_id)
- SELECT 'message',message_id FROM messages
- UNION ALL SELECT 'session',id::text FROM agent_sessions
- UNION ALL SELECT DISTINCT 'summary',summary_id FROM summary_versions
+	_, err := s.db.ExecContext(ctx, `INSERT INTO search_sync_state(kind,source_id,is_backfill)
+ SELECT 'message',message_id,TRUE FROM messages
+ UNION ALL SELECT 'session',id::text,TRUE FROM agent_sessions
+ UNION ALL SELECT DISTINCT 'summary',summary_id,TRUE FROM summary_versions
  ON CONFLICT (kind,source_id) DO NOTHING`)
 	return err
 }
+
+// Reserve one fifth of each batch for history; either lane borrows unused slots.
+// A single-slot caller prefers live work and falls back to history.
+func searchLiveQuota(limit int) int {
+	if limit == 1 {
+		return 1
+	}
+	return limit - max(1, limit/5)
+}
+
+const searchClaimSQL = `WITH live AS MATERIALIZED (
+ SELECT kind,source_id FROM search_sync_state
+ WHERE desired_revision>indexed_revision AND NOT is_backfill AND available_at<=NOW()
+ AND (lease_until IS NULL OR lease_until<=NOW())
+ ORDER BY CASE WHEN is_backfill THEN CASE kind WHEN 'session' THEN 0 WHEN 'summary' THEN 1 ELSE 2 END ELSE 0 END,
+ available_at,kind,source_id LIMIT $4 FOR UPDATE SKIP LOCKED
+ ), history AS MATERIALIZED (
+ SELECT kind,source_id FROM search_sync_state
+ WHERE desired_revision>indexed_revision AND is_backfill AND available_at<=NOW()
+ AND (lease_until IS NULL OR lease_until<=NOW())
+ ORDER BY CASE WHEN is_backfill THEN CASE kind WHEN 'session' THEN 0 WHEN 'summary' THEN 1 ELSE 2 END ELSE 0 END,
+ available_at,kind,source_id LIMIT ($1-(SELECT count(*) FROM live)) FOR UPDATE SKIP LOCKED
+ ), extra_live AS MATERIALIZED (
+ SELECT q.kind,q.source_id FROM search_sync_state q
+ WHERE desired_revision>indexed_revision AND NOT is_backfill AND available_at<=NOW()
+ AND (lease_until IS NULL OR lease_until<=NOW())
+ AND NOT EXISTS (SELECT 1 FROM live WHERE live.kind=q.kind AND live.source_id=q.source_id)
+ ORDER BY CASE WHEN is_backfill THEN CASE kind WHEN 'session' THEN 0 WHEN 'summary' THEN 1 ELSE 2 END ELSE 0 END,
+ available_at,q.kind,q.source_id
+ LIMIT ($1-(SELECT count(*) FROM live)-(SELECT count(*) FROM history)) FOR UPDATE OF q SKIP LOCKED
+ ), candidates AS (
+ SELECT * FROM live UNION ALL SELECT * FROM history UNION ALL SELECT * FROM extra_live
+ ) UPDATE search_sync_state q SET lease_token=$2,
+ lease_until=NOW()+$3*INTERVAL '1 millisecond'
+ FROM candidates c WHERE q.kind=c.kind AND q.source_id=c.source_id
+ RETURNING q.kind,q.source_id,q.desired_revision,q.lease_token`
 
 func (s *PostgresStore) ClaimSearchBatch(
 	ctx context.Context,
@@ -244,15 +280,14 @@ func (s *PostgresStore) ClaimSearchBatch(
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	rows, err := tx.QueryContext(ctx, `WITH candidates AS (
- SELECT kind,source_id FROM search_sync_state
- WHERE desired_revision>indexed_revision AND available_at<=NOW()
- AND (lease_until IS NULL OR lease_until<=NOW())
- ORDER BY available_at,kind,source_id LIMIT $1 FOR UPDATE SKIP LOCKED
- ) UPDATE search_sync_state q SET lease_token=$2,
- lease_until=NOW()+$3*INTERVAL '1 millisecond'
- FROM candidates c WHERE q.kind=c.kind AND q.source_id=c.source_id
- RETURNING q.kind,q.source_id,q.desired_revision,q.lease_token`, limit, token, lease.Milliseconds())
+	rows, err := tx.QueryContext(
+		ctx,
+		searchClaimSQL,
+		limit,
+		token,
+		lease.Milliseconds(),
+		searchLiveQuota(limit),
+	)
 	if err != nil {
 		return nil, err
 	}
