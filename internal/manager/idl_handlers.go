@@ -163,6 +163,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"GetSecretarySettings":          GetSecretarySettings,
 	"GetUserApproval":               GetUserApproval,
 	"GetUserSecret":                 GetUserSecret,
+	"GetUserSession":                GetUserSession,
 	"ListNodeAgentMessages":         ListNodeAgentMessages,
 	"ListNodeAgentSessionMessages":  ListNodeAgentSessionMessages,
 	"ListNodeAgentSessions":         ListNodeAgentSessions,

@@ -661,6 +661,11 @@ struct ListUserSessionsRequest {
   7: optional bool include_archived (api.query = "include_archived")
 }
 
+struct GetUserSessionRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string session_id (api.path = "session_id")
+}
+
 struct CreateProjectRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string display_name
@@ -2385,6 +2390,18 @@ service PaxManagerAPI {
     openapi.query.include_archived = "Whether archived sessions should be included. Defaults to false.",
     openapi.query.page_size = "Maximum number of sessions per page.",
     openapi.query.page_num = "One-based page number."
+  )
+
+  AgentSessionResponse GetUserSession(
+    1: optional GetUserSessionRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/sessions/:session_id",
+    openapi.tag = "user",
+    openapi.summary = "Get canonical user session",
+    openapi.description = "Returns one session visible to the current user by canonical session ID without listing sessions or history.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier or self.",
+    openapi.path.session_id = "Canonical session identifier."
   )
 
   AgentSessionResponse CreateNodeAgentSession(

@@ -531,6 +531,15 @@ func ListUserSessions(c context.Context, ctx *app.RequestContext) {
 	ListSessions(c, ctx)
 }
 
+func GetUserSession(c context.Context, ctx *app.RequestContext) {
+	status, data, err := serviceFromContext(ctx).userapi.GetUserSession(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("session_id"),
+	)
+	writeEndpointResult(ctx, status, data, err)
+}
+
 func CreateNodeAgentSession(c context.Context, ctx *app.RequestContext) {
 	var req CreateSessionRequest
 	decodeBody(ctx, &req)

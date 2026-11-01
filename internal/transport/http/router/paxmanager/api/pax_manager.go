@@ -252,6 +252,10 @@ func Register(r *server.Hertz) {
 						_secrets0 := _user_id.Group("/secrets", _secrets0Mw()...)
 						_secrets0.GET("/:secret_id", append(_getusersecretMw(), handler.GetUserSecret)...)
 					}
+					{
+						_sessions1 := _user_id.Group("/sessions", _sessions1Mw()...)
+						_sessions1.GET("/:session_id", append(_getusersessionMw(), handler.GetUserSession)...)
+					}
 				}
 			}
 		}
