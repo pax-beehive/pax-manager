@@ -13,6 +13,7 @@ require (
 	github.com/cloudwego/hertz v0.10.5
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/pax-beehive/paxkit v0.0.0-20260917160049-a9ad0b4721af
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.21.0
@@ -186,7 +187,6 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
-	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/mgechev/revive v1.15.0 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
