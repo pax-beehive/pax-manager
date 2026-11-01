@@ -5,6 +5,11 @@ titles, and current summary versions. PostgreSQL owns source content and access.
 Elasticsearch is a disposable derived projection. No embedding, model call, or
 Chinese tokenizer is used by search. Summary generation belongs to Secretary.
 
+Chinese analyzer optimization is deferred. See the
+[2026-11-01 research record](search_analyzer_research_20261101.md) for measured
+tokenization behavior, the tentative design, and external-version migration
+constraints; it does not change this contract.
+
 Administrators can also browse their own current summaries and inspect exact
 revisions without ES or a search query. See
 [developer_summaries.md](developer_summaries.md) for the separate read-only
