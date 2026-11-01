@@ -29,6 +29,20 @@ func NewWorkspaceSearchService(principal PrincipalResolver, sources domain.Searc
 		backend: backend, receiptKey: append([]byte(nil), receiptKey...)}
 }
 
+// WithPrincipal retains the backend and receipt key while replacing identity resolution.
+func (s *WorkspaceSearchService) WithPrincipal(
+	principal PrincipalResolver,
+) *WorkspaceSearchService {
+	return NewWorkspaceSearchService(principal, s.sources, s.summaries, s.backend, s.receiptKey)
+}
+
+// VerifyReadReceipt resolves the exact source view authenticated by a receipt.
+func (s *WorkspaceSearchService) VerifyReadReceipt(
+	ctx context.Context, owner string, ref domain.MessageVersionRef, receipt string,
+) (WorkspaceMessageRead, error) {
+	return s.verifyReceipt(ctx, owner, ref, receipt)
+}
+
 type SearchRef struct {
 	Kind                    string `json:"kind"`
 	ID                      string `json:"id"`

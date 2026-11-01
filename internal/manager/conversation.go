@@ -26,16 +26,17 @@ var conversationRequestIdleTimeout = 5 * time.Minute
 var provisionalConversationCleanupTimeout = time.Second
 
 type conversationRequest struct {
-	SessionID          string                     `json:"session_id,omitempty"`
-	InitializeOnly     bool                       `json:"initialize_only,omitempty"`
-	Input              string                     `json:"input"`
-	Content            []conversationContentBlock `json:"content,omitempty"`
-	Resume             json.RawMessage            `json:"resume,omitempty"`
-	CWD                string                     `json:"cwd,omitempty"`
-	ApprovalMode       string                     `json:"approval_mode,omitempty"`
-	PermissionChoiceID string                     `json:"permission_choice_id,omitempty"`
-	PrimaryProjectID   string                     `json:"primary_project_id,omitempty"`
-	ProjectTargetID    string                     `json:"project_target_id,omitempty"`
+	secretaryCapability string
+	SessionID           string                     `json:"session_id,omitempty"`
+	InitializeOnly      bool                       `json:"initialize_only,omitempty"`
+	Input               string                     `json:"input"`
+	Content             []conversationContentBlock `json:"content,omitempty"`
+	Resume              json.RawMessage            `json:"resume,omitempty"`
+	CWD                 string                     `json:"cwd,omitempty"`
+	ApprovalMode        string                     `json:"approval_mode,omitempty"`
+	PermissionChoiceID  string                     `json:"permission_choice_id,omitempty"`
+	PrimaryProjectID    string                     `json:"primary_project_id,omitempty"`
+	ProjectTargetID     string                     `json:"project_target_id,omitempty"`
 }
 
 type conversationEvent struct {
@@ -506,11 +507,11 @@ func (s *Service) createConversationSession(
 		"session/new",
 		map[string]any{
 			"cwd": cwd,
-			"mcpServers": agentConversationMCPServers(domain.AgentSession{
+			"mcpServers": secretaryConversationMCPServers(domain.AgentSession{
 				AgentID:   runner.agentConn.agentID,
 				AgentType: runner.agentType,
 				SessionID: managerSessionID,
-			}),
+			}, req.secretaryCapability),
 		},
 		nil,
 	)

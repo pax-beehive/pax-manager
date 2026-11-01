@@ -41,6 +41,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/v1/node/agents/:agent_id/secretary/tools",
+    "auth": "node-key",
+    "owner_boundary": "Node-owned selected Secretary agent, active job lease and ephemeral execution capability; owner fixed by the job",
+    "rate_class": "secretary-read",
+    "caller": "paxd Secretary search and history MCP"
+  },
+  {
+    "method": "POST",
     "path": "/api/v1/node/status",
     "auth": "node-key",
     "owner_boundary": "Authenticated node; reported agents must belong to that node",

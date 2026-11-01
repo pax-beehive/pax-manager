@@ -50,10 +50,16 @@ export PAX_MANAGER_SECRETARY_TEST_DATABASE_URL="postgres://pax:pax@${secretary_a
 export PAX_NOTIFICATIONS_TEST_DATABASE_URL="${PAX_MANAGER_SECRETARY_TEST_DATABASE_URL}"
 export GOWORK=off
 export GOCACHE="${GOCACHE:-/tmp/pax-manager-go-cache}"
+secretary_test_pattern='^TestSecretary'
+if [[ -n "${PAX_SECRETARY_TEST_PAXD_BINARY:-}" ]]; then
+  [[ -x "${PAX_SECRETARY_TEST_PAXD_BINARY}" ]] || { printf 'Configured paxd test binary is not executable.\n' >&2; exit 1; }
+  secretary_test_pattern='^(TestSecretary|TestPaxdSecretaryTools)'
+  printf 'Cross-binary paxd MCP acceptance is required for this run.\n'
+fi
 printf 'Verifying Secretary settings, real ACP execution, immutable summaries and PG checkpoints...\n'
 if ! go test -json -tags=integration -count=1 -timeout=120s \
   ./internal/manager ./internal/manager/storage ./internal/manager/userapi \
-  -run '^TestSecretary' >"${secretary_logs}/go.json" 2>&1; then
+  -run "${secretary_test_pattern}" >"${secretary_logs}/go.json" 2>&1; then
   python3 - "${secretary_logs}/go.json" <<'PY'
 import json
 import sys
@@ -82,6 +88,7 @@ if ! go test -json -count=1 ./internal/manager/secretary >"${secretary_logs}/wor
 fi
 python3 - "${secretary_logs}" <<'PY'
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -111,6 +118,8 @@ required = {
     "TestSecretaryNotificationsGivenInternalToolApprovalThenStillNotifiesActionableRequest",
     "TestSecretaryNotificationsGivenQueuedCompletionThenInternalMarkerFencesDelivery",
 }
+if os.environ.get("PAX_SECRETARY_TEST_PAXD_BINARY"):
+    required.add("TestPaxdSecretaryToolsGivenRealStdioAndStoredNodeKeyThenReadsAndPublishesExactSources")
 if skipped or required - passed:
     raise SystemExit(f"Acceptance incomplete: skipped={sorted(skipped)}, missing={sorted(required - passed)}")
 print(f"PASS {len(passed)} Secretary checks, including actual HTTP/ACP/PostgreSQL; no skipped tests")

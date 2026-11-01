@@ -45,18 +45,33 @@ therefore remain detectable. Boundaries between transport parts do not create
 another logical message. Metadata-only changes that leave canonical text intact
 do not invoke the agent again.
 
-Each batch contains at most 64 complete visible messages and 128 KiB of source
-text. Source messages are never silently truncated to fit the model input.
-Oversized batches remain failed/retryable and do not advance the checkpoint.
-Previous summaries provide bounded context; they are not silently added to the
-new summary's coverage or dependency graph.
+Each batch contains at most 64 new or changed complete visible messages and
+128 KiB of source text. It separately carries at most 64 removed message IDs.
+Source messages are never silently truncated. Oversized input remains
+failed/retryable and does not advance the checkpoint.
 
-New messages create source-backed fragment summary blocks. Unchanged blocks are
-reused. A changed message that belongs to an existing block regenerates that
-block from its current visible coverage and publishes a new revision under the
-same summary ID. Old versions and their source snapshots remain immutable.
-There is no extra session-summary table. This automatic block layer does not
-silently migrate or rewrite the separate local Secretary topic/project board.
+Each owner/source session has one stable rolling summary ID, stored in the
+existing summary tables with subject type `fragment`. The prompt contains the
+current title, body and claims (at most 64 KiB), the raw delta, and existing
+session metadata (`title`, `primary_project_id`, `cwd`, `workspace_roots`, at most
+16 KiB). Prior coverage arrays and unchanged raw messages are not replayed in
+every prompt. The agent returns a complete replacement summary; publishing
+creates an immutable revision of the same logical summary.
+
+The store carries forward unchanged exact coverage refs, replaces changed
+message refs and adds the delta. It never chains a previous rolling revision as
+a new factual dependency. Every covered body is frozen, including messages
+without evidence quotes. The internal rolling path can retain more than the
+public publication limit of 512 refs, but the existing 4,096-entry dependency
+guard still fails closed; no coverage is silently dropped to fit a limit.
+
+An unreadable baseline, removal, or migration from the older fragment workflow
+can require a bounded rebuild. The old summary is then withheld from the prompt,
+old coverage is discarded, and current safe messages are requeued in batches.
+The reset marker survives retries. An empty reset batch publishes a neutral
+summary without a model call; later batches can add remaining safe content.
+Historical versions remain immutable and subject to current access checks.
+No separate session-summary table or local board migration is introduced.
 
 Publishing acquires the settings and job locks, validates the settings revision,
 enabled flag, selected agent, source visibility and lease, then atomically saves
@@ -105,10 +120,38 @@ measured source volume requires it, without changing the progress contract.
 ## Agent execution and stopping
 
 The normal ACP tunnel performs `session/new` and `session/prompt` on the selected
-agent. Manager supplies full bounded canonical source text and requests a strict
-JSON summary. Source text is untrusted data, not task instructions. The model
-cannot choose the owner, summary ID, source hash, revision or coverage. Manager
-reconstructs references and validates any exact evidence quotes before writing.
+agent. Manager supplies the bounded current summary and raw delta and requests a
+strict JSON replacement. Source text is untrusted data, not task instructions.
+The model cannot choose the owner, summary ID, revision or mandatory coverage.
+Manager reconstructs references and validates exact evidence quotes before writing.
+
+Updated paxd instances use the existing injected conversation MCP process in
+Secretary mode. That process exposes only `workspace_search`, `workspace_read`,
+`workspace_expand`, and `workspace_history`. Search is optional: the prompt
+suggests one keyword lookup when useful, then reading selected original messages.
+The Manager neither infers related sessions nor forces search hits into context.
+History reuses the existing frontend history service with bounded paging;
+`expand` reads more of one message. Search requires ES; PG reads do not.
+
+The node-authenticated route
+`POST /api/v1/node/agents/:agent_id/secretary/tools` also requires a random
+per-execution capability bound to the owner, selected agent, node, internal
+session and active leased job. The capability is passed only in the MCP child
+environment and revoked on execution exit. There is no user API key setup and
+no summary-publication or board tool on this surface. A paused or fenced run
+cannot continue using its old capability. OpenClaw retains its existing lack of
+per-session MCP injection. Older paxd clients or unavailable tools can still
+produce summaries from the supplied summary and delta.
+
+The optional `related_sources` output selects exact original-message refs and
+signed receipts returned by these reads. Manager verifies owner, version and the
+actual exposed text before freezing selected refs alongside mandatory coverage.
+Unselected search hits and reads do not become dependencies. Other summaries
+provide navigation/background only. Related-source reads never advance another
+session's processing checkpoint. Frozen related versions do not automatically
+schedule the consuming session after later changes; current deletion/access
+checks still apply, and the next own-session update or explicit retry can rebuild
+an unreadable baseline.
 
 Internal execution sessions are registered before the first prompt and excluded
 from collection and ordinary search, preventing recursive summarization and
@@ -125,7 +168,11 @@ summaries remain available. Disabling retains unfinished work for later use.
 Stable run/turn IDs let a transient publication retry reuse an already completed
 agent response. Explicit Run now/Retry rotates the durable retry generation for
 inactive pending work so malformed or interrupted output can be regenerated.
-The target summary identity remains stable when revising an existing block.
+The target summary identity remains stable across source updates and retries.
+Set a stable `SEARCH_READ_RECEIPT_SECRET` across Manager restarts when using
+related sources. A completed response containing old receipts fails closed after
+a receipt-key change; explicitly retry it to read sources and regenerate output
+under the new key.
 
 The old local `secretary_pipeline.py watch` prototype is not started by this
 feature. The Manager worker is an independent service lifecycle, controlled by
@@ -136,7 +183,8 @@ worker indexes current published versions when ES is available.
 ## Verification and deployment
 
 No new standalone daemon is needed. Deploy the Manager with its complete `db/`
-directory, then Console. `EnsureSchema` loads `secretary.sql` after search and
+directory and updated paxd for automatic read-only tools. The existing Console
+settings and progress entry points need no new controls. `EnsureSchema` loads `secretary.sql` after search and
 summary DDL. Users remain disabled until they select an agent and save an enabled
 setting. For generated APIs run `make generate` from the Thrift source.
 
@@ -149,6 +197,18 @@ Run all feature checks with Docker running:
 ```bash
 make secretary-acceptance
 ```
+
+To include the real paxd stdio-to-Manager bridge, build the matching paxd binary
+and run:
+
+```bash
+PAX_SECRETARY_TEST_PAXD_BINARY=/absolute/path/paxd make secretary-acceptance
+```
+
+This additionally exercises real tool discovery, all four tool calls, stored
+node authentication, selected source receipts, publication and grant revocation.
+The binary test is opt-in rather than downloading/building a sibling repository
+inside the Manager's default feature gate.
 
 This creates its own PostgreSQL container on a random loopback port, rejects
 skipped scenarios and removes only its own container and volume afterward.

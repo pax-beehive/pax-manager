@@ -64,6 +64,7 @@ type Service struct {
 	workspaceSearch   *userapi.WorkspaceSearchService
 	secretary         *userapi.SecretaryService
 	secretaryStore    domain.SecretaryStore
+	secretaryTools    sync.Map
 	searchBackend     domain.SearchBackend
 	paxdArtifacts     paxdArtifactBackend
 	backgroundRunner  func(context.Context, func(context.Context))

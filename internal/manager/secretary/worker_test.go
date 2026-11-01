@@ -16,18 +16,19 @@ import (
 
 type workerStore struct {
 	domain.SecretaryStore
-	jobs         []domain.SecretaryJob
-	claimErr     error
-	backfillErr  error
-	publishErr   error
-	failErr      error
-	activeErr    error
-	active       atomic.Bool
-	mu           sync.Mutex
-	failed       []error
-	publications []domain.PublishSummaryRequest
-	registered   int
-	backfilled   int
+	jobs          []domain.SecretaryJob
+	claimErr      error
+	backfillErr   error
+	publishErr    error
+	failErr       error
+	activeErr     error
+	active        atomic.Bool
+	mu            sync.Mutex
+	failed        []error
+	publications  []domain.PublishSummaryRequest
+	publishedJobs []domain.SecretaryJob
+	registered    int
+	backfilled    int
 }
 
 func newWorkerStore() *workerStore {
@@ -73,12 +74,13 @@ func (s *workerStore) SecretaryJobActive(context.Context, domain.SecretaryJob) (
 
 func (s *workerStore) PublishSecretaryJob(
 	_ context.Context,
-	_ domain.SecretaryJob,
+	job domain.SecretaryJob,
 	request domain.PublishSummaryRequest,
 ) (domain.SummaryVersion, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.publications = append(s.publications, request)
+	s.publishedJobs = append(s.publishedJobs, job)
 	return domain.SummaryVersion{
 		SummaryID: request.SummaryID,
 		Revision:  request.ExpectedRevision + 1,

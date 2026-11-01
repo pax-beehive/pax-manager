@@ -19,6 +19,7 @@ var (
 )
 
 type ExecutionRequest struct {
+	Job          domain.SecretaryJob
 	OwnerID      string
 	AgentID      string
 	RunID        string
@@ -29,6 +30,7 @@ type ExecutionRequest struct {
 type ExecutionResult struct {
 	SessionID string
 	Text      string
+	Reads     domain.SecretaryToolReads
 }
 
 type Executor interface {

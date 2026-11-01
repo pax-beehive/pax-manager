@@ -1544,6 +1544,14 @@ struct WorkspaceSearchResponse {
   3: optional JSON data
 }
 
+struct SecretaryToolRequest {
+  1: required string agent_id (api.path = "agent_id")
+  2: required string session_id
+  3: required string capability
+  4: required string tool
+  5: required string arguments_json
+}
+
 struct SecretarySettingsRequest {
   1: optional string user_id (api.path = "user_id")
 }
@@ -1617,6 +1625,15 @@ service PaxManagerAPI {
     openapi.summary = "Recover node routing identity",
     openapi.description = "Returns the actual owner of the authenticated Node Key. X-Pax-User-ID is a routing hint only and never selects an authorization identity.",
     openapi.security = "nodeBearer"
+  )
+
+  WorkspaceSearchResponse CallSecretaryTool(1: required SecretaryToolRequest request) (
+    api.post = "/api/v1/node/agents/:agent_id/secretary/tools",
+    openapi.tag = "node",
+    openapi.summary = "Read Secretary sources for an active execution",
+    openapi.description = "Read-only search, source reads, and paginated history scoped to an active Secretary lease and an ephemeral execution capability.",
+    openapi.security = "nodeBearer",
+    openapi.path.agent_id = "Selected Secretary agent on the authenticated node."
   )
 
   HealthResponse Health(1: optional EmptyRequest request) (

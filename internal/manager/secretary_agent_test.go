@@ -222,6 +222,70 @@ func TestSecretaryOutputGivenReasoningThenOnlyReturnsCanonicalVisibleText(t *tes
 	require.NoError(t, err)
 }
 
+func TestSecretaryOutputGivenCommentaryAndToolCallsThenReturnsFinalMultipartResponse(t *testing.T) {
+	srv, _ := testServer(t, "todd@example.com")
+	fixture := testNodeAgent(t, srv, "todd@example.com")
+	owner := testUserPrincipal(t, srv, fixture.userEmail).User.UserID
+	request := secretary.ExecutionRequest{
+		OwnerID: owner, AgentID: fixture.agentID, RunID: "tool-response", Prompt: "Summarize.",
+		BeforePrompt: func(context.Context, string, string) error {
+			t.Fatal("a completed turn must be recovered without another prompt")
+			return domain.ErrConflict
+		},
+	}
+	sessionID := secretary.ExecutionSessionID(owner, request.RunID)
+	turnID := secretary.ExecutionTurnID(owner, request.RunID)
+	createConversationTestSession(t, srv, fixture, sessionID, "tool-native")
+	final := `{"title":"Decision","body":"Use the database."}`
+	for index, item := range []struct {
+		id, messageType, status string
+		otherTurn               bool
+		parts                   []string
+	}{
+		{id: "commentary", messageType: "agent_message_chunk", parts: []string{"I will search for related decisions."}},
+		{id: "tool", messageType: "tool_call", parts: []string{`{"body":"Tool output must not become the summary."}`}},
+		{id: "final", messageType: "agent_message_chunk", parts: []string{`{"title":"Decision",`, `"body":"Use the database."}`}},
+		{id: "trailing-thought", messageType: "agent_thought_chunk", parts: []string{"Private reasoning."}},
+		{id: "trailing-tool", messageType: "tool_call_update", parts: []string{`{"body":"Trailing tool status."}`}},
+		{id: "done", messageType: "turn_done", status: "complete"},
+		{id: "late-notification", messageType: "agent_message_chunk", parts: []string{"A background task reported after this turn completed."}},
+		{id: "other-turn", otherTurn: true, messageType: "agent_message_chunk", parts: []string{`{"body":"Another turn."}`}},
+		{id: "duplicate-done", messageType: "turn_done", status: "complete"},
+	} {
+		message := domain.Message{
+			MessageID: item.id, AgentID: fixture.agentID, SessionID: sessionID, SessionSeq: int64(index + 1),
+			Source: domain.MessageSourceACPTunnel, Direction: domain.MessageDirectionAgentToUser,
+			Role: "assistant", TurnID: turnID, MessageType: item.messageType, Status: item.status,
+		}
+		if item.otherTurn {
+			message.TurnID = "other"
+		}
+		require.NoError(t, srv.store.UpsertMessage(t.Context(), &message))
+		// Reverse insertion order to exercise canonical part ordering in the final response.
+		for partIndex := len(item.parts) - 1; partIndex >= 0; partIndex-- {
+			require.NoError(t, srv.store.UpsertMessagePart(t.Context(), &domain.MessagePart{
+				MessageID: item.id, PartIndex: partIndex, PartType: domain.MessagePartText, Text: item.parts[partIndex],
+			}))
+		}
+	}
+
+	text, started, completed, err := srv.readSecretaryExecution(
+		t.Context(),
+		fixture.agentID,
+		sessionID,
+		turnID,
+	)
+	require.NoError(t, err)
+	assert.True(t, started)
+	assert.True(t, completed)
+	assert.Equal(t, final, text)
+	_, err = secretary.RequestedRelatedSources(text)
+	assert.NoError(t, err, "the final response must remain valid summary JSON")
+	recovered, err := srv.executeSecretaryAgent(t.Context(), request)
+	require.NoError(t, err)
+	assert.Equal(t, final, recovered.Text)
+}
+
 func TestSecretaryAgentGivenFencedRegistrationThenNeverPromptsAgent(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")

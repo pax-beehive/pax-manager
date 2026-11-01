@@ -192,9 +192,28 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 		}
 	}()
 	agentSequence := int64(0)
+	runCount := int64(0)
 	run := func(expectedSource, summaryBody string, completed, total int) domain.SummaryVersion {
 		t.Helper()
 		created, createRequest := readMockACPRequest(t, ws, "session/new")
+		var creation struct {
+			MCPServers []struct {
+				Env []map[string]string `json:"env"`
+			} `json:"mcpServers"`
+		}
+		require.NoError(t, json.Unmarshal(createRequest.Params, &creation))
+		require.Len(t, creation.MCPServers, 1)
+		capability := ""
+		for _, entry := range creation.MCPServers[0].Env {
+			if entry["name"] == "PAX_SECRETARY_CAPABILITY" {
+				capability = entry["value"]
+			}
+		}
+		require.NotEmpty(
+			t,
+			capability,
+			"the selected agent receives an automatic task-scoped MCP grant",
+		)
 		agentSequence++
 		native, marshalErr := json.Marshal(
 			map[string]string{"sessionId": fmt.Sprintf("secretary-auto-native-%d", agentSequence)},
@@ -202,7 +221,30 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 		require.NoError(t, marshalErr)
 		writeMockACPResponse(t, ws, created.QueueID, agentSequence, createRequest.ID, native)
 		promptEnvelope, prompt := readMockACPRequest(t, ws, "session/prompt")
-		assert.Contains(t, acpPromptText(prompt.Params), expectedSource)
+		promptText := acpPromptText(prompt.Params)
+		assert.Contains(t, promptText, expectedSource)
+		assert.Contains(t, promptText, "Read-only lookup is optional")
+		var input struct {
+			CurrentSummary *struct {
+				Revision int64 `json:"revision"`
+			} `json:"current_summary"`
+			ChangedMessages []struct {
+				Text string `json:"text"`
+			} `json:"changed_messages"`
+		}
+		require.NoError(
+			t,
+			json.Unmarshal([]byte(promptText[strings.LastIndex(promptText, "\n\n")+2:]), &input),
+		)
+		require.Len(t, input.ChangedMessages, 1)
+		assert.Equal(t, expectedSource, input.ChangedMessages[0].Text)
+		if runCount == 0 {
+			assert.Nil(t, input.CurrentSummary)
+		} else {
+			require.NotNil(t, input.CurrentSummary)
+			assert.Equal(t, runCount, input.CurrentSummary.Revision)
+		}
+		runCount++
 		sessionID := findStringFromRaw(prompt.Params, "sessionId")
 		assert.True(t, secretary.IsExecutionSession(sessionID))
 		state := "unstarted"
@@ -322,9 +364,14 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 	)
 	assertProgress(1, 2, "partial")
 	third := run("Add an index.", "Add the database index.", 1, 2)
-	assert.NotEqual(t, first.SummaryID, third.SummaryID)
-	require.Len(t, third.Coverage, 1)
-	assert.Equal(t, added.MessageID, third.Coverage[0].MessageID)
+	assert.Equal(t, first.SummaryID, third.SummaryID)
+	assert.Equal(t, int64(3), third.Revision)
+	require.Len(t, third.Coverage, 2)
+	assert.ElementsMatch(
+		t,
+		[]string{source.MessageID, added.MessageID},
+		[]string{third.Coverage[0].MessageID, third.Coverage[1].MessageID},
+	)
 	assertProgress(2, 2, "completed")
 	settings(false, cfg.Revision)
 	require.NoError(

@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -14,6 +15,10 @@ const (
 )
 
 var ErrSecretaryFenced = fmt.Errorf("secretary work canceled or superseded: %w", ErrConflict)
+
+func SecretarySummaryID(owner, source string) string {
+	return "summary_secretary_session_" + strings.TrimPrefix(SearchContentHash(owner+"\x00"+source), "sha256:")[:32]
+}
 
 type SecretarySettings struct {
 	OwnerUserID string    `json:"owner_user_id"`
@@ -37,21 +42,35 @@ type SecretaryStatus struct {
 	Processing      bool       `json:"processing"`
 }
 
+type SecretarySourceMetadata struct {
+	Title            string   `json:"title,omitempty"`
+	PrimaryProjectID string   `json:"primary_project_id,omitempty"`
+	CWD              string   `json:"cwd,omitempty"`
+	WorkspaceRoots   []string `json:"workspace_roots,omitempty"`
+}
+
 type SecretaryJob struct {
-	SourceID          string
-	OwnerUserID       string
-	SourceAgentID     string
-	SourceSessionID   string
-	AgentID           string
-	LeaseToken        string
-	SettingsRevision  int64
-	RetryGeneration   int64
-	ThroughRevision   int64
-	RunID             string
-	TargetSummaryID   string
-	ExpectedRevision  int64
-	Messages          []SearchDocument
-	PreviousSummaries []SummaryVersion
+	SourceID                string
+	OwnerUserID             string
+	SourceAgentID           string
+	SourceSessionID         string
+	AgentID                 string
+	LeaseToken              string
+	SettingsRevision        int64
+	RetryGeneration         int64
+	ThroughRevision         int64
+	RunID                   string
+	TargetSummaryID         string
+	ExpectedRevision        int64
+	Messages                []SearchDocument
+	PreviousSummaries       []SummaryVersion
+	CurrentSummary          *SummaryVersion
+	RemovedMessageIDs       []string
+	ResetRequired           bool
+	ResetReason             string
+	SourceMetadata          SecretarySourceMetadata
+	AllowedRelatedMessages  []MessageVersionRef
+	AllowedRelatedSummaries []SummaryRef
 }
 
 type SecretaryStore interface {
