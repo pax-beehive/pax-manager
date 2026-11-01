@@ -73,6 +73,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 053 | resolved | [Opening an unlisted session requires scanning session pages](053-canonical-session-detail.md) | medium | userapi / session metadata |
 
+| 054 | resolved | [Search treats space-separated keywords as one phrase](054-search-multiple-keywords.md) | medium | search / userapi / MCP |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

@@ -143,7 +143,7 @@ func (s *WorkspaceSearchService) Search(
 			continue
 		}
 		text := current.Body
-		if !literalContains(text, query.Query) {
+		if searchTermIndex(strings.ToLower(text), domain.SearchTerms(query.Query)) < 0 {
 			text = current.Title
 		}
 		result.Hits = append(
@@ -364,10 +364,6 @@ func documentRef(document domain.SearchDocument) SearchRef {
 		ContentHash: document.ContentHash, CanonicalizationVersion: document.CanonicalizationVersion}
 }
 
-func literalContains(text, query string) bool {
-	return strings.Contains(strings.ToLower(text), strings.ToLower(query))
-}
-
 func searchFilterContains(values []string, value string) bool {
 	for _, candidate := range values {
 		if candidate == value {
@@ -378,8 +374,13 @@ func searchFilterContains(values []string, value string) bool {
 }
 
 func validateWorkspaceQuery(query domain.SearchQuery) error {
-	if query.Query == "" || utf8.RuneCountInString(query.Query) > 256 || query.Limit < 0 ||
-		query.Limit > 50 || len(query.Kinds) > 3 || len(query.SessionIDs) > 50 {
+	terms := domain.SearchTerms(query.Query)
+	if len(terms) == 0 || len(terms) > domain.MaxSearchTerms ||
+		utf8.RuneCountInString(query.Query) > 256 ||
+		query.Limit < 0 ||
+		query.Limit > 50 ||
+		len(query.Kinds) > 3 ||
+		len(query.SessionIDs) > 50 {
 		return searchHTTPError(http.StatusBadRequest, "invalid search query or limits")
 	}
 	for _, kind := range query.Kinds {
@@ -413,24 +414,44 @@ func searchMatchesCurrent(
 	owner string,
 	query domain.SearchQuery,
 ) bool {
-	return !document.Deleted && document.OwnerUserID == owner &&
-		(literalContains(document.Title, query.Query) || literalContains(document.Body, query.Query)) &&
-		(len(query.SessionIDs) == 0 || searchFilterContains(query.SessionIDs, document.SessionID)) &&
-		(len(query.Kinds) == 0 || searchFilterContains(query.Kinds, document.Kind))
+	if document.Deleted || document.OwnerUserID != owner ||
+		(len(query.SessionIDs) > 0 && !searchFilterContains(query.SessionIDs, document.SessionID)) ||
+		(len(query.Kinds) > 0 && !searchFilterContains(query.Kinds, document.Kind)) {
+		return false
+	}
+	terms := domain.SearchTerms(query.Query)
+	title, body := strings.ToLower(document.Title), strings.ToLower(document.Body)
+	for _, term := range terms {
+		if strings.Contains(title, term) || strings.Contains(body, term) {
+			return true
+		}
+	}
+	return false
 }
 
 func searchSnippet(text, query string) string {
 	runes := []rune(text)
-	index := strings.Index(strings.ToLower(text), strings.ToLower(query))
+	lower := strings.ToLower(text)
+	index := searchTermIndex(lower, domain.SearchTerms(query))
 	start := 0
 	if index >= 0 {
-		start = utf8.RuneCountInString(strings.ToLower(text)[:index]) - 40
+		start = utf8.RuneCountInString(lower[:index]) - 40
 	}
 	if start < 0 {
 		start = 0
 	}
 	end := min(start+200, len(runes))
 	return string(runes[start:end])
+}
+
+func searchTermIndex(lower string, terms []string) int {
+	first := -1
+	for _, term := range terms {
+		if index := strings.Index(lower, term); index >= 0 && (first < 0 || index < first) {
+			first = index
+		}
+	}
+	return first
 }
 
 func searchHTTPError(status int, message string) error {

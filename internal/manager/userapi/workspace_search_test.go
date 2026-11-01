@@ -538,3 +538,40 @@ func TestWorkspacePublishGivenExcessEvidenceThenRejectsBeforeReadingSources(t *t
 	requireWorkspaceStatus(t, err, http.StatusBadRequest)
 	assert.Zero(t, store.published)
 }
+
+func TestWorkspaceSearchGivenKeywordsThenRevalidatesAnyTermOnCurrentObjectAndSnippetsEarliestTerm(
+	t *testing.T,
+) {
+	s, store, backend := workspaceFixture()
+	doc := store.docs["message:m1"]
+	doc.Title = "API settings"
+	doc.Body = strings.Repeat("x", 250) + " port " + strings.Repeat("z", 250) + "api"
+	store.docs[doc.DocumentID()] = doc
+	page, err := s.Search(
+		t.Context(),
+		auth.RequestMetadata{},
+		domain.SearchQuery{Query: " api\tPORT api "},
+	)
+	require.NoError(t, err)
+	require.Len(t, page.Hits, 1)
+	assert.Contains(t, page.Hits[0].Snippet, "port")
+	assert.NotContains(t, page.Hits[0].Snippet, "settings")
+	stale := doc
+	stale.SourceID = "stale"
+	stale.Title = "missing"
+	stale.Body = "only port remains"
+	store.docs[stale.DocumentID()] = stale
+	backend.page.Hits = append(backend.page.Hits, stale)
+	page, err = s.Search(t.Context(), auth.RequestMetadata{}, domain.SearchQuery{Query: "PORT api"})
+	require.NoError(t, err)
+	require.Len(t, page.Hits, 2)
+	assert.Equal(t, "m1", page.Hits[0].Ref.ID)
+	assert.Equal(t, "no keywords", searchSnippet("no keywords", "api port"))
+	assert.Equal(t, "\u6570\u636e\u5e93 API", searchSnippet("\u6570\u636e\u5e93 API", "port API"))
+	_, err = s.Search(
+		t.Context(),
+		auth.RequestMetadata{},
+		domain.SearchQuery{Query: "a b c d e f g h i j k l m n o p q"},
+	)
+	requireWorkspaceStatus(t, err, http.StatusBadRequest)
+}

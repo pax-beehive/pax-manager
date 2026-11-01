@@ -15,7 +15,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
-const rankingVersion = "ascii-boundary-v1"
+const rankingVersion = "keyword-coverage-boundary-v3"
 
 // Stay within Elasticsearch's default regexp length without restricting recall.
 const maxRankingRegexpBytes = 1000
@@ -27,8 +27,10 @@ type cursor struct {
 }
 
 func normalizeQuery(q domain.SearchQuery) (domain.SearchQuery, error) {
+	terms := domain.SearchTerms(q.Query)
 	if strings.TrimSpace(q.OwnerUserID) == "" || strings.TrimSpace(q.Query) == "" ||
 		len(q.Query) > 4096 ||
+		len(terms) == 0 || len(terms) > domain.MaxSearchTerms ||
 		len(q.Cursor) > 16384 ||
 		len(q.Kinds) > 10 ||
 		len(q.SessionIDs) > 100 {
@@ -47,7 +49,9 @@ func normalizeQuery(q domain.SearchQuery) (domain.SearchQuery, error) {
 	return q, nil
 }
 func queryFingerprint(q domain.SearchQuery) string {
-	raw, _ := json.Marshal([]any{rankingVersion, q.OwnerUserID, q.Query, q.Kinds, q.SessionIDs})
+	raw, _ := json.Marshal(
+		[]any{rankingVersion, q.OwnerUserID, domain.SearchTerms(q.Query), q.Kinds, q.SessionIDs},
+	)
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
@@ -56,13 +60,13 @@ func readCursor(q domain.SearchQuery) (cursor, error) {
 	raw, err := base64.RawURLEncoding.DecodeString(q.Cursor)
 	if err != nil || json.Unmarshal(raw, &cur) != nil || cur.Fingerprint != queryFingerprint(q) ||
 		cur.PIT == "" ||
-		!validSearchSort(cur.After) {
+		!validSearchSort(cur.After, len(domain.SearchTerms(q.Query))) {
 		return cur, fmt.Errorf("%w: invalid or expired cursor", ErrInvalidQuery)
 	}
 	return cur, nil
 }
 
-func validSearchSort(values []json.RawMessage) bool {
+func validSearchSort(values []json.RawMessage, termCount int) bool {
 	if len(values) != 4 {
 		return false
 	}
@@ -74,10 +78,14 @@ func validSearchSort(values []json.RawMessage) bool {
 	var score float64
 	var createdAt, shardDoc int64
 	var docID string
-	return json.Unmarshal(values[0], &score) == nil && (score == 0 || score == 1) &&
+	return json.Unmarshal(values[0], &score) == nil && score >= float64(termCount+1) &&
+		score <= float64(termCount*(termCount+2)) &&
+		score == float64(int(score)) &&
 		json.Unmarshal(values[1], &createdAt) == nil &&
-		json.Unmarshal(values[2], &docID) == nil && docID != "" &&
-		json.Unmarshal(values[3], &shardDoc) == nil && shardDoc >= 0
+		json.Unmarshal(values[2], &docID) == nil &&
+		docID != "" &&
+		json.Unmarshal(values[3], &shardDoc) == nil &&
+		shardDoc >= 0
 }
 
 func escapeLiteral(query string) string {
@@ -114,22 +122,40 @@ func searchBody(q domain.SearchQuery, cur cursor) map[string]any {
 	if len(q.SessionIDs) > 0 {
 		filter = append(filter, map[string]any{"terms": map[string]any{"session_id": q.SessionIDs}})
 	}
-	pattern := "*" + escapeLiteral(q.Query) + "*"
-	filter = append(
-		filter,
-		fieldAlternatives("wildcard", map[string]any{"value": pattern, "case_insensitive": true}),
-	)
-	query := map[string]any{"filter": filter}
-	// ASCII identifier boundaries add one fixed bonus across both fields.
-	bounded := "(.*[^A-Za-z0-9_])?" + escapeRegexpLiteral(q.Query) + "([^A-Za-z0-9_].*)?"
-	if len(bounded) <= maxRankingRegexpBytes {
-		query["should"] = []any{map[string]any{"constant_score": map[string]any{
+	terms := domain.SearchTerms(q.Query)
+	literalMatches := make([]any, 0, len(terms))
+	var bonuses []any
+	for _, term := range terms {
+		pattern := "*" + escapeLiteral(term) + "*"
+		literalMatches = append(literalMatches, map[string]any{"constant_score": map[string]any{
 			"filter": fieldAlternatives(
-				"regexp",
-				map[string]any{"value": bounded, "case_insensitive": true, "flags": "NONE"},
+				"wildcard",
+				map[string]any{"value": pattern, "case_insensitive": true},
 			),
-			"boost": 1,
-		}}}
+			"boost": len(terms) + 1,
+		}})
+		// Each distinct term contributes at most one point across both fields.
+		bounded := "(.*[^A-Za-z0-9_])?" + escapeRegexpLiteral(term) + "([^A-Za-z0-9_].*)?"
+		if len(bounded) <= maxRankingRegexpBytes {
+			bonuses = append(bonuses, map[string]any{"constant_score": map[string]any{
+				"filter": fieldAlternatives(
+					"regexp",
+					map[string]any{"value": bounded, "case_insensitive": true, "flags": "NONE"},
+				),
+				"boost": 1,
+			}})
+		}
+	}
+	query := map[string]any{
+		"filter": filter,
+		"must": []any{
+			map[string]any{
+				"bool": map[string]any{"should": literalMatches, "minimum_should_match": 1},
+			},
+		},
+	}
+	if len(bonuses) > 0 {
+		query["should"] = bonuses
 	}
 	body := map[string]any{
 		"size":             q.Limit + 1,
@@ -217,7 +243,7 @@ func (c *Client) Search(ctx context.Context, q domain.SearchQuery) (domain.Searc
 	}
 	if more {
 		cur.After = hits[len(hits)-1].Sort
-		if !validSearchSort(cur.After) {
+		if !validSearchSort(cur.After, len(domain.SearchTerms(q.Query))) {
 			c.closePIT(ctx, cur.PIT)
 			return domain.SearchPage{}, fmt.Errorf("invalid search sort response")
 		}

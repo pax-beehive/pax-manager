@@ -24,13 +24,22 @@ select an authorization identity. Owner scope is stricter than team visibility.
 
 Responses use the normal Manager envelope with the result in `data`. An absent
 ES backend returns 503 for search; PG source reads and summary persistence do not
-require ES to be healthy. Search queries are literal contiguous substrings,
-case insensitive, up to 256 Unicode code points. Limits default to 20 hits and
-are capped at 50. Kinds are `message`, `session`, and `summary`.
+require ES to be healthy. Search input is split on Unicode whitespace into case-insensitive literal
+keywords, with at most 16 distinct terms and 256 Unicode code points in the raw
+query. Repeated terms do not affect ranking. Each term can match a contiguous
+substring in title or body of the same object, in any order. Results matching
+more distinct terms come first, so all-keyword matches precede partial matches
+that fill remaining page slots. Within equal term coverage, more terms with
+ASCII identifier boundaries rank first, then newest creation time. A-Z, a-z,
+0-9 and underscore continue identifiers; this is not linguistic segmentation.
+Punctuation is literal, not query syntax. Limits default to 20 hits and are
+capped at 50. Kinds are `message`, `session`, and `summary`.
 
 Search hits contain a typed `ref`, title, plain-text snippet, and applicable
 agent/session IDs. They are reloaded and owner/visibility/session-filter checked
-against current PG state before any snippet is returned. A stale ES result may
+against current PG state, including at least one still-matching keyword, before
+any snippet is returned. Snippets are centered around the earliest present
+keyword and need not include every distant keyword. A stale ES result may
 therefore produce a short or empty page with a valid continuation cursor.
 
 Example message reference:

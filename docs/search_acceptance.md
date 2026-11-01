@@ -23,7 +23,7 @@ Expected checks:
 | Check | Expected behavior |
 | --- | --- |
 | Multipart message | Ordered parts form one body; repartitioning preserves its hash |
-| Literal search | Chinese substrings and one-character queries match; unrelated full phrases do not |
+| Keyword search | Whitespace splits literal terms; more matched terms rank first, then boundary count and newest; Chinese substrings and one-character terms still match |
 | Incremental indexing | Late parts update the same message; concurrent changes remain pending |
 | Authorization | Another user receives no source content or snippets |
 | Summary history | v1 keeps its exact source after editing the original and publishing v2 |

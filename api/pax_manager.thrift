@@ -1633,7 +1633,7 @@ service PaxManagerAPI {
     api.post = "/api/v1/user/:user_id/search",
     openapi.tag = "user",
     openapi.summary = "Search owned messages, session titles and current summaries",
-    openapi.description = "Literal substring search. Owner identity comes from authentication. Results are revalidated against PostgreSQL before snippets are returned."
+    openapi.description = "Whitespace-separated literal keywords match title or body within one object. At most 16 case-insensitively distinct terms and 256 Unicode code points. Rank by matched term count, then ASCII identifier-boundary term count, then newest; all-term hits precede partial matches. Owner identity comes from authentication; PostgreSQL revalidates that a current term still matches before returning snippets."
   )
 
   WorkspaceSearchResponse ReadWorkspaceSearchSource(1: optional WorkspaceReadRequest request) (
