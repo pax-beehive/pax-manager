@@ -131,6 +131,14 @@ func Register(r *server.Hertz) {
 						}
 					}
 					{
+						_developer := _user_id.Group("/developer", _developerMw()...)
+						_developer.GET("/summaries", append(_listdevelopersummariesMw(), handler.ListDeveloperSummaries)...)
+						{
+							_summaries := _developer.Group("/summaries", _summariesMw()...)
+							_summaries.GET("/:summary_id", append(_readdevelopersummaryMw(), handler.ReadDeveloperSummary)...)
+						}
+					}
+					{
 						_nodes := _user_id.Group("/nodes", _nodesMw()...)
 						_nodes.DELETE("/:node_id", append(_deletenodeMw(), handler.DeleteNode)...)
 						_nodes.GET("/:node_id", append(_getnodeMw(), handler.GetNode)...)

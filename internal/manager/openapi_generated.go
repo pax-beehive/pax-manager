@@ -7,6 +7,8 @@ import (
 )
 
 func registerIDLRoutes(h *hertzserver.Hertz) {
+	h.GET("/api/v1/user/:user_id/developer/summaries", ListDeveloperSummaries)
+	h.GET("/api/v1/user/:user_id/developer/summaries/:summary_id", ReadDeveloperSummary)
 	h.GET("/api/v1/user/:user_id/secretary/progress", GetSecretaryProgress)
 	h.GET("/api/v1/user/:user_id/secretary", GetSecretarySettings)
 	h.PATCH("/api/v1/user/:user_id/secretary", UpdateSecretarySettings)
