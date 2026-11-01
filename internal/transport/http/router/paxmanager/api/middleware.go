@@ -856,3 +856,23 @@ func _secretary0Mw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _developerMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listdevelopersummariesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _summariesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _readdevelopersummaryMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
