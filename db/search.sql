@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS search_sync_state (
 );
 CREATE INDEX IF NOT EXISTS idx_search_sync_pending ON search_sync_state(available_at)
     WHERE desired_revision > indexed_revision;
+CREATE INDEX IF NOT EXISTS idx_search_sync_pending_fifo ON search_sync_state(available_at, kind, source_id)
+    WHERE desired_revision > indexed_revision;
 
 CREATE OR REPLACE FUNCTION pax_search_mark_dirty(document_kind TEXT, document_id TEXT)
 RETURNS VOID LANGUAGE plpgsql AS $$

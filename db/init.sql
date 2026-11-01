@@ -714,6 +714,8 @@ CREATE TABLE IF NOT EXISTS message_parts (
 CREATE INDEX IF NOT EXISTS idx_messages_agent_created ON messages(agent_id, created_at, id);
 CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_at, id);
 CREATE INDEX IF NOT EXISTS idx_messages_agent_session_id ON messages(agent_id, session_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_search_display_agent_session ON messages(agent_id, session_id)
+    WHERE message_type IN ('pax:invocation', 'pax:invocation_pending', 'pax:artifact');
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at, id)
     WHERE conversation_id IS NOT NULL AND conversation_id <> '';
 CREATE INDEX IF NOT EXISTS idx_message_parts_message ON message_parts(message_id, part_index);
