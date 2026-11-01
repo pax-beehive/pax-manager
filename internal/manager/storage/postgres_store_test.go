@@ -72,6 +72,7 @@ func TestPostgresSchemaGivenExistingJournalThenKeepsWatermarksWithoutStartupBack
 	assert.NotContains(t, sql, "INSERT INTO transport_queue_state")
 	assert.NotContains(t, sql, "WITH queue_candidates AS")
 	assert.NotContains(t, sql, "FROM inbound_watermarks")
+	assert.NotContains(t, strings.ToUpper(sql), "UPDATE TRANSPORT_JOURNAL")
 	assert.Contains(t, sql, "idx_transport_journal_inbound_ack")
 }
 

@@ -33,11 +33,16 @@ or malformed numeric environment values use defaults, consistent with other
 Manager settings. Batches above 10,000 prevent the worker from starting. Stop GC
 with the explicit disable switch rather than an invalid value.
 
-The first rollout still executes the existing startup schema initialization before
-the worker can run. This change does not remove its historical migration queries.
-Existing large tables drain gradually after Manager is healthy. Check startup and
-rollback health timeouts before rollout. Deletion is irreversible; old diagnostic
-frames cannot be restored by rolling back the application binary. PostgreSQL
+Startup schema application creates and extends the journal schema without
+replaying legacy journal row conversions or reconstructing queue watermarks.
+Current write paths persist canonical fields directly. Ancient databases with
+missing required journal fields must complete an explicit legacy migration before
+upgrading; schema initialization retains its NOT NULL constraints and does not
+silently repair old data. Other application schema migrations still run before
+the worker. Existing large tables drain gradually after Manager is healthy.
+Check startup and rollback health timeouts before rollout. Deletion is
+irreversible; old diagnostic frames cannot be restored by rolling back the
+application binary. PostgreSQL
 autovacuum can reuse deleted space; it need not immediately shrink the files.
 
 The existing legacy `DeleteCompletedTransportFrames` API is unchanged. The new

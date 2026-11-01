@@ -65,6 +65,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 045 | resolved | [Late artifact publications appear after their turn footer](045-artifact-turn-placement.md) | medium | paxd / history / storage / Console |
 | 046 | open | [Legacy container test assumes an active mailbox poller](046-legacy-container-mailbox-runtime.md) | medium | integration / deployment |
+| 047 | resolved | [Legacy journal conversions still scan history during startup](047-legacy-journal-startup-backfills.md) | high | storage / startup |
 | 048 | resolved | [VM deployment leaves workspace search disabled](048-vm-search-not-enabled.md) | high | deployment / search |
 | 049 | open | [Production Console has no workspace search page](049-production-console-search-route.md) | medium | deployment / Console |
 
