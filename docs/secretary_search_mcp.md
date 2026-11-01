@@ -8,6 +8,12 @@ modify local Secretary boards, or start the stopped prototype pipeline.
 The separate Manager automatic Secretary worker is now configurable from Console
 `/settings/secretary`; see [secretary_automation.md](secretary_automation.md).
 Its selected-agent execution and checkpoint are independent of this stdio adapter.
+Updated paxd instances automatically expose four read-only `workspace_*` tools
+through the existing injected conversation MCP process during Secretary jobs.
+That path uses node authentication plus a per-execution capability; it does not
+require this Python process, a user API key, or manual MCP registration. It has
+no publication tool: Manager validates the final model response and publishes.
+The launch instructions below describe the separate manual Python adapter.
 
 ## Launch
 

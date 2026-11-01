@@ -193,6 +193,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"RevokeUserApprovalGrant":       RevokeUserApprovalGrant,
 	"RunSecretaryNow":               RunSecretaryNow,
 	"SearchWorkspace":               SearchWorkspace,
+	"CallSecretaryTool":             CallSecretaryTool,
 	"UpdateNode":                    UpdateNode,
 	"UpdateNodeAgent":               UpdateNodeAgent,
 	"UpdateNodeAgentSession":        UpdateNodeAgentSession,

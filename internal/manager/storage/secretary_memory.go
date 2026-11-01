@@ -30,6 +30,7 @@ type memorySecretaryJob struct {
 	updated, available, leaseUntil time.Time
 	completed                      *time.Time
 	lastError                      string
+	resetRevision                  int64
 }
 
 func (s *MemoryStore) secretaryLocked() *memorySecretaryState {
@@ -219,16 +220,32 @@ func (s *MemoryStore) refreshSecretaryOwnerLocked(owner string) {
 			job.seen = map[string]string{}
 		}
 		s.refreshSecretaryMessagesLocked(job)
+		if job.processed > 0 && job.desired == job.processed && job.resetRevision == 0 &&
+			len(state.summaries[secretarySummaryID(agent.OwnerUserID, id)]) == 0 {
+			job.desired++
+			job.available = s.now()
+		}
 	}
 }
 
 func (s *MemoryStore) refreshSecretaryMessagesLocked(job *memorySecretaryJob) {
 	seen := map[string]bool{}
+	var ids []string
 	for id, message := range s.messages {
 		if message.AgentID != job.work.SourceAgentID ||
 			message.SessionID != job.work.SourceSessionID {
 			continue
 		}
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		a, b := s.messages[ids[i]], s.messages[ids[j]]
+		if a.SessionSeq == b.SessionSeq {
+			return ids[i] < ids[j]
+		}
+		return a.SessionSeq < b.SessionSeq
+	})
+	for _, id := range ids {
 		seen[id] = true
 		hash := "hidden"
 		if doc, err := s.readSearchMessageLocked(job.work.OwnerUserID, id); err == nil {
@@ -360,7 +377,7 @@ func (s *MemoryStore) ClaimSecretaryJobs(
 			job.available = s.now().Add(30 * time.Second)
 			continue
 		}
-		if len(work.Messages) == 0 {
+		if len(work.Messages) == 0 && len(work.RemovedMessageIDs) == 0 && !work.ResetRequired {
 			job.processed = work.ThroughRevision
 			continue
 		}

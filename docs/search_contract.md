@@ -72,7 +72,7 @@ this service. Search snippets do not constitute a read receipt.
 `PublishSummaryRequest` has `summary_id`, `subject_type`, `subject_id`,
 `expected_revision`, `request_id`, `title`, `body`, `claims`, `coverage`, and
 `summary_sources`. Subject types are `fragment`, `topic`, `direction`, `project`;
-the first consumer can remain topic-only. Logical summary IDs must be globally
+automatic Secretary uses a stable `fragment` subject per source session. Logical summary IDs must be globally
 unique. Their owner and subject cannot change.
 
 Every coverage element contains `message_id`, `content_hash`,
@@ -83,6 +83,12 @@ that exposed the quote. Quotes must occur literally in that receipt's text and
 the claimed message must belong to coverage. There are at most 512 combined
 message/child references, 100 claims, 100 child references, and 512 evidence
 entries per publication.
+
+Automatic rolling Secretary publication uses a trusted internal path to carry
+forward already validated unchanged coverage beyond the public 512-ref limit.
+The 4,096-entry dependency guard remains in force. New delta and explicitly read
+related sources are verified before composing the complete immutable revision.
+The public publication endpoint keeps the limits above.
 
 Child references use `summary_id` plus exact `revision`, never a drifting current
 pointer. Access checks fail closed above 4,096 returned dependency entries. Published

@@ -199,8 +199,9 @@ func TestSecretaryJobsGivenNewWorkDuringGenerationWhenPublishedThenOnlyClaimedCh
 	next := secretaryClaim(t, store)
 	require.Len(t, next.Messages, 1)
 	assert.Equal(t, "m2", next.Messages[0].SourceID)
-	assert.NotEqual(t, work.TargetSummaryID, next.TargetSummaryID)
-	assert.Len(t, next.PreviousSummaries, 1)
+	assert.Equal(t, work.TargetSummaryID, next.TargetSummaryID)
+	require.NotNil(t, next.CurrentSummary)
+	assert.Empty(t, next.PreviousSummaries)
 	_, err = store.PublishSecretaryJob(t.Context(), next, secretaryPublication(next))
 	require.NoError(t, err)
 	jobs, err := store.ClaimSecretaryJobs(t.Context(), 1, time.Minute, 0)
@@ -246,13 +247,15 @@ func TestSecretaryJobsGivenLateEditWhenProcessedThenRegeneratesOnlyItsExistingFr
 	assert.ErrorIs(t, err, ErrNotFound)
 	jobs, err := store.ClaimSecretaryJobs(t.Context(), 1, time.Minute, 0)
 	require.NoError(t, err)
-	assert.Empty(t, jobs)
+	require.Len(t, jobs, 1)
+	assert.True(t, jobs[0].ResetRequired)
+	assert.Nil(t, jobs[0].CurrentSummary)
 }
 
 func TestSecretaryJobsGivenDisabledOrChangedSourceWhenPublishedThenNoCheckpointOrVersionLeaks(
 	t *testing.T,
 ) {
-	for _, mode := range []string{"disable", "expired", "changed", "invalid_coverage"} {
+	for _, mode := range []string{"disable", "expired", "changed", "invalid_coverage", "moved", "removed"} {
 		t.Run(mode, func(t *testing.T) {
 			store, now := secretaryMemoryFixture(t)
 			cfg := secretaryEnable(t, store)
@@ -278,6 +281,19 @@ func TestSecretaryJobsGivenDisabledOrChangedSourceWhenPublishedThenNoCheckpointO
 			case "invalid_coverage":
 				request.Coverage[0].ContentHash = "wrong"
 				want = ErrConflict
+			case "moved":
+				store.sessions[sessionKey("source", "destination")] = AgentSession{
+					ID:        2,
+					AgentID:   "source",
+					SessionID: "destination",
+				}
+				message := store.messages["m1"]
+				message.SessionID = "destination"
+				store.messages["m1"] = message
+				want = ErrConflict
+			case "removed":
+				delete(store.messages, "m1")
+				want = ErrNotFound
 			}
 			_, err := store.PublishSecretaryJob(t.Context(), work, request)
 			assert.ErrorIs(t, err, want)

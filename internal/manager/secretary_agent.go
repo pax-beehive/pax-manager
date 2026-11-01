@@ -27,6 +27,10 @@ func (s *Service) executeSecretaryAgent(
 		strings.TrimSpace(request.Prompt) == "" {
 		return secretary.ExecutionResult{}, domain.ErrConflict
 	}
+	if request.Job.SourceID != "" && (request.Job.OwnerUserID != request.OwnerID ||
+		request.Job.AgentID != request.AgentID || request.Job.RunID != request.RunID) {
+		return secretary.ExecutionResult{}, domain.ErrConflict
+	}
 	user, err := s.store.GetUser(ctx, request.OwnerID)
 	if err != nil {
 		return secretary.ExecutionResult{}, err
@@ -67,17 +71,43 @@ func (s *Service) executeOwnedSecretaryAgent(
 			sessionID,
 			turnID,
 		)
-		if err != nil || completed {
+		if err != nil {
 			return result, err
+		}
+		if completed {
+			return s.finishSecretaryExecution(ctx, request, result)
 		}
 		if started {
 			return result, secretary.ErrExecutionIncomplete
 		}
 	}
+	return s.promptOwnedSecretaryAgent(ctx, principal, agent, session, request)
+}
+
+func (s *Service) promptOwnedSecretaryAgent(
+	ctx context.Context,
+	principal domain.UserPrincipal,
+	agent domain.Agent,
+	session domain.AgentSession,
+	request secretary.ExecutionRequest,
+) (secretary.ExecutionResult, error) {
+	sessionID := secretary.ExecutionSessionID(request.OwnerID, request.RunID)
+	turnID := secretary.ExecutionTurnID(request.OwnerID, request.RunID)
+	result := secretary.ExecutionResult{SessionID: sessionID}
 	if request.BeforePrompt != nil {
-		if err = request.BeforePrompt(ctx, agent.AgentID, sessionID); err != nil {
+		if err := request.BeforePrompt(ctx, agent.AgentID, sessionID); err != nil {
 			return result, err
 		}
+	}
+	capability := ""
+	var err error
+	if request.Job.SourceID != "" {
+		var cleanup func()
+		capability, cleanup, err = s.registerSecretaryTools(ctx, request.Job, agent, sessionID)
+		if err != nil {
+			return result, err
+		}
+		defer cleanup()
 	}
 	runner, release, err := s.claimAgentConversationRunner(
 		ctx,
@@ -90,12 +120,15 @@ func (s *Service) executeOwnedSecretaryAgent(
 	}
 	defer release()
 	conversation := conversationSession{managerID: sessionID, nativeID: session.NativeID}
-	if session.NativeID == "" {
+	if session.NativeID == "" || capability != "" {
 		conversation, err = s.createConversationSession(
 			ctx,
 			principal,
 			&runner,
-			conversationRequest{ApprovalMode: domain.SessionApprovalModeManual},
+			conversationRequest{
+				ApprovalMode:        domain.SessionApprovalModeManual,
+				secretaryCapability: capability,
+			},
 		)
 		if err != nil {
 			return result, err
@@ -132,7 +165,11 @@ func (s *Service) executeOwnedSecretaryAgent(
 		return result, secretary.ErrExecutionIncomplete
 	}
 	result.Text, _, _, err = s.readSecretaryExecution(ctx, agent.AgentID, sessionID, turnID)
-	return result, err
+	if err != nil {
+		return result, err
+	}
+	result.Reads = s.secretaryToolsReads(capability)
+	return s.finishSecretaryExecution(ctx, request, result)
 }
 
 func cancelSecretaryTurn(ctx context.Context, runner *conversationRunner, sessionID string) {
@@ -156,18 +193,24 @@ func (s *Service) readSecretaryExecution(
 	if err != nil {
 		return "", false, false, err
 	}
-	var output strings.Builder
 	started, completed := false, false
-	for _, message := range messages {
+	responseEnd := len(messages)
+	for index, message := range messages {
 		if message.TurnID != turnID {
 			continue
 		}
 		started = true
 		if message.MessageType == "turn_done" && message.Status == "complete" {
 			completed = true
-			continue
+			responseEnd = index
+			break
 		}
-		if message.Role != "assistant" {
+	}
+	// Tool use can separate commentary from the final assistant response.
+	// A late notification must not replace an already completed response.
+	for index := responseEnd - 1; index >= 0; index-- {
+		message := messages[index]
+		if message.TurnID != turnID || message.Role != "assistant" {
 			continue
 		}
 		parts, partErr := s.store.ListMessageParts(ctx, message.MessageID)
@@ -183,13 +226,13 @@ func (s *Service) readSecretaryExecution(
 		if canonicalErr != nil {
 			return "", started, completed, canonicalErr
 		}
-		output.WriteString(document.Body)
-		if output.Len() > 1024*1024 {
+		if len(document.Body) > 1024*1024 {
 			return "", started, completed, errors.New("secretary response exceeds 1 MiB")
 		}
+		return document.Body, started, completed, nil
 	}
-	if completed && strings.TrimSpace(output.String()) == "" {
+	if completed {
 		return "", started, completed, secretary.ErrNoOutput
 	}
-	return output.String(), started, completed, nil
+	return "", started, completed, nil
 }

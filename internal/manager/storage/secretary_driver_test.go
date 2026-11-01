@@ -37,32 +37,37 @@ func secretaryChangesRows(values ...[]driver.Value) scriptedRows {
 	}
 }
 
+func secretaryMetadataRows(processed, reset int64) scriptedRows {
+	return scriptedRows{
+		columns: []string{"title", "project", "roots", "cwd", "processed", "reset"},
+		values: [][]driver.Value{
+			{"Session", "project", []byte(`["/workspace"]`), "/workspace", processed, reset},
+		},
+	}
+}
+
 func TestSecretaryDriverGivenClaimedSourceWhenLoadedThenReturnsBoundedCanonicalWork(t *testing.T) {
 	for _, mode := range []string{"new", "existing", "noop", "deleted", "oversized"} {
 		t.Run(mode, func(t *testing.T) {
-			changes := secretaryChangesRows([]driver.Value{"message_1", int64(1), "", ""})
 			message := summaryMessageRows("message_1", "old body", "owner_1")
-			queries := []scriptedRows{secretaryCandidateRows(), changes, message}
-			switch mode {
-			case "new":
-				queries = append(queries, summaryEmptyRows(), summaryEmptyRows())
-			case "existing":
+			queries := []scriptedRows{secretaryCandidateRows(), secretaryMetadataRows(0, 0)}
+			if mode == "existing" {
+				head := summaryVersionRows(secretarySummaryID("owner_1", "1"), "owner_1", 1)
+				head.values[0][3] = "fragment"
+				head.values[0][4] = secretarySubject("1")
 				queries = append(
 					queries,
-					scriptedRows{
-						columns: []string{"id", "revision"},
-						values:  [][]driver.Value{{"existing", int64(1)}},
-					},
-					scriptedRows{
-						columns: []string{"id"},
-						values:  [][]driver.Value{{"message_1"}, {"message_2"}},
-					},
+					head,
+					summarySourceRows(),
+					summaryAccessRows("owner_1", "message_1"),
 					message,
-					summaryMessageRows("message_2", "other covered body", "owner_1"),
-					summaryEmptyRows(),
 				)
-			case "noop":
-				queries[1] = secretaryChangesRows(
+			} else {
+				queries = append(queries, summaryEmptyRows())
+			}
+			changes := secretaryChangesRows([]driver.Value{"message_1", int64(1), "", ""})
+			if mode == "noop" {
+				changes = secretaryChangesRows(
 					[]driver.Value{
 						"message_1",
 						int64(1),
@@ -70,18 +75,18 @@ func TestSecretaryDriverGivenClaimedSourceWhenLoadedThenReturnsBoundedCanonicalW
 						domain.SearchCanonicalizationVersion,
 					},
 				)
-				queries = append(queries, summaryEmptyRows())
-			case "deleted":
-				queries[2] = summaryEmptyRows()
-				queries = append(queries, summaryEmptyRows())
-			case "oversized":
-				queries[2] = summaryMessageRows(
+			}
+			if mode == "deleted" {
+				message = summaryEmptyRows()
+			}
+			if mode == "oversized" {
+				message = summaryMessageRows(
 					"message_1",
 					strings.Repeat("x", domain.SecretaryMaxBytes+1),
 					"owner_1",
 				)
-				queries = append(queries, summaryEmptyRows())
 			}
+			queries = append(queries, changes, message)
 			script := &scriptedPostgresScript{queries: queries}
 			store, cleanup := scriptedPostgresStore(t, script)
 			defer cleanup()
@@ -96,11 +101,12 @@ func TestSecretaryDriverGivenClaimedSourceWhenLoadedThenReturnsBoundedCanonicalW
 			assert.NotEmpty(t, jobs[0].LeaseToken)
 			assert.NotEmpty(t, jobs[0].RunID)
 			assert.EqualValues(t, 1, jobs[0].ThroughRevision)
+			assert.Equal(t, "old body", jobs[0].Messages[0].Body)
+			assert.Len(t, jobs[0].Messages, 1)
+			assert.Equal(t, "project", jobs[0].SourceMetadata.PrimaryProjectID)
 			if mode == "existing" {
-				assert.Equal(t, "existing", jobs[0].TargetSummaryID)
-				assert.Len(t, jobs[0].Messages, 2)
-			} else {
-				assert.Equal(t, "old body", jobs[0].Messages[0].Body)
+				require.NotNil(t, jobs[0].CurrentSummary)
+				assert.EqualValues(t, 1, jobs[0].ExpectedRevision)
 			}
 		})
 	}
@@ -144,6 +150,8 @@ func TestSecretaryDriverGivenValidPublicationThenSummaryAndCheckpointCommitToget
 		secretaryGuardRows(),
 		summaryEmptyRows(),
 		summaryEmptyRows(),
+		summaryMessageRows("message_1", "old body", "owner_1"),
+		summaryAccessRows("owner_1", "message_1"),
 		summaryMessageRows("message_1", "old body", "owner_1"),
 	)
 	script := &scriptedPostgresScript{queries: queries}

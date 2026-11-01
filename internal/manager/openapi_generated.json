@@ -3312,6 +3312,33 @@
         ],
         "type": "object"
       },
+      "SecretaryToolRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "arguments_json": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id",
+          "session_id",
+          "capability",
+          "tool",
+          "arguments_json"
+        ],
+        "type": "object"
+      },
       "SessionListData": {
         "properties": {
           "pagination": {
@@ -4681,6 +4708,103 @@
           }
         ],
         "summary": "Pull node agent mailbox",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/agents/{agent_id}/secretary/tools": {
+      "post": {
+        "description": "Read-only search, source reads, and paginated history scoped to an active Secretary lease and an ephemeral execution capability.",
+        "parameters": [
+          {
+            "description": "Selected Secretary agent on the authenticated node.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretaryToolRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Read Secretary sources for an active execution",
         "tags": [
           "node"
         ]

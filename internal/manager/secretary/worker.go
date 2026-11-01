@@ -114,6 +114,10 @@ func (w *Worker) processJob(ctx context.Context, job domain.SecretaryJob) error 
 	if err := w.ensureActive(ctx, job); err != nil {
 		return err
 	}
+	if job.ResetRequired && len(job.Messages) == 0 {
+		_, err := w.store.PublishSecretaryJob(ctx, job, BuildEmptyPublication(job))
+		return err
+	}
 	prompt, err := BuildPrompt(job)
 	if err != nil {
 		return err
@@ -128,6 +132,7 @@ func (w *Worker) processJob(ctx context.Context, job domain.SecretaryJob) error 
 	go w.monitorJob(runCtx, cancel, job, monitorErrors, monitorDone)
 	defer func() { cancel(); <-monitorDone }()
 	result, err := w.executor.Execute(runCtx, ExecutionRequest{
+		Job:     job,
 		OwnerID: job.OwnerUserID, AgentID: job.AgentID, RunID: job.RunID, Prompt: prompt,
 		BeforePrompt: func(promptCtx context.Context, agentID, sessionID string) error {
 			if activeErr := w.ensureActive(promptCtx, job); activeErr != nil {
@@ -147,7 +152,11 @@ func (w *Worker) processJob(ctx context.Context, job domain.SecretaryJob) error 
 	if err = w.ensureActive(runCtx, job); err != nil {
 		return err
 	}
-	request, err := BuildPublication(job, result.Text)
+	request, err := BuildPublicationWithReads(job, result.Text, result.Reads)
+	if err != nil {
+		return err
+	}
+	job.AllowedRelatedMessages, err = RequestedRelatedSources(result.Text)
 	if err != nil {
 		return err
 	}

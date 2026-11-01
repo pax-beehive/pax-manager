@@ -846,3 +846,13 @@ func _runsecretarynowMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _callsecretarytoolMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _secretary0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

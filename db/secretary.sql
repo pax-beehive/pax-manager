@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS secretary_jobs (
     desired_revision BIGINT NOT NULL DEFAULT 1,
     processed_revision BIGINT NOT NULL DEFAULT 0,
     retry_generation BIGINT NOT NULL DEFAULT 0,
+    reset_revision BIGINT NOT NULL DEFAULT 0,
     lease_token TEXT NOT NULL DEFAULT '',
     lease_until TIMESTAMPTZ,
     available_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -26,6 +27,7 @@ CREATE INDEX IF NOT EXISTS secretary_jobs_pending ON secretary_jobs(available_at
     WHERE desired_revision > processed_revision;
 CREATE INDEX IF NOT EXISTS secretary_jobs_owner ON secretary_jobs(owner_user_id);
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS retry_generation BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS reset_revision BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS secretary_message_state (
     source_id BIGINT NOT NULL REFERENCES secretary_jobs(source_id) ON DELETE CASCADE,

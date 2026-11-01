@@ -21,6 +21,14 @@ func secretaryRunID(work domain.SecretaryJob) string {
 			message.SourceID+":"+message.CanonicalizationVersion+":"+message.ContentHash,
 		)
 	}
+	for _, id := range work.RemovedMessageIDs {
+		refs = append(refs, "removed:"+id)
+	}
+	if work.ResetRequired {
+		refs = append(refs, "reset:"+work.ResetReason)
+	}
+	metadata, _ := json.Marshal(work.SourceMetadata)
+	refs = append(refs, "metadata:"+domain.SearchContentHash(string(metadata)))
 	sort.Strings(refs)
 	return "secretary:" + strings.TrimPrefix(
 		domain.SearchContentHash(work.OwnerUserID+":"+work.SourceID+":"+
@@ -36,9 +44,7 @@ func secretaryRunID(work domain.SecretaryJob) string {
 func secretaryPrepareJob(work *domain.SecretaryJob) {
 	work.RunID = secretaryRunID(*work)
 	if work.TargetSummaryID == "" {
-		base := *work
-		base.RetryGeneration = 0
-		work.TargetSummaryID = secretaryRunID(base)
+		work.TargetSummaryID = secretarySummaryID(work.OwnerUserID, work.SourceID)
 	}
 }
 
@@ -46,32 +52,8 @@ func validateSecretaryPublication(
 	work domain.SecretaryJob,
 	request domain.PublishSummaryRequest,
 ) error {
-	if len(work.Messages) == 0 || request.SummaryID != work.TargetSummaryID ||
-		request.RequestID != work.RunID ||
-		request.ExpectedRevision != work.ExpectedRevision ||
-		request.SubjectType != "fragment" ||
-		request.SubjectID != secretarySubject(work.SourceID) ||
-		len(request.Coverage) != len(work.Messages) {
-		return ErrConflict
-	}
-	if err := request.Validate(); err != nil {
-		return err
-	}
-	covered := map[string]bool{}
-	for _, ref := range request.Coverage {
-		covered[ref.Identity()] = true
-	}
-	for _, message := range work.Messages {
-		ref := domain.MessageVersionRef{
-			MessageID:               message.SourceID,
-			ContentHash:             message.ContentHash,
-			CanonicalizationVersion: message.CanonicalizationVersion,
-		}
-		if !covered[ref.Identity()] {
-			return ErrConflict
-		}
-	}
-	return nil
+	_, err := secretaryComposePublication(work, request)
+	return err
 }
 
 func secretaryRequestHash(request domain.PublishSummaryRequest) string {

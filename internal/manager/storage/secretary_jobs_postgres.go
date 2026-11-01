@@ -79,7 +79,7 @@ func (s *PostgresStore) ClaimSecretaryJobs(
 			}
 			continue
 		}
-		if len(job.Messages) == 0 {
+		if len(job.Messages) == 0 && len(job.RemovedMessageIDs) == 0 && !job.ResetRequired {
 			if _, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET processed_revision=$2,lease_token='',lease_until=NULL WHERE source_id=$1`, job.SourceID, job.ThroughRevision); err != nil {
 				return nil, err
 			}
@@ -121,51 +121,29 @@ func loadSecretaryChanges(
 }
 
 func loadSecretaryJob(ctx context.Context, tx *sql.Tx, job *domain.SecretaryJob) error {
+	if err := loadSecretaryRollingBaseline(ctx, tx, job); err != nil {
+		return err
+	}
 	changes, err := loadSecretaryChanges(ctx, tx, job.SourceID)
 	if err != nil {
 		return err
 	}
 	through := job.ThroughRevision
 	job.ThroughRevision = 0
-	blockIDs := map[string]bool{}
 	size := 0
 	for _, change := range changes {
 		doc, readErr := loadSearchMessage(ctx, tx, change.id)
 		if errors.Is(readErr, ErrNotFound) {
-			job.ThroughRevision = change.revision
-			continue
-		}
-		if readErr != nil {
+			if change.hash != "" {
+				job.RemovedMessageIDs = append(job.RemovedMessageIDs, change.id)
+			}
+		} else if readErr != nil {
 			return readErr
-		}
-		if doc.OwnerUserID != job.OwnerUserID {
+		} else if doc.OwnerUserID != job.OwnerUserID {
 			return ErrNotFound
-		}
-		if doc.ContentHash == change.hash && doc.CanonicalizationVersion == change.canonical {
-			job.ThroughRevision = change.revision
-			continue
-		}
-		if len(job.Messages) == 0 {
-			if err = loadSecretaryExistingBlock(ctx, tx, job, change.id); err != nil {
-				return err
-			}
-			for _, member := range job.Messages {
-				blockIDs[member.SourceID] = true
-				size += len(member.Body)
-			}
-		}
-		if job.TargetSummaryID != "" {
-			if !blockIDs[change.id] {
-				break
-			}
-		} else {
-			boundary, boundaryErr := secretaryBlockBoundary(ctx, tx, *job, change.id)
-			if boundaryErr != nil {
-				return boundaryErr
-			}
-			if boundary {
-				break
-			}
+		} else if doc.AgentID != job.SourceAgentID || doc.SessionID != job.SourceSessionID {
+			job.RemovedMessageIDs = append(job.RemovedMessageIDs, change.id)
+		} else if doc.ContentHash != change.hash || doc.CanonicalizationVersion != change.canonical {
 			if len(job.Messages) > 0 && size+len(doc.Body) > domain.SecretaryMaxBytes {
 				break
 			}
@@ -177,124 +155,8 @@ func loadSecretaryJob(ctx context.Context, tx *sql.Tx, job *domain.SecretaryJob)
 	if job.ThroughRevision == 0 {
 		job.ThroughRevision = through
 	}
-	if err = secretaryWithinBounds(job.Messages); err != nil {
-		return err
-	}
-	job.PreviousSummaries, err = loadSecretaryPrevious(ctx, tx, *job)
-	return err
-}
-
-func secretaryBlockBoundary(
-	ctx context.Context,
-	tx *sql.Tx,
-	job domain.SecretaryJob,
-	id string,
-) (bool, error) {
-	if len(job.Messages) == 0 {
-		return false, nil
-	}
-	existing := domain.SecretaryJob{OwnerUserID: job.OwnerUserID, SourceID: job.SourceID}
-	err := loadSecretaryExistingBlock(ctx, tx, &existing, id)
-	return existing.TargetSummaryID != "", err
-}
-
-func loadSecretaryExistingBlock(
-	ctx context.Context,
-	tx *sql.Tx,
-	job *domain.SecretaryJob,
-	messageID string,
-) error {
-	err := tx.QueryRowContext(ctx, `SELECT v.summary_id,v.revision FROM summary_versions v
- JOIN summary_sources src USING(summary_id,revision)
- WHERE v.owner_user_id=$1 AND v.subject_type='fragment' AND v.subject_id=$2 AND src.message_id=$3
- AND NOT EXISTS(SELECT 1 FROM summary_versions newer WHERE newer.summary_id=v.summary_id AND newer.revision>v.revision)
- ORDER BY v.created_at DESC LIMIT 1`, job.OwnerUserID, secretarySubject(job.SourceID), messageID).Scan(&job.TargetSummaryID, &job.ExpectedRevision)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	rows, err := tx.QueryContext(
-		ctx,
-		`SELECT message_id FROM summary_sources WHERE summary_id=$1 AND revision=$2 AND source_kind='message' ORDER BY source_order`,
-		job.TargetSummaryID,
-		job.ExpectedRevision,
-	)
-	if err != nil {
-		return err
-	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
-			_ = rows.Close()
-			return err
-		}
-		ids = append(ids, id)
-	}
-	if err = rows.Err(); err != nil {
-		_ = rows.Close()
-		return err
-	}
-	_ = rows.Close()
-	for _, id := range ids {
-		doc, readErr := loadSearchMessage(ctx, tx, id)
-		if errors.Is(readErr, ErrNotFound) {
-			continue
-		}
-		if readErr != nil {
-			return readErr
-		}
-		if doc.OwnerUserID != job.OwnerUserID {
-			return ErrNotFound
-		}
-		job.Messages = append(job.Messages, doc)
-	}
+	secretaryFinalizeDelta(job)
 	return secretaryWithinBounds(job.Messages)
-}
-
-func loadSecretaryPrevious(
-	ctx context.Context,
-	tx *sql.Tx,
-	job domain.SecretaryJob,
-) ([]domain.SummaryVersion, error) {
-	rows, err := tx.QueryContext(
-		ctx,
-		`SELECT summary_id,max(revision) FROM summary_versions WHERE owner_user_id=$1
- AND subject_type='fragment' AND subject_id=$2 GROUP BY summary_id ORDER BY max(created_at) DESC LIMIT 10`,
-		job.OwnerUserID,
-		secretarySubject(job.SourceID),
-	)
-	if err != nil {
-		return nil, err
-	}
-	var refs []domain.SummaryRef
-	for rows.Next() {
-		var ref domain.SummaryRef
-		if err = rows.Scan(&ref.SummaryID, &ref.Revision); err != nil {
-			_ = rows.Close()
-			return nil, err
-		}
-		refs = append(refs, ref)
-	}
-	if err = rows.Err(); err != nil {
-		_ = rows.Close()
-		return nil, err
-	}
-	_ = rows.Close()
-	var result []domain.SummaryVersion
-	for _, ref := range refs {
-		value, readErr := getSummaryTx(ctx, tx, job.OwnerUserID, ref.SummaryID, ref.Revision)
-		if errors.Is(readErr, ErrNotFound) {
-			continue
-		}
-		if readErr != nil {
-			return nil, readErr
-		}
-		result = append(result, value)
-	}
-	return result, nil
 }
 
 func (s *PostgresStore) SecretaryJobActive(

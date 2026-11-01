@@ -14,7 +14,8 @@ func (s *PostgresStore) PublishSecretaryJob(
 	job domain.SecretaryJob,
 	request domain.PublishSummaryRequest,
 ) (domain.SummaryVersion, error) {
-	if err := validateSecretaryPublication(job, request); err != nil {
+	request, err := secretaryComposePublication(job, request)
+	if err != nil {
 		return domain.SummaryVersion{}, err
 	}
 	for range 3 {
@@ -62,6 +63,11 @@ func (s *PostgresStore) publishSecretaryJob(
 			job.OwnerUserID,
 		)
 		if err != nil {
+			return domain.SummaryVersion{}, err
+		}
+	}
+	for _, id := range job.RemovedMessageIDs {
+		if _, err = tx.ExecContext(ctx, `UPDATE secretary_message_state SET processed_hash='',processed_canonicalization_version='',processed_owner_user_id='' WHERE source_id=$1 AND message_id=$2`, job.SourceID, id); err != nil {
 			return domain.SummaryVersion{}, err
 		}
 	}
@@ -134,8 +140,11 @@ func insertSecretarySummary(
 		if readErr != nil {
 			return domain.SummaryVersion{}, readErr
 		}
-		if doc.AgentID != job.SourceAgentID || doc.SessionID != job.SourceSessionID {
-			return domain.SummaryVersion{}, ErrConflict
+		for _, required := range job.Messages {
+			if secretaryReference(required).Identity() == ref.Identity() &&
+				(doc.AgentID != job.SourceAgentID || doc.SessionID != job.SourceSessionID) {
+				return domain.SummaryVersion{}, ErrConflict
+			}
 		}
 		frozen = append(frozen, doc)
 	}
@@ -161,6 +170,9 @@ func insertSecretarySummary(
 		CreatedAt:      createdAt,
 	}
 	if err = insertSummaryTx(ctx, tx, request, hash, result, frozen); err != nil {
+		return domain.SummaryVersion{}, err
+	}
+	if err = validateSummaryAccess(ctx, tx, job.OwnerUserID, result.SummaryID, result.Revision); err != nil {
 		return domain.SummaryVersion{}, err
 	}
 	return result, nil

@@ -45,7 +45,7 @@ func TestSummaryPromptGivenFullSourcesThenCarriesExactBodyAndTreatsHistoryAsData
 		{
 			Title:       "Earlier",
 			Body:        "Earlier progress",
-			SummaryID:   "previous",
+			SummaryID:   job.TargetSummaryID,
 			Revision:    1,
 			OwnerUserID: job.OwnerUserID,
 		},
@@ -57,6 +57,7 @@ func TestSummaryPromptGivenFullSourcesThenCarriesExactBodyAndTreatsHistoryAsData
 			OwnerUserID: "other",
 		},
 	}
+	job.CurrentSummary = &job.PreviousSummaries[0]
 	prompt, err := BuildPrompt(job)
 	require.NoError(t, err)
 	assert.Contains(t, prompt, "untrusted data")
@@ -65,9 +66,8 @@ func TestSummaryPromptGivenFullSourcesThenCarriesExactBodyAndTreatsHistoryAsData
 	assert.NotContains(t, prompt, "Foreign private progress")
 	assert.Contains(t, prompt, "message-1")
 	job.PreviousSummaries[0].Body = strings.Repeat("x", 70*1024)
-	prompt, err = BuildPrompt(job)
-	require.NoError(t, err)
-	assert.NotContains(t, prompt, job.PreviousSummaries[0].Body)
+	_, err = BuildPrompt(job)
+	require.Error(t, err, "an oversized baseline must not be silently truncated")
 }
 
 func TestSummaryPromptGivenInvalidOrOversizedSourcesThenNeverTruncatesCoverage(t *testing.T) {

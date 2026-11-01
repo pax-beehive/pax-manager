@@ -64,6 +64,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 043 | resolved | [Long approval fingerprints overflow the grant lookup index](043-approval-fingerprint-index-overflow.md) | high | storage |
 
 | 045 | resolved | [Late artifact publications appear after their turn footer](045-artifact-turn-placement.md) | medium | paxd / history / storage / Console |
+| 046 | open | [Legacy container test assumes an active mailbox poller](046-legacy-container-mailbox-runtime.md) | medium | integration / deployment |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 

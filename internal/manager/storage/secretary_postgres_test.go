@@ -75,7 +75,8 @@ func TestSecretaryPostgresGivenPublicationThenCoverageCheckpointsAndVersionCommi
 	next := secretaryClaim(t, store)
 	require.Len(t, next.Messages, 1)
 	assert.Equal(t, "m2", next.Messages[0].SourceID)
-	assert.Len(t, next.PreviousSummaries, 1)
+	assert.Empty(t, next.PreviousSummaries)
+	require.NotNil(t, next.CurrentSummary)
 	_, err = store.PublishSecretaryJob(t.Context(), next, secretaryPublication(next))
 	require.NoError(t, err)
 	_, err = store.db.ExecContext(
@@ -85,10 +86,10 @@ func TestSecretaryPostgresGivenPublicationThenCoverageCheckpointsAndVersionCommi
 	require.NoError(t, err)
 	updated := secretaryClaim(t, store)
 	assert.Equal(t, first.SummaryID, updated.TargetSummaryID)
-	assert.EqualValues(t, 1, updated.ExpectedRevision)
+	assert.EqualValues(t, 2, updated.ExpectedRevision)
 	second, err := store.PublishSecretaryJob(t.Context(), updated, secretaryPublication(updated))
 	require.NoError(t, err)
-	assert.EqualValues(t, 2, second.Revision)
+	assert.EqualValues(t, 3, second.Revision)
 	old, err := store.ReadMessageVersion(t.Context(), "owner", first.Coverage[0])
 	require.NoError(t, err)
 	assert.Equal(t, "original", old.Body)
@@ -106,7 +107,7 @@ func TestSecretaryPostgresGivenPublicationThenCoverageCheckpointsAndVersionCommi
 		secretaryPublication(reverted),
 	)
 	require.NoError(t, publishErr)
-	assert.EqualValues(t, 3, third.Revision)
+	assert.EqualValues(t, 4, third.Revision)
 	_, err = store.db.ExecContext(
 		t.Context(),
 		`UPDATE messages SET updated_at=NOW() WHERE message_id='m1';`,
@@ -121,7 +122,9 @@ func TestSecretaryPostgresGivenPublicationThenCoverageCheckpointsAndVersionCommi
 	assert.ErrorIs(t, err, ErrNotFound)
 	jobs, err = store.ClaimSecretaryJobs(t.Context(), 1, time.Minute, 0)
 	require.NoError(t, err)
-	assert.Empty(t, jobs)
+	require.Len(t, jobs, 1)
+	assert.True(t, jobs[0].ResetRequired)
+	assert.Nil(t, jobs[0].CurrentSummary)
 }
 
 func TestSecretaryPostgresGivenDisableWhenInFlightThenPublicationIsFencedAtomically(t *testing.T) {

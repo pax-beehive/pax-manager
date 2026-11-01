@@ -41,6 +41,10 @@ func Register(r *server.Hertz) {
 							_approvals.GET("/:approval_id", append(_getnodeagentapprovalMw(), handler.GetNodeAgentApproval)...)
 						}
 						{
+							_secretary := _agent_id.Group("/secretary", _secretaryMw()...)
+							_secretary.POST("/tools", append(_callsecretarytoolMw(), handler.CallSecretaryTool)...)
+						}
+						{
 							_sessions := _agent_id.Group("/sessions", _sessionsMw()...)
 							_sessions.POST("/register", append(_registernodesessionMw(), handler.RegisterNodeSession)...)
 							{
@@ -232,9 +236,9 @@ func Register(r *server.Hertz) {
 						_search.POST("/summaries", append(_publishworkspacesummaryMw(), handler.PublishWorkspaceSummary)...)
 					}
 					{
-						_secretary := _user_id.Group("/secretary", _secretaryMw()...)
-						_secretary.GET("/progress", append(_getsecretaryprogressMw(), handler.GetSecretaryProgress)...)
-						_secretary.POST("/run", append(_runsecretarynowMw(), handler.RunSecretaryNow)...)
+						_secretary0 := _user_id.Group("/secretary", _secretary0Mw()...)
+						_secretary0.GET("/progress", append(_getsecretaryprogressMw(), handler.GetSecretaryProgress)...)
+						_secretary0.POST("/run", append(_runsecretarynowMw(), handler.RunSecretaryNow)...)
 					}
 					{
 						_secrets0 := _user_id.Group("/secrets", _secrets0Mw()...)
