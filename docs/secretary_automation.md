@@ -45,14 +45,22 @@ therefore remain detectable. Boundaries between transport parts do not create
 another logical message. Metadata-only changes that leave canonical text intact
 do not invoke the agent again.
 
-Each batch contains at most 64 new or changed complete visible messages and
-128 KiB of source text. It separately carries at most 64 removed message IDs.
-Source messages are never silently truncated. Oversized input remains
-failed/retryable and does not advance the checkpoint.
+Each batch contains at most 64 new or changed canonical visible messages and
+128 KiB of text exposed to the model. It separately carries at most 64 removed
+message IDs. User messages expose full text; assistant messages use the existing
+last view, the last natural paragraph of each message. This is not a transport
+part or the final complete assistant reply of a turn. Every input names its
+view, available views, real turn ID when present, and full source version.
+
+Complete canonical bodies and coverage snapshots remain intact, with a separate
+8 MiB source-body budget and a SQL serialized-load guard before full transfer.
+Oversized input fails without advancing the checkpoint. Quotes must occur in
+the supplied view or an exact, signed, verified expanded read. Recovering a
+completed response also reverifies its own-delta expansion receipts.
 
 Each owner/source session has one stable rolling summary ID, stored in the
 existing summary tables with subject type `fragment`. The prompt contains the
-current title, body and claims (at most 64 KiB), the raw delta, and existing
+current title, body and claims (at most 64 KiB), the projected delta, and existing
 session metadata (`title`, `primary_project_id`, `cwd`, `workspace_roots`, at most
 16 KiB). Prior coverage arrays and unchanged raw messages are not replayed in
 every prompt. The agent returns a complete replacement summary; publishing
@@ -81,10 +89,13 @@ those previously exposed typed fields can be decoded, but every asserted ref,
 view, and receipt must match server-bound evidence. Supplied IDs must be known
 baseline IDs and are regenerated on publication. Unknown fields and genuine
 evidence mismatches still fail closed. Recovery uses the same completed turn
-and RunID; it does not start another model execution.
+and RunID when settings, input policy, and batch still match. The compact input
+policy is versioned in RunID, so pre-compact executions are not reused as if
+they had seen only the new projected view. A policy or batch change can require
+a new model call, just as disabling/re-enabling changes SettingsRevision.
 
 Each independent source batch uses a fresh native model context containing the
-current summary and raw delta. A new session/new request reuses an existing
+current summary and projected delta. A new session/new request reuses an existing
 ready harness slot; it does not necessarily start another agent process. A
 single indefinitely reused native conversation would retain old source/tool
 history, including removed or no-longer-visible material. Native context reuse
