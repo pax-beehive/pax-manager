@@ -31,3 +31,7 @@ type SummaryListPage struct {
 type SummaryBrowserStore interface {
 	ListCurrentSummaries(context.Context, string, SummaryListQuery) (SummaryListPage, error)
 }
+
+type SummaryRecentBrowserStore interface {
+	ListRecentSummaries(context.Context, string, SummaryListQuery) (SummaryListPage, error)
+}

@@ -10,6 +10,22 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
+func ListSecretarySummaries(c context.Context, ctx *app.RequestContext) {
+	query, ok := developerSummaryListQuery(ctx)
+	if !ok {
+		writeError(ctx, http.StatusBadRequest, "Use cursor and a limit between 1 and 100")
+		return
+	}
+	data, err := serviceFromContext(
+		ctx,
+	).workspaceSearch.ListSecretarySummaries(
+		c,
+		requestMetadata(ctx),
+		query,
+	)
+	writeEndpointResult(ctx, http.StatusOK, data, err)
+}
+
 func ListDeveloperSummaries(c context.Context, ctx *app.RequestContext) {
 	query, ok := developerSummaryListQuery(ctx)
 	if !ok {

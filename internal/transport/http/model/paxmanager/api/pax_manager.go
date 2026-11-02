@@ -75157,6 +75157,8 @@ func (p *SecretaryProgressRequest) String() string {
 }
 
 type PaxManagerAPI interface {
+	ListSecretarySummaries(ctx context.Context, request *DeveloperSummaryListRequest) (r *WorkspaceSearchResponse, err error)
+
 	ListDeveloperSummaries(ctx context.Context, request *DeveloperSummaryListRequest) (r *WorkspaceSearchResponse, err error)
 
 	ReadDeveloperSummary(ctx context.Context, request *DeveloperSummaryReadRequest) (r *WorkspaceSearchResponse, err error)
@@ -75378,6 +75380,15 @@ func (p *PaxManagerAPIClient) Client_() thrift.TClient {
 	return p.c
 }
 
+func (p *PaxManagerAPIClient) ListSecretarySummaries(ctx context.Context, request *DeveloperSummaryListRequest) (r *WorkspaceSearchResponse, err error) {
+	var _args PaxManagerAPIListSecretarySummariesArgs
+	_args.Request = request
+	var _result PaxManagerAPIListSecretarySummariesResult
+	if err = p.Client_().Call(ctx, "ListSecretarySummaries", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) ListDeveloperSummaries(ctx context.Context, request *DeveloperSummaryListRequest) (r *WorkspaceSearchResponse, err error) {
 	var _args PaxManagerAPIListDeveloperSummariesArgs
 	_args.Request = request
@@ -76272,6 +76283,7 @@ func (p *PaxManagerAPIProcessor) ProcessorMap() map[string]thrift.TProcessorFunc
 
 func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self := &PaxManagerAPIProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self.AddToProcessorMap("ListSecretarySummaries", &paxManagerAPIProcessorListSecretarySummaries{handler: handler})
 	self.AddToProcessorMap("ListDeveloperSummaries", &paxManagerAPIProcessorListDeveloperSummaries{handler: handler})
 	self.AddToProcessorMap("ReadDeveloperSummary", &paxManagerAPIProcessorReadDeveloperSummary{handler: handler})
 	self.AddToProcessorMap("GetSecretaryProgress", &paxManagerAPIProcessorGetSecretaryProgress{handler: handler})
@@ -76387,6 +76399,54 @@ func (p *PaxManagerAPIProcessor) Process(ctx context.Context, iprot, oprot thrif
 	oprot.WriteMessageEnd()
 	oprot.Flush(ctx)
 	return false, x
+}
+
+type paxManagerAPIProcessorListSecretarySummaries struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorListSecretarySummaries) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIListSecretarySummariesArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("ListSecretarySummaries", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIListSecretarySummariesResult{}
+	var retval *WorkspaceSearchResponse
+	if retval, err2 = p.handler.ListSecretarySummaries(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ListSecretarySummaries: "+err2.Error())
+		oprot.WriteMessageBegin("ListSecretarySummaries", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("ListSecretarySummaries", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
 }
 
 type paxManagerAPIProcessorListDeveloperSummaries struct {
@@ -81043,6 +81103,300 @@ func (p *paxManagerAPIProcessorTestNotificationReceiver) Process(ctx context.Con
 		return
 	}
 	return true, err
+}
+
+type PaxManagerAPIListSecretarySummariesArgs struct {
+	Request *DeveloperSummaryListRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIListSecretarySummariesArgs() *PaxManagerAPIListSecretarySummariesArgs {
+	return &PaxManagerAPIListSecretarySummariesArgs{}
+}
+
+func (p *PaxManagerAPIListSecretarySummariesArgs) InitDefault() {
+}
+
+var PaxManagerAPIListSecretarySummariesArgs_Request_DEFAULT *DeveloperSummaryListRequest
+
+func (p *PaxManagerAPIListSecretarySummariesArgs) GetRequest() (v *DeveloperSummaryListRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIListSecretarySummariesArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIListSecretarySummariesArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIListSecretarySummariesArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIListSecretarySummariesArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListSecretarySummariesArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListSecretarySummariesArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewDeveloperSummaryListRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListSecretarySummariesArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListSecretarySummaries_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListSecretarySummariesArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListSecretarySummariesArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListSecretarySummariesArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIListSecretarySummariesResult struct {
+	Success *WorkspaceSearchResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIListSecretarySummariesResult() *PaxManagerAPIListSecretarySummariesResult {
+	return &PaxManagerAPIListSecretarySummariesResult{}
+}
+
+func (p *PaxManagerAPIListSecretarySummariesResult) InitDefault() {
+}
+
+var PaxManagerAPIListSecretarySummariesResult_Success_DEFAULT *WorkspaceSearchResponse
+
+func (p *PaxManagerAPIListSecretarySummariesResult) GetSuccess() (v *WorkspaceSearchResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIListSecretarySummariesResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIListSecretarySummariesResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIListSecretarySummariesResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIListSecretarySummariesResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIListSecretarySummariesResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListSecretarySummariesResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewWorkspaceSearchResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIListSecretarySummariesResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ListSecretarySummaries_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListSecretarySummariesResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIListSecretarySummariesResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIListSecretarySummariesResult(%+v)", *p)
+
 }
 
 type PaxManagerAPIListDeveloperSummariesArgs struct {

@@ -52,14 +52,16 @@ func loadSearchDocument(
 	}
 }
 
-const searchMessageVisibilitySQL = `
+const searchMessageVisibilityFromSQL = `
  FROM messages m
  JOIN agents a ON a.agent_id = m.agent_id
  LEFT JOIN nodes an ON an.node_id = a.node_id
  LEFT JOIN nodes mn ON mn.node_id = m.node_id
  LEFT JOIN agent_sessions s ON s.agent_id = m.agent_id AND s.session_id = m.session_id
- LEFT JOIN nodes sn ON sn.node_id = s.node_id
- WHERE m.message_id = $1 AND a.deleted_at IS NULL
+ LEFT JOIN nodes sn ON sn.node_id = s.node_id`
+
+const searchMessageVisibilityConditionsSQL = `
+ AND a.deleted_at IS NULL
  AND an.deleted_at IS NULL AND mn.deleted_at IS NULL AND sn.deleted_at IS NULL
  AND s.archived_at IS NULL
  AND COALESCE(s.source,'') <> 'secretary_internal'
@@ -78,6 +80,9 @@ const searchMessageVisibilitySQL = `
      ELSE display.parent_message_id = m.message_id END
  )`
 
+const searchMessageVisibilitySQL = searchMessageVisibilityFromSQL +
+	` WHERE m.message_id = $1` + searchMessageVisibilityConditionsSQL
+
 func loadSearchMessage(
 	ctx context.Context,
 	tx *sql.Tx,
@@ -89,9 +94,6 @@ func loadSearchMessage(
 func loadSearchMessageWithByteLimit(
 	ctx context.Context, tx *sql.Tx, messageID string, byteLimit int,
 ) (domain.SearchDocument, error) {
-	var messageJSON, partsJSON []byte
-	var ownerID string
-	var revision int64
 	messageProjection := `to_jsonb(m)`
 	partsProjection := `COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.part_index) FROM message_parts p WHERE p.message_id=m.message_id),'[]'::jsonb)`
 	args := []any{messageID}
@@ -104,10 +106,20 @@ func loadSearchMessageWithByteLimit(
 		partsProjection = `CASE WHEN ` + within + ` THEN ` + partsProjection + ` END`
 		args = append(args, byteLimit)
 	}
-	err := tx.QueryRowContext(ctx, `SELECT `+messageProjection+`, a.owner_user_id,
+	row := tx.QueryRowContext(ctx, `SELECT `+messageProjection+`, a.owner_user_id,
  `+partsProjection+`,
  COALESCE((SELECT desired_revision FROM search_sync_state WHERE kind='message' AND source_id=m.message_id),0)`+
-		searchMessageVisibilitySQL, args...).Scan(&messageJSON, &ownerID, &partsJSON, &revision)
+		searchMessageVisibilitySQL, args...)
+	return scanCanonicalSearchMessage(row, byteLimit)
+}
+
+func scanCanonicalSearchMessage(
+	row interface{ Scan(...any) error }, byteLimit int,
+) (domain.SearchDocument, error) {
+	var messageJSON, partsJSON []byte
+	var ownerID string
+	var revision int64
+	err := row.Scan(&messageJSON, &ownerID, &partsJSON, &revision)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.SearchDocument{}, ErrNotFound
 	}

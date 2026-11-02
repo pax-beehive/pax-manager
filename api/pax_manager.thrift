@@ -1587,6 +1587,13 @@ struct SecretaryProgressRequest {
 }
 
 service PaxManagerAPI {
+  WorkspaceSearchResponse ListSecretarySummaries(1: optional DeveloperSummaryListRequest request) (
+    api.get = "/api/v1/user/:user_id/secretary/summaries",
+    openapi.tag = "user",
+    openapi.summary = "Browse current owned summary results",
+    openapi.description = "Lists current owned summaries directly from PostgreSQL without administrator access or Elasticsearch. Current source visibility is revalidated. Limit defaults to 20 and is capped at 100. Ordered by current revision creation time descending and summary ID descending with an opaque owner-bound cursor. Inaccessible candidates may produce an empty page with a next cursor. Read full bodies, claims and exact source references through the existing search/read endpoint."
+  )
+
   WorkspaceSearchResponse ListDeveloperSummaries(1: optional DeveloperSummaryListRequest request) (
     api.get = "/api/v1/user/:user_id/developer/summaries",
     openapi.tag = "user",
