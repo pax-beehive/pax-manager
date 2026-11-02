@@ -206,7 +206,13 @@ prevents fenced work from committing after the settings change. Already complete
 summaries remain available. Disabling retains unfinished work for later use.
 
 Stable run/turn IDs let a transient publication retry reuse an already completed
-agent response. Explicit Run now/Retry rotates the durable retry generation for
+agent response only while the settings revision, batch, and retry generation
+remain unchanged. Every settings save increments its revision and fences old
+work. Disabling and later re-enabling therefore creates new run/turn IDs; it
+does not recover old completed responses automatically. Pending source work and
+published summaries are retained, and remaining work runs under the new setting.
+Do not bypass the settings fence to recover a previous execution.
+Explicit Run now/Retry rotates the durable retry generation for
 inactive pending work so malformed or interrupted output can be regenerated.
 The target summary identity remains stable across source updates and retries.
 Set a stable `SEARCH_READ_RECEIPT_SECRET` across Manager restarts when using
