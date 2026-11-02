@@ -154,8 +154,11 @@ checks still apply, and the next own-session update or explicit retry can rebuil
 an unreadable baseline.
 
 Internal execution sessions are registered before the first prompt and excluded
-from collection and ordinary search, preventing recursive summarization and
-duplicated source text in results. Their owner can still open a work session
+from collection, ordinary search, and user-facing session lists. List filtering
+applies before counting and pagination, including per-agent and node-agent lists.
+The internal source marker, reserved `sess_secretary_` prefix, and durable
+agent/session registry each hide work sessions even if later native metadata
+replaces one of the other markers. Their owner can still open a work session
 directly for diagnostics. Normal manual permission
 handling remains in force; this feature does not autoapprove agent tools.
 

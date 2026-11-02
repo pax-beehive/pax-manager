@@ -2002,6 +2002,7 @@ func (s *PostgresStore) ListAgentSessions(
 	agentID string,
 ) ([]AgentSession, error) {
 	query := sessionSelectSQL + ` JOIN agents a ON a.agent_id = agent_sessions.agent_id WHERE agent_sessions.agent_id = $1 AND a.deleted_at IS NULL AND agent_sessions.archived_at IS NULL`
+	query += ` AND ` + userSessionListVisibleSQL
 	query += ` AND (
 		a.owner_user_id = $2
 		OR ` + teamAgentAccessSQL("a.agent_id", "$2") + `
@@ -2028,6 +2029,7 @@ func (s *PostgresStore) ListSessions(
 	args := []any{principal.User.UserID}
 	clauses := []string{
 		"a.deleted_at IS NULL",
+		userSessionListVisibleSQL,
 		`(
 			a.owner_user_id = $1
 			OR ` + teamAgentAccessSQL("a.agent_id", "$1") + `
