@@ -133,7 +133,7 @@ func (c *Client) request(ctx context.Context, method, path string, body any) ([]
 
 func (c *Client) EnsureIndex(ctx context.Context) error {
 	properties := map[string]any{}
-	for _, name := range []string{"doc_id", "kind", "source_id", "owner_user_id", "agent_id", "session_id", "conversation_id", "role", "content_hash", "canonicalization_version"} {
+	for _, name := range []string{"group_key", "doc_id", "kind", "source_id", "owner_user_id", "agent_id", "session_id", "conversation_id", "role", "content_hash", "canonicalization_version"} {
 		properties[name] = map[string]string{"type": "keyword"}
 	}
 	properties["body"] = map[string]string{"type": "wildcard"}
@@ -155,12 +155,16 @@ func (c *Client) EnsureIndex(ctx context.Context) error {
 	var backendErr *backendError
 	if errors.As(err, &backendErr) && backendErr.status == 400 &&
 		backendErr.kind == "resource_already_exists_exception" {
-		return nil
+		_, err = c.request(ctx, http.MethodPut, "/"+c.index+"/_mapping", map[string]any{
+			"properties": map[string]any{"group_key": map[string]string{"type": "keyword"}},
+		})
+		return err
 	}
 	return err
 }
 
 type record struct {
+	GroupKey                string    `json:"group_key,omitempty"`
 	DocID                   string    `json:"doc_id"`
 	Kind                    string    `json:"kind"`
 	SourceID                string    `json:"source_id"`
@@ -182,6 +186,7 @@ type record struct {
 
 func toRecord(d domain.SearchDocument) record {
 	r := record{
+		GroupKey:                domain.SearchDocumentGroupKey(d),
 		DocID:                   d.DocumentID(),
 		Kind:                    d.Kind,
 		SourceID:                d.SourceID,
@@ -213,6 +218,7 @@ func toRecord(d domain.SearchDocument) record {
 }
 func (r record) document() domain.SearchDocument {
 	return domain.SearchDocument{
+		GroupKey:                r.GroupKey,
 		Kind:                    r.Kind,
 		SourceID:                r.SourceID,
 		OwnerUserID:             r.OwnerUserID,

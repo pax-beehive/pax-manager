@@ -70357,6 +70357,8 @@ type WorkspaceSearchRequest struct {
 	SessionIds []string `thrift:"session_ids,4,optional,list<string>" form:"session_ids" json:"session_ids,omitempty" query:"session_ids"`
 	Cursor     *string  `thrift:"cursor,5,optional" form:"cursor" json:"cursor,omitempty" query:"cursor"`
 	Limit      *int32   `thrift:"limit,6,optional" form:"limit" json:"limit,omitempty" query:"limit"`
+	GroupBy    *string  `thrift:"group_by,7,optional" form:"group_by" json:"group_by,omitempty" query:"group_by"`
+	GroupKey   *string  `thrift:"group_key,8,optional" form:"group_key" json:"group_key,omitempty" query:"group_key"`
 }
 
 func NewWorkspaceSearchRequest() *WorkspaceSearchRequest {
@@ -70415,6 +70417,24 @@ func (p *WorkspaceSearchRequest) GetLimit() (v int32) {
 	return *p.Limit
 }
 
+var WorkspaceSearchRequest_GroupBy_DEFAULT string
+
+func (p *WorkspaceSearchRequest) GetGroupBy() (v string) {
+	if !p.IsSetGroupBy() {
+		return WorkspaceSearchRequest_GroupBy_DEFAULT
+	}
+	return *p.GroupBy
+}
+
+var WorkspaceSearchRequest_GroupKey_DEFAULT string
+
+func (p *WorkspaceSearchRequest) GetGroupKey() (v string) {
+	if !p.IsSetGroupKey() {
+		return WorkspaceSearchRequest_GroupKey_DEFAULT
+	}
+	return *p.GroupKey
+}
+
 var fieldIDToName_WorkspaceSearchRequest = map[int16]string{
 	1: "user_id",
 	2: "query",
@@ -70422,6 +70442,8 @@ var fieldIDToName_WorkspaceSearchRequest = map[int16]string{
 	4: "session_ids",
 	5: "cursor",
 	6: "limit",
+	7: "group_by",
+	8: "group_key",
 }
 
 func (p *WorkspaceSearchRequest) IsSetUserID() bool {
@@ -70442,6 +70464,14 @@ func (p *WorkspaceSearchRequest) IsSetCursor() bool {
 
 func (p *WorkspaceSearchRequest) IsSetLimit() bool {
 	return p.Limit != nil
+}
+
+func (p *WorkspaceSearchRequest) IsSetGroupBy() bool {
+	return p.GroupBy != nil
+}
+
+func (p *WorkspaceSearchRequest) IsSetGroupKey() bool {
+	return p.GroupKey != nil
 }
 
 func (p *WorkspaceSearchRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -70508,6 +70538,22 @@ func (p *WorkspaceSearchRequest) Read(iprot thrift.TProtocol) (err error) {
 		case 6:
 			if fieldTypeId == thrift.I32 {
 				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 8:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField8(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -70638,6 +70684,28 @@ func (p *WorkspaceSearchRequest) ReadField6(iprot thrift.TProtocol) error {
 	p.Limit = _field
 	return nil
 }
+func (p *WorkspaceSearchRequest) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.GroupBy = _field
+	return nil
+}
+func (p *WorkspaceSearchRequest) ReadField8(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.GroupKey = _field
+	return nil
+}
 
 func (p *WorkspaceSearchRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -70667,6 +70735,14 @@ func (p *WorkspaceSearchRequest) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField6(oprot); err != nil {
 			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
+			goto WriteFieldError
+		}
+		if err = p.writeField8(oprot); err != nil {
+			fieldId = 8
 			goto WriteFieldError
 		}
 	}
@@ -70813,6 +70889,44 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *WorkspaceSearchRequest) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetGroupBy() {
+		if err = oprot.WriteFieldBegin("group_by", thrift.STRING, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.GroupBy); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *WorkspaceSearchRequest) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetGroupKey() {
+		if err = oprot.WriteFieldBegin("group_key", thrift.STRING, 8); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.GroupKey); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 end error: ", p), err)
 }
 
 func (p *WorkspaceSearchRequest) String() string {

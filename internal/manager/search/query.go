@@ -29,6 +29,8 @@ type cursor struct {
 func normalizeQuery(q domain.SearchQuery) (domain.SearchQuery, error) {
 	terms := domain.SearchTerms(q.Query)
 	if strings.TrimSpace(q.OwnerUserID) == "" || strings.TrimSpace(q.Query) == "" ||
+		(q.GroupBy != "" && q.GroupBy != "session") || len(q.GroupKey) > 256 ||
+		(q.GroupBy != "" && q.GroupKey != "") ||
 		len(q.Query) > 4096 ||
 		len(terms) == 0 || len(terms) > domain.MaxSearchTerms ||
 		len(q.Cursor) > 16384 ||
@@ -52,6 +54,9 @@ func queryFingerprint(q domain.SearchQuery) string {
 	raw, _ := json.Marshal(
 		[]any{rankingVersion, q.OwnerUserID, domain.SearchTerms(q.Query), q.Kinds, q.SessionIDs},
 	)
+	if q.GroupKey != "" {
+		raw = append(raw, []byte("\x00group:"+q.GroupKey)...)
+	}
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
@@ -122,6 +127,9 @@ func searchBody(q domain.SearchQuery, cur cursor) map[string]any {
 	if len(q.SessionIDs) > 0 {
 		filter = append(filter, map[string]any{"terms": map[string]any{"session_id": q.SessionIDs}})
 	}
+	if q.GroupKey != "" {
+		filter = append(filter, map[string]any{"term": map[string]any{"group_key": q.GroupKey}})
+	}
 	terms := domain.SearchTerms(q.Query)
 	literalMatches := make([]any, 0, len(terms))
 	var bonuses []any
@@ -172,6 +180,9 @@ func searchBody(q domain.SearchQuery, cur cursor) map[string]any {
 	if len(cur.After) > 0 {
 		body["search_after"] = cur.After
 	}
+	if q.GroupKey != "" {
+		body["_source"] = groupSourceFields()
+	}
 	return body
 }
 
@@ -194,6 +205,9 @@ func (c *Client) closePIT(ctx context.Context, id string) {
 
 func (c *Client) Search(ctx context.Context, q domain.SearchQuery) (domain.SearchPage, error) {
 	var page domain.SearchPage
+	if q.GroupBy != "" {
+		return page, ErrInvalidQuery
+	}
 	q, err := normalizeQuery(q)
 	if err != nil {
 		return page, err
