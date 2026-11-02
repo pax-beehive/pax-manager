@@ -27,14 +27,14 @@ func (s *WorkspaceSearchService) renderRead(
 ) (WorkspaceMessageRead, error) {
 	view := request.View
 	if view == "" {
-		view = "full"
-		if document.Role == "assistant" {
-			view = "last"
-		}
+		view = domain.DefaultSearchMessageView(document.Role)
 	}
-	text, err := searchMessageView(document.Body, view)
+	text, err := domain.SearchMessageView(document.Body, view)
 	if err != nil {
-		return WorkspaceMessageRead{}, err
+		return WorkspaceMessageRead{}, searchHTTPError(
+			http.StatusBadRequest,
+			"invalid message view",
+		)
 	}
 	limit := request.Limit
 	if limit == 0 {
@@ -49,6 +49,7 @@ func (s *WorkspaceSearchService) renderRead(
 		MessageID:      document.SourceID,
 		AgentID:        document.AgentID,
 		SessionID:      document.SessionID,
+		TurnID:         document.TurnID,
 		Role:           document.Role,
 		SessionSeq:     document.SessionSeq,
 		ConversationID: document.ConversationID,
@@ -71,27 +72,6 @@ func (s *WorkspaceSearchService) renderRead(
 		searchReadReceipt{Owner: owner, Ref: ref, View: view, Offset: start, Limit: limit},
 	)
 	return read, nil
-}
-
-func searchMessageView(body, view string) (string, error) {
-	switch view {
-	case "full":
-		return body, nil
-	case "first":
-		text := strings.TrimLeft(body, "\r\n \t")
-		if index := strings.Index(text, "\n\n"); index >= 0 {
-			text = text[:index]
-		}
-		return text, nil
-	case "last":
-		text := strings.TrimRight(body, "\r\n \t")
-		if index := strings.LastIndex(text, "\n\n"); index >= 0 {
-			text = text[index+2:]
-		}
-		return text, nil
-	default:
-		return "", searchHTTPError(http.StatusBadRequest, "invalid message view")
-	}
 }
 
 func (s *WorkspaceSearchService) signReceipt(receipt searchReadReceipt) string {
