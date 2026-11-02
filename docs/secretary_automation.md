@@ -158,6 +158,18 @@ The Manager neither infers related sessions nor forces search hits into context.
 History reuses the existing frontend history service with bounded paging;
 `expand` reads more of one message. Search requires ES; PG reads do not.
 
+The draft's workspace_history accepts optional turn_id and view
+(first, last, or full). An explicit turn_id scopes the existing owner/session
+history query to that exact turn before pagination. A full view exposes complete
+visible user/assistant text in bounded pages, excluding tools and reasoning.
+Each returned message preserves its full-body version ref and signed receipt;
+has_more/next_offset indicate continuation of a long message via workspace_read.
+Missing historical turn IDs are not guessed. Existing omitted arguments retain
+their current defaults. The agent-host MCP schema update is in paxd PR 108.
+
+This additive read tool does not by itself change automatic prompt contents.
+That correction is tracked in issue 059 while the last-view unit is clarified.
+
 The node-authenticated route
 `POST /api/v1/node/agents/:agent_id/secretary/tools` also requires a random
 per-execution capability bound to the owner, selected agent, node, internal

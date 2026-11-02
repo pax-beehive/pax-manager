@@ -83,6 +83,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 058 | partial | [Raw-event limits fragment Secretary model batches](058-secretary-raw-event-batch-fragmentation.md) | medium | storage / Secretary batching |
 
+| 059 | partial | [Automatic Secretary bypasses compact input views](059-secretary-default-input-view.md) | high | Secretary / prompt / source reads |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
