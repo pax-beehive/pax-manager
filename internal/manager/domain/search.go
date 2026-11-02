@@ -106,17 +106,27 @@ func CanonicalSearchMessage(message MessageWithParts) (SearchDocument, error) {
 }
 
 func searchVisibleMessage(message MessageWithParts) bool {
+	return SearchVisibleMessageMetadata(message.Message)
+}
+
+// SearchVisibleMessageTypes returns message kinds that can carry searchable text.
+func SearchVisibleMessageTypes() []string {
+	return []string{"", "chat", "text", "assistant_message", "agent_message_chunk", "message_delta",
+		MessageTypeUser, MessageTypePaxUser, MessageTypePaxInvocation,
+		MessageTypePaxInvocationPending, MessageTypePaxArtifact}
+}
+
+// SearchVisibleMessageMetadata checks visibility independently of text parts.
+func SearchVisibleMessageMetadata(message Message) bool {
 	if message.MessageID == "" || (message.Role != "user" && message.Role != "assistant") {
 		return false
 	}
-	switch message.MessageType {
-	case "", "chat", "text", "assistant_message", "agent_message_chunk", "message_delta",
-		MessageTypeUser, MessageTypePaxUser, MessageTypePaxInvocation,
-		MessageTypePaxInvocationPending, MessageTypePaxArtifact:
-		return !searchHiddenEnvelope(message.RawJSON)
-	default:
-		return false
+	for _, kind := range SearchVisibleMessageTypes() {
+		if message.MessageType == kind {
+			return !searchHiddenEnvelope(message.RawJSON)
+		}
 	}
+	return false
 }
 
 func searchHiddenEnvelope(raw json.RawMessage) bool {

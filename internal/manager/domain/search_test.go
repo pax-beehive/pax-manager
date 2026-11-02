@@ -65,3 +65,16 @@ func TestCanonicalSearchMessageGivenInvisibleOrMalformedSourceThenRejectsIt(t *t
 	_, err := CanonicalSearchMessage(base)
 	assert.NoError(t, err)
 }
+
+func TestSearchVisibilityGivenCandidateTypesThenMetadataAndCanonicalPolicyAgree(t *testing.T) {
+	kinds := SearchVisibleMessageTypes()
+	for _, kind := range kinds {
+		message := Message{MessageID: "message", Role: "assistant", MessageType: kind}
+		assert.True(t, SearchVisibleMessageMetadata(message), kind)
+		_, err := CanonicalSearchMessage(MessageWithParts{Message: message,
+			Parts: []MessagePart{{PartType: MessagePartText, Text: "body"}}})
+		assert.NoError(t, err, kind)
+	}
+	kinds[0] = "private"
+	assert.True(t, SearchVisibleMessageMetadata(Message{MessageID: "message", Role: "user"}))
+}
