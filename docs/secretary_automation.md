@@ -73,6 +73,24 @@ summary without a model call; later batches can add remaining safe content.
 Historical versions remain immutable and subject to current access checks.
 No separate session-summary table or local board migration is introduced.
 
+The prompt projects baseline claims into the generated output schema: claim
+text/kind/basis/state and evidence containing message_id/quote. Internal claim
+IDs and stored version/view/receipt structures remain authoritative server data,
+not a second output schema. For recovery, already completed replies that echo
+those previously exposed typed fields can be decoded, but every asserted ref,
+view, and receipt must match server-bound evidence. Supplied IDs must be known
+baseline IDs and are regenerated on publication. Unknown fields and genuine
+evidence mismatches still fail closed. Recovery uses the same completed turn
+and RunID; it does not start another model execution.
+
+Each independent source batch uses a fresh native model context containing the
+current summary and raw delta. A new session/new request reuses an existing
+ready harness slot; it does not necessarily start another agent process. A
+single indefinitely reused native conversation would retain old source/tool
+history, including removed or no-longer-visible material. Native context reuse
+would require explicit context reset and MCP capability rebinding, not merely
+replacing the execution session ID with a constant.
+
 Publishing acquires the settings and job locks, validates the settings revision,
 enabled flag, selected agent, source visibility and lease, then atomically saves
 the summary, every coverage snapshot, per-message hashes and processed revision.

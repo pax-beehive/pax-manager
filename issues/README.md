@@ -79,6 +79,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 056 | resolved | [Secretary progress reads can exhaust database I/O](056-secretary-progress-runaway-query.md) | high | storage / Secretary |
 
+| 057 | resolved | [Rolling summary inputs expose fields rejected in generated output](057-secretary-baseline-output-schema-conflict.md) | high | Secretary / summary validation |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
