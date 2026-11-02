@@ -75,6 +75,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 054 | resolved | [Search treats space-separated keywords as one phrase](054-search-multiple-keywords.md) | medium | search / userapi / MCP |
 
+| 060 | resolved | [Backend failures discard refreshed browser session cookies](060-refreshed-session-cookie-loss.md) | high | auth / Worker / regional gateway |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

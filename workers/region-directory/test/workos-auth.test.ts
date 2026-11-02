@@ -8,6 +8,7 @@ const fake = vi.hoisted(() => ({
   bind: vi.fn(),
   read: vi.fn(),
   lookup: vi.fn(),
+  approve: vi.fn(),
 }));
 vi.mock("@workos-inc/node/worker", () => ({
   WorkOS: class {
@@ -23,6 +24,7 @@ vi.mock("../src/directory", () => ({
   assign: vi.fn(),
   lookupUser: vi.fn(),
 }));
+vi.mock("../src/paxl-login", () => ({ approvePaxlLogin: fake.approve }));
 import {
   authRoute,
   authenticateSession,
@@ -185,6 +187,77 @@ it("refreshes an expired access token and replaces the sealed cookies", async ()
   const result = await authRoute(request("/auth/session", { headers }), env);
   expect(result.status).toBe(200);
   expect(result.headers.get("Set-Cookie")).toContain("rotated");
+});
+function refreshedSession() {
+  fake.loadSealedSession.mockReturnValue({
+    authenticate: vi
+      .fn()
+      .mockResolvedValue({ authenticated: false, reason: "invalid_jwt" }),
+    refresh: vi.fn().mockResolvedValue({
+      authenticated: true,
+      user,
+      sessionId: "s",
+      sealedSession: "rotated",
+    }),
+  });
+}
+it("preserves rotated cookies when identity lookup fails after refreshing", async () => {
+  refreshedSession();
+  fake.read.mockRejectedValue(new Error("directory unavailable"));
+  const result = await authRoute(request("/auth/session", { headers }), env);
+  expect(result.status).toBe(503);
+  expect(result.headers.getSetCookie()).toEqual(sessionCookies("rotated"));
+});
+it("preserves rotated cookies when the session account lookup fails", async () => {
+  refreshedSession();
+  fake.lookup.mockRejectedValue(new Error("directory unavailable"));
+  const result = await authRoute(request("/auth/session", { headers }), env);
+  expect(result.status).toBe(503);
+  expect(result.headers.getSetCookie()).toEqual(sessionCookies("rotated"));
+});
+it("preserves rotated cookies when the Worker identity lookup fails", async () => {
+  refreshedSession();
+  fake.read.mockRejectedValue(new Error("directory unavailable"));
+  const result = await createWorker().fetch(
+    request("/api/pax/api/v1/user/self/me", { headers }),
+    { ...env, WORKOS_BROWSER_ENABLED: "true" },
+  );
+  expect(result.status).toBe(503);
+  expect(result.headers.getSetCookie()).toEqual(sessionCookies("rotated"));
+});
+it("preserves rotated cookies when a Worker operation rejects after authentication", async () => {
+  refreshedSession();
+  fake.approve.mockRejectedValue(new Error("manager unavailable"));
+  const result = await createWorker().fetch(
+    request("/api/v1/region/paxl-login/approve", { method: "POST", headers }),
+    {
+      ...env,
+      WORKOS_BROWSER_ENABLED: "true",
+      BOOTSTRAP_ENABLED: "true",
+      DIRECTORY_SECRET: "d".repeat(40),
+      US_PROVISIONING_SECRET: "u".repeat(40),
+      HK_PROVISIONING_SECRET: "h".repeat(40),
+      US_MANAGER_URL: "https://us.example",
+      HK_MANAGER_URL: "https://hk.example",
+    },
+  );
+  expect(result.status).toBe(503);
+  expect(result.headers.getSetCookie()).toEqual(sessionCookies("rotated"));
+});
+it("preserves rotated cookies when the logout provider is unavailable", async () => {
+  refreshedSession();
+  fake.getLogoutUrl.mockImplementation(() => {
+    throw new Error("provider unavailable");
+  });
+  const result = await authRoute(
+    request("/auth/logout", {
+      method: "POST",
+      headers: { ...headers, Origin: env.PUBLIC_ORIGIN },
+    }),
+    env,
+  );
+  expect(result.status).toBe(503);
+  expect(result.headers.getSetCookie()).toEqual(sessionCookies("rotated"));
 });
 it.each([true, false])(
   "handles refresh failure with retryable=%s without confusing outages with logout",

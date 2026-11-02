@@ -86,6 +86,15 @@ let app: ReturnType<typeof fixture>;
 beforeEach(() => {
   app = fixture();
 });
+it("preserves rotated cookies when the regional account lookup fails", async () => {
+  app.directory.lookup.mockRejectedValue(new Error("database unavailable"));
+  const result = await app.handle(request("/api/pax/api/v1/user/self/me"));
+  expect(result).toBeInstanceOf(Response);
+  expect((result as Response).status).toBe(503);
+  expect((result as Response).headers.getSetCookie()).toEqual([
+    "refreshed=1; Secure",
+  ]);
+});
 function request(
   path: string,
   body?: unknown,

@@ -110,8 +110,13 @@ export async function authenticateSession(request: Request, env: Env) {
     cookies = sessionCookies(refreshed.sealedSession!);
   }
   if (!user.emailVerified) throw new SessionFailure(401, sessionCookies(""));
-  const identity = await readWorkosIdentity(env.DB, user.id);
-  return { identity, subject: user.id, sessionId, cookies };
+  try {
+    const identity = await readWorkosIdentity(env.DB, user.id);
+    return { identity, subject: user.id, sessionId, cookies };
+  } catch {
+    // A successful refresh already retired the browser's previous token.
+    throw new SessionFailure(503, cookies);
+  }
 }
 export function safeReturnTo(value: string | null): string {
   if (
@@ -157,6 +162,7 @@ export async function authRoute(request: Request, env: Env): Promise<Response> {
     const native = nativeCallback(request, env);
     if (native) return native;
   }
+  let refreshedCookies: string[] = [];
   try {
     const client = workos(env);
     if (url.pathname === "/auth/login" && request.method === "GET") {
@@ -230,6 +236,7 @@ export async function authRoute(request: Request, env: Env): Promise<Response> {
     }
     if (url.pathname === "/auth/session" && request.method === "GET") {
       const session = await authenticateSession(request, env);
+      refreshedCookies = session.cookies;
       const { assignment } = await lookup(env.DB, session.identity);
       return withCookies(
         authJSON({
@@ -251,6 +258,7 @@ export async function authRoute(request: Request, env: Env): Promise<Response> {
       let location = env.PUBLIC_ORIGIN;
       try {
         const session = await authenticateSession(request, env);
+        refreshedCookies = session.cookies;
         location = client.userManagement.getLogoutUrl({
           sessionId: session.sessionId,
           returnTo: env.PUBLIC_ORIGIN + "/",
@@ -275,6 +283,9 @@ export async function authRoute(request: Request, env: Env): Promise<Response> {
         ),
         e.cookies,
       );
-    return authJSON({ error: "auth_unavailable" }, 503);
+    return withCookies(
+      authJSON({ error: "auth_unavailable" }, 503),
+      refreshedCookies,
+    );
   }
 }

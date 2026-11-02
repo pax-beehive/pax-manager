@@ -78,14 +78,18 @@ function applyPlan(req: IncomingMessage, plan: ProxyPlan) {
   }
   req.headers.host = new URL(plan.target).host;
 }
-function rejectUpgrade(socket: Duplex, status: number) {
+function rejectUpgrade(socket: Duplex, status: number, cookies: string[] = []) {
+  const cookieHeaders = cookies
+    .map((cookie) => `Set-Cookie: ${cookie}\r\n`)
+    .join("");
   socket.end(
-    `HTTP/1.1 ${status} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
+    `HTTP/1.1 ${status} Rejected\r\nConnection: close\r\n${cookieHeaders}Content-Length: 0\r\n\r\n`,
   );
 }
 export function gatewayServer(config: GatewayConfig, handle: Handler) {
   const proxy = httpProxy.createProxyServer({ xfwd: false, ws: true });
   const refresh = new WeakMap<IncomingMessage, string[]>();
+  const upgraded = new WeakSet<IncomingMessage>();
   proxy.on("proxyRes", (upstream, req) => {
     if (req.headers["x-pax-identity-assertion"]) {
       upstream.headers["cache-control"] = "no-store";
@@ -102,7 +106,7 @@ export function gatewayServer(config: GatewayConfig, handle: Handler) {
       ];
   });
   proxy.on("proxyReqWs", (outgoing, req) => {
-    outgoing.on("upgrade", (upstream) => {
+    const attachCookies = (upstream: IncomingMessage) => {
       delete upstream.headers["set-cookie"];
       const cookies = refresh.get(req);
       if (cookies?.length)
@@ -110,18 +114,27 @@ export function gatewayServer(config: GatewayConfig, handle: Handler) {
           ...(upstream.headers["set-cookie"] ?? []),
           ...cookies,
         ];
+    };
+    outgoing.on("upgrade", (upstream) => {
+      upgraded.add(req);
+      attachCookies(upstream);
     });
+    outgoing.on("response", attachCookies);
   });
-  proxy.on("error", (_error, _req, response) => {
+  proxy.on("error", (_error, req, response) => {
     if ("writeHead" in response) {
       const res = response as ServerResponse;
-      if (!res.headersSent)
+      if (!res.headersSent) {
+        const cookies = refresh.get(req);
+        if (cookies?.length) res.setHeader("Set-Cookie", cookies);
         res.writeHead(502, {
           "Content-Type": "application/json",
           "Cache-Control": "no-store",
         });
+      }
       res.end('{"error":"regional_upstream_unavailable"}');
-    } else response.destroy();
+    } else if (upgraded.has(req)) response.destroy();
+    else rejectUpgrade(response, 502, refresh.get(req));
   });
   const server = createServer(async (req, res) => {
     try {
@@ -144,7 +157,11 @@ export function gatewayServer(config: GatewayConfig, handle: Handler) {
         await requestFor(req, config.origins[config.region]),
       );
       if (result instanceof Response)
-        return rejectUpgrade(socket, result.status);
+        return rejectUpgrade(
+          socket,
+          result.status,
+          result.headers.getSetCookie(),
+        );
       if (!result.headers || result.target !== config.managerURL)
         return rejectUpgrade(socket, 404);
       refresh.set(req, result.cookies);
