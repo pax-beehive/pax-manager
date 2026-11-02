@@ -18,6 +18,7 @@ type SearchDocument struct {
 	OwnerUserID             string    `json:"owner_user_id,omitempty"`
 	AgentID                 string    `json:"agent_id,omitempty"`
 	SessionID               string    `json:"session_id,omitempty"`
+	TurnID                  string    `json:"turn_id,omitempty"`
 	ConversationID          string    `json:"conversation_id,omitempty"`
 	Title                   string    `json:"title,omitempty"`
 	Body                    string    `json:"body,omitempty"`
@@ -100,23 +101,34 @@ func CanonicalSearchMessage(message MessageWithParts) (SearchDocument, error) {
 	}
 	return SearchDocument{Kind: "message", SourceID: message.MessageID,
 		OwnerUserID: message.OwnerUserID, AgentID: message.AgentID, SessionID: message.SessionID,
+		TurnID:         message.TurnID,
 		ConversationID: message.ConversationID, Role: message.Role, SessionSeq: message.SessionSeq,
 		Body: text, ContentHash: SearchContentHash(text), CanonicalizationVersion: SearchCanonicalizationVersion,
 		CreatedAt: message.CreatedAt}, nil
 }
 
 func searchVisibleMessage(message MessageWithParts) bool {
+	return SearchVisibleMessageMetadata(message.Message)
+}
+
+// SearchVisibleMessageTypes returns message kinds that can carry searchable text.
+func SearchVisibleMessageTypes() []string {
+	return []string{"", "chat", "text", "assistant_message", "agent_message_chunk", "message_delta",
+		MessageTypeUser, MessageTypePaxUser, MessageTypePaxInvocation,
+		MessageTypePaxInvocationPending, MessageTypePaxArtifact}
+}
+
+// SearchVisibleMessageMetadata checks visibility independently of text parts.
+func SearchVisibleMessageMetadata(message Message) bool {
 	if message.MessageID == "" || (message.Role != "user" && message.Role != "assistant") {
 		return false
 	}
-	switch message.MessageType {
-	case "", "chat", "text", "assistant_message", "agent_message_chunk", "message_delta",
-		MessageTypeUser, MessageTypePaxUser, MessageTypePaxInvocation,
-		MessageTypePaxInvocationPending, MessageTypePaxArtifact:
-		return !searchHiddenEnvelope(message.RawJSON)
-	default:
-		return false
+	for _, kind := range SearchVisibleMessageTypes() {
+		if message.MessageType == kind {
+			return !searchHiddenEnvelope(message.RawJSON)
+		}
 	}
+	return false
 }
 
 func searchHiddenEnvelope(raw json.RawMessage) bool {

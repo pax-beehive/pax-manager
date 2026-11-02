@@ -75,6 +75,16 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 054 | resolved | [Search treats space-separated keywords as one phrase](054-search-multiple-keywords.md) | medium | search / userapi / MCP |
 
+| 055 | resolved | [Secretary work sessions flood ordinary session lists](055-secretary-work-session-list.md) | medium | storage / session |
+
+| 056 | resolved | [Secretary progress reads can exhaust database I/O](056-secretary-progress-runaway-query.md) | high | storage / Secretary |
+
+| 057 | resolved | [Rolling summary inputs expose fields rejected in generated output](057-secretary-baseline-output-schema-conflict.md) | high | Secretary / summary validation |
+
+| 058 | resolved | [Raw-event limits fragment Secretary model batches](058-secretary-raw-event-batch-fragmentation.md) | medium | storage / Secretary batching |
+
+| 059 | resolved | [Automatic Secretary bypasses compact input views](059-secretary-default-input-view.md) | high | Secretary / prompt / source reads |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

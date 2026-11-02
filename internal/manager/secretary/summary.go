@@ -13,11 +13,15 @@ import (
 const maxSummaryStateBytes = 64 * 1024
 
 type generatedEvidence struct {
-	MessageID string `json:"message_id"`
-	Quote     string `json:"quote"`
+	MessageID   string                    `json:"message_id,omitempty"`
+	Quote       string                    `json:"quote"`
+	Message     *domain.MessageVersionRef `json:"message,omitempty"`
+	View        string                    `json:"view,omitempty"`
+	ReadReceipt string                    `json:"read_receipt,omitempty"`
 }
 
 type generatedClaim struct {
+	ID       string              `json:"id,omitempty"`
 	Text     string              `json:"text"`
 	Kind     string              `json:"kind,omitempty"`
 	Basis    string              `json:"basis,omitempty"`

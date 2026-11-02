@@ -114,3 +114,71 @@ func TestSecretaryAgentContextGivenRecoveredOutputThenVerifiesSelectedReadReceip
 	require.NoError(t, err)
 	assert.Equal(t, "plain response", plain.Text)
 }
+
+func TestSecretaryAgentContextGivenRecoveredDeltaExpansionThenReverifiesProofWithoutRelatedSource(
+	t *testing.T,
+) {
+	srv, fixture, job, _, _ := secretaryToolsFixture(t)
+	job.SourceID = "1"
+	putSecretaryToolMessage(
+		t,
+		srv,
+		fixture,
+		"expanded-delta",
+		"assistant",
+		"Earlier explanation.\n\nFinal decision.",
+	)
+	readData, err := srv.workspaceSearch.WithPrincipal(secretaryToolPrincipal{owner: job.OwnerUserID}).
+		Read(t.Context(), auth.RequestMetadata{}, userapi.WorkspaceReadRequest{
+			Ref: userapi.SearchRef{
+				Kind: "message",
+				ID:   "expanded-delta",
+			}, View: "full",
+		})
+	require.NoError(t, err)
+	read := readData.(userapi.WorkspaceMessageRead)
+	doc := domain.SearchDocument{
+		Kind:                    "message",
+		SourceID:                read.MessageID,
+		OwnerUserID:             job.OwnerUserID,
+		AgentID:                 read.AgentID,
+		SessionID:               read.SessionID,
+		Role:                    read.Role,
+		Body:                    read.Text,
+		ContentHash:             read.Ref.ContentHash,
+		CanonicalizationVersion: read.Ref.CanonicalizationVersion,
+	}
+	job.Messages = []domain.SearchDocument{doc}
+	output := func(receipt string) string {
+		value, marshalErr := json.Marshal(
+			map[string]any{"body": "Updated", "claims": []map[string]any{{
+				"text": "Earlier", "evidence": []map[string]string{{"message_id": doc.SourceID, "quote": "Earlier explanation", "view": "full", "read_receipt": receipt}},
+			}}},
+		)
+		require.NoError(t, marshalErr)
+		return string(value)
+	}
+	request := secretary.ExecutionRequest{OwnerID: job.OwnerUserID, Job: job}
+	result, err := srv.finishSecretaryExecution(
+		t.Context(),
+		request,
+		secretary.ExecutionResult{Text: output(read.ReadReceipt)},
+	)
+	require.NoError(t, err)
+	require.Len(t, result.Reads.Messages, 1)
+	assert.Equal(t, doc.Body, result.Reads.Messages[0].Text)
+	assert.Equal(t, "full", result.Reads.Messages[0].View)
+	_, err = srv.finishSecretaryExecution(
+		t.Context(),
+		request,
+		secretary.ExecutionResult{Text: output("forged")},
+	)
+	assert.Error(t, err)
+	request.OwnerID = "foreign"
+	_, err = srv.finishSecretaryExecution(
+		t.Context(),
+		request,
+		secretary.ExecutionResult{Text: output(read.ReadReceipt)},
+	)
+	assert.Error(t, err)
+}

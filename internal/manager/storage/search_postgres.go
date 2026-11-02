@@ -83,18 +83,42 @@ func loadSearchMessage(
 	tx *sql.Tx,
 	messageID string,
 ) (domain.SearchDocument, error) {
+	return loadSearchMessageWithByteLimit(ctx, tx, messageID, 0)
+}
+
+func loadSearchMessageWithByteLimit(
+	ctx context.Context, tx *sql.Tx, messageID string, byteLimit int,
+) (domain.SearchDocument, error) {
 	var messageJSON, partsJSON []byte
 	var ownerID string
 	var revision int64
-	err := tx.QueryRowContext(ctx, `SELECT to_jsonb(m), a.owner_user_id,
- COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.part_index) FROM message_parts p WHERE p.message_id=m.message_id),'[]'::jsonb),
+	messageProjection := `to_jsonb(m)`
+	partsProjection := `COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.part_index) FROM message_parts p WHERE p.message_id=m.message_id),'[]'::jsonb)`
+	args := []any{messageID}
+	if byteLimit > 0 {
+		// Bound the rows before building and transferring their JSON aggregate.
+		within := `octet_length(to_jsonb(m)::text) + 2 + COALESCE((SELECT SUM(
+ octet_length(to_jsonb(p)::text) + 2)
+ FROM message_parts p WHERE p.message_id=m.message_id),0) <= $2`
+		messageProjection = `CASE WHEN ` + within + ` THEN ` + messageProjection + ` END`
+		partsProjection = `CASE WHEN ` + within + ` THEN ` + partsProjection + ` END`
+		args = append(args, byteLimit)
+	}
+	err := tx.QueryRowContext(ctx, `SELECT `+messageProjection+`, a.owner_user_id,
+ `+partsProjection+`,
  COALESCE((SELECT desired_revision FROM search_sync_state WHERE kind='message' AND source_id=m.message_id),0)`+
-		searchMessageVisibilitySQL, messageID).Scan(&messageJSON, &ownerID, &partsJSON, &revision)
+		searchMessageVisibilitySQL, args...).Scan(&messageJSON, &ownerID, &partsJSON, &revision)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.SearchDocument{}, ErrNotFound
 	}
 	if err != nil {
 		return domain.SearchDocument{}, err
+	}
+	if byteLimit > 0 && (len(messageJSON) == 0 || len(partsJSON) == 0) {
+		return domain.SearchDocument{}, fmt.Errorf(
+			"secretary source exceeds the full-source byte limit: %w",
+			ErrConflict,
+		)
 	}
 	var message domain.MessageWithParts
 	if err := json.Unmarshal(messageJSON, &message.Message); err != nil {

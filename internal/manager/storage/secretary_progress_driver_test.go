@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,18 +41,15 @@ func secretaryProgressRows(t *testing.T, mode string) scriptedRows {
 		message.RawJSON = json.RawMessage(`{"channel":"reasoning"}`)
 	case "tool":
 		message.Role = "tool"
-	case "duplicate-parts":
-		parts = append(parts, parts[0])
 	}
 	rawMessage, err := json.Marshal(message)
 	require.NoError(t, err)
-	rawParts, err := json.Marshal(parts)
+	current, err := domain.CanonicalSearchMessage(domain.MessageWithParts{Message: domain.Message{
+		MessageID: "m1", Role: "assistant", MessageType: "chat",
+	}, Parts: parts})
 	require.NoError(t, err)
 	if mode == "invalid-message" {
 		rawMessage = []byte(`{`)
-	}
-	if mode == "invalid-parts" {
-		rawParts = []byte(`{`)
 	}
 	return scriptedRows{
 		columns: []string{
@@ -61,7 +59,7 @@ func secretaryProgressRows(t *testing.T, mode string) scriptedRows {
 			"title",
 			"completed",
 			"message",
-			"parts",
+			"current_hash",
 			"hash",
 			"canonicalization",
 			"owner",
@@ -74,7 +72,7 @@ func secretaryProgressRows(t *testing.T, mode string) scriptedRows {
 				"Session title",
 				time.Now(),
 				rawMessage,
-				rawParts,
+				current.ContentHash,
 				hash,
 				canonical,
 				owner,
@@ -86,7 +84,7 @@ func secretaryProgressRows(t *testing.T, mode string) scriptedRows {
 func TestSecretaryProgressPostgresDriverGivenCanonicalSourceThenCountsOnlyPublishedCurrentCoverage(
 	t *testing.T,
 ) {
-	for _, mode := range []string{"complete", "changed", "canonicalization", "owner", "reasoning", "tool", "duplicate-parts", "invalid-message", "invalid-parts", "invalid-scan", "empty"} {
+	for _, mode := range []string{"complete", "changed", "canonicalization", "owner", "reasoning", "tool", "invalid-message", "invalid-scan", "empty"} {
 		t.Run(mode, func(t *testing.T) {
 			rows := secretaryProgressRows(t, mode)
 			if mode == "invalid-scan" {
@@ -115,7 +113,16 @@ func TestSecretaryProgressPostgresDriverGivenCanonicalSourceThenCountsOnlyPublis
 			assert.Equal(t, "owner", script.queryArgs[1][0].Value)
 			assert.Contains(t, script.queryTexts[1], "a.owner_user_id = $1")
 			assert.Contains(t, script.queryTexts[1], "secretary_internal_sessions")
-			if mode == "reasoning" || mode == "tool" || mode == "duplicate-parts" ||
+			assert.Contains(t, script.queryTexts[1], "sha256(convert_to(parts.body,'UTF8'))")
+			assert.NotContains(t, script.queryTexts[1], "to_jsonb(m)")
+			assert.NotContains(t, script.queryTexts[1], "to_jsonb(p)")
+			assert.NotContains(t, script.queryTexts[1], "ORDER BY v.source_id")
+			assert.Contains(
+				t,
+				strings.Join(script.execTexts, "\n"),
+				"SET LOCAL statement_timeout='8s'",
+			)
+			if mode == "reasoning" || mode == "tool" ||
 				mode == "empty" {
 				assert.Zero(t, page.Counts.TotalMessages)
 				return
@@ -179,4 +186,14 @@ func TestSecretaryProgressGivenStrictCursorThenRejectsInvalidVersionsAndFields(t
 	require.NoError(t, err)
 	assert.NotNil(t, page.Sessions)
 	assert.Empty(t, page.Sessions)
+}
+
+func TestSecretaryProgressGivenSQLWhitespaceThenMatchesCanonicalUnicodeTrimming(t *testing.T) {
+	var mismatches []rune
+	for r := rune(0); r <= unicode.MaxRune; r++ {
+		if strings.ContainsRune(secretaryProgressWhitespace, r) != unicode.IsSpace(r) {
+			mismatches = append(mismatches, r)
+		}
+	}
+	assert.Empty(t, mismatches)
 }

@@ -248,8 +248,10 @@ func (s *MemoryStore) refreshSecretaryMessagesLocked(job *memorySecretaryJob) {
 	for _, id := range ids {
 		seen[id] = true
 		hash := "hidden"
-		if doc, err := s.readSearchMessageLocked(job.work.OwnerUserID, id); err == nil {
-			hash = doc.ContentHash
+		if domain.SearchVisibleMessageMetadata(s.messages[id]) {
+			if doc, err := s.readSearchMessageLocked(job.work.OwnerUserID, id); err == nil {
+				hash = doc.ContentHash
+			}
 		}
 		if job.seen[id] != hash {
 			s.markSecretaryMemoryDirtyLocked(job, id, hash)

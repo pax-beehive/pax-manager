@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,6 +10,121 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
+
+func TestSecretaryProgressPostgresGivenCompactHashesThenMatchesCanonicalSourcePolicy(t *testing.T) {
+	store := secretaryPostgresFixture(t)
+	_, err := store.db.ExecContext(t.Context(), `DELETE FROM messages`)
+	require.NoError(t, err)
+	type candidate struct {
+		role, kind, envelope string
+		parts                []domain.MessagePart
+	}
+	textPart := func(text string) []domain.MessagePart {
+		return []domain.MessagePart{{PartType: domain.MessagePartText, Text: text}}
+	}
+	cases := []candidate{
+		{role: "assistant", kind: "chat", parts: textPart(" \u6570\u636e\u5e93\U0001f642\n")},
+		{role: "assistant", kind: "chat", parts: []domain.MessagePart{
+			{PartIndex: 2, PartType: "artifact", Text: "excluded payload"},
+			{PartIndex: 1, PartType: "text", Text: "ond"},
+			{PartIndex: 0, PartType: "text", Text: "sec"},
+		}},
+		{role: "assistant", kind: "chat", parts: textPart("\u200b")},
+		{role: "assistant", kind: "chat", parts: textPart("")},
+		{role: "assistant", kind: "chat"},
+		{
+			role:  "assistant",
+			kind:  "chat",
+			parts: []domain.MessagePart{{PartType: "artifact", Text: "hidden"}},
+		},
+		{role: "assistant", kind: "chat", parts: []domain.MessagePart{
+			{
+				PartIndex: -1,
+				PartType:  "artifact",
+			}, {PartIndex: 0, PartType: "text", Text: "invalid"},
+		}},
+		{role: "tool", kind: "chat", parts: textPart("hidden tool")},
+		{role: "assistant", kind: "tool_call", parts: textPart("hidden type")},
+		{
+			role:     "assistant",
+			kind:     "chat",
+			envelope: `{"params":{"update":{"channel":"ANALYSIS"}}}`,
+			parts:    textPart("hidden envelope"),
+		},
+		{role: "assistant", kind: "chat", envelope: `[]`, parts: textPart("invalid envelope")},
+		{
+			role:     "assistant",
+			kind:     "chat",
+			envelope: `null`,
+			parts:    textPart("visible null envelope"),
+		},
+		{
+			role:     "assistant",
+			kind:     "chat",
+			envelope: `{"params":{"params":{"params":{"params":{"params":{"params":{}}}}}}}`,
+			parts:    textPart("excessive depth"),
+		},
+	}
+	for _, kind := range domain.SearchVisibleMessageTypes() {
+		cases = append(cases, candidate{role: "user", kind: kind, parts: textPart("visible kind")})
+	}
+	for _, space := range secretaryProgressWhitespace {
+		cases = append(
+			cases,
+			candidate{role: "assistant", kind: "chat", parts: textPart(string(space))},
+		)
+	}
+	valid := map[string]domain.SearchDocument{}
+	for i, test := range cases {
+		id := fmt.Sprintf("canonical-%d", i)
+		envelope := test.envelope
+		if envelope == "" {
+			envelope = `{}`
+		}
+		message := domain.Message{
+			MessageID:   id,
+			Role:        test.role,
+			MessageType: test.kind,
+			RawJSON:     json.RawMessage(envelope),
+		}
+		_, err = store.db.ExecContext(t.Context(), `INSERT INTO messages
+ (message_id,agent_id,session_id,source,direction,role,message_type,raw_json,session_seq,turn_id)
+ VALUES($1,'source','session','test','inbound',$2,$3,$4::jsonb,$5,$1)`, id, test.role, test.kind, envelope, i+1)
+		require.NoError(t, err)
+		for _, part := range test.parts {
+			_, err = store.db.ExecContext(
+				t.Context(),
+				`INSERT INTO message_parts(message_id,part_index,part_type,text)
+ VALUES($1,$2,$3,$4)`,
+				id,
+				part.PartIndex,
+				part.PartType,
+				part.Text,
+			)
+			require.NoError(t, err)
+		}
+		if doc, canonicalErr := domain.CanonicalSearchMessage(domain.MessageWithParts{Message: message, Parts: test.parts}); canonicalErr == nil {
+			valid[id] = doc
+		}
+	}
+	secretaryEnable(t, store)
+	for id, doc := range valid {
+		_, err = store.db.ExecContext(
+			t.Context(),
+			`UPDATE secretary_message_state SET processed_hash=$2,
+ processed_owner_user_id='owner',processed_canonicalization_version=$3 WHERE message_id=$1`,
+			id,
+			doc.ContentHash,
+			doc.CanonicalizationVersion,
+		)
+		require.NoError(t, err)
+	}
+	page := secretaryProgress(t, store)
+	assert.Equal(t, len(valid), page.Counts.TotalMessages)
+	assert.Equal(t, len(valid), page.Counts.CompletedMessages)
+	assert.Zero(t, page.Counts.PendingMessages)
+	assert.Equal(t, len(valid), page.Counts.CompletedTurns)
+}
 
 func TestSecretaryProgressPostgresGivenLateDisabledPartsThenReportsExactCurrentCoverage(
 	t *testing.T,

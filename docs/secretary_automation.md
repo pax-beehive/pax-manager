@@ -45,14 +45,22 @@ therefore remain detectable. Boundaries between transport parts do not create
 another logical message. Metadata-only changes that leave canonical text intact
 do not invoke the agent again.
 
-Each batch contains at most 64 new or changed complete visible messages and
-128 KiB of source text. It separately carries at most 64 removed message IDs.
-Source messages are never silently truncated. Oversized input remains
-failed/retryable and does not advance the checkpoint.
+Each batch contains at most 64 new or changed canonical visible messages and
+128 KiB of text exposed to the model. It separately carries at most 64 removed
+message IDs. User messages expose full text; assistant messages use the existing
+last view, the last natural paragraph of each message. This is not a transport
+part or the final complete assistant reply of a turn. Every input names its
+view, available views, real turn ID when present, and full source version.
+
+Complete canonical bodies and coverage snapshots remain intact, with a separate
+8 MiB source-body budget and a SQL serialized-load guard before full transfer.
+Oversized input fails without advancing the checkpoint. Quotes must occur in
+the supplied view or an exact, signed, verified expanded read. Recovering a
+completed response also reverifies its own-delta expansion receipts.
 
 Each owner/source session has one stable rolling summary ID, stored in the
 existing summary tables with subject type `fragment`. The prompt contains the
-current title, body and claims (at most 64 KiB), the raw delta, and existing
+current title, body and claims (at most 64 KiB), the projected delta, and existing
 session metadata (`title`, `primary_project_id`, `cwd`, `workspace_roots`, at most
 16 KiB). Prior coverage arrays and unchanged raw messages are not replayed in
 every prompt. The agent returns a complete replacement summary; publishing
@@ -73,6 +81,27 @@ summary without a model call; later batches can add remaining safe content.
 Historical versions remain immutable and subject to current access checks.
 No separate session-summary table or local board migration is introduced.
 
+The prompt projects baseline claims into the generated output schema: claim
+text/kind/basis/state and evidence containing message_id/quote. Internal claim
+IDs and stored version/view/receipt structures remain authoritative server data,
+not a second output schema. For recovery, already completed replies that echo
+those previously exposed typed fields can be decoded, but every asserted ref,
+view, and receipt must match server-bound evidence. Supplied IDs must be known
+baseline IDs and are regenerated on publication. Unknown fields and genuine
+evidence mismatches still fail closed. Recovery uses the same completed turn
+and RunID when settings, input policy, and batch still match. The compact input
+policy is versioned in RunID, so pre-compact executions are not reused as if
+they had seen only the new projected view. A policy or batch change can require
+a new model call, just as disabling/re-enabling changes SettingsRevision.
+
+Each independent source batch uses a fresh native model context containing the
+current summary and projected delta. A new session/new request reuses an existing
+ready harness slot; it does not necessarily start another agent process. A
+single indefinitely reused native conversation would retain old source/tool
+history, including removed or no-longer-visible material. Native context reuse
+would require explicit context reset and MCP capability rebinding, not merely
+replacing the execution session ID with a constant.
+
 Publishing acquires the settings and job locks, validates the settings revision,
 enabled flag, selected agent, source visibility and lease, then atomically saves
 the summary, every coverage snapshot, per-message hashes and processed revision.
@@ -81,6 +110,13 @@ pending for another batch. Deletion/current ownership still governs historical
 reads, as described in [search_contract.md](search_contract.md).
 
 ## Coverage progress
+
+Progress reads have an eight-second database/context budget. They filter
+canonical message roles and types before part aggregation, calculate the exact
+ordered-text hash in PostgreSQL, and return compact metadata rather than full
+message/part JSON. Hidden-envelope checks still use the shared domain policy.
+This avoids a wide full-result sort and does not weaken current-version coverage
+checks. A timeout fails the read; it never advances summary checkpoints.
 
 The progress endpoint accepts `limit` (default 20, maximum 100) and an opaque
 owner-bound `cursor`. Its `counts` describe all eligible sessions, independently
@@ -133,6 +169,18 @@ The Manager neither infers related sessions nor forces search hits into context.
 History reuses the existing frontend history service with bounded paging;
 `expand` reads more of one message. Search requires ES; PG reads do not.
 
+The draft's workspace_history accepts optional turn_id and view
+(first, last, or full). An explicit turn_id scopes the existing owner/session
+history query to that exact turn before pagination. A full view exposes complete
+visible user/assistant text in bounded pages, excluding tools and reasoning.
+Each returned message preserves its full-body version ref and signed receipt;
+has_more/next_offset indicate continuation of a long message via workspace_read.
+Missing historical turn IDs are not guessed. Existing omitted arguments retain
+their current defaults. The agent-host MCP schema update is in paxd PR 108.
+
+This additive read tool does not by itself change automatic prompt contents.
+That correction is tracked in issue 059 while the last-view unit is clarified.
+
 The node-authenticated route
 `POST /api/v1/node/agents/:agent_id/secretary/tools` also requires a random
 per-execution capability bound to the owner, selected agent, node, internal
@@ -154,8 +202,11 @@ checks still apply, and the next own-session update or explicit retry can rebuil
 an unreadable baseline.
 
 Internal execution sessions are registered before the first prompt and excluded
-from collection and ordinary search, preventing recursive summarization and
-duplicated source text in results. Their owner can still open a work session
+from collection, ordinary search, and user-facing session lists. List filtering
+applies before counting and pagination, including per-agent and node-agent lists.
+The internal source marker, reserved `sess_secretary_` prefix, and durable
+agent/session registry each hide work sessions even if later native metadata
+replaces one of the other markers. Their owner can still open a work session
 directly for diagnostics. Normal manual permission
 handling remains in force; this feature does not autoapprove agent tools.
 
@@ -166,7 +217,13 @@ prevents fenced work from committing after the settings change. Already complete
 summaries remain available. Disabling retains unfinished work for later use.
 
 Stable run/turn IDs let a transient publication retry reuse an already completed
-agent response. Explicit Run now/Retry rotates the durable retry generation for
+agent response only while the settings revision, batch, and retry generation
+remain unchanged. Every settings save increments its revision and fences old
+work. Disabling and later re-enabling therefore creates new run/turn IDs; it
+does not recover old completed responses automatically. Pending source work and
+published summaries are retained, and remaining work runs under the new setting.
+Do not bypass the settings fence to recover a previous execution.
+Explicit Run now/Retry rotates the durable retry generation for
 inactive pending work so malformed or interrupted output can be regenerated.
 The target summary identity remains stable across source updates and retries.
 Set a stable `SEARCH_READ_RECEIPT_SECRET` across Manager restarts when using

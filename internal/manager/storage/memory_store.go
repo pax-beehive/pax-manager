@@ -1650,7 +1650,7 @@ func (s *MemoryStore) ListAgentSessions(
 	}
 	out := make([]AgentSession, 0)
 	for _, session := range s.sessions {
-		if session.AgentID == agentID {
+		if session.AgentID == agentID && s.userSessionListVisibleLocked(session) {
 			out = append(out, session)
 		}
 	}
@@ -1679,6 +1679,9 @@ func (s *MemoryStore) ListSessions(
 	pageSize, pageNum := normalizeSessionPage(filter.PageSize, filter.PageNum)
 	out := make([]AgentSession, 0)
 	for _, session := range s.sessions {
+		if !s.userSessionListVisibleLocked(session) {
+			continue
+		}
 		agent, ok := s.agents[session.AgentID]
 		if !ok || !s.canAccessAgentLocked(principal, agent) {
 			continue
