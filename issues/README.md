@@ -4,6 +4,7 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| 060 | resolved | [Backend failures discard refreshed browser session cookies](060-refreshed-session-cookie-loss.md) | high | auth / Worker / regional gateway |
 | 044 | resolved | [Completed transport journal history grows without bound](044-transport-journal-retention.md) | high | storage / transport |
 | 001 | resolved | [Agent-to-user outbound message endpoint missing](001-outbound-message-endpoint.md)                                                     | blocker  | api / mailbox                |
 | 002 | resolved | [Session auto-creation on first message](002-session-auto-creation.md)                                                                  | blocker  | session / mailbox            |
@@ -74,8 +75,6 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | 053 | resolved | [Opening an unlisted session requires scanning session pages](053-canonical-session-detail.md) | medium | userapi / session metadata |
 
 | 054 | resolved | [Search treats space-separated keywords as one phrase](054-search-multiple-keywords.md) | medium | search / userapi / MCP |
-
-| 060 | resolved | [Backend failures discard refreshed browser session cookies](060-refreshed-session-cookie-loss.md) | high | auth / Worker / regional gateway |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
