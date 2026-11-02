@@ -881,3 +881,8 @@ func _getusersessionMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _listsecretarysummariesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

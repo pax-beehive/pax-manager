@@ -294,3 +294,30 @@ The current deployment is a single Manager with its local agent connections.
 Leases and publication fences survive restarts and coordinate database work;
 multiple Manager instances will additionally need agent-aware execution routing.
 This feature does not set a production latency or model-quality guarantee.
+
+## Reading summary results
+
+`GET /api/v1/user/self/secretary/summaries` lists current owned summary versions
+directly from PostgreSQL. No administrator privilege or Elasticsearch service is
+required. `limit` defaults to 20 and accepts 1 through 100; `cursor` is opaque and
+bound to the authenticated owner. Current revisions are ordered by creation time
+descending, with summary ID descending to break ties. The request has an
+eight-second deadline. No model call or Secretary enable setting is involved.
+
+Each item contains a title, a 400-character body preview, revision, creation time,
+subject identity and source/claim counts. Use the item's exact summary ID and
+revision with `POST /api/v1/user/self/search/read` to read the complete body,
+claims, frozen message references and pinned child summary references. Read a
+message reference through the same endpoint to inspect its source and obtain
+the actual agent/session/turn identity for navigation. A Secretary subject ID
+contains an internal source identity and must not be treated as a session ID.
+
+Listing and reading both revalidate current owner/source visibility, including
+archived or deleted source sessions. An inaccessible candidate is omitted even
+when its frozen content exists. A page can therefore be empty while providing a
+next cursor. A summary updated between page requests may move ahead of the
+cursor; refresh the first page to see such updates. Historical exact revisions
+remain explicitly readable subject to the same current permission checks.
+
+The existing administrator developer browser remains available with its original
+administrator gate and summary-ID ordering.

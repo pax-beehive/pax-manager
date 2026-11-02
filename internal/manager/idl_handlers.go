@@ -134,6 +134,7 @@ func CreateAgentRegistrationToken(c context.Context, ctx *app.RequestContext) {
 type generatedHandlerFunc func(context.Context, *app.RequestContext)
 
 var generatedHandlerBridge = map[string]generatedHandlerFunc{
+	"ListSecretarySummaries":        ListSecretarySummaries,
 	"ListDeveloperSummaries":        ListDeveloperSummaries,
 	"ReadDeveloperSummary":          ReadDeveloperSummary,
 	"ArchiveProject":                ArchiveProject,

@@ -13563,6 +13563,87 @@
         ]
       }
     },
+    "/api/v1/user/{user_id}/secretary/summaries": {
+      "get": {
+        "description": "Lists current owned summaries directly from PostgreSQL without administrator access or Elasticsearch. Current source visibility is revalidated. Limit defaults to 20 and is capped at 100. Ordered by current revision creation time descending and summary ID descending with an opaque owner-bound cursor. Inaccessible candidates may produce an empty page with a next cursor. Read full bodies, claims and exact source references through the existing search/read endpoint.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeveloperSummaryListRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Browse current owned summary results",
+        "tags": [
+          "user"
+        ]
+      }
+    },
     "/api/v1/user/{user_id}/secrets": {
       "get": {
         "description": "Lists secret metadata visible to the current user without returning plaintext values.",
