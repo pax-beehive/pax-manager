@@ -4015,6 +4015,12 @@
           "cursor": {
             "type": "string"
           },
+          "group_by": {
+            "type": "string"
+          },
+          "group_key": {
+            "type": "string"
+          },
           "kinds": {
             "items": {
               "type": "string"

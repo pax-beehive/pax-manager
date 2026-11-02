@@ -1492,6 +1492,8 @@ struct WorkspaceSearchRequest {
   4: optional list<string> session_ids
   5: optional string cursor
   6: optional i32 limit
+  7: optional string group_by
+  8: optional string group_key
 }
 
 struct WorkspaceSourceRef {

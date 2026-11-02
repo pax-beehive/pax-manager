@@ -13,6 +13,7 @@ import (
 const SearchCanonicalizationVersion = "visible-text-v1"
 
 type SearchDocument struct {
+	GroupKey                string    `json:"group_key,omitempty"`
 	Kind                    string    `json:"kind"`
 	SourceID                string    `json:"source_id"`
 	OwnerUserID             string    `json:"owner_user_id,omitempty"`
@@ -35,6 +36,8 @@ type SearchDocument struct {
 func (d SearchDocument) DocumentID() string { return d.Kind + ":" + d.SourceID }
 
 type SearchQuery struct {
+	GroupBy     string   `json:"group_by,omitempty"`
+	GroupKey    string   `json:"group_key,omitempty"`
 	Query       string   `json:"query"`
 	OwnerUserID string   `json:"-"`
 	Cursor      string   `json:"cursor,omitempty"`

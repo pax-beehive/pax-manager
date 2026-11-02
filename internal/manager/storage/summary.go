@@ -418,7 +418,7 @@ func loadSummarySearchDocument(
 	if err = validateSummaryAccess(ctx, tx, result.OwnerUserID, result.SummaryID, result.Revision); err != nil {
 		return domain.SearchDocument{}, err
 	}
-	return domain.SearchDocument{
+	doc := domain.SearchDocument{
 		Kind:                    "summary",
 		SourceID:                result.SummaryID,
 		OwnerUserID:             result.OwnerUserID,
@@ -428,7 +428,15 @@ func loadSummarySearchDocument(
 		CanonicalizationVersion: domain.SearchCanonicalizationVersion,
 		SummaryRevision:         result.Revision,
 		CreatedAt:               result.CreatedAt,
-	}, nil
+	}
+	if source := secretaryPrimarySource(result); source != "" {
+		group, readErr := readSessionSearchGroupTx(ctx, tx, result.OwnerUserID, source, "", "")
+		if readErr != nil {
+			return domain.SearchDocument{}, readErr
+		}
+		doc.AgentID, doc.SessionID = group.AgentID, group.SessionID
+	}
+	return doc, nil
 }
 
 func summaryWithoutReceipts(request domain.PublishSummaryRequest) domain.PublishSummaryRequest {

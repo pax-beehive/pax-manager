@@ -60,8 +60,10 @@ type WorkspaceSearchHit struct {
 }
 
 type WorkspaceSearchPage struct {
-	Hits       []WorkspaceSearchHit `json:"hits"`
-	NextCursor string               `json:"next_cursor,omitempty"`
+	Hits              []WorkspaceSearchHit   `json:"hits"`
+	NextCursor        string                 `json:"next_cursor,omitempty"`
+	Groups            []WorkspaceSearchGroup `json:"groups"`
+	PaginationLimited bool                   `json:"pagination_limited,omitempty"`
 }
 
 type WorkspaceReadRequest struct {
@@ -105,6 +107,9 @@ func (s *WorkspaceSearchService) Search(
 	if err = validateWorkspaceQuery(query); err != nil {
 		return WorkspaceSearchPage{}, err
 	}
+	if query.GroupBy == "session" {
+		return s.searchGroups(ctx, owner, query)
+	}
 	if s.backend == nil || s.sources == nil {
 		return WorkspaceSearchPage{}, searchHTTPError(
 			http.StatusServiceUnavailable,
@@ -142,6 +147,11 @@ func (s *WorkspaceSearchService) Search(
 		}
 		if !searchMatchesCurrent(current, owner, query) {
 			continue
+		}
+		if query.GroupKey != "" {
+			if domain.SearchDocumentGroupKey(current) != query.GroupKey {
+				continue
+			}
 		}
 		text := current.Body
 		if searchTermIndex(strings.ToLower(text), domain.SearchTerms(query.Query)) < 0 {
@@ -320,7 +330,7 @@ func (s *WorkspaceSearchService) currentDocument(
 		if err != nil {
 			return domain.SearchDocument{}, err
 		}
-		return domain.SearchDocument{
+		doc := domain.SearchDocument{
 			Kind:            "summary",
 			SourceID:        summary.SummaryID,
 			OwnerUserID:     owner,
@@ -328,7 +338,15 @@ func (s *WorkspaceSearchService) currentDocument(
 			Body:            summary.Body,
 			SummaryRevision: summary.Revision,
 			CreatedAt:       summary.CreatedAt,
-		}, nil
+		}
+		if _, ok := s.sources.(domain.SearchGroupSourceStore); ok {
+			group, groupErr := s.readSearchGroup(ctx, owner, doc)
+			if groupErr != nil {
+				return domain.SearchDocument{}, groupErr
+			}
+			doc.AgentID, doc.SessionID = group.AgentID, group.SessionID
+		}
+		return doc, nil
 	}
 	if kind != "message" && kind != "session" || s.sources == nil {
 		return domain.SearchDocument{}, domain.ErrNotFound
@@ -379,7 +397,9 @@ func validateWorkspaceQuery(query domain.SearchQuery) error {
 	if len(terms) == 0 || len(terms) > domain.MaxSearchTerms ||
 		utf8.RuneCountInString(query.Query) > 256 ||
 		query.Limit < 0 ||
-		query.Limit > 50 ||
+		query.Limit > workspaceSearchLimit(query.GroupBy) ||
+		(query.GroupBy != "" && query.GroupBy != "session") || len(query.GroupKey) > 256 ||
+		(query.GroupBy != "" && query.GroupKey != "") ||
 		len(query.Kinds) > 3 ||
 		len(query.SessionIDs) > 50 {
 		return searchHTTPError(http.StatusBadRequest, "invalid search query or limits")
@@ -390,6 +410,13 @@ func validateWorkspaceQuery(query domain.SearchQuery) error {
 		}
 	}
 	return nil
+}
+
+func workspaceSearchLimit(groupBy string) int {
+	if groupBy == "session" {
+		return 100
+	}
+	return 50
 }
 
 func validateWorkspaceRead(request WorkspaceReadRequest) error {

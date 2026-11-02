@@ -28,6 +28,10 @@ func TestEnsureIndexUsesWildcardMappingAndHandlesExistingIndex(t *testing.T) {
 		t.Run(fmt.Sprint(exists), func(t *testing.T) {
 			srv := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodPut, r.Method)
+				if r.URL.Path == "/test/_mapping" {
+					_, _ = w.Write([]byte(`{"acknowledged":true}`))
+					return
+				}
 				assert.Equal(t, "/test", r.URL.Path)
 				assert.Equal(t, "ApiKey test-key", r.Header.Get("Authorization"))
 				var body map[string]any
