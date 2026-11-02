@@ -82,6 +82,13 @@ reads, as described in [search_contract.md](search_contract.md).
 
 ## Coverage progress
 
+Progress reads have an eight-second database/context budget. They filter
+canonical message roles and types before part aggregation, calculate the exact
+ordered-text hash in PostgreSQL, and return compact metadata rather than full
+message/part JSON. Hidden-envelope checks still use the shared domain policy.
+This avoids a wide full-result sort and does not weaken current-version coverage
+checks. A timeout fails the read; it never advances summary checkpoints.
+
 The progress endpoint accepts `limit` (default 20, maximum 100) and an opaque
 owner-bound `cursor`. Its `counts` describe all eligible sessions, independently
 of the returned page. `sessions` contains bounded session rows and `next_cursor`

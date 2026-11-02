@@ -77,6 +77,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 055 | resolved | [Secretary work sessions flood ordinary session lists](055-secretary-work-session-list.md) | medium | storage / session |
 
+| 056 | resolved | [Secretary progress reads can exhaust database I/O](056-secretary-progress-runaway-query.md) | high | storage / Secretary |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

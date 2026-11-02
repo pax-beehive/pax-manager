@@ -117,7 +117,11 @@ func TestSecretaryProgressPostgresDriverGivenCanonicalSourceThenCountsOnlyPublis
 			assert.NotContains(t, script.queryTexts[1], "to_jsonb(m)")
 			assert.NotContains(t, script.queryTexts[1], "to_jsonb(p)")
 			assert.NotContains(t, script.queryTexts[1], "ORDER BY v.source_id")
-			assert.Contains(t, strings.Join(script.execTexts, "\n"), "SET LOCAL statement_timeout='8s'")
+			assert.Contains(
+				t,
+				strings.Join(script.execTexts, "\n"),
+				"SET LOCAL statement_timeout='8s'",
+			)
 			if mode == "reasoning" || mode == "tool" ||
 				mode == "empty" {
 				assert.Zero(t, page.Counts.TotalMessages)

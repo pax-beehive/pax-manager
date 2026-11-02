@@ -33,7 +33,10 @@ func buildSecretaryProgressSQL() string {
  COALESCE(s.custom_session_name,s.session_name,'') title,m.role,m.message_type,m.raw_json,m.turn_id` + strings.Replace(
 		visibility,
 		"WHERE m.message_id = $1",
-		"WHERE a.owner_user_id = $1 AND s.id IS NOT NULL AND m.role IN ('user','assistant') AND COALESCE(m.message_type,'') IN ("+strings.Join(kinds, ",")+")",
+		"WHERE a.owner_user_id = $1 AND s.id IS NOT NULL AND m.role IN ('user','assistant') AND COALESCE(m.message_type,'') IN ("+strings.Join(
+			kinds,
+			",",
+		)+")",
 		1,
 	) + ` AND NOT EXISTS (SELECT 1 FROM secretary_internal_sessions i
  WHERE i.agent_id=s.agent_id AND i.session_id=s.session_id)
