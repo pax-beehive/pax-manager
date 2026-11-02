@@ -108,6 +108,7 @@ export function createGateway(
     env,
     async handle(request: Request): Promise<Response | ProxyPlan> {
       const url = new URL(request.url);
+      let cookies: string[] = [];
       try {
         if (url.origin !== env.PUBLIC_ORIGIN)
           return json({ error: "not_found" }, 404);
@@ -174,9 +175,7 @@ export function createGateway(
         )
           return json({ error: "invalid_request" }, 400);
         let nativeEmail: string | undefined;
-        let identity: string,
-          subject: string,
-          cookies: string[] = [];
+        let identity: string, subject: string;
         if (native) {
           const verified = await deps.verifyNative(request, env);
           subject = verified.subject;
@@ -305,8 +304,12 @@ export function createGateway(
           "status" in error &&
           error.status === 401
         )
-          return json({ error: "unauthorized" }, 401);
-        return json({ error: "directory_unavailable", retryable: true }, 503);
+          return json({ error: "unauthorized" }, 401, cookies);
+        return json(
+          { error: "directory_unavailable", retryable: true },
+          503,
+          cookies,
+        );
       }
     },
   };

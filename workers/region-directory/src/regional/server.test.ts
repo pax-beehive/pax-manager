@@ -173,7 +173,9 @@ it("rejects malformed targets, oversized control bodies and unavailable upstream
       plan("http://127.0.0.1:1", "/"),
     ),
   );
-  expect((await fetch(url)).status).toBe(502);
+  const unavailable = await fetch(url);
+  expect(unavailable.status).toBe(502);
+  expect(unavailable.headers.getSetCookie()).toEqual(["refreshed=1; Secure"]);
   const status = await new Promise((resolve) => {
     const req = httpRequest(url, { path: "//evil.example/" }, (res) => {
       res.resume();
@@ -214,3 +216,45 @@ it("rejects WebSocket upgrades without an authenticated Manager plan", async () 
     expect([401, 404, 400]).toContain(status);
   }
 });
+it.each(["directory", "connection", "upstream"])(
+  "preserves refreshed cookies when a WebSocket %s fails",
+  async (failure) => {
+    const upstream =
+      failure === "upstream"
+        ? await listen(
+            createServer().on("upgrade", (_req, socket) => {
+              socket.end(
+                "HTTP/1.1 503 Unavailable\r\nSet-Cookie: untrusted=1\r\nContent-Length: 0\r\n\r\n",
+              );
+            }),
+          )
+        : "http://127.0.0.1:1";
+    const url = await listen(
+      gatewayServer(config(upstream), async (request) => {
+        const headers = originIdentityHeaders(request);
+        headers.set("x-pax-identity-assertion", "trusted");
+        return failure === "directory"
+          ? new Response(null, {
+              status: 503,
+              headers: { "Set-Cookie": "refreshed=1; Secure" },
+            })
+          : plan(upstream, "/tunnel", headers);
+      }),
+    );
+    const socket = new WebSocket(url.replace("http:", "ws:"));
+    sockets.push(socket);
+    socket.on("error", () => {});
+    const rejected = await new Promise<{
+      status?: number;
+      cookies?: string[];
+    }>((resolve) => {
+      socket.on("error", () => resolve({}));
+      socket.on("unexpected-response", (_req, res) => {
+        res.resume();
+        resolve({ status: res.statusCode, cookies: res.headers["set-cookie"] });
+      });
+    });
+    expect(rejected.status).toBe(failure === "connection" ? 502 : 503);
+    expect(rejected.cookies).toEqual(["refreshed=1; Secure"]);
+  },
+);

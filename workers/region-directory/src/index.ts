@@ -303,8 +303,10 @@ export function createWorker(
         /\/release-health\//.test(url.pathname)
       )
         return handler.fetch(request, env);
+      let refreshedCookies: string[] = [];
       try {
         const session = await authenticateSession(request, env);
+        refreshedCookies = session.cookies;
         authenticated.set(request, session);
         attachWorkosIdentity(request, session);
         return withCookies(await handler.fetch(request, env), session.cookies);
@@ -317,7 +319,10 @@ export function createWorker(
             ),
             e.cookies,
           );
-        return authJSON({ error: "auth_unavailable" }, 503);
+        return withCookies(
+          authJSON({ error: "auth_unavailable" }, 503),
+          refreshedCookies,
+        );
       }
     },
   };
