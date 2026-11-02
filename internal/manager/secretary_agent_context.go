@@ -30,7 +30,7 @@ func (s *Service) finishSecretaryExecution(
 	if request.Job.SourceID == "" {
 		return result, nil
 	}
-	refs, err := secretary.RequestedRelatedSources(result.Text)
+	refs, err := secretary.RequestedSourceReads(request.Job, result.Text)
 	if err != nil {
 		return result, err
 	}

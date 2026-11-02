@@ -10,6 +10,8 @@ import (
 const (
 	SecretaryMaxMessages           = 64
 	SecretaryMaxBytes              = 128 * 1024
+	SecretaryMaxSourceBytes        = 8 * 1024 * 1024
+	SecretaryInputPolicyVersion    = "user-full-assistant-last-v1"
 	SecretaryInternalSource        = "secretary_internal"
 	SecretaryInternalSessionPrefix = "sess_secretary_"
 )

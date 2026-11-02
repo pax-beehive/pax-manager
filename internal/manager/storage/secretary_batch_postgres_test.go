@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +10,52 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
+
+func TestSecretaryPostgresGivenCompactAssistantViewThenFreezesItsCompleteVersion(t *testing.T) {
+	store := secretaryPostgresFixture(t)
+	body := strings.Repeat("earlier detail ", 12*1024) + "\n\nFinal decision."
+	_, err := store.db.ExecContext(
+		t.Context(),
+		`UPDATE messages SET role='assistant' WHERE message_id='m1'`,
+	)
+	require.NoError(t, err)
+	_, err = store.db.ExecContext(
+		t.Context(),
+		`UPDATE message_parts SET text=$1 WHERE message_id='m1' AND part_type='text'`,
+		body,
+	)
+	require.NoError(t, err)
+	secretaryEnable(t, store)
+	work := secretaryClaim(t, store)
+	require.Len(t, work.Messages, 1)
+	assert.Equal(t, body, work.Messages[0].Body)
+	assert.Greater(t, len(body), domain.SecretaryMaxBytes)
+	assert.NoError(t, secretaryWithinBounds(work.Messages))
+	version, err := store.PublishSecretaryJob(t.Context(), work, secretaryPublication(work))
+	require.NoError(t, err)
+	require.Len(t, version.Coverage, 1)
+	frozen, err := store.ReadMessageVersion(t.Context(), "owner", version.Coverage[0])
+	require.NoError(t, err)
+	assert.Equal(t, body, frozen.Body)
+	assert.Equal(t, domain.SearchContentHash(body), frozen.ContentHash)
+}
+
+func TestSecretaryPostgresGivenOversizedSerializedSourceThenDoesNotTransferItsAggregate(
+	t *testing.T,
+) {
+	store := secretaryPostgresFixture(t)
+	_, err := store.db.ExecContext(
+		t.Context(),
+		`UPDATE message_parts SET text=repeat('x',$1) WHERE message_id='m1'`,
+		domain.SecretaryMaxSourceBytes+1,
+	)
+	require.NoError(t, err)
+	tx, err := store.db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = loadSearchMessageWithByteLimit(t.Context(), tx, "m1", domain.SecretaryMaxSourceBytes)
+	assert.ErrorContains(t, err, "full-source byte limit")
+}
 
 func TestSecretaryPostgresGivenInterleavedEventsThenFillsAndPublishesCanonicalBatches(
 	t *testing.T,

@@ -12,10 +12,11 @@ const (
 )
 
 type secretaryBatch struct {
-	work     *domain.SecretaryJob
-	bytes    int
-	removals int
-	removed  map[string]bool
+	work        *domain.SecretaryJob
+	bytes       int
+	sourceBytes int
+	removals    int
+	removed     map[string]bool
 }
 
 func newSecretaryBatch(work *domain.SecretaryJob) *secretaryBatch {
@@ -49,11 +50,14 @@ func (b *secretaryBatch) consume(
 	case doc.AgentID != b.work.SourceAgentID || doc.SessionID != b.work.SourceSessionID:
 		b.remove(change.id)
 	case doc.ContentHash != change.hash || doc.CanonicalizationVersion != change.canonical:
-		if len(b.work.Messages) > 0 && b.bytes+len(doc.Body) > domain.SecretaryMaxBytes {
+		text, _ := domain.SearchMessageView(doc.Body, domain.DefaultSearchMessageView(doc.Role))
+		if len(b.work.Messages) > 0 && (b.bytes+len(text) > domain.SecretaryMaxBytes ||
+			b.sourceBytes+len(doc.Body) > domain.SecretaryMaxSourceBytes) {
 			return false, nil
 		}
 		b.work.Messages = append(b.work.Messages, doc)
-		b.bytes += len(doc.Body)
+		b.bytes += len(text)
+		b.sourceBytes += len(doc.Body)
 	}
 	b.work.ThroughRevision = change.revision
 	return true, nil

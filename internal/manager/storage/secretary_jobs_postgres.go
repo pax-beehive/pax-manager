@@ -168,7 +168,12 @@ func loadSecretaryBatch(ctx context.Context, tx *sql.Tx, job *domain.SecretaryJo
 			var doc domain.SearchDocument
 			readErr := ErrNotFound
 			if change.candidate {
-				doc, readErr = loadSearchMessage(ctx, tx, change.id)
+				doc, readErr = loadSearchMessageWithByteLimit(
+					ctx,
+					tx,
+					change.id,
+					domain.SecretaryMaxSourceBytes,
+				)
 			}
 			consumed, consumeErr := batch.consume(change, doc, readErr)
 			if consumeErr != nil || !consumed || batch.full() {
