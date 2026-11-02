@@ -14,6 +14,8 @@ import (
 
 type secretaryHistoryRequest struct {
 	SessionID string `json:"session_id"`
+	TurnID    string `json:"turn_id,omitempty"`
+	View      string `json:"view,omitempty"`
 	AfterSeq  int64  `json:"after_seq,omitempty"`
 	BeforeSeq int64  `json:"before_seq,omitempty"`
 	Limit     int    `json:"limit,omitempty"`
@@ -22,6 +24,19 @@ type secretaryHistoryRequest struct {
 type secretaryHistoryPage struct {
 	Messages   []userapi.WorkspaceMessageRead  `json:"messages"`
 	Pagination domain.MessageHistoryPagination `json:"pagination"`
+}
+
+func validateSecretaryHistory(request secretaryHistoryRequest) error {
+	if request.SessionID == "" || request.AfterSeq < 0 || request.BeforeSeq < 0 ||
+		(request.AfterSeq != 0 && request.BeforeSeq != 0) || request.Limit < 0 || request.Limit > 50 ||
+		(request.TurnID != "" && strings.TrimSpace(request.TurnID) == "") ||
+		(request.View != "" && request.View != "full" && request.View != "first" && request.View != "last") {
+		return apperr.Error{
+			Status:  http.StatusBadRequest,
+			Message: "invalid secretary history limits or view",
+		}
+	}
+	return nil
 }
 
 func (s *Service) secretaryToolHistory(
@@ -34,12 +49,8 @@ func (s *Service) secretaryToolHistory(
 	if err := decodeSecretaryToolJSON(arguments, &request); err != nil {
 		return secretaryHistoryPage{}, err
 	}
-	if request.SessionID == "" || request.AfterSeq < 0 || request.BeforeSeq < 0 ||
-		(request.AfterSeq != 0 && request.BeforeSeq != 0) || request.Limit < 0 || request.Limit > 50 {
-		return secretaryHistoryPage{}, apperr.Error{
-			Status:  http.StatusBadRequest,
-			Message: "invalid secretary history limits",
-		}
+	if err := validateSecretaryHistory(request); err != nil {
+		return secretaryHistoryPage{}, err
 	}
 	if request.Limit == 0 {
 		request.Limit = 20
@@ -57,6 +68,7 @@ func (s *Service) secretaryToolHistory(
 		request.AfterSeq,
 		request.BeforeSeq,
 		request.Limit,
+		request.TurnID,
 	)
 	if err != nil {
 		return secretaryHistoryPage{}, err
@@ -70,6 +82,7 @@ func (s *Service) secretaryToolHistory(
 	readCount := 0
 	for _, message := range page["messages"].([]domain.MessageWithParts) {
 		if !secretaryHistoryInWindow(message, request, result.Pagination) ||
+			(request.TurnID != "" && message.TurnID != request.TurnID) ||
 			seen[message.MessageID] {
 			continue
 		}
@@ -79,7 +92,7 @@ func (s *Service) secretaryToolHistory(
 		seen[message.MessageID] = true
 		readCount++
 		read, readErr := search.Read(ctx, auth.RequestMetadata{}, userapi.WorkspaceReadRequest{
-			Ref: userapi.SearchRef{Kind: "message", ID: message.MessageID},
+			Ref: userapi.SearchRef{Kind: "message", ID: message.MessageID}, View: request.View,
 		})
 		if errors.Is(readErr, domain.ErrNotFound) {
 			continue
@@ -87,7 +100,11 @@ func (s *Service) secretaryToolHistory(
 		if readErr != nil {
 			return secretaryHistoryPage{}, readErr
 		}
-		result.Messages = append(result.Messages, read.(userapi.WorkspaceMessageRead))
+		visible := read.(userapi.WorkspaceMessageRead)
+		if request.TurnID != "" && visible.TurnID != request.TurnID {
+			continue
+		}
+		result.Messages = append(result.Messages, visible)
 	}
 	if err = s.secretaryHistoryVisible(ctx, principal.owner, request.SessionID); err != nil {
 		return secretaryHistoryPage{}, err

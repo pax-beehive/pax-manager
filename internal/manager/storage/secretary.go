@@ -29,6 +29,7 @@ func secretaryRunID(work domain.SecretaryJob) string {
 	}
 	metadata, _ := json.Marshal(work.SourceMetadata)
 	refs = append(refs, "metadata:"+domain.SearchContentHash(string(metadata)))
+	refs = append(refs, "input_policy:"+domain.SecretaryInputPolicyVersion)
 	sort.Strings(refs)
 	return "secretary:" + strings.TrimPrefix(
 		domain.SearchContentHash(work.OwnerUserID+":"+work.SourceID+":"+
@@ -76,11 +77,14 @@ func secretaryErrorText(err error) string {
 }
 
 func secretaryWithinBounds(documents []domain.SearchDocument) error {
-	size := 0
+	size, sourceSize := 0, 0
 	for _, doc := range documents {
-		size += len(doc.Body)
+		text, _ := domain.SearchMessageView(doc.Body, domain.DefaultSearchMessageView(doc.Role))
+		size += len(text)
+		sourceSize += len(doc.Body)
 	}
-	if len(documents) > domain.SecretaryMaxMessages || size > domain.SecretaryMaxBytes {
+	if len(documents) > domain.SecretaryMaxMessages || size > domain.SecretaryMaxBytes ||
+		sourceSize > domain.SecretaryMaxSourceBytes {
 		return fmt.Errorf("secretary source exceeds bounded batch: %w", ErrConflict)
 	}
 	return nil

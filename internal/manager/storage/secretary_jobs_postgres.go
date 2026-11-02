@@ -3,8 +3,8 @@ package storage
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
@@ -94,17 +94,36 @@ func (s *PostgresStore) ClaimSecretaryJobs(
 type secretaryChange struct {
 	id, hash, canonical string
 	revision            int64
+	candidate           bool
+}
+
+var secretaryChangesSQL = buildSecretaryChangesSQL()
+
+func buildSecretaryChangesSQL() string {
+	kinds := domain.SearchVisibleMessageTypes()
+	for i, kind := range kinds {
+		kinds[i] = "'" + strings.ReplaceAll(kind, "'", "''") + "'"
+	}
+	return `SELECT m.message_id,m.change_revision,
+ CASE WHEN m.processed_owner_user_id=j.owner_user_id THEN m.processed_hash ELSE '' END,
+ m.processed_canonicalization_version,
+ COALESCE(source.role IN ('user','assistant') AND COALESCE(source.message_type,'') IN (` +
+		strings.Join(kinds, ",") + `),FALSE)
+ FROM secretary_message_state m JOIN secretary_jobs j USING(source_id)
+ LEFT JOIN messages source ON source.message_id=m.message_id
+ WHERE m.source_id=$1 AND m.change_revision>j.processed_revision
+ AND (m.change_revision,m.message_id)>($2,$3)
+ ORDER BY m.change_revision,m.message_id LIMIT $4`
 }
 
 func loadSecretaryChanges(
 	ctx context.Context,
 	tx *sql.Tx,
 	source string,
+	after secretaryChange,
+	limit int,
 ) ([]secretaryChange, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT m.message_id,m.change_revision,
- CASE WHEN m.processed_owner_user_id=j.owner_user_id THEN m.processed_hash ELSE '' END,m.processed_canonicalization_version
- FROM secretary_message_state m JOIN secretary_jobs j USING(source_id)
- WHERE m.source_id=$1 AND m.change_revision>j.processed_revision ORDER BY m.change_revision,m.message_id LIMIT $2`, source, domain.SecretaryMaxMessages)
+	rows, err := tx.QueryContext(ctx, secretaryChangesSQL, source, after.revision, after.id, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +131,7 @@ func loadSecretaryChanges(
 	var changes []secretaryChange
 	for rows.Next() {
 		var item secretaryChange
-		if err = rows.Scan(&item.id, &item.revision, &item.hash, &item.canonical); err != nil {
+		if err = rows.Scan(&item.id, &item.revision, &item.hash, &item.canonical, &item.candidate); err != nil {
 			return nil, err
 		}
 		changes = append(changes, item)
@@ -124,39 +143,50 @@ func loadSecretaryJob(ctx context.Context, tx *sql.Tx, job *domain.SecretaryJob)
 	if err := loadSecretaryRollingBaseline(ctx, tx, job); err != nil {
 		return err
 	}
-	changes, err := loadSecretaryChanges(ctx, tx, job.SourceID)
-	if err != nil {
-		return err
-	}
 	through := job.ThroughRevision
 	job.ThroughRevision = 0
-	size := 0
-	for _, change := range changes {
-		doc, readErr := loadSearchMessage(ctx, tx, change.id)
-		if errors.Is(readErr, ErrNotFound) {
-			if change.hash != "" {
-				job.RemovedMessageIDs = append(job.RemovedMessageIDs, change.id)
-			}
-		} else if readErr != nil {
-			return readErr
-		} else if doc.OwnerUserID != job.OwnerUserID {
-			return ErrNotFound
-		} else if doc.AgentID != job.SourceAgentID || doc.SessionID != job.SourceSessionID {
-			job.RemovedMessageIDs = append(job.RemovedMessageIDs, change.id)
-		} else if doc.ContentHash != change.hash || doc.CanonicalizationVersion != change.canonical {
-			if len(job.Messages) > 0 && size+len(doc.Body) > domain.SecretaryMaxBytes {
-				break
-			}
-			job.Messages = append(job.Messages, doc)
-			size += len(doc.Body)
-		}
-		job.ThroughRevision = change.revision
+	if err := loadSecretaryBatch(ctx, tx, job); err != nil {
+		return err
 	}
 	if job.ThroughRevision == 0 {
 		job.ThroughRevision = through
 	}
 	secretaryFinalizeDelta(job)
 	return secretaryWithinBounds(job.Messages)
+}
+
+func loadSecretaryBatch(ctx context.Context, tx *sql.Tx, job *domain.SecretaryJob) error {
+	batch := newSecretaryBatch(job)
+	var after secretaryChange
+	for scanned := 0; scanned < secretaryChangeScanLimit; {
+		limit := min(secretaryChangePageSize, secretaryChangeScanLimit-scanned)
+		changes, err := loadSecretaryChanges(ctx, tx, job.SourceID, after, limit)
+		if err != nil {
+			return err
+		}
+		for _, change := range changes {
+			var doc domain.SearchDocument
+			readErr := ErrNotFound
+			if change.candidate {
+				doc, readErr = loadSearchMessageWithByteLimit(
+					ctx,
+					tx,
+					change.id,
+					domain.SecretaryMaxSourceBytes,
+				)
+			}
+			consumed, consumeErr := batch.consume(change, doc, readErr)
+			if consumeErr != nil || !consumed || batch.full() {
+				return consumeErr
+			}
+			after = change
+			scanned++
+		}
+		if len(changes) < limit {
+			break
+		}
+	}
+	return nil
 }
 
 func (s *PostgresStore) SecretaryJobActive(

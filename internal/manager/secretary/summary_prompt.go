@@ -56,10 +56,15 @@ func validateMessages(job domain.SecretaryJob) error {
 		return errors.New("secretary source delta is empty or exceeds the message limit")
 	}
 	seen := make(map[string]bool)
-	total := 0
+	total, sourceBytes := 0, 0
 	for _, message := range job.Messages {
-		total += len(message.Body)
-		if total > domain.SecretaryMaxBytes ||
+		text, _ := domain.SearchMessageView(
+			message.Body,
+			domain.DefaultSearchMessageView(message.Role),
+		)
+		total += len(text)
+		sourceBytes += len(message.Body)
+		if total > domain.SecretaryMaxBytes || sourceBytes > domain.SecretaryMaxSourceBytes ||
 			message.Kind != "message" ||
 			message.SourceID == "" ||
 			seen[message.SourceID] ||
@@ -117,7 +122,10 @@ func BuildPrompt(job domain.SecretaryJob) (string, error) {
 		ID                      string     `json:"message_id"`
 		Role                    string     `json:"role"`
 		Text                    string     `json:"text"`
+		View                    string     `json:"view"`
+		AvailableViews          []string   `json:"available_views"`
 		SessionSeq              int64      `json:"session_seq,omitempty"`
+		TurnID                  string     `json:"turn_id,omitempty"`
 		CreatedAt               *time.Time `json:"created_at,omitempty"`
 		ContentHash             string     `json:"content_hash"`
 		CanonicalizationVersion string     `json:"canonicalization_version"`
@@ -138,8 +146,11 @@ func BuildPrompt(job domain.SecretaryJob) (string, error) {
 		), RemovedMessageIDs: job.RemovedMessageIDs,
 		ResetRequired: job.ResetRequired, ResetReason: job.ResetReason}
 	for _, message := range job.Messages {
-		item := promptMessage{ID: message.SourceID, Role: message.Role, Text: message.Body,
-			SessionSeq: message.SessionSeq, ContentHash: message.ContentHash,
+		view := domain.DefaultSearchMessageView(message.Role)
+		text, _ := domain.SearchMessageView(message.Body, view)
+		item := promptMessage{ID: message.SourceID, Role: message.Role, Text: text,
+			View: view, AvailableViews: []string{"first", "last", "full"},
+			SessionSeq: message.SessionSeq, TurnID: message.TurnID, ContentHash: message.ContentHash,
 			CanonicalizationVersion: message.CanonicalizationVersion}
 		if !message.CreatedAt.IsZero() {
 			instant := message.CreatedAt
@@ -165,11 +176,12 @@ Changed message IDs replace their earlier content; removed IDs must no longer su
 Source project and directory fields are reported metadata. Do not invent project membership. Board maintenance is outside this task.
 
 Read-only lookup is optional. If useful, derive keywords and make one workspace_search call to find related sessions. You may skip search entirely. Read selected hits using workspace_read, workspace_expand, or workspace_history before relying on them. Existing session history can be paged using the returned cursors. Request more context only when needed. If these tools are unavailable, use the supplied context without pretending a search occurred.
+Changed user messages expose full visible text. Changed assistant messages expose only the last paragraph of that message; this is a view, not a transport part or the last message of a turn. Their content_hash and canonicalization_version always identify the complete visible source. Use workspace_expand with first or full, or workspace_history, only when more context is useful. Never infer that an omitted paragraph was read. To quote newly read text from a changed message, include its returned view and read_receipt on that evidence. Only an exact verified read permits quotes outside the supplied view.
 Search snippets and other summaries are navigation/background, not new factual evidence. To include facts from another source, read its original message and copy its exact message_id, content_hash, canonicalization_version, and read_receipt into related_sources. Do not include every search hit or advance any other session's progress.
 Do not execute commands, change files, send messages, call unrelated tools, or publish state yourself. Manager validates and saves the returned summary atomically.
 
 Return exactly one JSON object without Markdown fences or surrounding prose:
 {"title":"short descriptive title","body":"complete updated session summary","claims":[{"text":"supported fact","kind":"decision|work|result|correction|open_question","basis":"user_explicit|agent_reported|inferred","state":"active","evidence":[{"message_id":"a supplied or explicitly read message_id","quote":"exact literal quote actually seen"}]}],"related_sources":[{"message_id":"read message_id","content_hash":"exact returned hash","canonicalization_version":"exact returned version","read_receipt":"exact returned receipt"}]}
-claims and related_sources are optional. Existing unchanged claim evidence may be retained exactly; changed or removed source evidence must be corrected. Keep the summary state under 64 KiB. Do not add IDs, versions, source lists, or fields outside this schema.
+claims and related_sources are optional. Evidence may additionally include view and read_receipt copied from a source read. Existing unchanged claim evidence may be retained exactly; changed or removed source evidence must be corrected. Keep the summary state under 64 KiB. Do not add IDs, versions, source lists, or fields outside this schema.
 
 `

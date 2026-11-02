@@ -14,6 +14,7 @@ func TestCanonicalSearchMessageGivenMultipartWhenRepartitionedThenIdentityAndHas
 	message := MessageWithParts{
 		Message: Message{
 			MessageID:   "message",
+			TurnID:      "turn-1",
 			Role:        "assistant",
 			MessageType: "agent_message_chunk",
 		},
@@ -25,6 +26,7 @@ func TestCanonicalSearchMessageGivenMultipartWhenRepartitionedThenIdentityAndHas
 	require.NoError(t, err)
 	assert.Equal(t, "\u6570\u636e\u5e93", first.Body)
 	assert.Equal(t, "message:message", first.DocumentID())
+	assert.Equal(t, "turn-1", first.TurnID)
 	assert.Equal(t, 1, message.Parts[0].PartIndex, "normalization must not mutate stored parts")
 	message.Parts = []MessagePart{{PartType: MessagePartText, Text: first.Body}}
 	second, err := CanonicalSearchMessage(message)

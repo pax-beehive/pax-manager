@@ -41,29 +41,28 @@ func (s *MemoryStore) loadMemorySecretaryJobLocked(
 			ids = append(ids, id)
 		}
 	}
-	sort.Slice(ids, func(i, j int) bool { return job.changes[ids[i]] < job.changes[ids[j]] })
-	size := 0
-	for _, id := range ids {
-		if len(work.Messages) >= domain.SecretaryMaxMessages {
+	sort.Slice(ids, func(i, j int) bool {
+		if job.changes[ids[i]] == job.changes[ids[j]] {
+			return ids[i] < ids[j]
+		}
+		return job.changes[ids[i]] < job.changes[ids[j]]
+	})
+	batch := newSecretaryBatch(&work)
+	for _, id := range ids[:min(len(ids), secretaryChangeScanLimit)] {
+		var doc domain.SearchDocument
+		err := ErrNotFound
+		if domain.SearchVisibleMessageMetadata(s.messages[id]) {
+			doc, err = s.readSearchMessageLocked(work.OwnerUserID, id)
+		}
+		change := secretaryChange{id: id, revision: job.changes[id], hash: job.checkpoint[id],
+			canonical: domain.SearchCanonicalizationVersion}
+		consumed, err := batch.consume(change, doc, err)
+		if err != nil {
+			return work, err
+		}
+		if !consumed || batch.full() {
 			break
 		}
-		doc, err := s.readSearchMessageLocked(work.OwnerUserID, id)
-		if errors.Is(err, ErrNotFound) {
-			if job.checkpoint[id] != "" {
-				work.RemovedMessageIDs = append(work.RemovedMessageIDs, id)
-			}
-		} else if err != nil {
-			return work, err
-		} else if doc.AgentID != work.SourceAgentID || doc.SessionID != work.SourceSessionID {
-			work.RemovedMessageIDs = append(work.RemovedMessageIDs, id)
-		} else if doc.ContentHash != job.checkpoint[id] {
-			if len(work.Messages) > 0 && size+len(doc.Body) > domain.SecretaryMaxBytes {
-				break
-			}
-			work.Messages = append(work.Messages, doc)
-			size += len(doc.Body)
-		}
-		work.ThroughRevision = job.changes[id]
 	}
 	if work.ThroughRevision == 0 {
 		work.ThroughRevision = job.desired

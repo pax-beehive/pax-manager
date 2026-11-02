@@ -67,6 +67,9 @@ func bindRollingEvidence(
 			)
 		}
 		evidence.MessageID = ref.MessageID
+		if evidence.ReadReceipt == "" {
+			evidence.ReadReceipt = ref.ReadReceipt
+		}
 	}
 	bound, err := bindTrustedEvidence(evidence, job, selected, reads)
 	if err != nil {
@@ -90,29 +93,33 @@ func bindTrustedEvidence(
 		return domain.SummaryEvidence{}, errors.New("secretary evidence quote is empty")
 	}
 	for _, message := range job.Messages {
-		if message.SourceID == evidence.MessageID &&
-			strings.Contains(message.Body, evidence.Quote) {
+		view := domain.DefaultSearchMessageView(message.Role)
+		text, _ := domain.SearchMessageView(message.Body, view)
+		if message.SourceID == evidence.MessageID && evidence.ReadReceipt == "" &&
+			strings.Contains(text, evidence.Quote) {
 			return domain.SummaryEvidence{
 				Message: messageReference(message),
 				Quote:   evidence.Quote,
-				View:    "full",
+				View:    view,
 			}, nil
+		}
+	}
+	for _, message := range job.Messages {
+		if message.SourceID != evidence.MessageID || evidence.ReadReceipt == "" {
+			continue
+		}
+		ref := messageReference(message)
+		ref.ReadReceipt = evidence.ReadReceipt
+		if bound, ok := evidenceFromReads(evidence, ref, reads); ok {
+			return bound, nil
 		}
 	}
 	for _, ref := range selected {
 		if ref.MessageID != evidence.MessageID {
 			continue
 		}
-		for _, read := range reads {
-			if read.Ref.Identity() == ref.Identity() && read.ReadReceipt == ref.ReadReceipt &&
-				strings.Contains(read.Text, evidence.Quote) {
-				return domain.SummaryEvidence{
-					Message:     ref,
-					Quote:       evidence.Quote,
-					View:        read.View,
-					ReadReceipt: read.ReadReceipt,
-				}, nil
-			}
+		if bound, ok := evidenceFromReads(evidence, ref, reads); ok {
+			return bound, nil
 		}
 	}
 	if retained, ok := retainedEvidence(evidence, job); ok {
@@ -121,6 +128,23 @@ func bindTrustedEvidence(
 	return domain.SummaryEvidence{}, errors.New(
 		"secretary evidence was not present in the supplied or verified text",
 	)
+}
+
+func evidenceFromReads(
+	evidence generatedEvidence,
+	ref domain.MessageVersionRef,
+	reads []domain.SecretaryReadMessage,
+) (domain.SummaryEvidence, bool) {
+	for _, read := range reads {
+		if read.Ref.Identity() == ref.Identity() && read.ReadReceipt == ref.ReadReceipt &&
+			(evidence.ReadReceipt == "" || evidence.ReadReceipt == read.ReadReceipt) &&
+			(evidence.View == "" || evidence.View == read.View) &&
+			strings.Contains(read.Text, evidence.Quote) {
+			return domain.SummaryEvidence{Message: ref, Quote: evidence.Quote,
+				View: read.View, ReadReceipt: read.ReadReceipt}, true
+		}
+	}
+	return domain.SummaryEvidence{}, false
 }
 
 func retainedEvidence(

@@ -78,6 +78,7 @@ type WorkspaceMessageRead struct {
 	MessageID      string                 `json:"message_id"`
 	AgentID        string                 `json:"agent_id"`
 	SessionID      string                 `json:"session_id"`
+	TurnID         string                 `json:"turn_id,omitempty"`
 	Role           string                 `json:"role"`
 	SessionSeq     int64                  `json:"session_seq"`
 	ConversationID string                 `json:"conversation_id,omitempty"`
