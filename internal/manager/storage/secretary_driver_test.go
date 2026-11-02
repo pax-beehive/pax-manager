@@ -31,8 +31,13 @@ func secretaryCandidateRows() scriptedRows {
 }
 
 func secretaryChangesRows(values ...[]driver.Value) scriptedRows {
+	for i, value := range values {
+		if len(value) == 4 {
+			values[i] = append(value, true)
+		}
+	}
 	return scriptedRows{
-		columns: []string{"message", "revision", "hash", "canonical"},
+		columns: []string{"message", "revision", "hash", "canonical", "candidate"},
 		values:  values,
 	}
 }
