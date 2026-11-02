@@ -17,6 +17,38 @@ type summaryPromptState struct {
 	Claims    []domain.SummaryClaim `json:"claims,omitempty"`
 }
 
+type generatedPromptState struct {
+	SummaryID string           `json:"summary_id"`
+	Revision  int64            `json:"revision"`
+	Title     string           `json:"title"`
+	Body      string           `json:"body"`
+	Claims    []generatedClaim `json:"claims,omitempty"`
+}
+
+func promptState(state *summaryPromptState) *generatedPromptState {
+	if state == nil {
+		return nil
+	}
+	projected := &generatedPromptState{
+		SummaryID: state.SummaryID, Revision: state.Revision, Title: state.Title, Body: state.Body,
+	}
+	for _, claim := range state.Claims {
+		item := generatedClaim{
+			Text:  claim.Text,
+			Kind:  claim.Kind,
+			Basis: claim.Basis,
+			State: claim.State,
+		}
+		for _, evidence := range claim.Evidence {
+			item.Evidence = append(item.Evidence, generatedEvidence{
+				MessageID: evidence.Message.MessageID, Quote: evidence.Quote,
+			})
+		}
+		projected.Claims = append(projected.Claims, item)
+	}
+	return projected
+}
+
 func validateMessages(job domain.SecretaryJob) error {
 	if len(job.Messages) > domain.SecretaryMaxMessages ||
 		len(job.RemovedMessageIDs) > domain.SecretaryMaxMessages ||
@@ -93,12 +125,12 @@ func BuildPrompt(job domain.SecretaryJob) (string, error) {
 	payload := struct {
 		SessionID         string                         `json:"session_id"`
 		SourceMetadata    domain.SecretarySourceMetadata `json:"source_metadata"`
-		CurrentSummary    *summaryPromptState            `json:"current_summary"`
+		CurrentSummary    *generatedPromptState          `json:"current_summary"`
 		ChangedMessages   []promptMessage                `json:"changed_messages"`
 		RemovedMessageIDs []string                       `json:"removed_message_ids,omitempty"`
 		ResetRequired     bool                           `json:"reset_required,omitempty"`
 		ResetReason       string                         `json:"reset_reason,omitempty"`
-	}{SessionID: job.SourceSessionID, SourceMetadata: job.SourceMetadata, CurrentSummary: current,
+	}{SessionID: job.SourceSessionID, SourceMetadata: job.SourceMetadata, CurrentSummary: promptState(current),
 		ChangedMessages: make(
 			[]promptMessage,
 			0,

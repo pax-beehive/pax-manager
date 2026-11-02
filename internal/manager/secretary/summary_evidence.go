@@ -18,6 +18,9 @@ func bindRollingClaims(
 		if strings.TrimSpace(item.Text) == "" {
 			return nil, errors.New("secretary claim text is empty")
 		}
+		if !knownClaimID(item.ID, job.CurrentSummary) {
+			return nil, errors.New("secretary response contains an unknown baseline claim id")
+		}
 		claim := domain.SummaryClaim{ID: fmt.Sprintf("claim_%d", index+1), Text: item.Text,
 			Kind: item.Kind, Basis: item.Basis, State: item.State}
 		count += len(item.Evidence)
@@ -36,7 +39,50 @@ func bindRollingClaims(
 	return claims, nil
 }
 
+func knownClaimID(id string, baseline *domain.SummaryVersion) bool {
+	if id == "" {
+		return true
+	}
+	if baseline != nil {
+		for _, claim := range baseline.Claims {
+			if claim.ID == id {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func bindRollingEvidence(
+	evidence generatedEvidence, job domain.SecretaryJob,
+	selected []domain.MessageVersionRef, reads []domain.SecretaryReadMessage,
+) (domain.SummaryEvidence, error) {
+	// Older prompts exposed stored evidence. Treat echoed metadata as assertions,
+	// never as authority for resolving a source or accepting a quote.
+	if evidence.Message != nil {
+		ref := *evidence.Message
+		if !ref.Valid() || evidence.MessageID != "" && evidence.MessageID != ref.MessageID {
+			return domain.SummaryEvidence{}, errors.New(
+				"secretary evidence reference is invalid or conflicting",
+			)
+		}
+		evidence.MessageID = ref.MessageID
+	}
+	bound, err := bindTrustedEvidence(evidence, job, selected, reads)
+	if err != nil {
+		return domain.SummaryEvidence{}, err
+	}
+	if evidence.Message != nil && *evidence.Message != bound.Message ||
+		evidence.View != "" && evidence.View != bound.View ||
+		evidence.ReadReceipt != "" && evidence.ReadReceipt != bound.ReadReceipt {
+		return domain.SummaryEvidence{}, errors.New(
+			"secretary evidence does not match its trusted version or view",
+		)
+	}
+	return bound, nil
+}
+
+func bindTrustedEvidence(
 	evidence generatedEvidence, job domain.SecretaryJob,
 	selected []domain.MessageVersionRef, reads []domain.SecretaryReadMessage,
 ) (domain.SummaryEvidence, error) {
