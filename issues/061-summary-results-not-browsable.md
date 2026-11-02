@@ -23,6 +23,9 @@ Add `GET /api/v1/user/:user_id/secretary/summaries` for the authenticated owner.
 Reuse immutable summary storage and the existing source visibility checks.
 Return current revisions newest first with bounded owner-bound cursor pages.
 The route has an eight-second deadline and no Elasticsearch dependency.
+Current source validation batches all leaf messages of each summary using the
+same SQL visibility predicates and canonical decoder as individual reads,
+avoiding one database round trip for every covered message.
 Read full bodies, claims and pinned evidence through the existing owner-scoped
 `POST /api/v1/user/:user_id/search/read` route. The developer-only routes retain
 their administrator gate and existing cursor behavior.

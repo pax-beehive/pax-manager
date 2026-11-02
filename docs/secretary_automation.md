@@ -303,6 +303,10 @@ required. `limit` defaults to 20 and accepts 1 through 100; `cursor` is opaque a
 bound to the authenticated owner. Current revisions are ordered by creation time
 descending, with summary ID descending to break ties. The request has an
 eight-second deadline. No model call or Secretary enable setting is involved.
+Current source access is validated in one batched canonical-message query per
+summary, rather than issuing a query for every covered message. The batch keeps
+the same session, node, owner, replacement, hidden-envelope and canonical-parts
+checks as individual source reads.
 
 Each item contains a title, a 400-character body preview, revision, creation time,
 subject identity and source/claim counts. Use the item's exact summary ID and

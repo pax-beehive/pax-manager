@@ -345,16 +345,7 @@ func validateSummaryAccess(
 	if err = rows.Close(); err != nil {
 		return err
 	}
-	for _, id := range ids {
-		doc, readErr := loadSearchMessage(ctx, tx, id)
-		if readErr != nil {
-			return readErr
-		}
-		if doc.OwnerUserID != owner {
-			return ErrNotFound
-		}
-	}
-	return nil
+	return validateSearchMessageAccess(ctx, tx, owner, ids)
 }
 
 func (s *PostgresStore) ReadMessageVersion(
