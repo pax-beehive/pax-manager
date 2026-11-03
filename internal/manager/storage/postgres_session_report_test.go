@@ -32,6 +32,10 @@ type scriptedPostgresScript struct {
 	execTexts               []string
 	execArgs                [][]driver.NamedValue
 	execCount               int
+	beginErr                error
+	beginOptions            []driver.TxOptions
+	execErrors              []error
+	commitErr               error
 	committed               bool
 	rolled                  bool
 }
@@ -349,6 +353,10 @@ func (c *scriptedPostgresConn) BeginTx(
 	ctx context.Context,
 	opts driver.TxOptions,
 ) (driver.Tx, error) {
+	c.script.beginOptions = append(c.script.beginOptions, opts)
+	if c.script.beginErr != nil {
+		return nil, c.script.beginErr
+	}
 	return &scriptedPostgresTx{script: c.script}, nil
 }
 
@@ -360,6 +368,13 @@ func (c *scriptedPostgresConn) ExecContext(
 	c.script.execCount++
 	c.script.execTexts = append(c.script.execTexts, query)
 	c.script.execArgs = append(c.script.execArgs, append([]driver.NamedValue(nil), args...))
+	if len(c.script.execErrors) > 0 {
+		err := c.script.execErrors[0]
+		c.script.execErrors = c.script.execErrors[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
 	if strings.Contains(query, "INSERT INTO transport_queue_state") {
 		if len(c.script.queueStateInsertResults) == 0 {
 			return driver.RowsAffected(0), nil
@@ -397,7 +412,7 @@ type scriptedPostgresTx struct {
 
 func (tx *scriptedPostgresTx) Commit() error {
 	tx.script.committed = true
-	return nil
+	return tx.script.commitErr
 }
 
 func (tx *scriptedPostgresTx) Rollback() error {
