@@ -90,6 +90,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 059 | resolved | [Automatic Secretary bypasses compact input views](059-secretary-default-input-view.md) | high | Secretary / prompt / source reads |
 
+| 050 | resolved | [Historical message backfill starves titles and live changes](050-search-backfill-starvation.md) | high | storage / search indexing |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
