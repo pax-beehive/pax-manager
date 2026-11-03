@@ -115,39 +115,6 @@ func (s *PostgresStore) GetSecretaryStatus(
 	return result, err
 }
 
-const secretaryBackfillSQL = `WITH source_rows AS (
- SELECT s.id source_id,a.owner_user_id,s.agent_id,s.session_id,m.message_id,
- row_number() OVER(PARTITION BY s.id ORDER BY m.session_seq,m.id) ordinal,
- count(*) OVER(PARTITION BY s.id) total
- FROM agent_sessions s JOIN agents a ON a.agent_id=s.agent_id JOIN messages m ON m.agent_id=s.agent_id AND m.session_id=s.session_id
- JOIN secretary_settings cfg ON cfg.owner_user_id=a.owner_user_id AND cfg.enabled
- LEFT JOIN nodes n ON n.node_id=a.node_id LEFT JOIN nodes sn ON sn.node_id=s.node_id
- WHERE ($1='' OR a.owner_user_id=$1) AND a.deleted_at IS NULL AND n.deleted_at IS NULL AND sn.deleted_at IS NULL
- AND s.archived_at IS NULL AND COALESCE(s.source,'')<>'secretary_internal'
- AND NOT EXISTS(SELECT 1 FROM secretary_internal_sessions i WHERE i.agent_id=s.agent_id AND i.session_id=s.session_id)
-), heads AS (
- INSERT INTO secretary_jobs(source_id,owner_user_id,source_agent_id,source_session_id,desired_revision)
- SELECT DISTINCT source_id,owner_user_id,agent_id,session_id,total FROM source_rows
- ON CONFLICT(source_id) DO UPDATE SET desired_revision=secretary_jobs.desired_revision+EXCLUDED.desired_revision,
- lease_token=CASE WHEN secretary_jobs.owner_user_id<>EXCLUDED.owner_user_id THEN '' ELSE secretary_jobs.lease_token END,
- lease_until=CASE WHEN secretary_jobs.owner_user_id<>EXCLUDED.owner_user_id THEN NULL ELSE secretary_jobs.lease_until END,
- owner_user_id=EXCLUDED.owner_user_id,updated_at=NOW(),available_at=NOW()
- RETURNING source_id,desired_revision
-)
- INSERT INTO secretary_message_state(source_id,message_id,change_revision)
- SELECT r.source_id,r.message_id,h.desired_revision-r.total+r.ordinal FROM source_rows r JOIN heads h USING(source_id)
- ON CONFLICT(source_id,message_id) DO UPDATE SET change_revision=EXCLUDED.change_revision`
-
-func backfillSecretaryTx(ctx context.Context, tx *sql.Tx, owner string) error {
-	_, err := tx.ExecContext(ctx, secretaryBackfillSQL, owner)
-	return err
-}
-
-func (s *PostgresStore) BackfillSecretaryJobs(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, secretaryBackfillSQL, "")
-	return err
-}
-
 func (s *PostgresStore) RetrySecretaryJobs(ctx context.Context, owner string) error {
 	if owner == "" {
 		return ErrUnauthorized

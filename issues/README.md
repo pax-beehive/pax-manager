@@ -94,6 +94,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 065 | resolved | [Search acceptance still requires the former FIFO claim index](065-search-acceptance-stale-fifo-plan.md) | medium | storage / search acceptance |
 
+| 066 | resolved | [Secretary startup requeues previously processed sessions](066-secretary-startup-requeues-completed-sessions.md) | medium | storage / Secretary bootstrap |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
