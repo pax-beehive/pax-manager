@@ -92,6 +92,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
 | 050 | resolved | [Historical message backfill starves titles and live changes](050-search-backfill-starvation.md) | high | storage / search indexing |
 
+| 065 | resolved | [Search acceptance still requires the former FIFO claim index](065-search-acceptance-stale-fifo-plan.md) | medium | storage / search acceptance |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

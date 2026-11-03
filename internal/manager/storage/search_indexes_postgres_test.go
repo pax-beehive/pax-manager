@@ -95,7 +95,13 @@ func TestSearchIndexesPostgresGivenLargeTiedBacklogThenClaimUsesOrderedIndexWith
 			Scan(&plan),
 	)
 	require.NoError(t, tx.Rollback())
-	assert.Contains(t, plan, `"Index Name": "idx_search_sync_pending_fifo"`)
+	assert.Equal(
+		t,
+		3,
+		strings.Count(plan, `"Index Name": "idx_search_sync_pending_priority"`),
+		"live, history, and extra-live candidates must use the ordered priority index: %s",
+		plan,
+	)
 	assert.NotContains(t, plan, `"Node Type": "Sort"`)
 	assert.NotContains(t, plan, `"Node Type": "Incremental Sort"`)
 	work, err := store.ClaimSearchBatch(t.Context(), 20, time.Minute)
