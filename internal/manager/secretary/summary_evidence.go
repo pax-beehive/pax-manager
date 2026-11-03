@@ -1,7 +1,6 @@
 package secretary
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -16,16 +15,22 @@ func bindRollingClaims(
 	count := 0
 	for index, item := range generated {
 		if strings.TrimSpace(item.Text) == "" {
-			return nil, errors.New("secretary claim text is empty")
+			return nil, generatedOutputError("schema", "secretary claim text is empty")
 		}
 		if !knownClaimID(item.ID, job.CurrentSummary) {
-			return nil, errors.New("secretary response contains an unknown baseline claim id")
+			return nil, generatedOutputError(
+				"schema",
+				"secretary response contains an unknown baseline claim id",
+			)
 		}
 		claim := domain.SummaryClaim{ID: fmt.Sprintf("claim_%d", index+1), Text: item.Text,
 			Kind: item.Kind, Basis: item.Basis, State: item.State}
 		count += len(item.Evidence)
 		if count > 512 {
-			return nil, errors.New("secretary response exceeds the evidence limit")
+			return nil, generatedOutputError(
+				"schema",
+				"secretary response exceeds the evidence limit",
+			)
 		}
 		for _, evidence := range item.Evidence {
 			bound, err := bindRollingEvidence(evidence, job, selected, reads)
@@ -62,7 +67,7 @@ func bindRollingEvidence(
 	if evidence.Message != nil {
 		ref := *evidence.Message
 		if !ref.Valid() || evidence.MessageID != "" && evidence.MessageID != ref.MessageID {
-			return domain.SummaryEvidence{}, errors.New(
+			return domain.SummaryEvidence{}, generatedOutputError("evidence",
 				"secretary evidence reference is invalid or conflicting",
 			)
 		}
@@ -78,7 +83,7 @@ func bindRollingEvidence(
 	if evidence.Message != nil && *evidence.Message != bound.Message ||
 		evidence.View != "" && evidence.View != bound.View ||
 		evidence.ReadReceipt != "" && evidence.ReadReceipt != bound.ReadReceipt {
-		return domain.SummaryEvidence{}, errors.New(
+		return domain.SummaryEvidence{}, generatedOutputError("evidence",
 			"secretary evidence does not match its trusted version or view",
 		)
 	}
@@ -90,7 +95,10 @@ func bindTrustedEvidence(
 	selected []domain.MessageVersionRef, reads []domain.SecretaryReadMessage,
 ) (domain.SummaryEvidence, error) {
 	if evidence.Quote == "" {
-		return domain.SummaryEvidence{}, errors.New("secretary evidence quote is empty")
+		return domain.SummaryEvidence{}, generatedOutputError(
+			"evidence",
+			"secretary evidence quote is empty",
+		)
 	}
 	for _, message := range job.Messages {
 		view := domain.DefaultSearchMessageView(message.Role)
@@ -118,6 +126,9 @@ func bindTrustedEvidence(
 		if ref.MessageID != evidence.MessageID {
 			continue
 		}
+		if evidence.ReadReceipt != "" {
+			ref.ReadReceipt = evidence.ReadReceipt
+		}
 		if bound, ok := evidenceFromReads(evidence, ref, reads); ok {
 			return bound, nil
 		}
@@ -125,7 +136,7 @@ func bindTrustedEvidence(
 	if retained, ok := retainedEvidence(evidence, job); ok {
 		return retained, nil
 	}
-	return domain.SummaryEvidence{}, errors.New(
+	return domain.SummaryEvidence{}, generatedOutputError("evidence",
 		"secretary evidence was not present in the supplied or verified text",
 	)
 }

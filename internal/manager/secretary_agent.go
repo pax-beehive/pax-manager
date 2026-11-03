@@ -227,7 +227,11 @@ func (s *Service) readSecretaryExecution(
 			return "", started, completed, canonicalErr
 		}
 		if len(document.Body) > 1024*1024 {
-			return "", started, completed, errors.New("secretary response exceeds 1 MiB")
+			failure := errors.New("secretary response exceeds 1 MiB")
+			if completed {
+				failure = domain.SecretaryOutputValidationError{Code: "schema", Err: failure}
+			}
+			return "", started, completed, failure
 		}
 		return document.Body, started, completed, nil
 	}

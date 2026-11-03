@@ -3,7 +3,6 @@ package secretary
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"io"
 	"strings"
 
@@ -39,23 +38,29 @@ type generatedSummary struct {
 func decodeGeneratedSummary(output string) (generatedSummary, error) {
 	var generated generatedSummary
 	if len(output) > 1024*1024 {
-		return generated, errors.New("secretary response exceeds 1 MiB")
+		return generated, generatedOutputError("schema", "secretary response exceeds 1 MiB")
 	}
 	decoder := json.NewDecoder(bytes.NewBufferString(output))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&generated); err != nil {
-		return generated, errors.New("secretary response must match the summary JSON schema")
+		return generated, generatedOutputError(
+			"schema",
+			"secretary response must match the summary JSON schema",
+		)
 	}
 	if decoder.Decode(new(any)) != io.EOF || strings.TrimSpace(generated.Body) == "" ||
 		len(
 			generated.Title,
 		) > 4096 || len(generated.Claims) > 100 || len(generated.RelatedSources) > 50 {
-		return generated, errors.New("secretary response has invalid summary content")
+		return generated, generatedOutputError(
+			"schema",
+			"secretary response has invalid summary content",
+		)
 	}
 	seen := make(map[string]bool, len(generated.RelatedSources))
 	for _, ref := range generated.RelatedSources {
 		if !ref.Valid() || ref.ReadReceipt == "" || seen[ref.Identity()] {
-			return generated, errors.New(
+			return generated, generatedOutputError("schema",
 				"related sources require unique exact versions and read receipts",
 			)
 		}
@@ -101,7 +106,7 @@ func BuildPublicationWithReads(
 	}
 	for _, ref := range generated.RelatedSources {
 		if !hasTrustedRead(ref, reads.Messages) {
-			return domain.PublishSummaryRequest{}, errors.New(
+			return domain.PublishSummaryRequest{}, generatedOutputError("evidence",
 				"related source was not exposed by a verified read",
 			)
 		}
@@ -122,7 +127,7 @@ func BuildPublicationWithReads(
 	state := summaryPromptState{Title: request.Title, Body: request.Body, Claims: request.Claims}
 	encoded, err := json.Marshal(state)
 	if err != nil || len(encoded) > maxSummaryStateBytes-256 {
-		return domain.PublishSummaryRequest{}, errors.New(
+		return domain.PublishSummaryRequest{}, generatedOutputError("schema",
 			"secretary summary state exceeds 64 KiB; return a more concise summary",
 		)
 	}

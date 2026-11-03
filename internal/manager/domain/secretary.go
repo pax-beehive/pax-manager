@@ -14,6 +14,7 @@ const (
 	SecretaryInputPolicyVersion    = "user-full-assistant-last-v1"
 	SecretaryInternalSource        = "secretary_internal"
 	SecretaryInternalSessionPrefix = "sess_secretary_"
+	SecretaryMaxValidationRetries  = 2
 )
 
 var ErrSecretaryFenced = fmt.Errorf("secretary work canceled or superseded: %w", ErrConflict)
@@ -52,6 +53,7 @@ type SecretarySourceMetadata struct {
 }
 
 type SecretaryJob struct {
+	ValidationFeedback      string
 	SourceID                string
 	OwnerUserID             string
 	SourceAgentID           string

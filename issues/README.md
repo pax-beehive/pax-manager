@@ -6,6 +6,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
 | 060 | resolved | [Backend failures discard refreshed browser session cookies](060-refreshed-session-cookie-loss.md) | high | auth / Worker / regional gateway |
 | 061 | resolved | [Secretary results cannot be browsed by ordinary owners](061-summary-results-not-browsable.md) | medium | userapi / storage / Console |
+| 064 | open | [Upstream background runtime snapshots can block Secretary sources](064-secretary-stale-upstream-background-state.md) | medium | runtime state / session scheduling |
+| 063 | resolved | [Secretary replays rejected completed output indefinitely](063-secretary-invalid-output-retry-loop.md) | high | Secretary / validation / scheduling |
 | 062 | resolved | [Search repeats a session as title, summary and message results](062-search-repeats-session-results.md) | medium | search / userapi / storage / Console |
 | 044 | resolved | [Completed transport journal history grows without bound](044-transport-journal-retention.md) | high | storage / transport |
 | 001 | resolved | [Agent-to-user outbound message endpoint missing](001-outbound-message-endpoint.md)                                                     | blocker  | api / mailbox                |

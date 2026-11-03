@@ -237,6 +237,8 @@ func (s *MemoryStore) PublishSecretaryJob(
 	if err != nil {
 		return domain.SummaryVersion{}, err
 	}
+	job.autoRetryKey, job.autoRetryCount = "", 0
+	job.work.ValidationFeedback = ""
 	for _, message := range work.Messages {
 		job.checkpoint[message.SourceID] = message.ContentHash
 	}

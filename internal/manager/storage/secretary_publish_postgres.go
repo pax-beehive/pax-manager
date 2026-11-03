@@ -74,7 +74,7 @@ func (s *PostgresStore) publishSecretaryJob(
 	_, err = tx.ExecContext(
 		ctx,
 		`UPDATE secretary_jobs SET processed_revision=GREATEST(processed_revision,$2),
- lease_token='',lease_until=NULL,completed_at=NOW(),last_error='',attempts=0,available_at=NOW()
+ lease_token='',lease_until=NULL,completed_at=NOW(),last_error='',attempts=0,available_at=NOW(),auto_retry_key='',auto_retry_count=0,last_validation_failure=''
  WHERE source_id=$1`,
 		job.SourceID,
 		job.ThroughRevision,
