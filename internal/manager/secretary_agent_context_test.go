@@ -87,7 +87,7 @@ func TestSecretaryAgentContextGivenRecoveredOutputThenVerifiesSelectedReadReceip
 		request,
 		secretary.ExecutionResult{Text: string(output)},
 	)
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrSecretaryFenced)
 	request.OwnerID = job.OwnerUserID
 	ref.ReadReceipt = "forged"
 	output, err = json.Marshal(
@@ -99,7 +99,7 @@ func TestSecretaryAgentContextGivenRecoveredOutputThenVerifiesSelectedReadReceip
 		request,
 		secretary.ExecutionResult{Text: string(output)},
 	)
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrSecretaryInvalidReadReceipt)
 	_, err = srv.finishSecretaryExecution(
 		t.Context(),
 		request,
@@ -181,4 +181,110 @@ func TestSecretaryAgentContextGivenRecoveredDeltaExpansionThenReverifiesProofWit
 		secretary.ExecutionResult{Text: output(read.ReadReceipt)},
 	)
 	assert.Error(t, err)
+}
+
+func TestSecretaryAgentContextGivenRecoveredRelatedEvidenceThenVerifiesIndependentRead(
+	t *testing.T,
+) {
+	srv, fixture, job, _, _ := secretaryToolsFixture(t)
+	job.SourceID, job.TargetSummaryID = "1", "summary-target"
+	putSecretaryToolMessage(t, srv, fixture, "changed-message", "user", "A source update.")
+	putSecretaryToolMessage(
+		t,
+		srv,
+		fixture,
+		"related-pages",
+		"assistant",
+		"First explanation.\n\nLast decision.",
+	)
+	reader := srv.workspaceSearch.WithPrincipal(secretaryToolPrincipal{owner: job.OwnerUserID})
+	versions := make(map[string]userapi.SearchRef)
+	readSource := func(t *testing.T, id, view string, offset, limit int) userapi.WorkspaceMessageRead {
+		t.Helper()
+		ref := versions[id]
+		if ref.ID == "" {
+			ref = userapi.SearchRef{Kind: "message", ID: id}
+		}
+		data, err := reader.Read(t.Context(), auth.RequestMetadata{}, userapi.WorkspaceReadRequest{
+			Ref: ref, View: view, Offset: offset, Limit: limit,
+		})
+		require.NoError(t, err)
+		read := data.(userapi.WorkspaceMessageRead)
+		versions[id] = read.Ref
+		return read
+	}
+	delta := readSource(t, "changed-message", "full", 0, 0)
+	job.Messages = []domain.SearchDocument{{
+		Kind: "message", SourceID: delta.MessageID, OwnerUserID: job.OwnerUserID,
+		AgentID: delta.AgentID, SessionID: delta.SessionID, Role: delta.Role, Body: delta.Text,
+		ContentHash: delta.Ref.ContentHash, CanonicalizationVersion: delta.Ref.CanonicalizationVersion,
+	}}
+	for _, test := range []struct {
+		name    string
+		view    string
+		offset  int
+		limit   int
+		invalid string
+	}{
+		{name: "another page", view: "full", offset: 6, limit: 6},
+		{name: "another view", view: "last"},
+		{name: "forged proof", view: "last", invalid: "receipt"},
+		{name: "wrong owner", view: "last", invalid: "owner"},
+		{name: "wrong source version", view: "last", invalid: "version"},
+		{name: "unselected source", view: "last", invalid: "selection"},
+		{name: "wrong exposed view", view: "last", invalid: "view"},
+		{name: "unseen quote", view: "last", invalid: "quote"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			first := readSource(t, "related-pages", "full", 0, 6)
+			second := readSource(t, "related-pages", test.view, test.offset, test.limit)
+			selected := domain.MessageVersionRef{
+				MessageID: first.MessageID, ContentHash: first.Ref.ContentHash,
+				CanonicalizationVersion: first.Ref.CanonicalizationVersion, ReadReceipt: first.ReadReceipt,
+			}
+			evidence := map[string]string{
+				"message_id": second.MessageID, "quote": second.Text,
+				"view": second.View, "read_receipt": second.ReadReceipt,
+			}
+			request := secretary.ExecutionRequest{OwnerID: job.OwnerUserID, Job: job}
+			sources := []domain.MessageVersionRef{selected}
+			switch test.invalid {
+			case "receipt":
+				evidence["read_receipt"] = "forged"
+			case "owner":
+				request.OwnerID = "foreign-owner"
+			case "version":
+				sources[0].ContentHash = "different-version"
+			case "selection":
+				sources = nil
+			case "view":
+				evidence["view"] = "first"
+			case "quote":
+				evidence["quote"] = "Text never exposed."
+			}
+			output, err := json.Marshal(map[string]any{
+				"body": "Updated", "related_sources": sources,
+				"claims": []map[string]any{
+					{"text": "Related fact", "evidence": []map[string]string{evidence}},
+				},
+			})
+			require.NoError(t, err)
+			result, err := srv.finishSecretaryExecution(
+				t.Context(),
+				request,
+				secretary.ExecutionResult{Text: string(output)},
+			)
+			if err == nil {
+				_, err = secretary.BuildPublicationWithReads(job, result.Text, result.Reads)
+			}
+			if test.invalid != "" {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, result.Reads.Messages, 2)
+			assert.Equal(t, second.Text, result.Reads.Messages[1].Text)
+			assert.Equal(t, second.ReadReceipt, result.Reads.Messages[1].ReadReceipt)
+		})
+	}
 }

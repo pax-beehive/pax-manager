@@ -23,9 +23,10 @@ func secretaryCandidateRows() scriptedRows {
 			"settings_revision",
 			"through",
 			"retry",
+			"last_validation_failure",
 		},
 		values: [][]driver.Value{
-			{"1", "owner_1", "agent_1", "session_1", "selected", int64(1), int64(2), int64(0)},
+			{"1", "owner_1", "agent_1", "session_1", "selected", int64(1), int64(2), int64(0), ""},
 		},
 	}
 }

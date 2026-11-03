@@ -42,6 +42,11 @@ func secretaryRunID(work domain.SecretaryJob) string {
 	)
 }
 
+func secretaryValidationRetryKey(work domain.SecretaryJob) string {
+	work.RetryGeneration = 0
+	return secretaryRunID(work)
+}
+
 func secretaryPrepareJob(work *domain.SecretaryJob) {
 	work.RunID = secretaryRunID(*work)
 	if work.TargetSummaryID == "" {

@@ -23,6 +23,8 @@ type memorySecretaryRequest struct {
 	ref  domain.SummaryRef
 }
 type memorySecretaryJob struct {
+	autoRetryKey                   string
+	autoRetryCount                 int
 	work                           domain.SecretaryJob
 	desired, processed             int64
 	changes                        map[string]int64
@@ -167,6 +169,8 @@ func (s *MemoryStore) RetrySecretaryJobs(_ context.Context, owner string) error 
 			job.lastError = ""
 			if job.work.LeaseToken == "" || !job.leaseUntil.After(s.now()) {
 				job.work.RetryGeneration++
+				job.autoRetryKey, job.autoRetryCount = "", 0
+				job.work.ValidationFeedback = ""
 			}
 		}
 	}
@@ -331,7 +335,19 @@ func (s *MemoryStore) FailSecretaryJob(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	job := s.secretaryLocked().jobs[work.SourceID]
-	if job != nil && job.work.LeaseToken == work.LeaseToken {
+	if job != nil && work.LeaseToken != "" && job.work.LeaseToken == work.LeaseToken &&
+		job.leaseUntil.After(s.now()) {
+		job.work.ValidationFeedback = domain.SecretaryValidationFailureCode(failure)
+		if job.work.ValidationFeedback != "" {
+			key := secretaryValidationRetryKey(work)
+			if key != job.autoRetryKey {
+				job.autoRetryKey, job.autoRetryCount = key, 0
+			}
+			if job.autoRetryCount < domain.SecretaryMaxValidationRetries {
+				job.autoRetryCount++
+				job.work.RetryGeneration++
+			}
+		}
 		job.work.LeaseToken = ""
 		job.leaseUntil = time.Time{}
 		job.available = s.now().Add(5 * time.Second)
@@ -384,6 +400,7 @@ func (s *MemoryStore) ClaimSecretaryJobs(
 			continue
 		}
 		work.AgentID = cfg.AgentID
+		work.ValidationFeedback = job.work.ValidationFeedback
 		work.RetryGeneration = job.work.RetryGeneration
 		work.SettingsRevision = cfg.Revision
 		work.LeaseToken, err = newSecret("secretary")

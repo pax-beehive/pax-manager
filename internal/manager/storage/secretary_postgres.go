@@ -175,6 +175,9 @@ func (s *PostgresStore) RetrySecretaryJobs(ctx context.Context, owner string) er
 	_, err = tx.ExecContext(
 		ctx,
 		`UPDATE secretary_jobs SET available_at=NOW(),attempts=0,last_error='',
+ last_validation_failure=CASE WHEN lease_token='' OR lease_until<=NOW() THEN '' ELSE last_validation_failure END,
+ auto_retry_key=CASE WHEN lease_token='' OR lease_until<=NOW() THEN '' ELSE auto_retry_key END,
+ auto_retry_count=CASE WHEN lease_token='' OR lease_until<=NOW() THEN 0 ELSE auto_retry_count END,
  retry_generation=CASE WHEN lease_token='' OR lease_until<=NOW() THEN retry_generation+1 ELSE retry_generation END,
  updated_at=NOW()-INTERVAL '30 seconds' WHERE owner_user_id=$1 AND desired_revision>processed_revision`,
 		owner,

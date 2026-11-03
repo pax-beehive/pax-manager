@@ -2,7 +2,10 @@ package manager
 
 import (
 	"context"
+	"errors"
+	"net/http"
 
+	"github.com/pax-beehive/pax-manager/internal/manager/apperr"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/secretary"
 )
@@ -30,6 +33,9 @@ func (s *Service) finishSecretaryExecution(
 	if request.Job.SourceID == "" {
 		return result, nil
 	}
+	if request.OwnerID == "" || request.OwnerID != request.Job.OwnerUserID {
+		return result, domain.ErrSecretaryFenced
+	}
 	refs, err := secretary.RequestedSourceReads(request.Job, result.Text)
 	if err != nil {
 		return result, err
@@ -43,11 +49,27 @@ func (s *Service) finishSecretaryExecution(
 			ref.ReadReceipt,
 		)
 		if readErr != nil {
-			return result, readErr
+			return result, secretaryReceiptReadError(readErr)
 		}
 		result.Reads.Messages = append(result.Reads.Messages, domain.SecretaryReadMessage{
 			Ref: ref, Text: read.Text, View: read.View, ReadReceipt: read.ReadReceipt,
 		})
 	}
 	return result, nil
+}
+
+func secretaryReceiptReadError(failure error) error {
+	var response apperr.Error
+	if !errors.As(failure, &response) {
+		var pointer *apperr.Error
+		if !errors.As(failure, &pointer) || pointer == nil {
+			return failure
+		}
+		response = *pointer
+	}
+	if response.Status == http.StatusBadRequest &&
+		response.Message == "invalid read receipt; read the exact source version again" {
+		return domain.ErrSecretaryInvalidReadReceipt
+	}
+	return failure
 }

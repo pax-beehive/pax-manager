@@ -344,4 +344,40 @@ func TestSecretaryOutputGivenCompletedEmptyTurnThenRejectsSummaryInput(t *testin
 	assert.True(t, started)
 	assert.True(t, completed)
 	assert.ErrorIs(t, err, secretary.ErrNoOutput)
+	assert.Empty(t, domain.SecretaryValidationFailureCode(err))
+}
+
+func TestSecretaryOutputGivenOversizeResponseThenOnlyCompletedOutputAllowsFreshGeneration(
+	t *testing.T,
+) {
+	for _, completed := range []bool{false, true} {
+		srv, _ := testServer(t, "todd@example.com")
+		fixture := testNodeAgent(t, srv, "todd@example.com")
+		require.NoError(t, srv.store.UpsertMessage(t.Context(), &domain.Message{
+			MessageID: "large-output", AgentID: fixture.agentID, SessionID: "large-session", TurnID: "large-turn",
+			Source: domain.MessageSourceACPTunnel, Direction: domain.MessageDirectionAgentToUser, Role: "assistant", MessageType: "agent_message_chunk", SessionSeq: 1,
+		}))
+		require.NoError(t, srv.store.UpsertMessagePart(t.Context(), &domain.MessagePart{
+			MessageID: "large-output", PartIndex: 0, PartType: "text", Text: strings.Repeat("x", 1024*1024+1),
+		}))
+		if completed {
+			require.NoError(t, srv.store.UpsertMessage(t.Context(), &domain.Message{
+				MessageID: "large-done", AgentID: fixture.agentID, SessionID: "large-session", TurnID: "large-turn",
+				Source: domain.MessageSourceACPTunnel, Direction: domain.MessageDirectionAgentToUser, Role: "assistant", MessageType: "turn_done", Status: "complete", SessionSeq: 2,
+			}))
+		}
+		_, _, done, err := srv.readSecretaryExecution(
+			t.Context(),
+			fixture.agentID,
+			"large-session",
+			"large-turn",
+		)
+		require.ErrorContains(t, err, "exceeds 1 MiB")
+		assert.Equal(t, completed, done)
+		if completed {
+			assert.Equal(t, "schema", domain.SecretaryValidationFailureCode(err))
+		} else {
+			assert.Empty(t, domain.SecretaryValidationFailureCode(err))
+		}
+	}
 }

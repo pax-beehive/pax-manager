@@ -32,7 +32,7 @@ func (s *PostgresStore) ClaimSecretaryJobs(
 	rows, err := tx.QueryContext(
 		ctx,
 		`SELECT j.source_id::text,j.owner_user_id,j.source_agent_id,j.source_session_id,
- cfg.agent_id,cfg.revision,j.desired_revision,j.retry_generation FROM secretary_jobs j
+ cfg.agent_id,cfg.revision,j.desired_revision,j.retry_generation,j.last_validation_failure FROM secretary_jobs j
  JOIN secretary_settings cfg ON cfg.owner_user_id=j.owner_user_id AND cfg.enabled
  JOIN agents a ON a.agent_id=j.source_agent_id AND a.owner_user_id=j.owner_user_id AND a.deleted_at IS NULL
  JOIN agents selected ON selected.agent_id=cfg.agent_id AND selected.owner_user_id=j.owner_user_id AND selected.deleted_at IS NULL
@@ -53,7 +53,7 @@ func (s *PostgresStore) ClaimSecretaryJobs(
 	var pending []domain.SecretaryJob
 	for rows.Next() {
 		var job domain.SecretaryJob
-		if err = rows.Scan(&job.SourceID, &job.OwnerUserID, &job.SourceAgentID, &job.SourceSessionID, &job.AgentID, &job.SettingsRevision, &job.ThroughRevision, &job.RetryGeneration); err != nil {
+		if err = rows.Scan(&job.SourceID, &job.OwnerUserID, &job.SourceAgentID, &job.SourceSessionID, &job.AgentID, &job.SettingsRevision, &job.ThroughRevision, &job.RetryGeneration, &job.ValidationFeedback); err != nil {
 			_ = rows.Close()
 			return nil, err
 		}
@@ -249,14 +249,25 @@ func (s *PostgresStore) FailSecretaryJob(
 	job domain.SecretaryJob,
 	failure error,
 ) error {
+	retryKey := ""
+	code := domain.SecretaryValidationFailureCode(failure)
+	if code != "" {
+		retryKey = secretaryValidationRetryKey(job)
+	}
 	_, err := s.db.ExecContext(
 		ctx,
 		`UPDATE secretary_jobs SET lease_token='',lease_until=NULL,attempts=attempts+1,
- last_error=$3,available_at=NOW()+LEAST(300,POWER(2,LEAST(attempts,8))) * INTERVAL '1 second'
- WHERE source_id=$1 AND lease_token=$2`,
+ retry_generation=retry_generation+CASE WHEN $4<>'' AND (auto_retry_key<>$4 OR auto_retry_count<$5) THEN 1 ELSE 0 END,
+ auto_retry_count=CASE WHEN $4='' THEN auto_retry_count WHEN auto_retry_key<>$4 THEN 1 ELSE LEAST(auto_retry_count+1,$5) END,
+ auto_retry_key=CASE WHEN $4<>'' THEN $4 ELSE auto_retry_key END,
+ last_error=$3,last_validation_failure=$6,available_at=NOW()+LEAST(300,POWER(2,LEAST(attempts,8))) * INTERVAL '1 second'
+ WHERE source_id=$1 AND lease_token=$2 AND lease_token<>'' AND lease_until>NOW()`,
 		job.SourceID,
 		job.LeaseToken,
 		secretaryErrorText(failure),
+		retryKey,
+		domain.SecretaryMaxValidationRetries,
+		code,
 	)
 	return err
 }
