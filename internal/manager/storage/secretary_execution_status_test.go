@@ -25,9 +25,11 @@ func TestSecretaryExecutionStatusGivenDurableStatesThenReportsOnlySafeEnums(t *t
 		{"unknown", "unknown", "unknown", "execution_unknown", false, 1},
 		{"blocked", "invalid", "blocked", "invalid_output", false, 1},
 		{"blocked", "failed", "blocked", "execution_failed", false, 1},
+		{"blocked", "not_dispatched", "blocked", "connection_retries_exhausted", false, 1},
 		{"blocked", "canceled", "blocked", "canceled", false, 1},
 		{"blocked", "", "blocked", "retry_required", false, 1},
 		{"pending", "invalid", "queued", "", true, 1},
+		{"pending", "not_dispatched", "waiting", "connection_backoff", false, 1},
 		{"", "", "waiting", "", false, 1},
 		{"", "", "", "", false, 0},
 	} {
@@ -55,6 +57,8 @@ func TestSecretaryExecutionStatusDriverGivenLatestBatchThenScopesOwnerSettingsAn
 		{"running", "running", "running", "", true},
 		{"unknown", "unknown", "unknown", "execution_unknown", false},
 		{"blocked", "invalid", "blocked", "invalid_output", false},
+		{"blocked", "not_dispatched", "blocked", "connection_retries_exhausted", false},
+		{"pending", "not_dispatched", "waiting", "connection_backoff", false},
 		{"output_received", "output_received", "output_received", "", false},
 	} {
 		t.Run(test.state, func(t *testing.T) {
@@ -98,6 +102,32 @@ func TestSecretaryExecutionStatusDriverGivenLatestBatchThenScopesOwnerSettingsAn
 			assert.Contains(t, script.queryTexts[1], "b.settings_revision=$2")
 		})
 	}
+}
+
+func TestSecretaryExecutionStatusGivenConnectionFailureThenShowsDurableBackoff(t *testing.T) {
+	secretaryLifecycleFixtures(t, func(t *testing.T, f *secretaryLifecycleFixture) {
+		job := f.begin(t, f.prepare(t))
+		require.NoError(t, f.store.FailSecretaryAttempt(
+			t.Context(), job, job.AttemptID, domain.ErrSecretaryNotDispatched,
+		))
+		status, err := f.store.GetSecretaryStatus(t.Context(), "owner")
+		require.NoError(t, err)
+		assert.Equal(t, "waiting", status.ExecutionState)
+		assert.Equal(t, "connection_backoff", status.BlockedReason)
+		assert.False(t, status.Processing)
+		for range domain.SecretaryConnectionMaxRetries {
+			f.releaseConnectionBackoff(t)
+			job = f.begin(t, f.prepare(t))
+			require.NoError(t, f.store.FailSecretaryAttempt(
+				t.Context(), job, job.AttemptID, domain.ErrSecretaryNotDispatched,
+			))
+		}
+		status, err = f.store.GetSecretaryStatus(t.Context(), "owner")
+		require.NoError(t, err)
+		assert.Equal(t, "blocked", status.ExecutionState)
+		assert.Equal(t, "connection_retries_exhausted", status.BlockedReason)
+		assert.False(t, status.Processing)
+	})
 }
 
 func TestSecretaryExecutionStatusMemoryGivenObsoleteOrForeignBatchThenDoesNotLeakIt(t *testing.T) {

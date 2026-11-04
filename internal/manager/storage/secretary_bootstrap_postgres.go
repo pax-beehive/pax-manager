@@ -83,5 +83,8 @@ func (s *PostgresStore) BackfillSecretaryJobs(ctx context.Context) error {
 	if err = reconcileSecretaryTx(ctx, tx, "", false); err != nil {
 		return err
 	}
+	if err = repairSecretaryConnectionsTx(ctx, tx, s.now()); err != nil {
+		return err
+	}
 	return tx.Commit()
 }

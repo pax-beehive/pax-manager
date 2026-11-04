@@ -180,12 +180,23 @@ func (s *SecretaryService) status(ctx context.Context, owner string) (SecretaryR
 	if result.ExecutionState != "" {
 		result.BlockedReason = safeSecretaryBlockedReason(status.BlockedReason)
 	}
-	if status.LastError != "" || secretaryExecutionNeedsAttention(result.ExecutionState) {
+	connectionBackoff := result.ExecutionState == "waiting" &&
+		result.BlockedReason == "connection_backoff"
+	connectionExhausted := result.ExecutionState == "blocked" &&
+		result.BlockedReason == "connection_retries_exhausted"
+	if connectionExhausted {
+		result.LastError = "Secretary could not connect to the agent after automatic retries. Retry the run when the agent is available."
+	} else if !connectionBackoff &&
+		(status.LastError != "" || secretaryExecutionNeedsAttention(result.ExecutionState)) {
 		result.LastError = "The last summary task did not finish. Retry it when the agent is available."
 	}
 	switch {
 	case !status.Enabled:
 		result.State = "disabled"
+	case connectionBackoff:
+		result.State = "waiting"
+	case connectionExhausted:
+		result.State = "error"
 	case !available:
 		result.State = "waiting_for_agent"
 	case secretaryExecutionNeedsAttention(result.ExecutionState):
@@ -214,7 +225,9 @@ func safeSecretaryBlockedReason(value string) string {
 		"invalid_output",
 		"execution_failed",
 		"canceled",
-		"retry_required":
+		"retry_required",
+		"connection_backoff",
+		"connection_retries_exhausted":
 		return value
 	default:
 		return ""

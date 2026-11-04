@@ -159,6 +159,7 @@ func (s *MemoryStore) BackfillSecretaryJobs(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.refreshSecretaryLocked()
+	s.repairSecretaryConnectionsLocked()
 	return nil
 }
 
@@ -445,6 +446,7 @@ func (s *MemoryStore) memorySecretaryClaimableLocked(
 	cfg := state.settings[job.work.OwnerUserID]
 	session, ok := s.sessions[sessionKey(job.work.SourceAgentID, job.work.SourceSessionID)]
 	if !ok || !cfg.Enabled || job.executionBlocked || job.desired <= job.processed ||
+		!s.secretaryConnectionClaimableLocked(job, cfg.Revision) ||
 		job.available.After(s.now()) ||
 		job.leaseUntil.After(s.now()) ||
 		job.updated.Add(settle).After(s.now()) {

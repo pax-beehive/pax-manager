@@ -10,16 +10,18 @@ import (
 )
 
 type memorySecretaryExecutionBatch struct {
-	source      string
-	owner       string
-	settings    int64
-	epoch       int64
-	input       []byte
-	state       string
-	lease       string
-	attempts    []domain.SecretaryAttempt
-	requestHash string
-	results     []domain.SummaryVersion
+	source             string
+	owner              string
+	settings           int64
+	epoch              int64
+	input              []byte
+	state              string
+	lease              string
+	attempts           []domain.SecretaryAttempt
+	requestHash        string
+	results            []domain.SummaryVersion
+	connectionFailures int
+	retryAfter         time.Time
 }
 
 func (s *MemoryStore) secretaryExecutionsLocked() map[string]*memorySecretaryExecutionBatch {
@@ -48,7 +50,7 @@ func (s *MemoryStore) PrepareSecretaryBatch(
 		if pending.source == job.SourceID && pending.owner == job.OwnerUserID &&
 			pending.settings == job.SettingsRevision &&
 			pending.epoch == job.RetryEpoch &&
-			(pending.state == "pending" || pending.state == "running" || pending.state == "output_received" || pending.state == "unknown") {
+			(secretaryBatchOpen(pending.state) || secretaryConnectionExhausted(pending.state, pending.connectionFailures)) {
 			job.BatchID = id
 			break
 		}
@@ -70,7 +72,11 @@ func (s *MemoryStore) PrepareSecretaryBatch(
 			settings: job.SettingsRevision,
 			epoch:    job.RetryEpoch,
 		}
+		batch.connectionFailures, batch.retryAfter = s.inheritSecretaryConnectionLocked(job)
 		batches[job.BatchID] = batch
+	}
+	if err := s.gateSecretaryConnectionLocked(job, batch); err != nil {
+		return job, err
 	}
 	if batch.state == "blocked" || batch.state == "superseded" {
 		s.secretaryLocked().jobs[job.SourceID].executionBlocked = true
@@ -107,6 +113,9 @@ func (s *MemoryStore) BeginSecretaryAttempt(
 	defer s.mu.Unlock()
 	batch, err := s.activeSecretaryBatchLocked(job)
 	if err != nil {
+		return domain.SecretaryAttempt{}, err
+	}
+	if err = s.gateSecretaryConnectionLocked(job, batch); err != nil {
 		return domain.SecretaryAttempt{}, err
 	}
 	if batch.state != "pending" {
@@ -203,11 +212,24 @@ func (s *MemoryStore) FailSecretaryAttempt(
 	if attempt.ID != id || (attempt.State != "running" && attempt.State != "output_received") {
 		return domain.ErrSecretaryFenced
 	}
+	if secretaryNotDispatched(failure) {
+		if attempt.State == "output_received" {
+			return domain.ErrSecretaryFenced
+		}
+		s.failSecretaryConnectionLocked(job, batch, attempt, failure)
+		return nil
+	}
 	if attempt.State == "output_received" &&
 		errors.Is(failure, domain.ErrSecretaryExecutionUnknown) {
 		return nil
 	}
-	attempt.State, batch.state = secretaryAttemptFailure(failure, len(batch.attempts))
+	validationAttempts := len(batch.attempts)
+	for _, previous := range batch.attempts {
+		if previous.NotDispatched {
+			validationAttempts--
+		}
+	}
+	attempt.State, batch.state = secretaryAttemptFailure(failure, validationAttempts)
 	attempt.Error, attempt.UpdatedAt = secretaryErrorText(failure), s.now().UTC()
 	queued := s.secretaryLocked().jobs[job.SourceID]
 	if batch.state == "superseded" {

@@ -8,6 +8,8 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
+var errNodeAttemptHandled = errors.New("secretary attempt failure was persisted")
+
 func (w *Worker) processNodeJob(
 	ctx context.Context,
 	claimed domain.SecretaryJob,
@@ -15,7 +17,8 @@ func (w *Worker) processNodeJob(
 	nodes domain.SecretaryNodeStore,
 ) error {
 	job, err := executions.PrepareSecretaryBatch(ctx, claimed)
-	if errors.Is(err, domain.ErrSecretarySourceIncomplete) {
+	if errors.Is(err, domain.ErrSecretarySourceIncomplete) ||
+		errors.Is(err, domain.ErrSecretaryRetryDeferred) {
 		return nil
 	}
 	if err != nil {
@@ -31,6 +34,9 @@ func (w *Worker) processNodeJob(
 	} else {
 		job, result, err = w.obtainNodeOutput(ctx, job, executions)
 		if err != nil {
+			if errors.Is(err, errNodeAttemptHandled) || errors.Is(err, domain.ErrSecretaryRetryDeferred) {
+				return nil
+			}
 			return err
 		}
 	}
@@ -199,7 +205,9 @@ func (w *Worker) failNodeAttempt(
 	job domain.SecretaryJob,
 	failure error,
 ) error {
-	if !completedOutputFailure(failure) && !errors.Is(failure, ErrNoOutput) &&
+	notDispatched := errors.Is(failure, domain.ErrSecretaryNotDispatched) &&
+		!errors.Is(failure, domain.ErrSecretaryExecutionUnknown)
+	if !notDispatched && !completedOutputFailure(failure) && !errors.Is(failure, ErrNoOutput) &&
 		!errors.Is(failure, domain.ErrSecretaryFenced) &&
 		!errors.Is(failure, domain.ErrSourceVersionUnavailable) &&
 		!errors.Is(failure, domain.ErrSummaryVersionMismatch) {
@@ -209,6 +217,9 @@ func (w *Worker) failNodeAttempt(
 	defer cancel()
 	if err := executions.FailSecretaryAttempt(failureCtx, job, job.AttemptID, failure); err != nil {
 		return errors.Join(failure, err)
+	}
+	if notDispatched {
+		return errNodeAttemptHandled
 	}
 	return failure
 }

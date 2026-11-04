@@ -14,7 +14,7 @@ import (
 )
 
 func TestSecretaryBootstrapGivenStartupThenSerializesAndCommitsIncrementalRepair(t *testing.T) {
-	script := &scriptedPostgresScript{}
+	script := &scriptedPostgresScript{queries: []scriptedRows{summaryEmptyRows()}}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
 
@@ -65,6 +65,7 @@ func TestSecretaryBootstrapGivenTransactionFailureThenReturnsItWithoutPartialCom
 		{name: "commit", script: scriptedPostgresScript{commitErr: failure}, wantExecs: 2, wantCommit: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			tc.script.queries = []scriptedRows{summaryEmptyRows()}
 			store, cleanup := scriptedPostgresStore(t, &tc.script)
 			defer cleanup()
 

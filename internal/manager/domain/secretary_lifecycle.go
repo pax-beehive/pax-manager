@@ -10,17 +10,20 @@ var (
 	ErrSecretaryExecutionUnknown = errors.New("secretary execution outcome is unknown")
 	ErrSecretaryExecutionBlocked = errors.New("secretary execution requires an explicit retry")
 	ErrSecretarySourceIncomplete = errors.New("secretary source turn is not complete")
+	ErrSecretaryNotDispatched    = errors.New("secretary request was not dispatched")
+	ErrSecretaryRetryDeferred    = errors.New("secretary connection retry is not due")
 )
 
 type SecretaryAttempt struct {
-	ID        string             `json:"id"`
-	BatchID   string             `json:"batch_id"`
-	State     string             `json:"state"`
-	Output    string             `json:"output,omitempty"`
-	Reads     SecretaryToolReads `json:"reads"`
-	Error     string             `json:"error,omitempty"`
-	CreatedAt time.Time          `json:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at"`
+	ID            string             `json:"id"`
+	BatchID       string             `json:"batch_id"`
+	State         string             `json:"state"`
+	Output        string             `json:"output,omitempty"`
+	Reads         SecretaryToolReads `json:"reads"`
+	Error         string             `json:"error,omitempty"`
+	NotDispatched bool               `json:"not_dispatched,omitempty"`
+	CreatedAt     time.Time          `json:"created_at"`
+	UpdatedAt     time.Time          `json:"updated_at"`
 }
 
 type SecretaryExecutionStore interface {

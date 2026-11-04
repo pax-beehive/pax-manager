@@ -160,6 +160,14 @@ attempt 状态为 `running/output_received/invalid/failed/unknown/canceled/super
 手工 run 是明确调度/重试请求，不是返回模型结果；活动执行不轮换 epoch、不制造第二次调用。
 自动恢复不会因 idle、超时或有效新输入重新发送 unknown 执行。显式 run 对无有效租约的待办建立新 retry epoch；这是用户主动重新执行，旧 attempt 被隔离，迟到输出仍不能提交。
 
+连接重试独立于模型输出校验预算。只有取得 runner 前明确返回 tunnel 未连接或已占用，才记为
+`failed` 且 `not_dispatched=true`。首次失败后最多自动重试 8 次，名义间隔为
+5、10、20、40、80、160、300、300 秒，附加约 20% 抖动且严格不超过 5 分钟。
+`secretary_batches.connection_failures/retry_after` 与队列可领取时间同事务保存并释放租约；
+等待期间不占用 worker。重启、新 turn 和原文变化不清零连接预算；自动替换过期输入的批次继承预算，
+显式 run 才建立新的重试预算。第 9 次连接失败后暂停，等待用户 Retry run。
+已经发出但结果不明的执行仍只回查原 attempt，不进入此自动重试流程。
+
 ## 权限、失效和状态
 
 第一版 owner-only。Node、该版全部必要来源、来源目录和 origin 展示元数据分别授权。
@@ -172,13 +180,14 @@ attempt 状态为 `running/output_received/invalid/failed/unknown/canceled/super
 真实变化/删除可以使 current 标记 stale，历史精确版本仍按当前权限和删除规则检查。
 origin source 标题或链接无权限则省略，不用显示归属绕过事实来源权限。
 
-状态保留 `disabled/idle/waiting_for_agent/processing/error`，增加可选安全枚举：
+状态为 `disabled/idle/waiting_for_agent/waiting/processing/error`，增加可选安全枚举：
 
 - `execution_state`: `queued/waiting/running/output_received/needs_recovery/unknown/blocked`。
-- `blocked_reason`: `lease_expired/execution_unknown/invalid_output/execution_failed/canceled/retry_required`。
+- `blocked_reason`: `lease_expired/execution_unknown/invalid_output/execution_failed/canceled/retry_required/connection_backoff/connection_retries_exhausted`。
 
 `running` 只表示持久 attempt 与有效租约，不能宣称原生端已确认运行。无待办时新字段可省略；
-disabled/agent offline 优先。UI 用白名单原因，不显示 capability 或原生原始错误。
+disabled 优先；连接退避显示 waiting，连接重试耗尽显示 error，其余执行仍保留 agent offline 状态。
+UI 用白名单原因，不显示 capability 或原生原始错误。
 
 进度统计已处理的可见逻辑消息，包括明确 `no_summary`；一条消息被多份摘要引用仍只计算一次。
 它不是 coverage 行数、模型读完百分比或 ES 索引进度。进度查询有 8 秒上下文/数据库预算。
