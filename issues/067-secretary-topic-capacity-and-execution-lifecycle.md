@@ -38,7 +38,7 @@ Console 已支持多成果、历史与原文导航；paxd 新增第五个只读 
 
 ## Remaining
 
-- 完成统一验证及必要修复，审查迁移与 rollout，再合并部署。
+- 统一本地验证已完成；审查迁移与 rollout，再合并部署。
 - 用真实对话验证多摘要质量、长历史与异常数据处理，不把协议测试当质量评估。
 - [问题 064](064-secretary-stale-upstream-background-state.md) 的上游运行状态问题仍独立存在。
 - [问题 066](066-secretary-startup-requeues-completed-sessions.md) 只解决启动重复入队，继续保持 resolved。
