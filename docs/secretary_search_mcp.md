@@ -8,12 +8,15 @@ modify local Secretary boards, or start the stopped prototype pipeline.
 The separate Manager automatic Secretary worker is now configurable from Console
 `/settings/secretary`; see [secretary_automation.md](secretary_automation.md).
 Its selected-agent execution and checkpoint are independent of this stdio adapter.
-Updated paxd instances automatically expose four read-only `workspace_*` tools
+Updated paxd instances automatically expose five read-only `workspace_*` tools
 through the existing injected conversation MCP process during Secretary jobs.
 That path uses node authentication plus a per-execution capability; it does not
 require this Python process, a user API key, or manual MCP registration. It has
 no publication tool: Manager validates the final model response and publishes.
-The launch instructions below describe the separate manual Python adapter.
+The fifth tool, `workspace_summaries`, pages the current source's summary nodes;
+its bounded full-version/header contract is documented in
+[secretary_automation.md](secretary_automation.md). The launch instructions below
+describe the separate manual Python adapter.
 
 ## Launch
 
@@ -86,6 +89,11 @@ messages already ingested into Manager are available through this adapter.
    Required fields are `summary_id`, `subject_type`, `subject_id`,
    `expected_revision`, `request_id`, `title`, `body`, and `coverage`.
    Optional fields are `claims` and `summary_sources`.
+
+The legacy `subject_type` is object metadata, not `knowledge_nodes.type`;
+`subject_type: "topic"` in this manual API does not create a topic Node. The
+automatic worker uses the new batch publication path, not repeated calls to this
+manual tool. See [the Node design](secretary_topics_design.md).
 
 Publication example (replace all references and receipts with actual read results):
 

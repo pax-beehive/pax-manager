@@ -21,6 +21,9 @@ func (s *MemoryStore) ReadSearchDocument(
 	if kind == "message" {
 		return s.readSearchMessageLocked(ownerID, sourceID)
 	}
+	if kind == "summary" {
+		return s.readMemorySummarySearchDocumentLocked(ownerID, sourceID)
+	}
 	if kind == "session" {
 		for _, session := range s.sessions {
 			if strconv.FormatInt(session.ID, 10) != sourceID || session.ArchivedAt != nil ||
@@ -46,6 +49,32 @@ func (s *MemoryStore) ReadSearchDocument(
 		}
 	}
 	return domain.SearchDocument{}, ErrNotFound
+}
+
+func (s *MemoryStore) readMemorySummarySearchDocumentLocked(
+	owner, id string,
+) (domain.SearchDocument, error) {
+	result, err := s.getMemorySummaryLocked(owner, id, 0, map[domain.SummaryRef]bool{})
+	if err != nil {
+		return domain.SearchDocument{}, err
+	}
+	doc := domain.SearchDocument{
+		Kind:                    "summary",
+		SourceID:                result.SummaryID,
+		OwnerUserID:             result.OwnerUserID,
+		Title:                   result.Title,
+		Body:                    result.Body,
+		ContentHash:             domain.SearchContentHash(result.Body),
+		CanonicalizationVersion: domain.SearchCanonicalizationVersion,
+		SummaryRevision:         result.Revision,
+		CreatedAt:               result.CreatedAt,
+	}
+	if source := secretaryPrimarySource(result); source != "" {
+		if group, readErr := s.readSearchGroupSessionLocked(owner, source, doc); readErr == nil {
+			doc.AgentID, doc.SessionID = group.AgentID, group.SessionID
+		}
+	}
+	return doc, nil
 }
 
 func (s *MemoryStore) readSearchMessageLocked(

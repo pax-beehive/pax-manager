@@ -46,6 +46,7 @@ if [[ ! "${search_pg_address}" =~ ^127\.0\.0\.1:[0-9]+$ ]] || [[ ! "${search_es_
   exit 1
 fi
 export PAX_MANAGER_SEARCH_TEST_DATABASE_URL="postgres://pax:pax@${search_pg_address}/search_test?sslmode=disable"
+export PAX_MANAGER_SECRETARY_TEST_DATABASE_URL="${PAX_MANAGER_SEARCH_TEST_DATABASE_URL}"
 export SEARCH_TEST_URL="http://${search_es_address}"
 
 printf 'Running message, HTTP, real PG/ES, and summary acceptance checks...\n'
@@ -73,6 +74,7 @@ required = {
     "TestSearchPostgresGivenMultipartChangesWhenClaimedThenDurableVersionCannotBeLost": "Real PG: incremental parts, durable sync and version acknowledgements",
     "TestWorkspaceHTTPGivenMultipartWhenSearchedAndReadThenReturnsStableOwnerScopedReference": "HTTP routes, source reads and owner isolation",
     "TestSummaryPostgresGivenConcurrentRetriesThenExactlyOneVersionIsPublished": "Concurrent summary retries publish exactly one version",
+    "TestSummaryRevisionsPostgresGivenSeveralVersionsThenPagesNewestFirstAndChecksSourceAccess": "Real PG: exact summary history pagination and source permissions",
     "TestWorkspaceMVPIntegrationGivenSourceChangesThenSearchAndSummaryHistoryStayConsistent": "Real PG + ES: summary v1/v2, exact old body, user isolation and deletion",
 }
 missing = set(required) - passed

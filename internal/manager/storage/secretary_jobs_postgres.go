@@ -32,13 +32,13 @@ func (s *PostgresStore) ClaimSecretaryJobs(
 	rows, err := tx.QueryContext(
 		ctx,
 		`SELECT j.source_id::text,j.owner_user_id,j.source_agent_id,j.source_session_id,
- cfg.agent_id,cfg.revision,j.desired_revision,j.retry_generation,j.last_validation_failure FROM secretary_jobs j
+ cfg.agent_id,cfg.revision,j.desired_revision,j.retry_generation,j.last_validation_failure,j.retry_epoch FROM secretary_jobs j
  JOIN secretary_settings cfg ON cfg.owner_user_id=j.owner_user_id AND cfg.enabled
  JOIN agents a ON a.agent_id=j.source_agent_id AND a.owner_user_id=j.owner_user_id AND a.deleted_at IS NULL
  JOIN agents selected ON selected.agent_id=cfg.agent_id AND selected.owner_user_id=j.owner_user_id AND selected.deleted_at IS NULL
  JOIN agent_sessions s ON s.id=j.source_id AND s.archived_at IS NULL AND s.runtime_status='idle'
  LEFT JOIN nodes n ON n.node_id=a.node_id LEFT JOIN nodes sn ON sn.node_id=s.node_id LEFT JOIN nodes target ON target.node_id=selected.node_id
- WHERE j.desired_revision>j.processed_revision AND j.available_at<=NOW()
+ WHERE j.desired_revision>j.processed_revision AND j.available_at<=NOW() AND NOT j.execution_blocked
  AND (j.lease_until IS NULL OR j.lease_until<=NOW()) AND j.updated_at<=NOW()-$2*INTERVAL '1 millisecond'
  AND n.deleted_at IS NULL AND sn.deleted_at IS NULL AND target.deleted_at IS NULL
  AND COALESCE(s.source,'')<>'secretary_internal'
@@ -53,7 +53,7 @@ func (s *PostgresStore) ClaimSecretaryJobs(
 	var pending []domain.SecretaryJob
 	for rows.Next() {
 		var job domain.SecretaryJob
-		if err = rows.Scan(&job.SourceID, &job.OwnerUserID, &job.SourceAgentID, &job.SourceSessionID, &job.AgentID, &job.SettingsRevision, &job.ThroughRevision, &job.RetryGeneration, &job.ValidationFeedback); err != nil {
+		if err = rows.Scan(&job.SourceID, &job.OwnerUserID, &job.SourceAgentID, &job.SourceSessionID, &job.AgentID, &job.SettingsRevision, &job.ThroughRevision, &job.RetryGeneration, &job.ValidationFeedback, &job.RetryEpoch); err != nil {
 			_ = rows.Close()
 			return nil, err
 		}
@@ -79,16 +79,42 @@ func (s *PostgresStore) ClaimSecretaryJobs(
 			}
 			continue
 		}
-		if len(job.Messages) == 0 && len(job.RemovedMessageIDs) == 0 && !job.ResetRequired {
-			if _, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET processed_revision=$2,lease_token='',lease_until=NULL WHERE source_id=$1`, job.SourceID, job.ThroughRevision); err != nil {
-				return nil, err
-			}
+		noop, noopErr := completeSecretaryNoopJobTx(ctx, tx, job)
+		if noopErr != nil {
+			return nil, noopErr
+		}
+		if noop {
 			continue
 		}
+
 		secretaryPrepareJob(&job)
 		result = append(result, job)
 	}
 	return result, tx.Commit()
+}
+
+func completeSecretaryNoopJobTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	job domain.SecretaryJob,
+) (bool, error) {
+	if len(job.Messages) > 0 || len(job.RemovedMessageIDs) > 0 || job.ResetRequired {
+		return false, nil
+	}
+	open, err := hasOpenSecretaryBatchTx(ctx, tx, job)
+	if err != nil {
+		return false, err
+	}
+	if open {
+		return false, nil
+	}
+	_, err = tx.ExecContext(
+		ctx,
+		`UPDATE secretary_jobs SET processed_revision=$2,lease_token='',lease_until=NULL WHERE source_id=$1`,
+		job.SourceID,
+		job.ThroughRevision,
+	)
+	return true, err
 }
 
 type secretaryChange struct {
@@ -152,6 +178,10 @@ func loadSecretaryJob(ctx context.Context, tx *sql.Tx, job *domain.SecretaryJob)
 		job.ThroughRevision = through
 	}
 	secretaryFinalizeDelta(job)
+	if err := markSecretaryNodeChangesTx(ctx, tx, job); err != nil {
+		return err
+	}
+	secretaryHideInvalidatedBodies(job)
 	return secretaryWithinBounds(job.Messages)
 }
 
@@ -252,6 +282,9 @@ func (s *PostgresStore) FailSecretaryJob(
 	retryKey := ""
 	code := domain.SecretaryValidationFailureCode(failure)
 	if code != "" {
+		if err := s.blockSecretaryPromptFailure(ctx, job); err != nil {
+			return err
+		}
 		retryKey = secretaryValidationRetryKey(job)
 	}
 	_, err := s.db.ExecContext(

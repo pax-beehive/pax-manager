@@ -1485,6 +1485,13 @@ struct DeveloperSummaryReadRequest {
   3: optional i64 revision (api.query = "revision")
 }
 
+struct SummaryRevisionsRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string summary_id (api.path = "summary_id")
+  3: optional string cursor (api.query = "cursor")
+  4: optional i32 limit (api.query = "limit")
+}
+
 struct WorkspaceSearchRequest {
   1: optional string user_id (api.path = "user_id")
   2: required string query
@@ -1589,6 +1596,13 @@ struct SecretaryProgressRequest {
 }
 
 service PaxManagerAPI {
+  WorkspaceSearchResponse ListSummaryRevisions(1: required SummaryRevisionsRequest request) (
+    api.get = "/api/v1/user/:user_id/secretary/summaries/:summary_id/revisions",
+    openapi.tag = "user",
+    openapi.summary = "Browse exact owned summary revisions",
+    openapi.description = "Lists immutable revisions newest first with an owner and summary bound cursor. Every returned revision revalidates current source visibility. No administrator privilege or Elasticsearch is required. Limit defaults to 20 and is capped at 100."
+  )
+
   WorkspaceSearchResponse ListSecretarySummaries(1: optional DeveloperSummaryListRequest request) (
     api.get = "/api/v1/user/:user_id/secretary/summaries",
     openapi.tag = "user",

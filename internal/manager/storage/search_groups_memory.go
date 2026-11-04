@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -29,6 +30,13 @@ func (s *MemoryStore) ReadSearchGroup(
 			return domain.SearchGroupMetadata{}, ErrNotFound
 		}
 		source = secretaryPrimarySource(summary)
+		if source != "" {
+			group, groupErr := s.readSearchGroupSessionLocked(owner, source, doc)
+			if !errors.Is(groupErr, ErrNotFound) {
+				return group, groupErr
+			}
+			source = ""
+		}
 		if source == "" {
 			doc.AgentID, doc.SessionID = "", ""
 			return domain.SearchGroupMetadata{

@@ -59,7 +59,10 @@ func summaryNextCursor(owner, after string) string {
 func summaryListItem(summary domain.SummaryVersion) domain.SummaryListItem {
 	body := []rune(summary.Body)
 	return domain.SummaryListItem{SummaryID: summary.SummaryID, Revision: summary.Revision,
-		SubjectType: summary.SubjectType, SubjectID: summary.SubjectID, Title: summary.Title,
+		NodeType: summary.NodeType, NodeStatus: summary.NodeStatus, OriginSourceID: summary.OriginSourceID,
+		OriginAgentID: summary.OriginAgentID, OriginSessionID: summary.OriginSessionID,
+		OriginSessionTitle: summary.OriginSessionTitle,
+		SubjectType:        summary.SubjectType, SubjectID: summary.SubjectID, Title: summary.Title,
 		BodyPreview: string(body[:min(len(body), 400)]), ClaimCount: len(summary.Claims),
 		CoverageCount: len(
 			summary.Coverage,

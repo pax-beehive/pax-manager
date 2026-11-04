@@ -45,6 +45,11 @@ BEGIN
         LOOP
             PERFORM pax_search_mark_dirty('summary', dependent_id);
         END LOOP;
+    ELSIF document_kind = 'session' THEN
+        FOR dependent_id IN SELECT id FROM knowledge_nodes WHERE origin_source_id=document_id
+        LOOP
+            PERFORM pax_search_mark_dirty('summary', dependent_id);
+        END LOOP;
     END IF;
 END $$;
 

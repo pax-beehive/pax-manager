@@ -135,6 +135,7 @@ type generatedHandlerFunc func(context.Context, *app.RequestContext)
 
 var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"ListSecretarySummaries":        ListSecretarySummaries,
+	"ListSummaryRevisions":          ListSummaryRevisions,
 	"ListDeveloperSummaries":        ListDeveloperSummaries,
 	"ReadDeveloperSummary":          ReadDeveloperSummary,
 	"ArchiveProject":                ArchiveProject,

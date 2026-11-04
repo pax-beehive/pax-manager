@@ -80,12 +80,46 @@ INSERT INTO message_parts(message_id,part_index,part_type,text) VALUES ('related
 	assert.Equal(t, "session", group.Title)
 	_, err = store.ReadSearchGroup(t.Context(), "other", doc)
 	assert.ErrorIs(t, err, domain.ErrNotFound)
+	var beforeArchive int64
+	require.NoError(
+		t,
+		store.db.QueryRowContext(t.Context(), `SELECT desired_revision FROM search_sync_state WHERE kind='summary' AND source_id=$1`, doc.SourceID).
+			Scan(&beforeArchive),
+	)
 	_, err = store.db.ExecContext(
 		t.Context(),
 		`UPDATE agent_sessions SET archived_at=now() WHERE session_id='session'`,
 	)
 	require.NoError(t, err)
-	_, err = store.ReadSearchGroup(t.Context(), "owner", doc)
+	var afterArchive int64
+	require.NoError(
+		t,
+		store.db.QueryRowContext(t.Context(), `SELECT desired_revision FROM search_sync_state WHERE kind='summary' AND source_id=$1`, doc.SourceID).
+			Scan(&afterArchive),
+	)
+	assert.Greater(t, afterArchive, beforeArchive)
+	fallback, err := store.ReadSearchDocument(t.Context(), "owner", "summary", doc.SourceID)
+	require.NoError(t, err)
+	assert.Empty(t, fallback.AgentID)
+	assert.Empty(t, fallback.SessionID)
+	group, err = store.ReadSearchGroup(t.Context(), "owner", doc)
+	require.NoError(t, err)
+	assert.Equal(t, "Summary title", group.Title)
+	assert.Equal(t, domain.SearchDocumentGroupKey(fallback), group.Key)
+	assert.Empty(t, group.AgentID)
+	assert.Empty(t, group.SessionID)
+	summary, err := store.GetSummary(t.Context(), "owner", doc.SourceID, 0)
+	require.NoError(t, err)
+	assert.Empty(t, summary.OriginSourceID)
+	assert.Empty(t, summary.OriginAgentID)
+	assert.Empty(t, summary.OriginSessionID)
+	assert.Empty(t, summary.OriginSessionTitle)
+	_, err = store.db.ExecContext(
+		t.Context(),
+		`UPDATE agent_sessions SET archived_at=now() WHERE session_id='related'`,
+	)
+	require.NoError(t, err)
+	_, err = store.ReadSearchDocument(t.Context(), "owner", "summary", doc.SourceID)
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 }
 

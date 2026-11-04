@@ -54,6 +54,7 @@ func TestPaxdSecretaryToolsGivenRealStdioAndStoredNodeKeyThenReadsAndPublishesEx
 		MessageType: "agent_message_chunk",
 		Source:      domain.MessageSourceACPTunnel,
 		Direction:   domain.MessageDirectionAgentToUser,
+		Status:      "complete",
 	}
 	require.NoError(t, srv.store.UpsertMessage(t.Context(), &related))
 	require.NoError(
@@ -95,7 +96,13 @@ func TestPaxdSecretaryToolsGivenRealStdioAndStoredNodeKeyThenReadsAndPublishesEx
 		}
 	}
 	require.NotEmpty(t, job.LeaseToken)
-	prompt, err := secretary.BuildPrompt(job)
+	executions := jobs.(domain.SecretaryExecutionStore)
+	job, err = executions.PrepareSecretaryBatch(t.Context(), job)
+	require.NoError(t, err)
+	attempt, err := executions.BeginSecretaryAttempt(t.Context(), job)
+	require.NoError(t, err)
+	job.Attempt, job.AttemptID, job.RunID = &attempt, attempt.ID, attempt.ID
+	prompt, err := secretary.BuildNodePrompt(job)
 	require.NoError(t, err)
 	var calls atomic.Int64
 	var wrongNodeKey atomic.Bool
@@ -168,13 +175,35 @@ func TestPaxdSecretaryToolsGivenRealStdioAndStoredNodeKeyThenReadsAndPublishesEx
 	}
 	assert.ElementsMatch(
 		t,
-		[]string{"workspace_search", "workspace_read", "workspace_expand", "workspace_history"},
+		[]string{
+			"workspace_search",
+			"workspace_read",
+			"workspace_expand",
+			"workspace_history",
+			"workspace_summaries",
+		},
 		names,
 	)
 	bootstrap := process.tool(t, "workspace_search", map[string]any{"query": "bootstrap"})
 	assertSecretaryPaxdFailure(t, bootstrap, "unavailable")
 	assert.Zero(t, calls.Load(), "unconfigured paxd must not guess a Manager identity")
 	seedSecretaryPaxdCredentials(t, home, server.URL, fixture)
+	summariesResult := process.tool(
+		t,
+		"workspace_summaries",
+		map[string]any{"session_id": "source-session"},
+	)
+	require.False(t, summariesResult.IsError)
+	var summaries secretarySummaryToolPage
+	require.NoError(t, json.Unmarshal(summariesResult.StructuredContent, &summaries))
+	assert.Empty(t, summaries.Items)
+	foreignSummaries := process.tool(
+		t,
+		"workspace_summaries",
+		map[string]any{"session_id": "related-session"},
+	)
+	assertSecretaryPaxdFailure(t, foreignSummaries, "unavailable")
+	assert.NotContains(t, string(foreignSummaries.StructuredContent), "related-session")
 	searchResult := process.tool(
 		t,
 		"workspace_search",
@@ -234,15 +263,22 @@ func TestPaxdSecretaryToolsGivenRealStdioAndStoredNodeKeyThenReadsAndPublishesEx
 	assert.NotContains(t, string(forgedRead.StructuredContent), fixture.nodeAPIKey)
 	ref := domain.MessageVersionRef{MessageID: read.MessageID, ContentHash: read.Ref.ContentHash,
 		CanonicalizationVersion: read.Ref.CanonicalizationVersion, ReadReceipt: read.ReadReceipt}
-	output, err := json.Marshal(
-		map[string]any{"title": "Database plan", "body": "Database indexing is settled.",
-			"related_sources": []domain.MessageVersionRef{
-				ref,
-			}, "claims": []map[string]any{{"text": "Database indexing is settled.",
-				"evidence": []map[string]string{
-					{"message_id": read.MessageID, "quote": read.Text},
-				}}}},
-	)
+	output, err := json.Marshal(map[string]any{
+		"summaries": []map[string]any{{
+			"action": "create", "proposal_key": "database-plan",
+			"title": "Database plan", "body": "Database indexing is settled.",
+			"source_message_ids": []string{job.Messages[0].SourceID},
+			"related_sources":    []domain.MessageVersionRef{ref},
+			"claims": []map[string]any{{
+				"text": "Database indexing is settled.",
+				"kind": "decision", "basis": "agent_reported", "state": "active",
+				"evidence": []map[string]string{{"message_id": read.MessageID, "quote": read.Text}},
+			}},
+		}},
+		"outcomes": []domain.SecretaryMessageOutcome{{
+			MessageID: job.Messages[0].SourceID, Action: "summarized", SummaryKeys: []string{"database-plan"},
+		}},
+	})
 	require.NoError(t, err)
 	writeMockACPChunk(
 		t,
@@ -270,11 +306,27 @@ func TestPaxdSecretaryToolsGivenRealStdioAndStoredNodeKeyThenReadsAndPublishesEx
 	}
 	require.Len(t, result.Reads.Messages, 1)
 	assert.Equal(t, read.Text, result.Reads.Messages[0].Text)
-	publication, err := secretary.BuildPublicationWithReads(job, result.Text, result.Reads)
+	require.NoError(
+		t,
+		executions.SaveSecretaryAttemptOutput(
+			t.Context(),
+			job,
+			job.AttemptID,
+			result.Text,
+			result.Reads,
+		),
+	)
+	publication, err := secretary.BuildNodePublication(job, result.Text, result.Reads)
 	require.NoError(t, err)
 	job.AllowedRelatedMessages = []domain.MessageVersionRef{ref}
-	version, err := jobs.PublishSecretaryJob(t.Context(), job, publication)
+	versions, err := jobs.(domain.SecretaryNodeStore).PublishSecretaryBatch(
+		t.Context(),
+		job,
+		publication,
+	)
 	require.NoError(t, err)
+	require.Len(t, versions, 1)
+	version := versions[0]
 	require.Len(
 		t,
 		version.Coverage,

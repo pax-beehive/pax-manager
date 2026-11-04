@@ -153,7 +153,7 @@ func TestSecretaryRollingGivenResetRetryThenKeepsIdentityAndPublishesEmptyState(
 	assert.Equal(t, request.Body, current.Body)
 }
 
-func TestSecretaryRollingGivenManyPublishedMessagesThenCarriesCoverageBeyondPublicLimit(
+func TestSecretaryRollingGivenManyPublishedMessagesThenBoundsCurrentCoverageWithoutLosingProgress(
 	t *testing.T,
 ) {
 	store, _ := secretaryMemoryFixture(t)
@@ -168,16 +168,48 @@ func TestSecretaryRollingGivenManyPublishedMessagesThenCarriesCoverageBeyondPubl
 		if len(jobs) == 0 {
 			break
 		}
-		assert.LessOrEqual(t, len(jobs[0].Messages), domain.SecretaryMaxMessages)
-		latest, err = store.PublishSecretaryJob(t.Context(), jobs[0], secretaryPublication(jobs[0]))
-		require.NoError(t, err)
+		job := secretaryNodesReadyWork(t, store, jobs[0])
+		request := secretaryPublication(job)
+		key := "rolling"
+		request.SummaryID, request.ExpectedRevision = "", 0
+		if latest.SummaryID != "" {
+			request.SummaryID, request.ExpectedRevision = latest.SummaryID, latest.Revision
+			key = latest.SummaryID
+		}
+		publication := domain.SecretaryBatchPublication{
+			RequestID: job.BatchID,
+			Outputs:   []domain.SecretarySummaryOutput{{ProposalKey: "rolling", Request: request}},
+		}
+		for _, message := range job.Messages {
+			publication.Outcomes = append(
+				publication.Outcomes,
+				domain.SecretaryMessageOutcome{
+					MessageID:   message.SourceID,
+					Action:      "summarized",
+					SummaryKeys: []string{key},
+				},
+			)
+		}
+		versions, publishErr := store.PublishSecretaryBatch(t.Context(), job, publication)
+		require.NoError(t, publishErr)
+		latest = versions[0]
+		assert.LessOrEqual(t, len(latest.Coverage), domain.SecretaryMaxMessages)
 	}
-	assert.Len(t, latest.Coverage, 520)
 	assert.Greater(t, latest.Revision, int64(1))
 	assert.Empty(t, latest.SummarySources)
+	assert.Len(t, store.secretaryState.jobs["1"].checkpoint, 520)
+	progress, err := store.ReadSecretaryProgress(
+		t.Context(),
+		"owner",
+		domain.SecretaryProgressQuery{},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 520, progress.Counts.CompletedMessages)
 }
 
-func TestSecretaryRollingGivenProcessedLegacySourceThenBackfillsWithoutLosingHistory(t *testing.T) {
+func TestSecretaryRollingGivenProcessedLegacySourceThenPreservesProgressAndIdentityWithoutModelBackfill(
+	t *testing.T,
+) {
 	store, _ := secretaryMemoryFixture(t)
 	secretaryEnable(t, store)
 	work := secretaryClaim(t, store)
@@ -191,16 +223,21 @@ func TestSecretaryRollingGivenProcessedLegacySourceThenBackfillsWithoutLosingHis
 	job.work.LeaseToken = ""
 	job.leaseUntil = time.Time{}
 	require.NoError(t, store.BackfillSecretaryJobs(t.Context()))
-	rebuild := secretaryClaim(t, store)
-	require.True(t, rebuild.ResetRequired)
-	assert.Equal(t, "rolling_summary_rebuild", rebuild.ResetReason)
-	assert.Nil(t, rebuild.CurrentSummary)
-	require.Len(t, rebuild.Messages, 1)
-	_, err = store.PublishSecretaryJob(t.Context(), rebuild, secretaryPublication(rebuild))
+	jobs, err := store.ClaimSecretaryJobs(t.Context(), 1, time.Minute, 0)
 	require.NoError(t, err)
+	assert.Empty(t, jobs)
+	assert.Equal(t, work.Messages[0].ContentHash, job.checkpoint["m1"])
+	secretaryMemoryMessage(store, "m2", "new content", 2)
+	incremental := secretaryClaim(t, store)
+	assert.False(t, incremental.ResetRequired)
+	require.Len(t, incremental.CurrentSummaries, 1)
+	assert.Equal(t, "old-fragment", incremental.CurrentSummaries[0].SummaryID)
+	require.Len(t, incremental.Messages, 1)
+	assert.Equal(t, "m2", incremental.Messages[0].SourceID)
 	old, err := store.GetSummary(t.Context(), "owner", "old-fragment", 1)
 	require.NoError(t, err)
 	assert.Equal(t, legacy.Body, old.Body)
+	assert.Len(t, store.secretaryState.summaries["old-fragment"], 1)
 }
 
 func TestSecretaryRollingGivenSourceMetadataThenUsesReportedCWDAndCustomTitle(t *testing.T) {
@@ -318,7 +355,9 @@ func TestSecretaryRollingGivenChangedContextThenChangesExecutionButNotSummaryIde
 	)
 }
 
-func TestSecretaryRollingGivenDeletedCoverageThenRebuildsWithoutExposingOldBody(t *testing.T) {
+func TestSecretaryRollingGivenDeletedCoverageThenRepairsWithoutReplayingProcessedMessages(
+	t *testing.T,
+) {
 	store, _ := secretaryMemoryFixture(t)
 	secretaryMemoryMessage(store, "m2", "retained content", 2)
 	secretaryEnable(t, store)
@@ -326,17 +365,31 @@ func TestSecretaryRollingGivenDeletedCoverageThenRebuildsWithoutExposingOldBody(
 	first, err := store.PublishSecretaryJob(t.Context(), firstJob, secretaryPublication(firstJob))
 	require.NoError(t, err)
 	delete(store.messages, "m1")
-	work := secretaryClaim(t, store)
+	work := secretaryNodesReadyJob(t, store)
 	assert.True(t, work.ResetRequired)
 	assert.Nil(t, work.CurrentSummary)
+	assert.Empty(t, work.CurrentSummaries)
 	assert.Contains(t, work.RemovedMessageIDs, "m1")
-	require.Len(t, work.Messages, 1)
-	assert.Equal(t, "m2", work.Messages[0].SourceID)
-	assert.Equal(t, first.SummaryID, work.TargetSummaryID)
-	second, err := store.PublishSecretaryJob(t.Context(), work, secretaryPublication(work))
+	assert.Empty(t, work.Messages)
+	ref := summaryTestRef("m2", "retained content")
+	work.AllowedRelatedMessages = []domain.MessageVersionRef{ref}
+	request := domain.PublishSummaryRequest{
+		SummaryID:        first.SummaryID,
+		ExpectedRevision: first.Revision,
+		Title:            "Retained conclusion",
+		Body:             "retained content",
+		Coverage:         []domain.MessageVersionRef{ref},
+	}
+	publication := domain.SecretaryBatchPublication{RequestID: work.BatchID,
+		Outputs: []domain.SecretarySummaryOutput{{Request: request}},
+		Outcomes: []domain.SecretaryMessageOutcome{
+			{MessageID: "m1", Action: "summarized", SummaryKeys: []string{first.SummaryID}},
+		}}
+	versions, err := store.PublishSecretaryBatch(t.Context(), work, publication)
 	require.NoError(t, err)
-	require.Len(t, second.Coverage, 1)
-	assert.Equal(t, "m2", second.Coverage[0].MessageID)
+	require.Len(t, versions[0].Coverage, 1)
+	assert.Equal(t, "m2", versions[0].Coverage[0].MessageID)
+	assert.Equal(t, ref.ContentHash, store.secretaryState.jobs[work.SourceID].checkpoint["m2"])
 	_, err = store.GetSummary(t.Context(), "owner", first.SummaryID, 1)
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 }

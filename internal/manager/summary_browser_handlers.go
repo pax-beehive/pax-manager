@@ -26,6 +26,23 @@ func ListSecretarySummaries(c context.Context, ctx *app.RequestContext) {
 	writeEndpointResult(ctx, http.StatusOK, data, err)
 }
 
+func ListSummaryRevisions(c context.Context, ctx *app.RequestContext) {
+	query, ok := developerSummaryListQuery(ctx)
+	if !ok {
+		writeError(ctx, http.StatusBadRequest, "Use cursor and a limit between 1 and 100")
+		return
+	}
+	data, err := serviceFromContext(
+		ctx,
+	).workspaceSearch.ListSummaryRevisions(
+		c,
+		requestMetadata(ctx),
+		ctx.Param("summary_id"),
+		query,
+	)
+	writeEndpointResult(ctx, http.StatusOK, data, err)
+}
+
 func ListDeveloperSummaries(c context.Context, ctx *app.RequestContext) {
 	query, ok := developerSummaryListQuery(ctx)
 	if !ok {

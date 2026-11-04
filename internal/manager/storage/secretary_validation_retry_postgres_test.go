@@ -155,27 +155,38 @@ func TestSecretaryValidationRetryDriverGivenTypedFailureThenSavesBoundedBudgetUn
 	t *testing.T,
 ) {
 	for _, failure := range []error{validationFailure(), domain.ErrSecretaryInvalidReadReceipt, context.DeadlineExceeded} {
-		script := &scriptedPostgresScript{}
-		store, cleanup := scriptedPostgresStore(t, script)
-		work := secretaryDriverWork()
-		require.NoError(t, store.FailSecretaryJob(t.Context(), work, failure))
-		require.Len(t, script.execTexts, 1)
-		assert.Contains(t, script.execTexts[0], "WHERE source_id=$1 AND lease_token=$2")
-		assert.Contains(t, script.execTexts[0], "auto_retry_count<$5")
-		code := domain.SecretaryValidationFailureCode(failure)
-		key := ""
-		if code != "" {
-			key = secretaryValidationRetryKey(work)
-		}
-		assert.Equal(t, []driver.NamedValue{
-			{Ordinal: 1, Value: work.SourceID}, {Ordinal: 2, Value: work.LeaseToken},
-			{Ordinal: 3, Value: failure.Error()}, {Ordinal: 4, Value: key},
-			{
-				Ordinal: 5,
-				Value:   int64(domain.SecretaryMaxValidationRetries),
-			}, {Ordinal: 6, Value: code},
-		}, script.execArgs[0])
-		cleanup()
+		t.Run(failure.Error(), func(t *testing.T) {
+			script := &scriptedPostgresScript{}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+			work := secretaryDriverWork()
+			require.NoError(t, store.FailSecretaryJob(t.Context(), work, failure))
+			code := domain.SecretaryValidationFailureCode(failure)
+			key := ""
+			updateIndex := 0
+			if code != "" {
+				key = secretaryValidationRetryKey(work)
+				updateIndex = 1
+				require.Len(t, script.execTexts, 2)
+				assert.Contains(t, script.execTexts[0], "current_attempt_id='' AND state='pending'")
+				assert.Contains(t, script.execTexts[0], "j.lease_until>NOW()")
+			}
+			require.Len(t, script.execTexts, updateIndex+1)
+			assert.Contains(
+				t,
+				script.execTexts[updateIndex],
+				"WHERE source_id=$1 AND lease_token=$2",
+			)
+			assert.Contains(t, script.execTexts[updateIndex], "auto_retry_count<$5")
+			assert.Equal(t, []driver.NamedValue{
+				{Ordinal: 1, Value: work.SourceID}, {Ordinal: 2, Value: work.LeaseToken},
+				{Ordinal: 3, Value: failure.Error()}, {Ordinal: 4, Value: key},
+				{
+					Ordinal: 5,
+					Value:   int64(domain.SecretaryMaxValidationRetries),
+				}, {Ordinal: 6, Value: code},
+			}, script.execArgs[updateIndex])
+		})
 	}
 }
 

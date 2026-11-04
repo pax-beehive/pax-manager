@@ -68,6 +68,17 @@ func (s *MemoryStore) loadMemorySecretaryJobLocked(
 		work.ThroughRevision = job.desired
 	}
 	secretaryFinalizeDelta(&work)
+	for _, id := range sortedSecretaryNodeIDs(s.secretaryLocked().nodes, work.OwnerUserID, work.SourceID, "") {
+		versions := s.secretaryLocked().summaries[id]
+		latest := versions[len(versions)-1]
+		if secretaryChangedSummary(work, latest) {
+			secretaryAddInvalidated(
+				&work,
+				domain.SummaryRef{SummaryID: id, Revision: latest.Revision},
+			)
+		}
+	}
+	secretaryHideInvalidatedBodies(&work)
 	return work, secretaryWithinBounds(work.Messages)
 }
 
@@ -75,60 +86,89 @@ func (s *MemoryStore) memorySecretaryBaselineLocked(
 	job *memorySecretaryJob,
 	work *domain.SecretaryJob,
 ) error {
-	versions := s.secretaryLocked().summaries[work.TargetSummaryID]
-	marker := int64(-1)
-	if len(versions) > 0 {
-		latest := versions[len(versions)-1]
-		if latest.OwnerUserID != work.OwnerUserID {
-			return ErrNotFound
+	state := s.secretaryLocked()
+	for id, versions := range state.summaries {
+		if len(versions) == 0 {
+			continue
 		}
-		work.ExpectedRevision = latest.Revision
+		latest := versions[len(versions)-1]
+		if _, exists := state.nodes[id]; !exists {
+			state.nodes[id] = memoryKnowledgeNode{OwnerUserID: latest.OwnerUserID, Type: "summary",
+				CurrentRevision: latest.Revision, OriginSourceID: summaryOriginSource(latest)}
+		}
+	}
+	ids := sortedSecretaryNodeIDs(state.nodes, work.OwnerUserID, work.SourceID, "")
+	invalidated := s.loadMemoryNodeInvalidationsLocked(work)
+	size := 0
+	for index, id := range ids {
+		if index == 100 {
+			work.SummariesHasMore = true
+			work.SummariesCursor = summaryNextCursor(
+				work.OwnerUserID+":"+work.SourceID,
+				ids[index-1],
+			)
+			break
+		}
+		if id == work.TargetSummaryID {
+			work.ExpectedRevision = state.nodes[id].CurrentRevision
+		}
+		if invalidated[id] {
+			continue
+		}
+		latest := state.summaries[id][len(state.summaries[id])-1]
+		stored, _ := json.Marshal(latest)
+		if size+len(stored) > secretaryNodeStateBytes {
+			work.SummariesHasMore = true
+			if index > 0 {
+				work.SummariesCursor = summaryNextCursor(
+					work.OwnerUserID+":"+work.SourceID,
+					ids[index-1],
+				)
+			}
+			break
+		}
 		current, err := s.getMemorySummaryLocked(
 			work.OwnerUserID,
-			work.TargetSummaryID,
+			id,
 			latest.Revision,
 			map[domain.SummaryRef]bool{},
 		)
-		if err == nil {
-			work.CurrentSummary = &current
-			return nil
-		}
-		if !errors.Is(err, ErrNotFound) {
-			return err
-		}
-		marker = latest.Revision
-		work.ResetReason = "source_visibility_changed"
-		for _, ref := range latest.Coverage {
-			if _, err = s.readSearchMessageLocked(work.OwnerUserID, ref.MessageID); errors.Is(
-				err,
-				ErrNotFound,
-			) {
-				work.RemovedMessageIDs = append(work.RemovedMessageIDs, ref.MessageID)
+		if errors.Is(err, ErrNotFound) {
+			work.InvalidatedSummaries = append(
+				work.InvalidatedSummaries,
+				domain.SummaryRef{SummaryID: id, Revision: latest.Revision},
+			)
+			for _, ref := range latest.Coverage {
+				if _, readErr := s.readSearchMessageLocked(work.OwnerUserID, ref.MessageID); errors.Is(
+					readErr,
+					ErrNotFound,
+				) {
+					work.RemovedMessageIDs = append(work.RemovedMessageIDs, ref.MessageID)
+				}
 			}
-		}
-	} else if job.processed > 0 {
-		work.ResetReason = "rolling_summary_rebuild"
-	} else {
-		return nil
-	}
-	work.ResetRequired = true
-	if job.resetRevision == marker {
-		return nil
-	}
-	job.resetRevision = marker
-	job.checkpoint = map[string]string{}
-	var docs []domain.SearchDocument
-	for id, message := range s.messages {
-		if message.AgentID != work.SourceAgentID || message.SessionID != work.SourceSessionID {
+			work.ResetRequired, work.ResetReason = true, "source_visibility_changed"
 			continue
 		}
-		if doc, err := s.readSearchMessageLocked(work.OwnerUserID, id); err == nil {
-			docs = append(docs, doc)
+		if err != nil {
+			return err
 		}
-	}
-	sort.Slice(docs, func(i, j int) bool { return docs[i].SessionSeq < docs[j].SessionSeq })
-	for _, doc := range docs {
-		s.markSecretaryMemoryDirtyLocked(job, doc.SourceID, doc.ContentHash)
+		raw, _ := json.Marshal(current)
+		if size+len(raw) > secretaryNodeStateBytes {
+			work.SummariesHasMore = true
+			if index > 0 {
+				work.SummariesCursor = summaryNextCursor(
+					work.OwnerUserID+":"+work.SourceID,
+					ids[index-1],
+				)
+			}
+			break
+		}
+		size += len(raw)
+		work.CurrentSummaries = append(work.CurrentSummaries, current)
+		if id == work.TargetSummaryID {
+			work.ExpectedRevision = current.Revision
+			work.CurrentSummary = &current
+		}
 	}
 	return nil
 }

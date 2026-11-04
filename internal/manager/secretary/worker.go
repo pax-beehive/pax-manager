@@ -111,6 +111,11 @@ func (w *Worker) ProcessOnce(ctx context.Context) error {
 }
 
 func (w *Worker) processJob(ctx context.Context, job domain.SecretaryJob) error {
+	if executions, ok := w.store.(domain.SecretaryExecutionStore); ok {
+		if nodes, supported := w.store.(domain.SecretaryNodeStore); supported {
+			return w.processNodeJob(ctx, job, executions, nodes)
+		}
+	}
 	if err := w.ensureActive(ctx, job); err != nil {
 		return err
 	}

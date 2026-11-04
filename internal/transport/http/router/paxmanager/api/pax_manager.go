@@ -248,6 +248,13 @@ func Register(r *server.Hertz) {
 						_secretary0.GET("/progress", append(_getsecretaryprogressMw(), handler.GetSecretaryProgress)...)
 						_secretary0.POST("/run", append(_runsecretarynowMw(), handler.RunSecretaryNow)...)
 						_secretary0.GET("/summaries", append(_listsecretarysummariesMw(), handler.ListSecretarySummaries)...)
+						{
+							_summaries0 := _secretary0.Group("/summaries", _summaries0Mw()...)
+							{
+								_summary_id := _summaries0.Group("/:summary_id", _summary_idMw()...)
+								_summary_id.GET("/revisions", append(_listsummaryrevisionsMw(), handler.ListSummaryRevisions)...)
+							}
+						}
 					}
 					{
 						_secrets0 := _user_id.Group("/secrets", _secrets0Mw()...)

@@ -24,7 +24,23 @@ import (
 
 type secretaryObservedStore struct {
 	domain.SecretaryStore
+	domain.SecretaryExecutionStore
+	domain.SecretaryNodeStore
 	published chan domain.SummaryVersion
+}
+
+func (s *secretaryObservedStore) PublishSecretaryBatch(
+	ctx context.Context,
+	job domain.SecretaryJob,
+	publication domain.SecretaryBatchPublication,
+) ([]domain.SummaryVersion, error) {
+	versions, err := s.SecretaryNodeStore.PublishSecretaryBatch(ctx, job, publication)
+	if err == nil {
+		for _, version := range versions {
+			s.published <- version
+		}
+	}
+	return versions, err
 }
 
 func (s *secretaryObservedStore) PublishSecretaryJob(
@@ -62,6 +78,7 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 		Direction:   domain.MessageDirectionUserToAgent,
 		SessionSeq:  1,
 		TurnID:      "source-turn-1",
+		Status:      "complete",
 	}
 	require.NoError(t, store.UpsertMessage(t.Context(), &source))
 	for index, text := range []string{"data", "base"} {
@@ -80,8 +97,10 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 	}
 	jobs := store.(domain.SecretaryStore)
 	observed := &secretaryObservedStore{
-		SecretaryStore: jobs,
-		published:      make(chan domain.SummaryVersion, 4),
+		SecretaryStore:          jobs,
+		SecretaryExecutionStore: store.(domain.SecretaryExecutionStore),
+		SecretaryNodeStore:      store.(domain.SecretaryNodeStore),
+		published:               make(chan domain.SummaryVersion, 4),
 	}
 	worker := secretary.NewWorker(
 		observed,
@@ -225,11 +244,15 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 		assert.Contains(t, promptText, expectedSource)
 		assert.Contains(t, promptText, "Read-only lookup is optional")
 		var input struct {
-			CurrentSummary *struct {
-				Revision int64 `json:"revision"`
-			} `json:"current_summary"`
-			ChangedMessages []struct {
-				Text string `json:"text"`
+			CurrentSummaries []struct {
+				SummaryID        string   `json:"summary_id"`
+				Revision         int64    `json:"revision"`
+				SourceMessageIDs []string `json:"source_message_ids"`
+			} `json:"current_summaries"`
+			InvalidatedSummaries []domain.SummaryRef `json:"invalidated_summaries"`
+			ChangedMessages      []struct {
+				MessageID string `json:"message_id"`
+				Text      string `json:"text"`
 			} `json:"changed_messages"`
 		}
 		require.NoError(
@@ -239,10 +262,14 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 		require.Len(t, input.ChangedMessages, 1)
 		assert.Equal(t, expectedSource, input.ChangedMessages[0].Text)
 		if runCount == 0 {
-			assert.Nil(t, input.CurrentSummary)
+			assert.Empty(t, input.CurrentSummaries)
 		} else {
-			require.NotNil(t, input.CurrentSummary)
-			assert.Equal(t, runCount, input.CurrentSummary.Revision)
+			require.Equal(t, 1, len(input.CurrentSummaries)+len(input.InvalidatedSummaries))
+			if len(input.CurrentSummaries) > 0 {
+				assert.Equal(t, runCount, input.CurrentSummaries[0].Revision)
+			} else {
+				assert.Equal(t, runCount, input.InvalidatedSummaries[0].Revision)
+			}
 		}
 		runCount++
 		sessionID := findStringFromRaw(prompt.Params, "sessionId")
@@ -252,8 +279,42 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 			state = "partial"
 		}
 		assertProgress(completed, total, state)
+		sources := []string{input.ChangedMessages[0].MessageID}
+		summaryKey := "automatic-decision"
+		summary := map[string]any{
+			"action":       "create",
+			"proposal_key": summaryKey,
+			"title":        "Automatic decision",
+			"body":         summaryBody,
+		}
+		if len(input.CurrentSummaries) > 0 {
+			current := input.CurrentSummaries[0]
+			summaryKey = current.SummaryID
+			delete(summary, "proposal_key")
+			summary["action"], summary["summary_id"], summary["expected_revision"] = "revise", summaryKey, current.Revision
+			for _, id := range current.SourceMessageIDs {
+				if id != input.ChangedMessages[0].MessageID {
+					sources = append(sources, id)
+				}
+			}
+		} else if len(input.InvalidatedSummaries) > 0 {
+			current := input.InvalidatedSummaries[0]
+			summaryKey = current.SummaryID
+			delete(summary, "proposal_key")
+			summary["action"], summary["summary_id"], summary["expected_revision"] = "revise", summaryKey, current.Revision
+		}
+		summary["source_message_ids"] = sources
 		answer, marshalErr := json.Marshal(
-			map[string]any{"title": "Automatic decision", "body": summaryBody},
+			map[string]any{
+				"summaries": []any{summary},
+				"outcomes": []any{
+					map[string]any{
+						"message_id":   input.ChangedMessages[0].MessageID,
+						"action":       "summarized",
+						"summary_keys": []string{summaryKey},
+					},
+				},
+			},
 		)
 		require.NoError(t, marshalErr)
 		agentSequence++
@@ -348,6 +409,7 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 		Direction:   domain.MessageDirectionUserToAgent,
 		SessionSeq:  2,
 		TurnID:      "source-turn-2",
+		Status:      "complete",
 	}
 	require.NoError(t, store.UpsertMessage(t.Context(), &added))
 	require.NoError(
