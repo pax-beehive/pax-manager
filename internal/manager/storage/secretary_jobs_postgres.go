@@ -38,7 +38,7 @@ func (s *PostgresStore) ClaimSecretaryJobs(
  JOIN agents selected ON selected.agent_id=cfg.agent_id AND selected.owner_user_id=j.owner_user_id AND selected.deleted_at IS NULL
  JOIN agent_sessions s ON s.id=j.source_id AND s.archived_at IS NULL AND s.runtime_status='idle'
  LEFT JOIN nodes n ON n.node_id=a.node_id LEFT JOIN nodes sn ON sn.node_id=s.node_id LEFT JOIN nodes target ON target.node_id=selected.node_id
- WHERE j.desired_revision>j.processed_revision AND j.available_at<=NOW() AND NOT j.execution_blocked
+ WHERE j.desired_revision>j.processed_revision AND j.available_at<=NOW() AND NOT j.execution_blocked AND NOT j.paused
  AND NOT EXISTS (SELECT 1 FROM secretary_batches b WHERE b.source_id=j.source_id
  AND b.owner_user_id=j.owner_user_id AND b.settings_revision=cfg.revision AND b.retry_epoch=j.retry_epoch
  AND ((b.state='pending' AND b.retry_after>NOW()) OR (b.state='blocked' AND b.connection_failures>8)))

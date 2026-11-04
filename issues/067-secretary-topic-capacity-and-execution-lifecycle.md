@@ -14,6 +14,15 @@
 
 ## Current note
 
+2026-11-04 task controls: pending source tasks and bounded attempt history now have
+owner-authorized read/check/retry/pause/resume APIs and a paired Console UI.
+Checking reuses the original execution without dispatch; restarting an unknown
+outcome requires confirmation. Per-source pause persists across source updates,
+restarts and bulk retry, without canceling a running execution. CAS and lease
+checks isolate stale controls and late output. See the
+[task-control handoff](../docs/handoff_20261104_230000.md). This issue remains
+partial until rollout and real-session quality validation.
+
 2026-11-04，本次变更已经实现 summary-only Node：独立身份、每来源多摘要、不可变版本、
 当前指针和精确来源；沿用原有快照，不建立消息 revision 或逐 chunk 表。
 当前 coverage、处理进度和历史来源目录分离，修订可压缩旧细节而不抹掉历史。

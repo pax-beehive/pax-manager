@@ -267,6 +267,7 @@ func (s *MemoryStore) PublishSecretaryJob(
 		delete(job.checkpoint, id)
 	}
 	job.processed = max(job.processed, work.ThroughRevision)
+	job.executionBlocked = false
 	job.work.LeaseToken = ""
 	job.leaseUntil = s.now()
 	job.lastError = ""

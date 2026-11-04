@@ -901,3 +901,28 @@ func _listsummaryrevisionsMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _listsecretarytasksMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _tasksMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getsecretarytaskMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _task_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _controlsecretarytaskMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

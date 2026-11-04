@@ -24,10 +24,11 @@ func TestSecretaryBootstrapGivenStartupThenSerializesAndCommitsIncrementalRepair
 	require.Len(t, script.execTexts, 2)
 	assert.Contains(t, script.execTexts[0], "pg_advisory_xact_lock")
 	assert.Empty(t, script.execArgs[0])
-	require.Len(t, script.execArgs[1], 3)
+	require.Len(t, script.execArgs[1], 4)
 	assert.Equal(t, "", script.execArgs[1][0].Value)
 	assert.Equal(t, false, script.execArgs[1][1].Value)
 	assert.Equal(t, domain.SearchCanonicalizationVersion, script.execArgs[1][2].Value)
+	assert.Equal(t, false, script.execArgs[1][3].Value)
 	assert.True(t, script.committed)
 	assert.False(t, script.rolled)
 }
@@ -43,10 +44,11 @@ func TestSecretaryBootstrapGivenExplicitOwnerReconcileThenKeepsExistingLockOrder
 	require.NoError(t, backfillSecretaryTx(context.Background(), tx, "owner_one"))
 	require.Len(t, script.execTexts, 1)
 	assert.NotContains(t, script.execTexts[0], "pg_advisory_xact_lock")
-	require.Len(t, script.execArgs[0], 3)
+	require.Len(t, script.execArgs[0], 4)
 	assert.Equal(t, "owner_one", script.execArgs[0][0].Value)
 	assert.Equal(t, true, script.execArgs[0][1].Value)
 	assert.Equal(t, domain.SearchCanonicalizationVersion, script.execArgs[0][2].Value)
+	assert.Equal(t, false, script.execArgs[0][3].Value)
 	assert.False(t, script.committed, "The caller owns the transaction")
 }
 

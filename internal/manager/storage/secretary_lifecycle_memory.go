@@ -90,7 +90,7 @@ func (s *MemoryStore) PrepareSecretaryBatch(
 		err = s.validateSecretaryBatchInputLocked(restored)
 	}
 	if err != nil {
-		return domain.SecretaryJob{}, s.supersedeSecretaryBatchLocked(job, batch, err)
+		return domain.SecretaryJob{}, s.rejectSecretaryBatchInputLocked(job, batch, err)
 	}
 	batch.lease = job.LeaseToken
 	if len(batch.attempts) > 0 {
@@ -209,11 +209,12 @@ func (s *MemoryStore) FailSecretaryAttempt(
 		return domain.ErrSecretaryFenced
 	}
 	attempt := &batch.attempts[len(batch.attempts)-1]
-	if attempt.ID != id || (attempt.State != "running" && attempt.State != "output_received") {
+	if attempt.ID != id ||
+		(attempt.State != "running" && attempt.State != "output_received" && attempt.State != "unknown") {
 		return domain.ErrSecretaryFenced
 	}
 	if secretaryNotDispatched(failure) {
-		if attempt.State == "output_received" {
+		if attempt.State != "running" {
 			return domain.ErrSecretaryFenced
 		}
 		s.failSecretaryConnectionLocked(job, batch, attempt, failure)

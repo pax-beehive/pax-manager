@@ -36,6 +36,8 @@ ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS last_validation_failure TEXT
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS reset_revision BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS retry_epoch BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS execution_blocked BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS paused BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS control_revision BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS secretary_batches (
     batch_id TEXT PRIMARY KEY,
@@ -79,6 +81,8 @@ CREATE TABLE IF NOT EXISTS secretary_attempts (
     UNIQUE(batch_id,attempt_number)
 );
 ALTER TABLE secretary_attempts ADD COLUMN IF NOT EXISTS not_dispatched BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS secretary_attempts_batch_history
+    ON secretary_attempts(batch_id,created_at DESC,attempt_id DESC);
 
 CREATE TABLE IF NOT EXISTS secretary_message_state (
     source_id BIGINT NOT NULL REFERENCES secretary_jobs(source_id) ON DELETE CASCADE,

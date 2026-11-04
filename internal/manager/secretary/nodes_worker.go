@@ -40,12 +40,33 @@ func (w *Worker) processNodeJob(
 			return err
 		}
 	}
-	if err = w.ensureActive(ctx, job); err != nil {
+	return w.completeNodeOutput(ctx, job, executions, nodes, result)
+}
+
+func (w *Worker) completeNodeOutput(
+	ctx context.Context,
+	job domain.SecretaryJob,
+	executions domain.SecretaryExecutionStore,
+	nodes domain.SecretaryNodeStore,
+	result ExecutionResult,
+) error {
+	if err := w.ensureActive(ctx, job); err != nil {
 		return err
 	}
-	publication, err := BuildNodePublication(job, result.Text, result.Reads)
+	job, publication, err := buildNodeResult(job, result)
 	if err != nil {
 		return w.failNodeAttempt(ctx, executions, job, err)
+	}
+	return w.publishNodeBatch(ctx, job, executions, nodes, publication)
+}
+
+func buildNodeResult(
+	job domain.SecretaryJob,
+	result ExecutionResult,
+) (domain.SecretaryJob, domain.SecretaryBatchPublication, error) {
+	publication, err := BuildNodePublication(job, result.Text, result.Reads)
+	if err != nil {
+		return job, publication, err
 	}
 	for _, summary := range result.Reads.SummaryVersions {
 		found := false
@@ -58,11 +79,11 @@ func (w *Worker) processNodeJob(
 	}
 	refs, err := RequestedNodeSourceReads(job, result.Text)
 	if err != nil {
-		return w.failNodeAttempt(ctx, executions, job, err)
+		return job, publication, err
 	}
 	job.AllowedRelatedMessages = refs
 	job.AllowedRelatedSummaries = result.Reads.Summaries
-	return w.publishNodeBatch(ctx, job, executions, nodes, publication)
+	return job, publication, nil
 }
 
 func (w *Worker) publishNodeBatch(

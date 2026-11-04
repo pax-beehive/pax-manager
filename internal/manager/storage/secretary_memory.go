@@ -26,6 +26,8 @@ type memorySecretaryRequest struct {
 	ref  domain.SummaryRef
 }
 type memorySecretaryJob struct {
+	paused                         bool
+	controlRevision                int64
 	executionBlocked               bool
 	autoRetryKey                   string
 	autoRetryCount                 int
@@ -175,7 +177,7 @@ func (s *MemoryStore) RetrySecretaryJobs(_ context.Context, owner string) error 
 	}
 	s.refreshSecretaryOwnerLocked(owner)
 	for _, job := range state.jobs {
-		if job.work.OwnerUserID == owner {
+		if job.work.OwnerUserID == owner && !job.paused {
 			job.executionBlocked = false
 			job.available = s.now()
 			job.updated = s.now().Add(-30 * time.Second)
@@ -445,7 +447,7 @@ func (s *MemoryStore) memorySecretaryClaimableLocked(
 	state := s.secretaryLocked()
 	cfg := state.settings[job.work.OwnerUserID]
 	session, ok := s.sessions[sessionKey(job.work.SourceAgentID, job.work.SourceSessionID)]
-	if !ok || !cfg.Enabled || job.executionBlocked || job.desired <= job.processed ||
+	if !ok || !cfg.Enabled || job.paused || job.executionBlocked || job.desired <= job.processed ||
 		!s.secretaryConnectionClaimableLocked(job, cfg.Revision) ||
 		job.available.After(s.now()) ||
 		job.leaseUntil.After(s.now()) ||

@@ -158,7 +158,7 @@ func (s *PostgresStore) PrepareSecretaryBatch(
 		err = validateSecretaryBatchInputTx(ctx, tx, restored)
 	}
 	if err != nil {
-		return domain.SecretaryJob{}, supersedeSecretaryBatchTx(ctx, tx, job, err)
+		return domain.SecretaryJob{}, rejectSecretaryBatchInputTx(ctx, tx, job, batch, err)
 	}
 	if batch.attemptID != "" {
 		attempt, readErr := loadSecretaryAttempt(ctx, tx, batch.attemptID)
@@ -326,11 +326,12 @@ func (s *PostgresStore) FailSecretaryAttempt(
 	if err != nil {
 		return err
 	}
-	if attempt.State != "running" && attempt.State != "output_received" {
+	if attempt.State != "running" && attempt.State != "output_received" &&
+		attempt.State != "unknown" {
 		return domain.ErrSecretaryFenced
 	}
 	if secretaryNotDispatched(failure) {
-		if attempt.State == "output_received" {
+		if attempt.State != "running" {
 			return domain.ErrSecretaryFenced
 		}
 		return failSecretaryConnectionTx(ctx, tx, job, batch, attempt, failure, s.now())

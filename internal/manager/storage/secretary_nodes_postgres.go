@@ -63,7 +63,7 @@ func (s *PostgresStore) publishSecretaryNodes(
 	if err = validateSecretaryNodeSourcesCompleteTx(ctx, tx, job.OwnerUserID, requests); err != nil {
 		return nil, err
 	}
-	if err = lockSecretaryNodeIDsTx(ctx, tx, requests); err != nil {
+	if err = lockSecretaryFrozenHeadsTx(ctx, tx, job, requests); err != nil {
 		return nil, err
 	}
 	results, err := s.publishSecretaryNodeOutputsTx(ctx, tx, job, requests)
@@ -195,7 +195,7 @@ func checkpointSecretaryNodesTx(
 	_, err := tx.ExecContext(
 		ctx,
 		`UPDATE secretary_jobs SET processed_revision=GREATEST(processed_revision,$2),
- lease_token='',lease_until=NULL,completed_at=NOW(),last_error='',attempts=0,available_at=NOW(),
+ lease_token='',lease_until=NULL,execution_blocked=FALSE,completed_at=NOW(),last_error='',attempts=0,available_at=NOW(),
  auto_retry_key='',auto_retry_count=0,last_validation_failure='' WHERE source_id=$1`,
 		job.SourceID,
 		job.ThroughRevision,

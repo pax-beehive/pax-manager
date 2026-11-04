@@ -2706,4 +2706,51 @@ service PaxManagerAPI {
     openapi.security = "cloudflareAccess",
     openapi.path.receiver_id = "Receiver identifier."
   )
+  WorkspaceSearchResponse ListSecretaryTasks(1: optional SecretaryTaskListRequest request) (
+    api.get = "/api/v1/user/:user_id/secretary/tasks",
+    openapi.tag = "user",
+    openapi.summary = "List owned pending Secretary source tasks",
+    openapi.description = "Lists pending tasks after checking current source visibility. Limits default to 20 and cap at 100. Cursor is opaque and owner-bound. Returns safe execution metadata, never prompts, outputs, receipts, or capability tokens."
+  )
+
+  WorkspaceSearchResponse GetSecretaryTask(1: required SecretaryTaskReadRequest request) (
+    api.get = "/api/v1/user/:user_id/secretary/tasks/:task_id",
+    openapi.tag = "user",
+    openapi.summary = "Read an owned Secretary task and paginated attempts",
+    openapi.description = "Checks owner and actual current source permissions. Includes bounded attempt history across immutable batches and only currently readable execution links. Limit defaults to 20 and caps at 100."
+  )
+
+  WorkspaceSearchResponse ControlSecretaryTask(1: required SecretaryTaskActionRequest request) (
+    api.post = "/api/v1/user/:user_id/secretary/tasks/:task_id/actions",
+    openapi.tag = "user",
+    openapi.summary = "Control one owned Secretary source task",
+    openapi.description = "Actions pause or resume future scheduling, queue a retry of only this source, or check its existing result without model execution. Requires exact control revision, batch, attempt, epoch, and settings. Retry of unknown or expired execution requires confirm_restart=true. Active leases reject retry and recheck. Pause never cancels a running native turn. Stale controls return 409."
+  )
+
+}
+
+
+struct SecretaryTaskListRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string cursor (api.query = "cursor")
+  3: optional i32 limit (api.query = "limit")
+}
+
+struct SecretaryTaskReadRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string task_id (api.path = "task_id")
+  3: optional string cursor (api.query = "cursor")
+  4: optional i32 limit (api.query = "limit")
+}
+
+struct SecretaryTaskActionRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string task_id (api.path = "task_id")
+  3: required string action
+  4: required i64 expected_revision
+  5: required string batch_id
+  6: required string attempt_id
+  7: required i64 retry_epoch
+  8: required i64 settings_revision
+  9: optional bool confirm_restart
 }
