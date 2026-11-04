@@ -9,6 +9,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMemoryProjectTargetsAllowSameDirectoryForDifferentAgentsOnOneNode(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := NewMemoryStore(time.Now)
+	owner := UserPrincipal{User: User{UserID: "owner"}}
+	for _, agentID := range []string{"codex", "claude"} {
+		store.agents[agentID] = Agent{AgentID: agentID, OwnerUserID: "owner", NodeID: "mac"}
+	}
+	project, err := store.CreateProject(
+		ctx,
+		owner,
+		CreateProjectRequest{DisplayName: "Shared workspace"},
+	)
+	require.NoError(t, err)
+	var ids []string
+	for _, agentID := range []string{"codex", "claude"} {
+		target, createErr := store.CreateProjectTarget(
+			ctx,
+			owner,
+			project.ProjectID,
+			CreateProjectTargetRequest{
+				AgentID: agentID, DisplayName: "Workspace", Cwd: "~/project",
+			},
+		)
+		require.NoError(t, createErr)
+		assert.Equal(t, agentID, target.AgentID)
+		ids = append(ids, target.TargetID)
+	}
+	assert.NotEqual(t, ids[0], ids[1])
+	targets, err := store.ListProjectTargets(ctx, owner, project.ProjectID)
+	require.NoError(t, err)
+	require.Len(t, targets, 2)
+}
+
 func TestMemoryProjectTargetLifecycleBDD(t *testing.T) {
 	t.Parallel()
 
