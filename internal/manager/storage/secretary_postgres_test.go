@@ -44,7 +44,8 @@ func secretaryPostgresFixture(t *testing.T) *PostgresStore {
 	}
 	_, err = db.ExecContext(
 		t.Context(),
-		`INSERT INTO users(user_id,email) VALUES ('owner','owner@example.test'),('other','other@example.test');
+		`ALTER TABLE messages ALTER COLUMN status SET DEFAULT 'complete';
+ INSERT INTO users(user_id,email) VALUES ('owner','owner@example.test'),('other','other@example.test');
  INSERT INTO agents(agent_id,owner_user_id,hostname,os,api_key_hash) VALUES ('source','owner','host','linux','source-key'),('secretary','owner','host','linux','secretary-key'),('other','other','host','linux','other-key');
  INSERT INTO agent_sessions(agent_id,session_id,session_name) VALUES ('source','session','Original session');
  INSERT INTO messages(message_id,agent_id,session_id,source,direction,role,message_type,session_seq) VALUES ('m1','source','session','test','inbound','assistant','agent_message_chunk',1);

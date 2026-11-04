@@ -19,6 +19,7 @@ func TestSecretaryDriverGivenInterleavedInternalEventsThenFillsCanonicalBatch(t 
 		secretaryCandidateRows(),
 		secretaryMetadataRows(0, 0),
 		summaryEmptyRows(),
+		summaryEmptyRows(),
 	}
 	for page := 0; page < 4; page++ {
 		changes := secretaryChangesRows()
@@ -35,6 +36,7 @@ func TestSecretaryDriverGivenInterleavedInternalEventsThenFillsCanonicalBatch(t 
 		queries = append(queries, changes)
 		queries = append(queries, messages...)
 	}
+	queries = append(queries, summaryEmptyRows())
 	script := &scriptedPostgresScript{queries: queries}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
@@ -45,7 +47,7 @@ func TestSecretaryDriverGivenInterleavedInternalEventsThenFillsCanonicalBatch(t 
 	assert.EqualValues(t, 512, jobs[0].ThroughRevision)
 	assert.Equal(t, "message_0008", jobs[0].Messages[0].SourceID)
 	assert.Equal(t, "message_0512", jobs[0].Messages[63].SourceID)
-	assert.Len(t, script.queryTexts, 3+4+64)
+	assert.Len(t, script.queryTexts, 4+4+64+1)
 }
 
 func TestSecretaryMemoryGivenManyHiddenChangesThenBoundsScanAndMakesProgress(t *testing.T) {
@@ -98,7 +100,7 @@ func TestSecretaryMemoryGivenMoreThanOneBatchOfRemovalsThenDoesNotSkipRemainder(
 
 func TestSecretaryDriverGivenByteLimitThenKeepsNextVisibleChangeUnprocessed(t *testing.T) {
 	queries := []scriptedRows{
-		secretaryCandidateRows(), secretaryMetadataRows(0, 0), summaryEmptyRows(),
+		secretaryCandidateRows(), secretaryMetadataRows(0, 0), summaryEmptyRows(), summaryEmptyRows(),
 		secretaryChangesRows(
 			[]driver.Value{"first", int64(1), "", "", true},
 			[]driver.Value{"hidden", int64(2), "", "", false},
@@ -106,6 +108,7 @@ func TestSecretaryDriverGivenByteLimitThenKeepsNextVisibleChangeUnprocessed(t *t
 		),
 		summaryMessageRows("first", strings.Repeat("x", domain.SecretaryMaxBytes-1), "owner_1"),
 		summaryMessageRows("next", "too large for remaining bytes", "owner_1"),
+		summaryEmptyRows(),
 	}
 	script := &scriptedPostgresScript{queries: queries}
 	store, cleanup := scriptedPostgresStore(t, script)
@@ -123,6 +126,7 @@ func TestSecretaryDriverGivenOnlyInvisibleChangesThenBoundsQueriesAndAdvancesChe
 		secretaryCandidateRows(),
 		secretaryMetadataRows(0, 0),
 		summaryEmptyRows(),
+		summaryEmptyRows(),
 	}
 	for page := 0; page < secretaryChangeScanLimit/secretaryChangePageSize; page++ {
 		changes := secretaryChangesRows()
@@ -134,13 +138,14 @@ func TestSecretaryDriverGivenOnlyInvisibleChangesThenBoundsQueriesAndAdvancesChe
 		}
 		queries = append(queries, changes)
 	}
+	queries = append(queries, secretaryOpenBatchRows(false))
 	script := &scriptedPostgresScript{queries: queries}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
 	jobs, err := store.ClaimSecretaryJobs(t.Context(), 1, time.Minute, 0)
 	require.NoError(t, err)
 	assert.Empty(t, jobs)
-	assert.Len(t, script.queryTexts, 3+secretaryChangeScanLimit/secretaryChangePageSize)
+	assert.Len(t, script.queryTexts, 5+secretaryChangeScanLimit/secretaryChangePageSize)
 	require.Len(t, script.execArgs, 2)
 	assert.EqualValues(t, secretaryChangeScanLimit, script.execArgs[1][1].Value)
 }
@@ -158,7 +163,7 @@ func TestSecretaryDriverGivenPreviouslyVisibleMessagesNowHiddenThenBoundsRemoval
 		})
 	}
 	script := &scriptedPostgresScript{queries: []scriptedRows{
-		secretaryCandidateRows(), secretaryMetadataRows(0, 0), summaryEmptyRows(), changes,
+		secretaryCandidateRows(), secretaryMetadataRows(0, 0), summaryEmptyRows(), summaryEmptyRows(), changes, summaryEmptyRows(),
 	}}
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()

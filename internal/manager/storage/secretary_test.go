@@ -37,6 +37,7 @@ func secretaryMemoryMessage(store *MemoryStore, id, text string, seq int64) {
 		SessionID:   "session",
 		Role:        "assistant",
 		MessageType: "agent_message_chunk",
+		Status:      "complete",
 		SessionSeq:  seq,
 		CreatedAt:   store.now(),
 	}

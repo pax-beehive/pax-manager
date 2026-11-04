@@ -22,18 +22,27 @@ import (
 
 type secretaryValidationRetryObservedStore struct {
 	domain.SecretaryStore
+	domain.SecretaryExecutionStore
+	domain.SecretaryNodeStore
 	claimed chan domain.SecretaryJob
+}
+
+func (s *secretaryValidationRetryObservedStore) BeginSecretaryAttempt(
+	ctx context.Context,
+	job domain.SecretaryJob,
+) (domain.SecretaryAttempt, error) {
+	attempt, err := s.SecretaryExecutionStore.BeginSecretaryAttempt(ctx, job)
+	if err == nil {
+		job.Attempt, job.AttemptID, job.RunID = &attempt, attempt.ID, attempt.ID
+		s.claimed <- job
+	}
+	return attempt, err
 }
 
 func (s *secretaryValidationRetryObservedStore) ClaimSecretaryJobs(
 	ctx context.Context, limit int, lease, settle time.Duration,
 ) ([]domain.SecretaryJob, error) {
 	jobs, err := s.SecretaryStore.ClaimSecretaryJobs(ctx, limit, lease, settle)
-	if err == nil {
-		for _, job := range jobs {
-			s.claimed <- job
-		}
-	}
 	return jobs, err
 }
 
@@ -71,7 +80,7 @@ func assertSecretaryValidationRetry(t *testing.T, store Store, code string, rele
 	})
 	require.NoError(t, err)
 	observed := &secretaryValidationRetryObservedStore{
-		SecretaryStore: jobs, claimed: make(chan domain.SecretaryJob, 2),
+		SecretaryStore: jobs, SecretaryExecutionStore: store.(domain.SecretaryExecutionStore), SecretaryNodeStore: store.(domain.SecretaryNodeStore), claimed: make(chan domain.SecretaryJob, 2),
 	}
 	worker := secretary.NewWorker(observed, srv.secretaryExecutor(), secretary.WorkerConfig{
 		SettleDuration: time.Nanosecond, ExecutionTimeout: 10 * time.Second,
@@ -94,7 +103,7 @@ func assertSecretaryValidationRetry(t *testing.T, store Store, code string, rele
 	releaseBackoff()
 	invalid := "not JSON"
 	if code == "evidence" {
-		invalid = `{"body":"Unsupported","claims":[{"text":"Unsupported","evidence":[{"message_id":"retry-source","quote":"A fabricated quote."}]}]}`
+		invalid = `{"summaries":[{"action":"create","proposal_key":"database","body":"Unsupported","source_message_ids":["retry-source"],"claims":[{"text":"Unsupported","evidence":[{"message_id":"retry-source","quote":"A fabricated quote."}]}]}],"outcomes":[{"message_id":"retry-source","action":"summarized","summary_keys":["database"]}]}`
 	}
 	first, firstSession, failure := runner.run(invalid)
 	require.Error(t, failure)
@@ -114,7 +123,7 @@ func assertSecretaryValidationRetry(t *testing.T, store Store, code string, rele
 	assert.True(t, completed)
 	assert.Equal(t, invalid, cached, "the rejected completed response remains recoverable")
 	releaseBackoff()
-	valid := `{"title":"Database decision","body":"Use PostgreSQL.","claims":[{"text":"Use PostgreSQL.","evidence":[{"message_id":"retry-source","quote":"PostgreSQL"}]}]}`
+	valid := `{"summaries":[{"action":"create","proposal_key":"database","title":"Database decision","body":"Use PostgreSQL.","source_message_ids":["retry-source"],"claims":[{"text":"Use PostgreSQL.","evidence":[{"message_id":"retry-source","quote":"PostgreSQL"}]}]}],"outcomes":[{"message_id":"retry-source","action":"summarized","summary_keys":["database"]}]}`
 	second, secondSession, err := runner.run(valid)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, second.RetryGeneration)
@@ -129,7 +138,7 @@ func assertSecretaryValidationRetry(t *testing.T, store Store, code string, rele
 	summary, err := store.(domain.SummaryStore).GetSummary(
 		t.Context(),
 		owner,
-		second.TargetSummaryID,
+		domain.SecretaryNodeID(second.BatchID, "database"),
 		0,
 	)
 	require.NoError(t, err)

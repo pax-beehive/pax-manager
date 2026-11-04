@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"encoding/json"
 	"net/http"
 	"sort"
 
@@ -23,10 +24,11 @@ func (g *secretaryToolGrant) record(result any) error {
 	case secretaryHistoryPage:
 		reads = value.Messages
 	case domain.SummaryVersion:
-		if len(g.summaries) >= 100 && !g.summaries[domain.SummaryRef{SummaryID: value.SummaryID, Revision: value.Revision}] {
-			return secretaryToolLedgerLimit()
-		}
-		g.summaries[domain.SummaryRef{SummaryID: value.SummaryID, Revision: value.Revision}] = true
+		return g.recordSummariesLocked([]domain.SummaryVersion{value})
+	case domain.SecretarySummaryPage:
+		return g.recordSummariesLocked(value.Items)
+	case secretarySummaryToolPage:
+		return g.recordSummaryPageLocked(value)
 	}
 	newCount, newBytes := 0, 0
 	for _, read := range reads {
@@ -41,6 +43,53 @@ func (g *secretaryToolGrant) record(result any) error {
 	for _, read := range reads {
 		read.Context = nil
 		g.reads[read.ReadReceipt] = read
+	}
+	g.readBytes += newBytes
+	return nil
+}
+
+func (g *secretaryToolGrant) recordSummaryPageLocked(page secretarySummaryToolPage) error {
+	var exposed []domain.SummaryVersion
+	headerBytes := 0
+	for _, item := range page.Items {
+		if item.RequiresRead {
+			encoded, _ := json.Marshal(item)
+			headerBytes += len(encoded)
+		} else {
+			exposed = append(exposed, item.SummaryVersion)
+		}
+	}
+	if g.readBytes+headerBytes > 4*1024*1024 {
+		return secretaryToolLedgerLimit()
+	}
+	g.readBytes += headerBytes
+	if err := g.recordSummariesLocked(exposed); err != nil {
+		g.readBytes -= headerBytes
+		return err
+	}
+	return nil
+}
+
+func (g *secretaryToolGrant) recordSummariesLocked(summaries []domain.SummaryVersion) error {
+	newCount, newBytes := 0, 0
+	for _, summary := range summaries {
+		ref := domain.SummaryRef{SummaryID: summary.SummaryID, Revision: summary.Revision}
+		if !g.summaries[ref] {
+			newCount++
+			encoded, _ := json.Marshal(summary)
+			newBytes += len(encoded)
+		}
+	}
+	if len(g.summaries)+newCount > 100 || g.readBytes+newBytes > 4*1024*1024 {
+		return secretaryToolLedgerLimit()
+	}
+	if g.summaryVersions == nil {
+		g.summaryVersions = map[domain.SummaryRef]domain.SummaryVersion{}
+	}
+	for _, summary := range summaries {
+		ref := domain.SummaryRef{SummaryID: summary.SummaryID, Revision: summary.Revision}
+		g.summaries[ref] = true
+		g.summaryVersions[ref] = summary
 	}
 	g.readBytes += newBytes
 	return nil
@@ -75,6 +124,9 @@ func (s *Service) secretaryToolsReads(capability string) domain.SecretaryToolRea
 	}
 	for ref := range grant.summaries {
 		result.Summaries = append(result.Summaries, ref)
+		if summary, ok := grant.summaryVersions[ref]; ok {
+			result.SummaryVersions = append(result.SummaryVersions, summary)
+		}
 	}
 	sort.Slice(
 		result.Messages,
@@ -85,6 +137,12 @@ func (s *Service) secretaryToolsReads(capability string) domain.SecretaryToolRea
 			return result.Summaries[i].Revision < result.Summaries[j].Revision
 		}
 		return result.Summaries[i].SummaryID < result.Summaries[j].SummaryID
+	})
+	sort.Slice(result.SummaryVersions, func(i, j int) bool {
+		if result.SummaryVersions[i].SummaryID == result.SummaryVersions[j].SummaryID {
+			return result.SummaryVersions[i].Revision < result.SummaryVersions[j].Revision
+		}
+		return result.SummaryVersions[i].SummaryID < result.SummaryVersions[j].SummaryID
 	})
 	return result
 }

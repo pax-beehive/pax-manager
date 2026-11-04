@@ -24,9 +24,21 @@ func secretaryCandidateRows() scriptedRows {
 			"through",
 			"retry",
 			"last_validation_failure",
+			"retry_epoch",
 		},
 		values: [][]driver.Value{
-			{"1", "owner_1", "agent_1", "session_1", "selected", int64(1), int64(2), int64(0), ""},
+			{
+				"1",
+				"owner_1",
+				"agent_1",
+				"session_1",
+				"selected",
+				int64(1),
+				int64(2),
+				int64(0),
+				"",
+				int64(0),
+			},
 		},
 	}
 }
@@ -52,21 +64,39 @@ func secretaryMetadataRows(processed, reset int64) scriptedRows {
 	}
 }
 
+func secretaryNodeMetadataRows(revision int64) scriptedRows {
+	return scriptedRows{columns: []string{"status", "revision", "agent", "session", "title"},
+		values: [][]driver.Value{{"active", revision, "agent_1", "session_1", "Session"}}}
+}
+
+func secretaryOpenBatchRows(open bool) scriptedRows {
+	return scriptedRows{columns: []string{"open"}, values: [][]driver.Value{{open}}}
+}
+
 func TestSecretaryDriverGivenClaimedSourceWhenLoadedThenReturnsBoundedCanonicalWork(t *testing.T) {
 	for _, mode := range []string{"new", "existing", "noop", "deleted", "oversized"} {
 		t.Run(mode, func(t *testing.T) {
 			message := summaryMessageRows("message_1", "old body", "owner_1")
-			queries := []scriptedRows{secretaryCandidateRows(), secretaryMetadataRows(0, 0)}
+			queries := []scriptedRows{
+				secretaryCandidateRows(),
+				secretaryMetadataRows(0, 0),
+				summaryEmptyRows(),
+			}
 			if mode == "existing" {
 				head := summaryVersionRows(secretarySummaryID("owner_1", "1"), "owner_1", 1)
 				head.values[0][3] = "fragment"
 				head.values[0][4] = secretarySubject("1")
 				queries = append(
 					queries,
+					scriptedRows{
+						columns: []string{"id", "revision"},
+						values:  [][]driver.Value{{head.values[0][0], int64(1)}},
+					},
 					head,
 					summarySourceRows(),
 					summaryAccessRows("owner_1", "message_1"),
 					message,
+					secretaryNodeMetadataRows(1),
 				)
 			} else {
 				queries = append(queries, summaryEmptyRows())
@@ -93,6 +123,11 @@ func TestSecretaryDriverGivenClaimedSourceWhenLoadedThenReturnsBoundedCanonicalW
 				)
 			}
 			queries = append(queries, changes, message)
+			if mode != "noop" && mode != "deleted" {
+				queries = append(queries, summaryEmptyRows())
+			} else {
+				queries = append(queries, secretaryOpenBatchRows(false))
+			}
 			script := &scriptedPostgresScript{queries: queries}
 			store, cleanup := scriptedPostgresStore(t, script)
 			defer cleanup()
@@ -192,6 +227,7 @@ func TestSecretaryDriverGivenPublishedRequestThenRetryReusesItsExactVersion(t *t
 		summarySourceRows(),
 		summaryAccessRows("owner_1", "message_1"),
 		summaryMessageRows("message_1", "old body", "owner_1"),
+		secretaryNodeMetadataRows(1),
 	)
 	script := &scriptedPostgresScript{queries: queries}
 	store, cleanup := scriptedPostgresStore(t, script)
@@ -213,8 +249,16 @@ func TestSecretaryDriverGivenSettingsCASAndStatusThenPersistsOnlyOwnerConfigurat
 			values:  [][]driver.Value{{"owner_1", "selected", true, int64(1), time.Now()}},
 		},
 		{
-			columns: []string{"pending", "processing", "completed", "error"},
-			values:  [][]driver.Value{{int64(2), true, nil, "offline"}},
+			columns: []string{
+				"pending",
+				"processing",
+				"completed",
+				"error",
+				"batch",
+				"attempt",
+				"leased",
+			},
+			values: [][]driver.Value{{int64(2), true, nil, "offline", "", "", false}},
 		},
 		{columns: []string{"enabled"}, values: [][]driver.Value{{true}}},
 	}

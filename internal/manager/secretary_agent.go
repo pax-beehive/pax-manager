@@ -13,7 +13,7 @@ import (
 )
 
 func (s *Service) secretaryExecutor() secretary.Executor {
-	return secretary.ExecutorFunc(s.executeSecretaryAgent)
+	return secretaryAgentExecutor{service: s}
 }
 
 func (s *Service) executeSecretaryAgent(
@@ -30,6 +30,14 @@ func (s *Service) executeSecretaryAgent(
 	if request.Job.SourceID != "" && (request.Job.OwnerUserID != request.OwnerID ||
 		request.Job.AgentID != request.AgentID || request.Job.RunID != request.RunID) {
 		return secretary.ExecutionResult{}, domain.ErrConflict
+	}
+	if request.Job.BatchID != "" {
+		attempt := request.Job.Attempt
+		if attempt == nil || attempt.ID != request.RunID || request.Job.AttemptID != attempt.ID ||
+			attempt.BatchID != request.Job.BatchID ||
+			attempt.State != "running" {
+			return secretary.ExecutionResult{}, domain.ErrSecretaryExecutionUnknown
+		}
 	}
 	user, err := s.store.GetUser(ctx, request.OwnerID)
 	if err != nil {

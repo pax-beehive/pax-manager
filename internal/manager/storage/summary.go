@@ -254,6 +254,13 @@ func getSummaryTx(
 	if err = validateSummaryAccess(ctx, tx, owner, result.SummaryID, result.Revision); err != nil {
 		return domain.SummaryVersion{}, err
 	}
+	result = summaryNodeMetadata(result)
+	if summaryOriginSource(result) != "" {
+		if err = enrichSummaryNodeTx(ctx, tx, &result); err != nil {
+			return domain.SummaryVersion{}, err
+		}
+	}
+
 	return result, nil
 }
 
@@ -431,10 +438,12 @@ func loadSummarySearchDocument(
 	}
 	if source := secretaryPrimarySource(result); source != "" {
 		group, readErr := readSessionSearchGroupTx(ctx, tx, result.OwnerUserID, source, "", "")
-		if readErr != nil {
+		if readErr != nil && !errors.Is(readErr, ErrNotFound) {
 			return domain.SearchDocument{}, readErr
 		}
-		doc.AgentID, doc.SessionID = group.AgentID, group.SessionID
+		if readErr == nil {
+			doc.AgentID, doc.SessionID = group.AgentID, group.SessionID
+		}
 	}
 	return doc, nil
 }

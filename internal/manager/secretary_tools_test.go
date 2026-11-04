@@ -39,6 +39,7 @@ func putSecretaryToolMessage(
 		Source:      domain.MessageSourceACPTunnel,
 		Direction:   domain.MessageDirectionAgentToUser,
 		MessageType: "agent_message_chunk",
+		Status:      "complete",
 	}
 	if role == "user" {
 		message.MessageType = "user_message"

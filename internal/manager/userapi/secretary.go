@@ -34,6 +34,8 @@ func NewSecretaryService(
 }
 
 type SecretaryResponse struct {
+	ExecutionState  string     `json:"execution_state,omitempty"`
+	BlockedReason   string     `json:"blocked_reason,omitempty"`
 	AgentID         string     `json:"agent_id"`
 	Enabled         bool       `json:"enabled"`
 	Revision        int64      `json:"revision"`
@@ -166,6 +168,7 @@ func (s *SecretaryService) status(ctx context.Context, owner string) (SecretaryR
 	available := status.AgentID != "" && s.available != nil &&
 		s.available(ctx, owner, status.AgentID)
 	result := SecretaryResponse{
+		ExecutionState:  safeSecretaryExecutionState(status.ExecutionState),
 		AgentID:         status.AgentID,
 		Enabled:         status.Enabled,
 		Revision:        status.Revision,
@@ -174,7 +177,10 @@ func (s *SecretaryService) status(ctx context.Context, owner string) (SecretaryR
 		AgentAvailable:  available,
 		LastCompletedAt: status.LastCompletedAt,
 	}
-	if status.LastError != "" {
+	if result.ExecutionState != "" {
+		result.BlockedReason = safeSecretaryBlockedReason(status.BlockedReason)
+	}
+	if status.LastError != "" || secretaryExecutionNeedsAttention(result.ExecutionState) {
 		result.LastError = "The last summary task did not finish. Retry it when the agent is available."
 	}
 	switch {
@@ -182,10 +188,39 @@ func (s *SecretaryService) status(ctx context.Context, owner string) (SecretaryR
 		result.State = "disabled"
 	case !available:
 		result.State = "waiting_for_agent"
+	case secretaryExecutionNeedsAttention(result.ExecutionState):
+		result.State = "error"
 	case status.Processing:
 		result.State = "processing"
 	case status.LastError != "":
 		result.State = "error"
 	}
 	return result, nil
+}
+
+func safeSecretaryExecutionState(value string) string {
+	switch value {
+	case "running", "needs_recovery", "unknown", "blocked", "output_received", "queued", "waiting":
+		return value
+	default:
+		return ""
+	}
+}
+
+func safeSecretaryBlockedReason(value string) string {
+	switch value {
+	case "execution_unknown",
+		"lease_expired",
+		"invalid_output",
+		"execution_failed",
+		"canceled",
+		"retry_required":
+		return value
+	default:
+		return ""
+	}
+}
+
+func secretaryExecutionNeedsAttention(value string) bool {
+	return value == "unknown" || value == "blocked" || value == "needs_recovery"
 }

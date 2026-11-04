@@ -10,6 +10,7 @@ type SecretaryReadMessage struct {
 
 // SecretaryToolReads is task-local read provenance, not source-job progress.
 type SecretaryToolReads struct {
-	Messages  []SecretaryReadMessage
-	Summaries []SummaryRef
+	SummaryVersions []SummaryVersion
+	Messages        []SecretaryReadMessage
+	Summaries       []SummaryRef
 }

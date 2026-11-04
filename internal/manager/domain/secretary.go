@@ -39,6 +39,8 @@ type SecretarySettingsUpdate struct {
 
 type SecretaryStatus struct {
 	SecretarySettings
+	ExecutionState  string     `json:"execution_state,omitempty"`
+	BlockedReason   string     `json:"blocked_reason,omitempty"`
 	PendingCount    int        `json:"pending_count"`
 	LastCompletedAt *time.Time `json:"last_completed_at,omitempty"`
 	LastError       string     `json:"last_error,omitempty"`
@@ -53,6 +55,15 @@ type SecretarySourceMetadata struct {
 }
 
 type SecretaryJob struct {
+	BatchID                 string
+	AttemptID               string
+	RetryEpoch              int64
+	Attempt                 *SecretaryAttempt
+	CurrentSummaries        []SummaryVersion
+	SummariesCursor         string
+	SummariesHasMore        bool
+	InvalidatedSummaries    []SummaryRef
+	InvalidationKey         string
 	ValidationFeedback      string
 	SourceID                string
 	OwnerUserID             string

@@ -113,11 +113,21 @@ func (s *MemoryStore) publishMemorySummaryLocked(
 		state.snapshots[ref.Identity()] = doc
 	}
 	state.summaries[result.SummaryID] = append(versions, result)
+	state.nodes[result.SummaryID] = memoryKnowledgeNode{
+		OwnerUserID: owner, Type: "summary", CurrentRevision: result.Revision,
+		Status:         summaryNodeMetadata(result).NodeStatus,
+		OriginSourceID: summaryOriginSource(result),
+	}
 	state.requests[key] = memorySecretaryRequest{
 		hash: hash,
 		ref:  domain.SummaryRef{SummaryID: result.SummaryID, Revision: result.Revision},
 	}
-	return cloneMemorySummary(result), nil
+	return s.getMemorySummaryLocked(
+		owner,
+		result.SummaryID,
+		result.Revision,
+		map[domain.SummaryRef]bool{},
+	)
 }
 
 func (s *MemoryStore) GetSummary(
@@ -165,6 +175,17 @@ func (s *MemoryStore) getMemorySummaryLocked(
 	for _, child := range result.SummarySources {
 		if _, err := s.getMemorySummaryLocked(owner, child.SummaryID, child.Revision, seen); err != nil {
 			return domain.SummaryVersion{}, err
+		}
+	}
+	result = summaryNodeMetadata(result)
+	if node, exists := s.secretaryLocked().nodes[id]; exists && revision == node.CurrentRevision &&
+		node.Status != "" {
+		result.NodeStatus = node.Status
+	}
+	if source := summaryOriginSource(result); source != "" {
+		if group, err := s.readSearchGroupSessionLocked(owner, source, domain.SearchDocument{}); err == nil {
+			result.OriginSourceID = source
+			result.OriginAgentID, result.OriginSessionID, result.OriginSessionTitle = group.AgentID, group.SessionID, group.Title
 		}
 	}
 	return cloneMemorySummary(result), nil
@@ -251,5 +272,6 @@ func (s *MemoryStore) PublishSecretaryJob(
 	job.lastError = ""
 	now := s.now()
 	job.completed = &now
+	s.clearMemoryNodeInvalidationsLocked(work, []domain.SummaryVersion{result})
 	return result, nil
 }

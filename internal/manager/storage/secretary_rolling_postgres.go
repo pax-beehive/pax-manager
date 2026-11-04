@@ -26,109 +26,54 @@ func loadSecretaryRollingBaseline(ctx context.Context, tx *sql.Tx, job *domain.S
 	if err = json.Unmarshal(roots, &job.SourceMetadata.WorkspaceRoots); err != nil {
 		return err
 	}
-	current, err := scanSummary(tx.QueryRowContext(ctx, summarySelectSQL+`
- WHERE summary_id=$1 AND owner_user_id=$2 ORDER BY revision DESC LIMIT 1`, job.TargetSummaryID, job.OwnerUserID))
-	marker := int64(-1)
-	if errors.Is(err, ErrNotFound) {
-		if processed == 0 {
-			return nil
-		}
-		job.ResetReason = "rolling_summary_rebuild"
-	} else if err != nil {
-		return err
-	} else {
-		job.ExpectedRevision = current.Revision
-		if err = loadSummarySources(ctx, tx, &current); err != nil {
-			return err
-		}
-		err = validateSummaryAccess(ctx, tx, job.OwnerUserID, current.SummaryID, current.Revision)
-		if err == nil {
-			job.CurrentSummary = &current
-			return nil
-		}
-		if !errors.Is(err, ErrNotFound) {
-			return err
-		}
-		marker = current.Revision
-		job.ResetReason = "source_visibility_changed"
-		for _, ref := range current.Coverage {
-			if _, err = loadSearchMessage(ctx, tx, ref.MessageID); errors.Is(err, ErrNotFound) {
-				job.RemovedMessageIDs = append(job.RemovedMessageIDs, ref.MessageID)
-			} else if err != nil {
-				return err
-			}
-		}
-	}
-	job.ResetRequired = true
-	if reset == marker {
-		return nil
-	}
-	return requeueSecretaryReset(ctx, tx, job, marker)
-}
-
-func requeueSecretaryReset(
-	ctx context.Context,
-	tx *sql.Tx,
-	job *domain.SecretaryJob,
-	marker int64,
-) error {
-	rows, err := tx.QueryContext(
-		ctx,
-		`SELECT message_id FROM messages WHERE agent_id=$1 AND session_id=$2 ORDER BY session_seq,id`,
-		job.SourceAgentID,
-		job.SourceSessionID,
-	)
+	invalidated, err := loadSecretaryInvalidationsTx(ctx, tx, job)
 	if err != nil {
 		return err
 	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
-			_ = rows.Close()
-			return err
-		}
-		ids = append(ids, id)
-	}
-	if err = rows.Err(); err != nil {
-		_ = rows.Close()
+	refs, err := listSecretaryNodeRefs(ctx, tx, job.OwnerUserID, job.SourceID, "", 101)
+	if err != nil {
 		return err
 	}
-	_ = rows.Close()
-	var visible []string
-	for _, id := range ids {
-		doc, readErr := loadSearchMessage(ctx, tx, id)
+	size := 0
+	for index, ref := range refs {
+		if ref.SummaryID == job.TargetSummaryID {
+			job.ExpectedRevision = ref.Revision
+		}
+		if index == 100 {
+			job.SummariesHasMore = true
+			job.SummariesCursor = summaryNextCursor(
+				job.OwnerUserID+":"+job.SourceID,
+				refs[index-1].SummaryID,
+			)
+			break
+		}
+		if invalidated[ref.SummaryID] {
+			continue
+		}
+		current, readErr := getSummaryTx(ctx, tx, job.OwnerUserID, ref.SummaryID, ref.Revision)
 		if errors.Is(readErr, ErrNotFound) {
+			job.InvalidatedSummaries = append(job.InvalidatedSummaries, ref)
+			job.ResetRequired, job.ResetReason = true, "source_visibility_changed"
 			continue
 		}
 		if readErr != nil {
 			return readErr
 		}
-		if doc.OwnerUserID != job.OwnerUserID {
-			return ErrNotFound
+		raw, _ := json.Marshal(current)
+		if size+len(raw) > secretaryNodeStateBytes {
+			job.SummariesHasMore = true
+			if index > 0 {
+				job.SummariesCursor = summaryNextCursor(
+					job.OwnerUserID+":"+job.SourceID,
+					refs[index-1].SummaryID,
+				)
+			}
+			break
 		}
-		visible = append(visible, id)
-	}
-	err = tx.QueryRowContext(ctx, `UPDATE secretary_jobs SET reset_revision=$2,desired_revision=desired_revision+$3
- WHERE source_id=$1 RETURNING desired_revision`, job.SourceID, marker, len(visible)).
-		Scan(&job.ThroughRevision)
-	if err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `UPDATE secretary_message_state SET processed_hash='',processed_canonicalization_version='',processed_owner_user_id='' WHERE source_id=$1`, job.SourceID); err != nil {
-		return err
-	}
-	for i, id := range visible {
-		_, err = tx.ExecContext(
-			ctx,
-			`INSERT INTO secretary_message_state(source_id,message_id,change_revision) VALUES($1,$2,$3)
- ON CONFLICT(source_id,message_id) DO UPDATE SET change_revision=EXCLUDED.change_revision`,
-			job.SourceID,
-			id,
-			job.ThroughRevision-int64(len(visible))+int64(i)+1,
-		)
-		if err != nil {
-			return err
+		size += len(raw)
+		job.CurrentSummaries = append(job.CurrentSummaries, current)
+		if current.SummaryID == job.TargetSummaryID {
+			job.ExpectedRevision, job.CurrentSummary = current.Revision, &current
 		}
 	}
 	return nil

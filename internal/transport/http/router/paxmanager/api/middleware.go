@@ -886,3 +886,18 @@ func _listsecretarysummariesMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _summaries0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _summary_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listsummaryrevisionsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

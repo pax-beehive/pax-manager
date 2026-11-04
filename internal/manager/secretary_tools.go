@@ -27,15 +27,16 @@ type secretaryToolRequest struct {
 }
 
 type secretaryToolGrant struct {
-	ctx       context.Context
-	job       domain.SecretaryJob
-	agent     domain.Agent
-	sessionID string
-	mu        sync.Mutex
-	reads     map[string]userapi.WorkspaceMessageRead
-	summaries map[domain.SummaryRef]bool
-	readBytes int
-	closed    bool
+	ctx             context.Context
+	job             domain.SecretaryJob
+	agent           domain.Agent
+	sessionID       string
+	mu              sync.Mutex
+	reads           map[string]userapi.WorkspaceMessageRead
+	summaries       map[domain.SummaryRef]bool
+	summaryVersions map[domain.SummaryRef]domain.SummaryVersion
+	readBytes       int
+	closed          bool
 }
 
 type secretaryToolPrincipal struct{ owner string }
@@ -180,6 +181,8 @@ func (s *Service) runSecretaryTool(
 		return search.Read(ctx, auth.RequestMetadata{}, read)
 	case "history":
 		return s.secretaryToolHistory(ctx, grant, search, request.ArgumentsJSON)
+	case "summaries":
+		return s.secretaryToolSummaries(ctx, grant, request.ArgumentsJSON)
 	default:
 		return nil, apperr.Error{Status: http.StatusBadRequest, Message: "unknown secretary tool"}
 	}

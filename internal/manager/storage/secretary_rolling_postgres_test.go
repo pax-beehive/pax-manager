@@ -10,7 +10,9 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
-func TestSecretaryRollingPostgresGivenLegacyFragmentsThenRebuildsIntoStableHead(t *testing.T) {
+func TestSecretaryRollingPostgresGivenLegacyFragmentsThenMigratesMetadataWithoutRebuilding(
+	t *testing.T,
+) {
 	store := secretaryPostgresFixture(t)
 	secretaryEnable(t, store)
 	work := secretaryClaim(t, store)
@@ -31,17 +33,19 @@ func TestSecretaryRollingPostgresGivenLegacyFragmentsThenRebuildsIntoStableHead(
 	)
 	require.NoError(t, err)
 	require.NoError(t, store.BackfillSecretaryJobs(t.Context()))
-	rebuild := secretaryClaim(t, store)
-	assert.True(t, rebuild.ResetRequired)
-	assert.Nil(t, rebuild.CurrentSummary)
-	assert.Equal(t, "rolling_summary_rebuild", rebuild.ResetReason)
-	require.Len(t, rebuild.Messages, 1)
-	assert.Equal(t, domain.SecretarySummaryID("owner", rebuild.SourceID), rebuild.TargetSummaryID)
-	_, err = store.PublishSecretaryJob(t.Context(), rebuild, secretaryPublication(rebuild))
+	jobs, err := store.ClaimSecretaryJobs(t.Context(), 1, time.Minute, 0)
 	require.NoError(t, err)
+	assert.Empty(t, jobs)
 	old, err := store.GetSummary(t.Context(), "owner", "legacy-fragment", 1)
 	require.NoError(t, err)
 	assert.Equal(t, legacy.Body, old.Body)
+	var revision int64
+	require.NoError(
+		t,
+		store.db.QueryRowContext(t.Context(), `SELECT current_revision FROM knowledge_nodes WHERE id='legacy-fragment'`).
+			Scan(&revision),
+	)
+	assert.EqualValues(t, 1, revision)
 }
 
 func TestSecretaryRollingPostgresGivenDeletionThenRetriesResetAndClearsAllRemovedSources(

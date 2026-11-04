@@ -57,17 +57,23 @@ type PublishSummaryRequest struct {
 }
 
 type SummaryVersion struct {
-	SummaryID      string              `json:"summary_id"`
-	Revision       int64               `json:"revision"`
-	OwnerUserID    string              `json:"owner_user_id"`
-	SubjectType    string              `json:"subject_type"`
-	SubjectID      string              `json:"subject_id"`
-	Title          string              `json:"title"`
-	Body           string              `json:"body"`
-	Claims         []SummaryClaim      `json:"claims,omitempty"`
-	Coverage       []MessageVersionRef `json:"coverage"`
-	SummarySources []SummaryRef        `json:"summary_sources,omitempty"`
-	CreatedAt      time.Time           `json:"created_at"`
+	NodeType           string              `json:"node_type,omitempty"`
+	NodeStatus         string              `json:"node_status,omitempty"`
+	OriginSourceID     string              `json:"origin_source_id,omitempty"`
+	OriginAgentID      string              `json:"origin_agent_id,omitempty"`
+	OriginSessionID    string              `json:"origin_session_id,omitempty"`
+	OriginSessionTitle string              `json:"origin_session_title,omitempty"`
+	SummaryID          string              `json:"summary_id"`
+	Revision           int64               `json:"revision"`
+	OwnerUserID        string              `json:"owner_user_id"`
+	SubjectType        string              `json:"subject_type"`
+	SubjectID          string              `json:"subject_id"`
+	Title              string              `json:"title"`
+	Body               string              `json:"body"`
+	Claims             []SummaryClaim      `json:"claims,omitempty"`
+	Coverage           []MessageVersionRef `json:"coverage"`
+	SummarySources     []SummaryRef        `json:"summary_sources,omitempty"`
+	CreatedAt          time.Time           `json:"created_at"`
 }
 
 type SummaryStore interface {

@@ -16,7 +16,7 @@ func secretaryPrimarySource(summary domain.SummaryVersion) string {
 		return ""
 	}
 	id := strings.TrimPrefix(summary.SubjectID, prefix)
-	if id == "" || summary.SummaryID != domain.SecretarySummaryID(summary.OwnerUserID, id) {
+	if id == "" {
 		return ""
 	}
 	numeric, err := strconv.ParseInt(id, 10, 64)
@@ -65,6 +65,13 @@ WHERE summary_id=$1 AND owner_user_id=$2 AND revision=$3`, doc.SourceID, owner, 
 			return domain.SearchGroupMetadata{}, err
 		}
 		source = secretaryPrimarySource(summary)
+		if source != "" {
+			group, groupErr := readSessionSearchGroupTx(ctx, tx, owner, source, "", "")
+			if !errors.Is(groupErr, ErrNotFound) {
+				return group, groupErr
+			}
+			source = ""
+		}
 		if source == "" {
 			doc.AgentID, doc.SessionID = "", ""
 			return domain.SearchGroupMetadata{

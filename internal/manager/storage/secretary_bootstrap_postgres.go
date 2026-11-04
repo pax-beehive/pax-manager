@@ -13,10 +13,7 @@ const secretaryStableHeadSQL = `'summary_secretary_session_'||left(encode(sha256
 
 const secretaryBackfillSQL = `WITH sources AS MATERIALIZED (
  SELECT s.id source_id,a.owner_user_id,s.agent_id,s.session_id,j.processed_revision,
- ($2::boolean OR j.source_id IS NULL OR j.owner_user_id<>a.owner_user_id OR
-  (j.processed_revision>0 AND j.desired_revision<=j.processed_revision AND NOT EXISTS(
-   SELECT 1 FROM summary_versions v WHERE v.summary_id=` + secretaryStableHeadSQL + `
-   AND v.owner_user_id=a.owner_user_id))) full_reconcile
+ ($2::boolean OR j.source_id IS NULL OR j.owner_user_id<>a.owner_user_id) full_reconcile
  FROM agent_sessions s JOIN agents a ON a.agent_id=s.agent_id
  JOIN secretary_settings cfg ON cfg.owner_user_id=a.owner_user_id AND cfg.enabled
  LEFT JOIN secretary_jobs j ON j.source_id=s.id

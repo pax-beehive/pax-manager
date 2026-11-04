@@ -27,15 +27,13 @@ func TestSearchGroupsGivenSecretaryPrimaryThenResolvesExplicitSourceInsteadOfCov
 				},
 			},
 		}
-		if primary {
-			script.queries = append(
-				script.queries,
-				scriptedRows{
-					columns: []string{"agent", "session", "title"},
-					values:  [][]driver.Value{{"agent", "session", "Custom current title"}},
-				},
-			)
-		}
+		script.queries = append(
+			script.queries,
+			scriptedRows{
+				columns: []string{"agent", "session", "title"},
+				values:  [][]driver.Value{{"agent", "session", "Custom current title"}},
+			},
+		)
 		store, cleanup := scriptedPostgresStore(t, script)
 		doc := domain.SearchDocument{
 			Kind:            "summary",
@@ -45,13 +43,8 @@ func TestSearchGroupsGivenSecretaryPrimaryThenResolvesExplicitSourceInsteadOfCov
 		}
 		group, err := store.ReadSearchGroup(t.Context(), "owner", doc)
 		require.NoError(t, err)
-		if primary {
-			assert.Equal(t, "session", group.SessionID)
-			assert.Equal(t, "Custom current title", group.Title)
-		} else {
-			assert.Empty(t, group.SessionID)
-			assert.Equal(t, domain.SearchDocumentGroupKey(doc), group.Key)
-		}
+		assert.Equal(t, "session", group.SessionID)
+		assert.Equal(t, "Custom current title", group.Title)
 		cleanup()
 	}
 }
@@ -114,8 +107,9 @@ func TestSearchGroupsMemoryGivenPrimaryAndStandaloneThenKeepsOwnerAndCurrentSess
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 	session.ArchivedAt = new(time.Time)
 	store.sessions[sessionKey("source", "session")] = session
-	_, err = store.ReadSearchGroup(t.Context(), "owner", doc)
-	assert.ErrorIs(t, err, domain.ErrNotFound)
+	group, err = store.ReadSearchGroup(t.Context(), "owner", doc)
+	require.NoError(t, err)
+	assert.Empty(t, group.SessionID)
 	doc.SourceID = "standalone"
 	store.secretaryLocked().summaries[doc.SourceID] = []domain.SummaryVersion{
 		{

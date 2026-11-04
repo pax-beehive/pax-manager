@@ -36,7 +36,13 @@ func (s *Service) finishSecretaryExecution(
 	if request.OwnerID == "" || request.OwnerID != request.Job.OwnerUserID {
 		return result, domain.ErrSecretaryFenced
 	}
-	refs, err := secretary.RequestedSourceReads(request.Job, result.Text)
+	var refs []domain.MessageVersionRef
+	var err error
+	if request.Job.BatchID != "" {
+		refs, err = secretary.RequestedNodeSourceReads(request.Job, result.Text)
+	} else {
+		refs, err = secretary.RequestedSourceReads(request.Job, result.Text)
+	}
 	if err != nil {
 		return result, err
 	}

@@ -37,6 +37,11 @@ type Executor interface {
 	Execute(context.Context, ExecutionRequest) (ExecutionResult, error)
 }
 
+// RecoveryExecutor only observes an existing attempt; it must never send a prompt.
+type RecoveryExecutor interface {
+	Recover(context.Context, ExecutionRequest) (ExecutionResult, bool, error)
+}
+
 type ExecutorFunc func(context.Context, ExecutionRequest) (ExecutionResult, error)
 
 func (f ExecutorFunc) Execute(

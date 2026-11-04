@@ -82,6 +82,9 @@ func (s *PostgresStore) publishSecretaryJob(
 	if err != nil {
 		return domain.SummaryVersion{}, err
 	}
+	if err = clearSecretaryInvalidationsTx(ctx, tx, job, []domain.SummaryVersion{result}); err != nil {
+		return domain.SummaryVersion{}, err
+	}
 	return result, tx.Commit()
 }
 

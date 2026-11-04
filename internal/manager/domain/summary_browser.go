@@ -11,6 +11,12 @@ type SummaryListQuery struct {
 }
 
 type SummaryListItem struct {
+	NodeType           string    `json:"node_type,omitempty"`
+	NodeStatus         string    `json:"node_status,omitempty"`
+	OriginSourceID     string    `json:"origin_source_id,omitempty"`
+	OriginAgentID      string    `json:"origin_agent_id,omitempty"`
+	OriginSessionID    string    `json:"origin_session_id,omitempty"`
+	OriginSessionTitle string    `json:"origin_session_title,omitempty"`
 	SummaryID          string    `json:"summary_id"`
 	Revision           int64     `json:"revision"`
 	SubjectType        string    `json:"subject_type"`

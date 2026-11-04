@@ -87,7 +87,7 @@ func (s *PostgresStore) UpdateSecretarySettings(
 	if result.Revision == 0 || result.Revision == 1 && update.ExpectedRevision != 0 {
 		return domain.SecretarySettings{}, ErrConflict
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET lease_token='',lease_until=NULL,available_at=NOW() WHERE owner_user_id=$1`, owner); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET lease_token='',lease_until=NULL,available_at=NOW(),execution_blocked=FALSE WHERE owner_user_id=$1`, owner); err != nil {
 		return domain.SecretarySettings{}, err
 	}
 	if update.Enabled {
@@ -107,11 +107,18 @@ func (s *PostgresStore) GetSecretaryStatus(
 		return domain.SecretaryStatus{}, err
 	}
 	result := domain.SecretaryStatus{SecretarySettings: cfg}
-	err = s.db.QueryRowContext(ctx, `SELECT count(*) FILTER(WHERE desired_revision>processed_revision),
- COALESCE(bool_or(lease_token<>'' AND lease_until>NOW()),false),max(completed_at),
- COALESCE((SELECT last_error FROM secretary_jobs WHERE owner_user_id=$1 AND last_error<>'' ORDER BY updated_at DESC LIMIT 1),'')
- FROM secretary_jobs WHERE owner_user_id=$1`, owner).
-		Scan(&result.PendingCount, &result.Processing, &result.LastCompletedAt, &result.LastError)
+	var batch, attempt string
+	var leased bool
+	err = s.db.QueryRowContext(ctx, secretaryStatusSQL, owner, cfg.Revision).
+		Scan(&result.PendingCount, &result.Processing, &result.LastCompletedAt, &result.LastError, &batch, &attempt, &leased)
+	if err == nil {
+		result.ExecutionState, result.BlockedReason = secretaryExecutionStatus(
+			batch,
+			attempt,
+			leased,
+			result.PendingCount,
+		)
+	}
 	return result, err
 }
 
@@ -141,7 +148,8 @@ func (s *PostgresStore) RetrySecretaryJobs(ctx context.Context, owner string) er
 	}
 	_, err = tx.ExecContext(
 		ctx,
-		`UPDATE secretary_jobs SET available_at=NOW(),attempts=0,last_error='',
+		`UPDATE secretary_jobs SET available_at=NOW(),attempts=0,last_error='',execution_blocked=FALSE,
+ retry_epoch=CASE WHEN lease_token='' OR lease_until<=NOW() THEN retry_epoch+1 ELSE retry_epoch END,
  last_validation_failure=CASE WHEN lease_token='' OR lease_until<=NOW() THEN '' ELSE last_validation_failure END,
  auto_retry_key=CASE WHEN lease_token='' OR lease_until<=NOW() THEN '' ELSE auto_retry_key END,
  auto_retry_count=CASE WHEN lease_token='' OR lease_until<=NOW() THEN 0 ELSE auto_retry_count END,
