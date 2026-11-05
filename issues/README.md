@@ -105,6 +105,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 069 | partial | [Pax MCP calls interrupt manual Secretary executions](069-pax-mcp-manual-approval-blocks-secretary.md) | high | ACP / MCP / Secretary |
 
+| 070 | open | [Pax MCP automatic approval does not verify the effective registration origin](070-pax-mcp-origin-binding.md) | high | ACP / MCP / auth |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
