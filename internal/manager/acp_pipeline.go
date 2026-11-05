@@ -424,7 +424,11 @@ func (m acpApprovalMiddleware) HandleACPFrame(
 	if err != nil {
 		return err
 	}
-	handled, err := m.autoApproveSessionPolicy(ctx, frame, params, next)
+	handled, err := m.autoApproveOwnedMCP(ctx, frame, params)
+	if handled || err != nil {
+		return err
+	}
+	handled, err = m.autoApproveSessionPolicy(ctx, frame, params, next)
 	if handled || err != nil {
 		return err
 	}
@@ -482,6 +486,18 @@ func (m acpApprovalMiddleware) autoApproveSessionPolicy(
 	if !ok {
 		return false, nil
 	}
+	return m.autoApprovePermission(ctx, frame, params, sessionID,
+		json.RawMessage(`{"approval_mode":"auto_approve_all"}`), next)
+}
+
+func (m acpApprovalMiddleware) autoApprovePermission(
+	ctx context.Context,
+	frame *acpFrameContext,
+	params map[string]any,
+	sessionID string,
+	grantBody json.RawMessage,
+	next acpFrameHandler,
+) (bool, error) {
 	fingerprint, err := acpPermissionFingerprint(params)
 	if err != nil {
 		return true, err
@@ -520,8 +536,10 @@ func (m acpApprovalMiddleware) autoApproveSessionPolicy(
 	}
 	frame.payload = forwarded
 	_ = json.Unmarshal(forwarded, &frame.frame)
-	if err := next(ctx, frame); err != nil {
-		return true, err
+	if next != nil {
+		if err := next(ctx, frame); err != nil {
+			return true, err
+		}
 	}
 	principal := domain.UserPrincipal{User: domain.User{UserID: frame.agent.ownerUserID}}
 	decided, err := m.store.DecideApproval(
@@ -530,7 +548,7 @@ func (m acpApprovalMiddleware) autoApproveSessionPolicy(
 		approval.ApprovalID,
 		ApprovalDecisionRequest{
 			DecisionOption: "allow_once",
-			GrantBody:      json.RawMessage(`{"approval_mode":"auto_approve_all"}`),
+			GrantBody:      grantBody,
 		},
 	)
 	if err != nil {
@@ -793,7 +811,12 @@ func (p *acpRuntimeProjector) CurrentTurnID(
 	if p == nil || agent == nil || agent.agentID == "" || managerSessionID == "" {
 		return ""
 	}
-	return p.CurrentCorrelation(agent.agentID, managerSessionID).ActiveTurnID
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if session := p.sessions[acpSessionKey(agent.agentID, managerSessionID)]; session != nil {
+		return session.state.ActiveTurnID
+	}
+	return ""
 }
 
 // CurrentCorrelation is local request bookkeeping, never a persisted runtime projection.
@@ -806,7 +829,14 @@ func (p *acpRuntimeProjector) CurrentCorrelation(
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if session := p.sessions[acpSessionKey(agentID, sessionID)]; session != nil {
-		return session.state
+		state := session.state
+		state.ActiveToolCalls = append([]domain.RuntimeToolCall(nil), state.ActiveToolCalls...)
+		for i := range state.ActiveToolCalls {
+			state.ActiveToolCalls[i].RawInput = append(
+				json.RawMessage(nil),
+				state.ActiveToolCalls[i].RawInput...)
+		}
+		return state
 	}
 	return domain.SessionRuntimeState{}
 }
