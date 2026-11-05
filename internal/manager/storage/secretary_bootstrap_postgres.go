@@ -19,6 +19,7 @@ const secretaryBackfillSQL = `WITH sources AS MATERIALIZED (
  LEFT JOIN secretary_jobs j ON j.source_id=s.id
  LEFT JOIN nodes n ON n.node_id=a.node_id LEFT JOIN nodes sn ON sn.node_id=s.node_id
  WHERE ($1='' OR a.owner_user_id=$1) AND a.deleted_at IS NULL AND n.deleted_at IS NULL AND sn.deleted_at IS NULL
+ AND (NOT $4::boolean OR NOT COALESCE(j.paused,FALSE))
  AND s.archived_at IS NULL AND COALESCE(s.source,'')<>'secretary_internal'
  AND NOT EXISTS(SELECT 1 FROM secretary_internal_sessions i WHERE i.agent_id=s.agent_id AND i.session_id=s.session_id)
 ), members AS (
@@ -51,6 +52,15 @@ const secretaryBackfillSQL = `WITH sources AS MATERIALIZED (
   SELECT processed_revision FROM heads WHERE source_id=EXCLUDED.source_id)`
 
 func reconcileSecretaryTx(ctx context.Context, tx *sql.Tx, owner string, full bool) error {
+	return reconcileSecretaryWithPauseTx(ctx, tx, owner, full, false)
+}
+
+func reconcileSecretaryWithPauseTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	owner string,
+	full, skipPaused bool,
+) error {
 	// A separate statement gives waiting bootstraps a fresh READ COMMITTED snapshot.
 	if !full {
 		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(
@@ -64,6 +74,7 @@ func reconcileSecretaryTx(ctx context.Context, tx *sql.Tx, owner string, full bo
 		owner,
 		full,
 		domain.SearchCanonicalizationVersion,
+		skipPaused,
 	)
 	return err
 }
@@ -81,6 +92,9 @@ func (s *PostgresStore) BackfillSecretaryJobs(ctx context.Context) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 	if err = reconcileSecretaryTx(ctx, tx, "", false); err != nil {
+		return err
+	}
+	if err = repairSecretaryConnectionsTx(ctx, tx, s.now()); err != nil {
 		return err
 	}
 	return tx.Commit()

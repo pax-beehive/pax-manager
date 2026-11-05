@@ -25,6 +25,9 @@ func (s *MemoryStore) PublishSecretaryBatch(
 	if err = s.validateMemorySecretaryNodeInputsLocked(job); err != nil {
 		return nil, err
 	}
+	if err = s.validateMemorySecretaryFrozenHeadsLocked(job); err != nil {
+		return nil, err
+	}
 	if err = s.validateMemoryNodeSourcesCompleteLocked(job.OwnerUserID, requests); err != nil {
 		return nil, err
 	}
@@ -105,6 +108,7 @@ func (s *MemoryStore) checkpointMemorySecretaryNodesLocked(
 		delete(current.checkpoint, id)
 	}
 	current.processed = max(current.processed, job.ThroughRevision)
+	current.executionBlocked = false
 	current.work.LeaseToken, current.work.ValidationFeedback = "", ""
 	current.autoRetryKey, current.autoRetryCount, current.lastError = "", 0, ""
 	current.leaseUntil = s.now()

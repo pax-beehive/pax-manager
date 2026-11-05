@@ -2,6 +2,9 @@
 
 Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 
+Issue 067 also tracks the per-source task controls; rollout remains pending.
+See [task-control handoff](../docs/handoff_20261104_230000.md).
+
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
 | 060 | resolved | [Backend failures discard refreshed browser session cookies](060-refreshed-session-cookie-loss.md) | high | auth / Worker / regional gateway |

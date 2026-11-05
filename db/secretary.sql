@@ -36,6 +36,8 @@ ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS last_validation_failure TEXT
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS reset_revision BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS retry_epoch BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS execution_blocked BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS paused BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS control_revision BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS secretary_batches (
     batch_id TEXT PRIMARY KEY,
@@ -49,12 +51,16 @@ CREATE TABLE IF NOT EXISTS secretary_batches (
     lease_token TEXT NOT NULL DEFAULT '',
     current_attempt_id TEXT NOT NULL DEFAULT '',
     attempt_count INTEGER NOT NULL DEFAULT 0,
+    connection_failures INTEGER NOT NULL DEFAULT 0,
+    retry_after TIMESTAMPTZ,
     request_hash TEXT NOT NULL DEFAULT '',
     results_json JSONB NOT NULL DEFAULT '[]',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK(octet_length(input_json::text) <= 16*1024*1024)
 );
+ALTER TABLE secretary_batches ADD COLUMN IF NOT EXISTS connection_failures INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE secretary_batches ADD COLUMN IF NOT EXISTS retry_after TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS secretary_batches_source ON secretary_batches(source_id,updated_at DESC);
 CREATE INDEX IF NOT EXISTS secretary_batches_open ON secretary_batches(source_id,owner_user_id,settings_revision,retry_epoch)
     WHERE state IN ('pending','running','output_received','unknown');
@@ -69,10 +75,14 @@ CREATE TABLE IF NOT EXISTS secretary_attempts (
     output_text TEXT NOT NULL DEFAULT '',
     reads_json JSONB NOT NULL DEFAULT '{}',
     last_error TEXT NOT NULL DEFAULT '',
+    not_dispatched BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(batch_id,attempt_number)
 );
+ALTER TABLE secretary_attempts ADD COLUMN IF NOT EXISTS not_dispatched BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS secretary_attempts_batch_history
+    ON secretary_attempts(batch_id,created_at DESC,attempt_id DESC);
 
 CREATE TABLE IF NOT EXISTS secretary_message_state (
     source_id BIGINT NOT NULL REFERENCES secretary_jobs(source_id) ON DELETE CASCADE,

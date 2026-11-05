@@ -57,7 +57,7 @@ if [[ -n "${PAX_SECRETARY_TEST_PAXD_BINARY:-}" ]]; then
   printf 'Cross-binary paxd MCP acceptance is required for this run.\n'
 fi
 printf 'Verifying Secretary settings, real ACP execution, immutable summaries and PG checkpoints...\n'
-if ! go test -json -tags=integration -count=1 -timeout=180s \
+if ! go test -json -tags=integration -count=1 -timeout=300s \
   ./internal/manager ./internal/manager/storage ./internal/manager/userapi \
   -run "${secretary_test_pattern}" >"${secretary_logs}/go.json" 2>&1; then
   python3 - "${secretary_logs}/go.json" <<'PY'

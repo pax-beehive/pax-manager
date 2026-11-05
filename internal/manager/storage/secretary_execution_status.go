@@ -15,6 +15,8 @@ func secretaryExecutionStatus(batch, attempt string, leased bool, pending int) (
 		return "unknown", "execution_unknown"
 	case "blocked":
 		switch attempt {
+		case "not_dispatched":
+			return "blocked", "connection_retries_exhausted"
 		case "invalid":
 			return "blocked", "invalid_output"
 		case "failed":
@@ -25,6 +27,9 @@ func secretaryExecutionStatus(batch, attempt string, leased bool, pending int) (
 			return "blocked", "retry_required"
 		}
 	case "pending":
+		if attempt == "not_dispatched" {
+			return "waiting", "connection_backoff"
+		}
 		return "queued", ""
 	default:
 		if pending > 0 {
@@ -53,6 +58,9 @@ func (s *MemoryStore) memorySecretaryExecutionStatusLocked(
 		if len(batch.attempts) > 0 {
 			last := batch.attempts[len(batch.attempts)-1]
 			updated, attempt = last.UpdatedAt, last.State
+			if last.NotDispatched {
+				attempt = "not_dispatched"
+			}
 		}
 		if selectedID != "" &&
 			(updated.Before(latest) || updated.Equal(latest) && id < selectedID) {
@@ -85,7 +93,8 @@ const secretaryStatusSQL = `WITH queue AS (
  COALESCE((SELECT last_error FROM secretary_jobs WHERE owner_user_id=$1 AND last_error<>'' ORDER BY updated_at DESC LIMIT 1),'') AS failure
  FROM secretary_jobs WHERE owner_user_id=$1
 ), latest AS (
- SELECT b.state AS batch_state,COALESCE(a.state,'') AS attempt_state,
+ SELECT b.state AS batch_state,
+ CASE WHEN a.not_dispatched THEN 'not_dispatched' ELSE COALESCE(a.state,'') END AS attempt_state,
  COALESCE(j.lease_token<>'' AND j.lease_token=b.lease_token AND j.lease_until>NOW(),false) AS leased
  FROM secretary_batches b JOIN secretary_jobs j ON j.source_id=b.source_id AND j.owner_user_id=b.owner_user_id
  LEFT JOIN secretary_attempts a ON a.attempt_id=b.current_attempt_id

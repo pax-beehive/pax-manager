@@ -143,7 +143,7 @@ func (s *PostgresStore) RetrySecretaryJobs(ctx context.Context, owner string) er
 	if !enabled {
 		return ErrConflict
 	}
-	if err = backfillSecretaryTx(ctx, tx, owner); err != nil {
+	if err = reconcileSecretaryWithPauseTx(ctx, tx, owner, true, true); err != nil {
 		return err
 	}
 	_, err = tx.ExecContext(
@@ -154,7 +154,7 @@ func (s *PostgresStore) RetrySecretaryJobs(ctx context.Context, owner string) er
  auto_retry_key=CASE WHEN lease_token='' OR lease_until<=NOW() THEN '' ELSE auto_retry_key END,
  auto_retry_count=CASE WHEN lease_token='' OR lease_until<=NOW() THEN 0 ELSE auto_retry_count END,
  retry_generation=CASE WHEN lease_token='' OR lease_until<=NOW() THEN retry_generation+1 ELSE retry_generation END,
- updated_at=NOW()-INTERVAL '30 seconds' WHERE owner_user_id=$1 AND desired_revision>processed_revision`,
+ updated_at=NOW()-INTERVAL '30 seconds' WHERE owner_user_id=$1 AND desired_revision>processed_revision AND NOT paused`,
 		owner,
 	)
 	if err != nil {

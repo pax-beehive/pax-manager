@@ -8,6 +8,8 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
+var errNodeAttemptHandled = errors.New("secretary attempt failure was persisted")
+
 func (w *Worker) processNodeJob(
 	ctx context.Context,
 	claimed domain.SecretaryJob,
@@ -15,7 +17,8 @@ func (w *Worker) processNodeJob(
 	nodes domain.SecretaryNodeStore,
 ) error {
 	job, err := executions.PrepareSecretaryBatch(ctx, claimed)
-	if errors.Is(err, domain.ErrSecretarySourceIncomplete) {
+	if errors.Is(err, domain.ErrSecretarySourceIncomplete) ||
+		errors.Is(err, domain.ErrSecretaryRetryDeferred) {
 		return nil
 	}
 	if err != nil {
@@ -31,15 +34,39 @@ func (w *Worker) processNodeJob(
 	} else {
 		job, result, err = w.obtainNodeOutput(ctx, job, executions)
 		if err != nil {
+			if errors.Is(err, errNodeAttemptHandled) || errors.Is(err, domain.ErrSecretaryRetryDeferred) {
+				return nil
+			}
 			return err
 		}
 	}
-	if err = w.ensureActive(ctx, job); err != nil {
+	return w.completeNodeOutput(ctx, job, executions, nodes, result)
+}
+
+func (w *Worker) completeNodeOutput(
+	ctx context.Context,
+	job domain.SecretaryJob,
+	executions domain.SecretaryExecutionStore,
+	nodes domain.SecretaryNodeStore,
+	result ExecutionResult,
+) error {
+	if err := w.ensureActive(ctx, job); err != nil {
 		return err
 	}
-	publication, err := BuildNodePublication(job, result.Text, result.Reads)
+	job, publication, err := buildNodeResult(job, result)
 	if err != nil {
 		return w.failNodeAttempt(ctx, executions, job, err)
+	}
+	return w.publishNodeBatch(ctx, job, executions, nodes, publication)
+}
+
+func buildNodeResult(
+	job domain.SecretaryJob,
+	result ExecutionResult,
+) (domain.SecretaryJob, domain.SecretaryBatchPublication, error) {
+	publication, err := BuildNodePublication(job, result.Text, result.Reads)
+	if err != nil {
+		return job, publication, err
 	}
 	for _, summary := range result.Reads.SummaryVersions {
 		found := false
@@ -52,11 +79,11 @@ func (w *Worker) processNodeJob(
 	}
 	refs, err := RequestedNodeSourceReads(job, result.Text)
 	if err != nil {
-		return w.failNodeAttempt(ctx, executions, job, err)
+		return job, publication, err
 	}
 	job.AllowedRelatedMessages = refs
 	job.AllowedRelatedSummaries = result.Reads.Summaries
-	return w.publishNodeBatch(ctx, job, executions, nodes, publication)
+	return job, publication, nil
 }
 
 func (w *Worker) publishNodeBatch(
@@ -199,7 +226,9 @@ func (w *Worker) failNodeAttempt(
 	job domain.SecretaryJob,
 	failure error,
 ) error {
-	if !completedOutputFailure(failure) && !errors.Is(failure, ErrNoOutput) &&
+	notDispatched := errors.Is(failure, domain.ErrSecretaryNotDispatched) &&
+		!errors.Is(failure, domain.ErrSecretaryExecutionUnknown)
+	if !notDispatched && !completedOutputFailure(failure) && !errors.Is(failure, ErrNoOutput) &&
 		!errors.Is(failure, domain.ErrSecretaryFenced) &&
 		!errors.Is(failure, domain.ErrSourceVersionUnavailable) &&
 		!errors.Is(failure, domain.ErrSummaryVersionMismatch) {
@@ -209,6 +238,9 @@ func (w *Worker) failNodeAttempt(
 	defer cancel()
 	if err := executions.FailSecretaryAttempt(failureCtx, job, job.AttemptID, failure); err != nil {
 		return errors.Join(failure, err)
+	}
+	if notDispatched {
+		return errNodeAttemptHandled
 	}
 	return failure
 }

@@ -124,7 +124,7 @@ func (s *Service) promptOwnedSecretaryAgent(
 		session.NativeID,
 	)
 	if err != nil {
-		return result, err
+		return result, secretaryTunnelClaimFailure(err)
 	}
 	defer release()
 	conversation := conversationSession{managerID: sessionID, nativeID: session.NativeID}

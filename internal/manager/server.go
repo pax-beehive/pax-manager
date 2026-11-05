@@ -63,6 +63,7 @@ type Service struct {
 	userapi           *userapi.Service
 	workspaceSearch   *userapi.WorkspaceSearchService
 	secretary         *userapi.SecretaryService
+	secretaryTasks    *userapi.SecretaryTaskService
 	secretaryStore    domain.SecretaryStore
 	secretaryTools    sync.Map
 	searchBackend     domain.SearchBackend

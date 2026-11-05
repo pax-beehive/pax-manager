@@ -76,7 +76,7 @@ func TestSecretaryPostgresGivenStorageFailureThenDoesNotEnableOrAcknowledgeWork(
 		"unexpected query",
 	)
 	assert.ErrorIs(t, store.FailSecretaryJob(t.Context(), work, nil), nil)
-	assert.NoError(t, store.BackfillSecretaryJobs(t.Context()))
+	assert.ErrorContains(t, store.BackfillSecretaryJobs(t.Context()), "unexpected query")
 	require.NoError(t, store.db.Close())
 	_, err = store.UpdateSecretarySettings(t.Context(), "owner", domain.SecretarySettingsUpdate{})
 	assert.Error(t, err)

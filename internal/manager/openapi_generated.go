@@ -106,4 +106,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.PUT("/api/v1/user/self/notifications/receivers/web-push", RegisterNotificationReceiver)
 	h.DELETE("/api/v1/user/self/notifications/receivers/:receiver_id", RevokeNotificationReceiver)
 	h.POST("/api/v1/user/self/notifications/receivers/:receiver_id/test", TestNotificationReceiver)
+	h.GET("/api/v1/user/:user_id/secretary/tasks", ListSecretaryTasks)
+	h.GET("/api/v1/user/:user_id/secretary/tasks/:task_id", GetSecretaryTask)
+	h.POST("/api/v1/user/:user_id/secretary/tasks/:task_id/actions", ControlSecretaryTask)
 }

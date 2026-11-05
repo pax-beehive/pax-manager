@@ -10,11 +10,14 @@ import (
 )
 
 type secretaryExecutionBatch struct {
-	input        []byte
-	state        string
-	lease        string
-	attemptID    string
-	attemptCount int
+	input                []byte
+	state                string
+	lease                string
+	attemptID            string
+	attemptCount         int
+	connectionFailures   int
+	undispatchedAttempts int
+	retryAfter           sql.NullTime
 }
 
 func secretaryExecutionTx(
@@ -39,9 +42,10 @@ func loadSecretaryExecutionBatch(
 	job domain.SecretaryJob,
 ) (secretaryExecutionBatch, error) {
 	var batch secretaryExecutionBatch
-	err := tx.QueryRowContext(ctx, `SELECT input_json,state,lease_token,current_attempt_id,attempt_count FROM secretary_batches
+	err := tx.QueryRowContext(ctx, `SELECT input_json,state,lease_token,current_attempt_id,attempt_count,connection_failures,retry_after,
+ (SELECT count(*) FROM secretary_attempts a WHERE a.batch_id=secretary_batches.batch_id AND a.not_dispatched) FROM secretary_batches
  WHERE batch_id=$1 AND owner_user_id=$2 AND source_id=$3 FOR UPDATE`, job.BatchID, job.OwnerUserID, job.SourceID).
-		Scan(&batch.input, &batch.state, &batch.lease, &batch.attemptID, &batch.attemptCount)
+		Scan(&batch.input, &batch.state, &batch.lease, &batch.attemptID, &batch.attemptCount, &batch.connectionFailures, &batch.retryAfter, &batch.undispatchedAttempts)
 	return batch, err
 }
 
@@ -52,13 +56,33 @@ func loadSecretaryAttempt(
 ) (domain.SecretaryAttempt, error) {
 	var attempt domain.SecretaryAttempt
 	var reads []byte
-	err := tx.QueryRowContext(ctx, `SELECT attempt_id,batch_id,state,output_text,reads_json,last_error,created_at,updated_at
+	err := tx.QueryRowContext(ctx, `SELECT attempt_id,batch_id,state,output_text,reads_json,last_error,created_at,updated_at,not_dispatched
  FROM secretary_attempts WHERE attempt_id=$1`, id).
-		Scan(&attempt.ID, &attempt.BatchID, &attempt.State, &attempt.Output, &reads, &attempt.Error, &attempt.CreatedAt, &attempt.UpdatedAt)
+		Scan(&attempt.ID, &attempt.BatchID, &attempt.State, &attempt.Output, &reads, &attempt.Error, &attempt.CreatedAt, &attempt.UpdatedAt, &attempt.NotDispatched)
 	if err == nil {
 		err = json.Unmarshal(reads, &attempt.Reads)
 	}
 	return attempt, err
+}
+
+func pendingSecretaryBatchIDTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	job domain.SecretaryJob,
+) (string, error) {
+	var pendingID string
+	err := tx.QueryRowContext(ctx, `SELECT batch_id FROM secretary_batches WHERE source_id=$1 AND owner_user_id=$2
+ AND settings_revision=$3 AND retry_epoch=$4 AND (state IN ('pending','running','output_received','unknown')
+ OR (state='blocked' AND connection_failures>8))
+ ORDER BY created_at LIMIT 1 FOR UPDATE`, job.SourceID, job.OwnerUserID, job.SettingsRevision, job.RetryEpoch).
+		Scan(&pendingID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	if pendingID != "" {
+		return pendingID, nil
+	}
+	return job.BatchID, nil
 }
 
 func (s *PostgresStore) PrepareSecretaryBatch(
@@ -71,16 +95,9 @@ func (s *PostgresStore) PrepareSecretaryBatch(
 	}
 	defer func() { _ = tx.Rollback() }()
 	job.BatchID = secretaryBatchID(job)
-	var pendingID string
-	err = tx.QueryRowContext(ctx, `SELECT batch_id FROM secretary_batches WHERE source_id=$1 AND owner_user_id=$2
- AND settings_revision=$3 AND retry_epoch=$4 AND state IN ('pending','running','output_received','unknown')
- ORDER BY created_at LIMIT 1 FOR UPDATE`, job.SourceID, job.OwnerUserID, job.SettingsRevision, job.RetryEpoch).
-		Scan(&pendingID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	job.BatchID, err = pendingSecretaryBatchIDTx(ctx, tx, job)
+	if err != nil {
 		return job, err
-	}
-	if pendingID != "" {
-		job.BatchID = pendingID
 	}
 	batch, err := loadSecretaryExecutionBatch(ctx, tx, job)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -98,10 +115,14 @@ func (s *PostgresStore) PrepareSecretaryBatch(
 			return job, domain.ErrSecretarySourceIncomplete
 		}
 		batch.input, batch.state = secretaryBatchInput(job), "pending"
+		batch.connectionFailures, batch.retryAfter, err = inheritSecretaryConnectionTx(ctx, tx, job)
+		if err != nil {
+			return job, err
+		}
 		_, err = tx.ExecContext(
 			ctx,
-			`INSERT INTO secretary_batches(batch_id,source_id,owner_user_id,input_json,state,lease_token,settings_revision,retry_epoch,through_revision)
- VALUES($1,$2,$3,$4,'pending',$5,$6,$7,$8)`,
+			`INSERT INTO secretary_batches(batch_id,source_id,owner_user_id,input_json,state,lease_token,settings_revision,retry_epoch,through_revision,connection_failures,retry_after)
+ VALUES($1,$2,$3,$4,'pending',$5,$6,$7,$8,$9,$10)`,
 			job.BatchID,
 			job.SourceID,
 			job.OwnerUserID,
@@ -110,10 +131,15 @@ func (s *PostgresStore) PrepareSecretaryBatch(
 			job.SettingsRevision,
 			job.RetryEpoch,
 			job.ThroughRevision,
+			batch.connectionFailures,
+			batch.retryAfter,
 		)
 	}
 	if err != nil {
 		return job, err
+	}
+	if err = gateSecretaryConnectionTx(ctx, tx, job, batch, s.now()); err != nil {
+		return job, commitSecretaryConnectionGate(tx, err)
 	}
 	if batch.state == "blocked" || batch.state == "superseded" {
 		if _, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET execution_blocked=TRUE WHERE source_id=$1`, job.SourceID); err != nil {
@@ -132,7 +158,7 @@ func (s *PostgresStore) PrepareSecretaryBatch(
 		err = validateSecretaryBatchInputTx(ctx, tx, restored)
 	}
 	if err != nil {
-		return domain.SecretaryJob{}, supersedeSecretaryBatchTx(ctx, tx, job, err)
+		return domain.SecretaryJob{}, rejectSecretaryBatchInputTx(ctx, tx, job, batch, err)
 	}
 	if batch.attemptID != "" {
 		attempt, readErr := loadSecretaryAttempt(ctx, tx, batch.attemptID)
@@ -162,6 +188,9 @@ func (s *PostgresStore) BeginSecretaryAttempt(
 	}
 	if batch.lease != job.LeaseToken {
 		return domain.SecretaryAttempt{}, domain.ErrSecretaryFenced
+	}
+	if err = gateSecretaryConnectionTx(ctx, tx, job, batch, s.now()); err != nil {
+		return domain.SecretaryAttempt{}, commitSecretaryConnectionGate(tx, err)
 	}
 	if batch.state != "pending" {
 		if batch.state == "running" {
@@ -297,14 +326,24 @@ func (s *PostgresStore) FailSecretaryAttempt(
 	if err != nil {
 		return err
 	}
-	if attempt.State != "running" && attempt.State != "output_received" {
+	if attempt.State != "running" && attempt.State != "output_received" &&
+		attempt.State != "unknown" {
 		return domain.ErrSecretaryFenced
+	}
+	if secretaryNotDispatched(failure) {
+		if attempt.State != "running" {
+			return domain.ErrSecretaryFenced
+		}
+		return failSecretaryConnectionTx(ctx, tx, job, batch, attempt, failure, s.now())
 	}
 	if attempt.State == "output_received" &&
 		errors.Is(failure, domain.ErrSecretaryExecutionUnknown) {
 		return tx.Commit()
 	}
-	state, batchState := secretaryAttemptFailure(failure, batch.attemptCount)
+	state, batchState := secretaryAttemptFailure(
+		failure,
+		batch.attemptCount-batch.undispatchedAttempts,
+	)
 	_, err = tx.ExecContext(
 		ctx,
 		`UPDATE secretary_attempts SET state=$2,last_error=$3,updated_at=NOW() WHERE attempt_id=$1`,
