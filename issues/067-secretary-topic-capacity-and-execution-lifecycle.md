@@ -14,6 +14,12 @@
 
 ## Current note
 
+2026-11-05: automatic approval of registered Pax MCP calls prevents manual
+Secretary streams from ending at their own lookup tools. This is tracked
+separately in [issue 069](069-pax-mcp-manual-approval-blocks-secretary.md);
+rollout and existing blocked executions remain to be verified. It does not
+change the general recovery rules for unknown or foreign-tool approvals.
+
 2026-11-04 task controls: pending source tasks and bounded attempt history now have
 owner-authorized read/check/retry/pause/resume APIs and a paired Console UI.
 Checking reuses the original execution without dispatch; restarting an unknown
