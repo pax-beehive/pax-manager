@@ -66,6 +66,13 @@ messages / message_parts 的持久变更
 `turn_done` 的 complete 状态，或结构化 `end_turn` 的 `result.stopReason=end_turn`。
 没有完成证明就等待，不消耗一次模型尝试；不能只看 idle 或字符串匹配猜完成。
 
+Prepare persists the missing-completion reason while releasing the job lease for
+the existing 30-second source wait. Task details report `waiting_source` with
+`source_incomplete`, rather than implying a queued model request or connection
+retry. Successful preparation clears only that waiting reason; running and
+completed executions do not retain it. Other failures and retry budgets remain
+unchanged. This does not create completion evidence for historical messages.
+
 默认输入是用户完整可见正文和每条 assistant 消息的最后一个自然段。
 part 不是段落，message 不是 turn。`first/last/full` 只是同一可见正文的视图。
 聊天 tool call、tool result、thought/reasoning 不进入总结输入、hash、coverage、evidence 或快照；

@@ -62,6 +62,7 @@ func (s *MemoryStore) PrepareSecretaryBatch(
 			queued.work.LeaseToken = ""
 			queued.leaseUntil = s.now()
 			queued.available = s.now().Add(30 * time.Second)
+			queued.lastError = domain.ErrSecretarySourceIncomplete.Error()
 			return job, domain.ErrSecretarySourceIncomplete
 		}
 		batch = &memorySecretaryExecutionBatch{
@@ -99,6 +100,7 @@ func (s *MemoryStore) PrepareSecretaryBatch(
 		restored.AttemptID = attempt.ID
 		restored.RunID = attempt.ID
 	}
+	clearSecretarySourceWaitLocked(s.secretaryLocked().jobs[job.SourceID])
 	return restored, nil
 }
 

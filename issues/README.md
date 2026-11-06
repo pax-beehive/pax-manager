@@ -103,9 +103,13 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 068 | open | [Legacy Paxd container fixture uses obsolete bootstrap and Hermes transport](068-legacy-paxd-container-integration-fixture.md) | medium | integration / Paxd harness |
 
-| 069 | partial | [Pax MCP calls interrupt manual Secretary executions](069-pax-mcp-manual-approval-blocks-secretary.md) | high | ACP / MCP / Secretary |
+| 069 | resolved | [Pax MCP calls interrupt manual Secretary executions](069-pax-mcp-manual-approval-blocks-secretary.md) | high | ACP / MCP / Secretary |
 
 | 070 | open | [Pax MCP automatic approval does not verify the effective registration origin](070-pax-mcp-origin-binding.md) | high | ACP / MCP / auth |
+
+| 071 | resolved | [Secretary source-completion waits appear queued](071-secretary-source-wait-reason-not-persisted.md) | medium | Secretary / storage / task status |
+
+| 072 | partial | [DSCODE long terminal input can block a Secretary execution](072-dscode-long-pty-command-blocks-secretary.md) | high | DSCODE runtime / terminal / Secretary |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
