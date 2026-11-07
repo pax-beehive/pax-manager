@@ -7,6 +7,7 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| 073 | resolved | [Stable historical text waits forever and inflates the visible queue](073-secretary-stable-history-and-pending-count.md) | high | Secretary / storage / status |
 | 060 | resolved | [Backend failures discard refreshed browser session cookies](060-refreshed-session-cookie-loss.md) | high | auth / Worker / regional gateway |
 | 061 | resolved | [Secretary results cannot be browsed by ordinary owners](061-summary-results-not-browsable.md) | medium | userapi / storage / Console |
 | 064 | open | [Upstream background runtime snapshots can block Secretary sources](064-secretary-stale-upstream-background-state.md) | medium | runtime state / session scheduling |

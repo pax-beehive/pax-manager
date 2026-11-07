@@ -134,7 +134,7 @@ func (s *MemoryStore) GetSecretaryStatus(
 		if job.work.OwnerUserID != owner {
 			continue
 		}
-		if job.desired > job.processed {
+		if s.secretaryContentPendingLocked(job, cfg.Revision) {
 			result.PendingCount++
 		}
 		result.Processing = result.Processing ||

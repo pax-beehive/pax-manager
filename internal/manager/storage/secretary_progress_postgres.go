@@ -20,13 +20,17 @@ var secretaryProgressSQL = buildSecretaryProgressSQL()
 const secretaryProgressWhitespace = "\t\n\v\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
 
 func buildSecretaryProgressSQL() string {
+	return buildSecretaryProgressScopeSQL("", "", searchMessageVisibilitySQL)
+}
+
+func buildSecretaryProgressScopeSQL(scope, identityColumn, visibility string) string {
 	kinds := domain.SearchVisibleMessageTypes()
 	for i, kind := range kinds {
 		kinds[i] = "'" + strings.ReplaceAll(kind, "'", "''") + "'"
 	}
 	// Progress requires an existing session, so both session IDs are nonnull.
 	// Equality lets PostgreSQL hash replacements by agent and session together.
-	visibility := strings.ReplaceAll(searchMessageVisibilitySQL,
+	visibility = strings.ReplaceAll(visibility,
 		"display.session_id IS NOT DISTINCT FROM m.session_id", "display.session_id = m.session_id")
 	return `WITH visible AS (
  SELECT m.message_id,s.id source_id,s.agent_id,s.session_id,
@@ -36,13 +40,13 @@ func buildSecretaryProgressSQL() string {
 		"WHERE a.owner_user_id = $1 AND s.id IS NOT NULL AND m.role IN ('user','assistant') AND COALESCE(m.message_type,'') IN ("+strings.Join(
 			kinds,
 			",",
-		)+")",
+		)+")"+scope,
 		1,
 	) + ` AND NOT EXISTS (SELECT 1 FROM secretary_internal_sessions i
  WHERE i.agent_id=s.agent_id AND i.session_id=s.session_id)
- ) SELECT v.source_id::text,v.agent_id,v.session_id,v.title,j.completed_at,
- jsonb_build_object('message_id',v.message_id,'role',v.role,'message_type',v.message_type,'raw_json',v.raw_json,'turn_id',v.turn_id),
- 'sha256:'||encode(sha256(convert_to(parts.body,'UTF8')),'hex'),
+ ) SELECT ` + identityColumn + `v.source_id::text,v.agent_id,v.session_id,v.title,j.completed_at,
+ jsonb_build_object('message_id',v.message_id,'role',v.role,'message_type',v.message_type,'raw_json',v.raw_json,'turn_id',v.turn_id) message,
+ 'sha256:'||encode(sha256(convert_to(parts.body,'UTF8')),'hex') current_hash,
  COALESCE(state.processed_hash,''),COALESCE(state.processed_canonicalization_version,''),COALESCE(state.processed_owner_user_id,'')
  FROM visible v
  JOIN LATERAL (SELECT string_agg(CASE WHEN p.part_type='text' THEN COALESCE(p.text,'') ELSE '' END,'' ORDER BY p.part_index) body

@@ -18,14 +18,15 @@ source as queued or waiting for a retry, concealing why summaries made no progre
 Memory and PostgreSQL now persist the existing source-incomplete reason when
 Prepare defers the source. The task API returns `waiting_source` and the safe
 `source_incomplete` explanation, without advertising an automatic model retry.
-After valid completion evidence arrives, successful preparation clears only this
+After eligible source input becomes available, successful preparation clears only this
 specific reason. Running and completed work do not retain the stale explanation.
 PostgreSQL writes and clears the reason in the lifecycle transaction.
 
-The fix does not loosen completion requirements, manufacture historical terminal
-events, restart unknown executions, change checkpoints or consume an execution
-attempt while waiting. Historical messages without completion evidence still
-require a separate source-projection or explicit lifecycle resolution.
+Waiting does not manufacture historical terminal events, restart unknown
+executions, change checkpoints or consume an execution attempt. Issue 073 adds a
+separate settled-text eligibility path for old idle sources without terminal
+events; the wait reason still applies to active, streaming, or recently changed
+input.
 
 ## Validation
 
