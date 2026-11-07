@@ -89,6 +89,7 @@ func TestSecretaryExecutionStatusDriverGivenLatestBatchThenScopesOwnerSettingsAn
 						},
 					},
 				},
+				secretaryPendingExecutionRows("1"),
 			}}
 			store, cleanup := scriptedPostgresStore(t, script)
 			defer cleanup()

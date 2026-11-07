@@ -7,6 +7,7 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| 073 | resolved | [Stable historical text waits forever and inflates the visible queue](073-secretary-stable-history-and-pending-count.md) | high | Secretary / storage / status |
 | 060 | resolved | [Backend failures discard refreshed browser session cookies](060-refreshed-session-cookie-loss.md) | high | auth / Worker / regional gateway |
 | 061 | resolved | [Secretary results cannot be browsed by ordinary owners](061-summary-results-not-browsable.md) | medium | userapi / storage / Console |
 | 064 | open | [Upstream background runtime snapshots can block Secretary sources](064-secretary-stale-upstream-background-state.md) | medium | runtime state / session scheduling |
@@ -103,9 +104,13 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 068 | open | [Legacy Paxd container fixture uses obsolete bootstrap and Hermes transport](068-legacy-paxd-container-integration-fixture.md) | medium | integration / Paxd harness |
 
-| 069 | partial | [Pax MCP calls interrupt manual Secretary executions](069-pax-mcp-manual-approval-blocks-secretary.md) | high | ACP / MCP / Secretary |
+| 069 | resolved | [Pax MCP calls interrupt manual Secretary executions](069-pax-mcp-manual-approval-blocks-secretary.md) | high | ACP / MCP / Secretary |
 
 | 070 | open | [Pax MCP automatic approval does not verify the effective registration origin](070-pax-mcp-origin-binding.md) | high | ACP / MCP / auth |
+
+| 071 | resolved | [Secretary source-completion waits appear queued](071-secretary-source-wait-reason-not-persisted.md) | medium | Secretary / storage / task status |
+
+| 072 | partial | [DSCODE long terminal input can block a Secretary execution](072-dscode-long-pty-command-blocks-secretary.md) | high | DSCODE runtime / terminal / Secretary |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 

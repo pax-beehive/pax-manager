@@ -68,6 +68,9 @@ func (s *MemoryStore) validateMemorySecretaryNodeInputsLocked(job domain.Secreta
 			return domain.ErrSourceVersionUnavailable
 		}
 	}
+	if !s.secretarySourcesCompleteLocked(job) {
+		return domain.ErrSecretarySourceIncomplete
+	}
 	return nil
 }
 

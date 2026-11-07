@@ -260,6 +260,7 @@ func TestSecretaryDriverGivenSettingsCASAndStatusThenPersistsOnlyOwnerConfigurat
 			},
 			values: [][]driver.Value{{int64(2), true, nil, "offline", "", "", false}},
 		},
+		secretaryPendingExecutionRows("1", "2"),
 		{columns: []string{"enabled"}, values: [][]driver.Value{{true}}},
 	}
 	script := &scriptedPostgresScript{queries: queries}

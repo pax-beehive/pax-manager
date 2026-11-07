@@ -60,13 +60,15 @@ const searchMessageVisibilityFromSQL = `
  LEFT JOIN agent_sessions s ON s.agent_id = m.agent_id AND s.session_id = m.session_id
  LEFT JOIN nodes sn ON sn.node_id = s.node_id`
 
-const searchMessageVisibilityConditionsSQL = `
+const searchMessageSourceVisibilitySQL = `
  AND a.deleted_at IS NULL
  AND an.deleted_at IS NULL AND mn.deleted_at IS NULL AND sn.deleted_at IS NULL
  AND s.archived_at IS NULL
  AND COALESCE(s.source,'') <> 'secretary_internal'
  AND NOT starts_with(COALESCE(s.session_id,''),'sess_secretary_')
- AND (NULLIF(m.session_id,'') IS NULL OR s.id IS NOT NULL)
+ AND (NULLIF(m.session_id,'') IS NULL OR s.id IS NOT NULL)`
+
+const searchMessageReplacementVisibilitySQL = `
  AND NOT EXISTS (
    SELECT 1 FROM messages display
    WHERE display.agent_id = m.agent_id AND display.session_id IS NOT DISTINCT FROM m.session_id
@@ -79,6 +81,9 @@ const searchMessageVisibilityConditionsSQL = `
        ELSE display.parent_message_id = m.message_id END
      ELSE display.parent_message_id = m.message_id END
  )`
+
+const searchMessageVisibilityConditionsSQL = searchMessageSourceVisibilitySQL +
+	searchMessageReplacementVisibilitySQL
 
 const searchMessageVisibilitySQL = searchMessageVisibilityFromSQL +
 	` WHERE m.message_id = $1` + searchMessageVisibilityConditionsSQL

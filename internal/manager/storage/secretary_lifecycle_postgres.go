@@ -106,7 +106,8 @@ func (s *PostgresStore) PrepareSecretaryBatch(
 			return job, completeErr
 		}
 		if !complete {
-			if _, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET lease_token='',lease_until=NULL,available_at=NOW()+INTERVAL '30 seconds' WHERE source_id=$1`, job.SourceID); err != nil {
+			if _, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET lease_token='',lease_until=NULL,
+ available_at=NOW()+INTERVAL '30 seconds',last_error=$2 WHERE source_id=$1`, job.SourceID, domain.ErrSecretarySourceIncomplete.Error()); err != nil {
 				return job, err
 			}
 			if err = tx.Commit(); err != nil {
@@ -170,7 +171,7 @@ func (s *PostgresStore) PrepareSecretaryBatch(
 	if _, err = tx.ExecContext(ctx, `UPDATE secretary_batches SET lease_token=$2,updated_at=NOW() WHERE batch_id=$1`, job.BatchID, job.LeaseToken); err != nil {
 		return job, err
 	}
-	return restored, tx.Commit()
+	return restored, commitPreparedSecretaryBatchTx(ctx, tx, job.SourceID)
 }
 
 func (s *PostgresStore) BeginSecretaryAttempt(

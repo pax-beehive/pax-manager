@@ -21,7 +21,7 @@ ES 搜索和总结发布解耦；没有 ES 时搜索明确不可用，已授权�
 ```text
 messages / message_parts 的持久变更
   -> 同事务标记 secretary_jobs 待处理
-  -> source idle + 静默窗口 + 完成证明
+  -> source idle + settled canonical text or reliable completion evidence
   -> Prepare 固定 secretary_batches 输入并重新授权
   -> Begin 持久 secretary_attempts，再通过选中 agent 的 ACP 执行
   -> 保存输出与可信读取账本
@@ -61,10 +61,43 @@ messages / message_parts 的持久变更
 
 ## 什么输入可以总结
 
-必须同时满足 source 空闲、默认 30 秒静默窗口和完成证明。`secretary_completed_sources.go`
-接受消息自身 `complete`，或同 agent/session、匹配 turn 且覆盖到该消息的可靠终态：
-`turn_done` 的 complete 状态，或结构化 `end_turn` 的 `result.stopReason=end_turn`。
-没有完成证明就等待，不消耗一次模型尝试；不能只看 idle 或字符串匹配猜完成。
+The scheduler requires an idle source and its default 30-second settle window.
+`secretary_completed_sources.go` accepts either reliable completion evidence or
+settled canonical text. Reliable evidence remains a message's own `complete`
+status, a matching successful `turn_done`, or structured `end_turn` with
+`result.stopReason=end_turn`. An earlier canceled terminal cannot hide a later
+valid terminal for the same turn.
+
+Without that evidence, the source must explicitly be `idle`, with no contradictory
+active or unknown runtime lifecycle, and the message and its text parts must have
+had no real writes for at least 30 seconds. Explicitly streaming or pending
+messages still wait. This uses actual message/part creation and update times,
+not job times that manual Run can rewrite, or session metadata timestamps.
+Stable visible text left by canceled or failed turns is usable evidence; this
+does not change the original execution status or manufacture successful turns.
+
+Publication repeats the source check and exact canonical hash/version checks,
+including inputs classified as `no_summary`. Checks observe the publication
+transaction's snapshot; a concurrent runtime-only transition is not execution
+success evidence. Late parts serialize through the existing job dirty trigger:
+they either invalidate the old publication input or enqueue a subsequent revision.
+Previously frozen source references retain their exact old text and current ACL
+checks. There is no per-token history table or new completion backfill.
+
+Prepare persists the missing-completion reason while releasing the job lease for
+the existing 30-second source wait. Task details report `waiting_source` with
+`source_incomplete`, rather than implying a queued model request or connection
+retry. Successful preparation clears only that waiting reason; running and
+completed executions do not retain it. Other failures and retry budgets remain
+unchanged. Historical stable text can use the settled-source path above.
+
+The top-level pending conversation count includes sessions with changed canonical
+visible text, processed input removal, current summary dependencies needing repair,
+or an unfinished current execution. Raw tool/thought/status changes and unchanged
+full reconciliation alone do not increase this count. Counting neither consumes
+queue revisions nor changes retry state. Progress counts processed visible text,
+including reviewed `no_summary` outcomes; pending cleanup or execution recovery can
+therefore remain even when there are no unread visible messages.
 
 默认输入是用户完整可见正文和每条 assistant 消息的最后一个自然段。
 part 不是段落，message 不是 turn。`first/last/full` 只是同一可见正文的视图。
