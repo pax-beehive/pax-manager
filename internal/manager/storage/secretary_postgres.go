@@ -112,6 +112,9 @@ func (s *PostgresStore) GetSecretaryStatus(
 	err = s.db.QueryRowContext(ctx, secretaryStatusSQL, owner, cfg.Revision).
 		Scan(&result.PendingCount, &result.Processing, &result.LastCompletedAt, &result.LastError, &batch, &attempt, &leased)
 	if err == nil {
+		result.PendingCount, err = s.secretaryPendingCount(ctx, owner, cfg.Revision)
+	}
+	if err == nil {
 		result.ExecutionState, result.BlockedReason = secretaryExecutionStatus(
 			batch,
 			attempt,

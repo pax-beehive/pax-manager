@@ -163,6 +163,13 @@ func validateSecretaryNodeInputsTx(ctx context.Context, tx *sql.Tx, job domain.S
 			return domain.ErrSourceVersionUnavailable
 		}
 	}
+	complete, err := secretarySourcesCompleteTx(ctx, tx, job)
+	if err != nil {
+		return err
+	}
+	if !complete {
+		return domain.ErrSecretarySourceIncomplete
+	}
 	return nil
 }
 
