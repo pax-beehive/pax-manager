@@ -225,3 +225,32 @@ func TestSecretaryTaskRecoveryGivenSavedOutputThenServiceNeedsNoModelExecutor(t 
 	)
 	require.Error(t, err)
 }
+
+func TestSecretaryTaskRecoveryGivenVerifiedFailureThenReturnsFailedWithoutSavingOutput(
+	t *testing.T,
+) {
+	for _, test := range []struct {
+		name    string
+		failure error
+		outcome string
+		events  []string
+	}{
+		{"verified_failure", domain.ErrSecretaryExecutionFailed, "result_failed", []string{"claim", "fail-attempt", "release"}},
+		{"conflicting_terminal", errors.Join(domain.ErrSecretaryExecutionFailed, domain.ErrSecretaryExecutionUnknown), "still_unknown", []string{"claim", "release"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := taskRecoveryStoreFixture()
+			outcome, err := recoverSecretaryTask(
+				t.Context(),
+				store,
+				taskRecoveryTestExecutor{output: "partial output", err: test.failure},
+				"owner",
+				"12",
+				domain.SecretaryTaskAction{Action: "recheck"},
+			)
+			require.NoError(t, err)
+			assert.Equal(t, test.outcome, outcome)
+			assert.Equal(t, test.events, store.events)
+		})
+	}
+}

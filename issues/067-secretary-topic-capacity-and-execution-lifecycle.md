@@ -14,6 +14,19 @@
 
 ## Current note
 
+2026-11-10: revision-local evidence source keys replace repeated complete
+message-version references in new persisted claims and the publication budget
+projection. The batch limit remains 64 KiB. Public reads restore complete
+references and support legacy revisions without rewriting them. Offline
+measurement of three capacity-invalid outputs reduced 71,410 / 69,773 / 77,470
+bytes to 56,534 / 56,662 / 57,420 bytes without removing content or evidence.
+These are serialized sizes, not measured PostgreSQL disk savings. The old
+request/publication hash representations are preserved. Known-terminal recovery
+is tracked in [issue 074](074-secretary-canceled-executions-remain-unknown.md).
+Rollout, old blocked-task handling and real-session summary quality remain
+separate from protocol tests. Old binaries cannot read newly compacted claims;
+rollback must retain the new reader.
+
 2026-11-05: automatic approval of registered Pax MCP calls prevents manual
 Secretary streams from ending at their own lookup tools. This is tracked
 separately in [issue 069](069-pax-mcp-manual-approval-blocks-secretary.md);

@@ -52,15 +52,22 @@ func secretaryNodePublication(
 	if err = secretaryNodeClaimsBudget(requests); err != nil {
 		return nil, "", err
 	}
+	bounded := domain.SecretaryBatchPublication{
+		RequestID: publication.RequestID,
+		Outcomes:  publication.Outcomes,
+	}
+	for _, request := range requests {
+		bounded.Outputs = append(bounded.Outputs, domain.SecretarySummaryOutput{Request: request})
+	}
+	if _, err = domain.EncodeSecretaryPublication(bounded); err != nil {
+		return nil, "", fmt.Errorf("%w: %w", err, ErrConflict)
+	}
 	canonical := struct {
 		RequestID string
 		Requests  []domain.PublishSummaryRequest
 		Outcomes  []domain.SecretaryMessageOutcome
 	}{publication.RequestID, requests, publication.Outcomes}
 	raw, _ := json.Marshal(canonical)
-	if len(raw) > secretaryNodeStateBytes {
-		return nil, "", fmt.Errorf("summary batch exceeds the 64 KiB budget: %w", ErrConflict)
-	}
 	return requests, domain.SearchContentHash(string(raw)), nil
 }
 

@@ -1,7 +1,6 @@
 package secretary
 
 import (
-	"encoding/json"
 	"strings"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
@@ -323,39 +322,8 @@ func validateNodeOutcome(
 }
 
 func validateNodePublicationBudget(publication domain.SecretaryBatchPublication) error {
-	raw, err := json.Marshal(publication)
-	if err != nil {
-		return err
-	}
-	var persisted domain.SecretaryBatchPublication
-	if err = json.Unmarshal(raw, &persisted); err != nil {
-		return err
-	}
-	for index := range persisted.Outputs {
-		request := &persisted.Outputs[index].Request
-		if request.SummaryID == "" {
-			request.SummaryID = domain.SecretaryNodeID(
-				publication.RequestID,
-				persisted.Outputs[index].ProposalKey,
-			)
-		}
-		request.RequestID = publication.RequestID + ":" + request.SummaryID
-		for source := range request.Coverage {
-			request.Coverage[source].ReadReceipt = ""
-		}
-		for claim := range request.Claims {
-			for evidence := range request.Claims[claim].Evidence {
-				request.Claims[claim].Evidence[evidence].ReadReceipt = ""
-				request.Claims[claim].Evidence[evidence].Message.ReadReceipt = ""
-			}
-		}
-	}
-	encoded, err := json.Marshal(persisted)
-	if err != nil || len(encoded) > maxSummaryStateBytes {
-		return generatedOutputError(
-			"schema",
-			"secretary batch publication exceeds 64 KiB after source binding",
-		)
+	if _, err := domain.EncodeSecretaryPublication(publication); err != nil {
+		return domain.SecretaryOutputValidationError{Code: "schema", Err: err}
 	}
 	return nil
 }

@@ -239,7 +239,10 @@ func (s *MemoryStore) FailSecretaryAttempt(
 		queued.work.RetryEpoch++
 		queued.executionBlocked = false
 	} else if batch.state == "unknown" {
-		queued.executionBlocked = true
+		queued.executionBlocked = !s.secretaryExecutionTerminalLocked(job)
+	} else if batch.state == "pending" && secretaryKnownExecutionFailure(failure) {
+		queued.executionBlocked = false
+		queued.available = s.now().Add(secretaryKnownFailureRetryDelay(validationAttempts))
 	} else if batch.state != "pending" {
 		var input domain.SecretaryJob
 		_ = json.Unmarshal(batch.input, &input)

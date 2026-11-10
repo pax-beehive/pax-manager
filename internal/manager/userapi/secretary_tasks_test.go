@@ -165,7 +165,7 @@ func TestSecretaryTaskAPIGivenUnknownRetryThenRequiresDuplicateRiskConfirmation(
 }
 
 func TestSecretaryTaskAPIGivenRecheckThenOnlyObservesExistingResultAndReloads(t *testing.T) {
-	for _, outcome := range []string{"recovered", "still_unknown", "result_invalid", "private result"} {
+	for _, outcome := range []string{"recovered", "still_unknown", "result_invalid", "result_failed", "private result"} {
 		store := &secretaryTaskAPIFixture{task: domain.SecretaryTask{TaskID: "task"}}
 		calls := 0
 		service := NewSecretaryTaskService(

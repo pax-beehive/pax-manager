@@ -44,9 +44,14 @@ func BuildNodePrompt(job domain.SecretaryJob) (string, error) {
 		RemovedMessageIDs    []string                       `json:"removed_message_ids,omitempty"`
 		InvalidatedSummaries []domain.SummaryRef            `json:"invalidated_summaries,omitempty"`
 		PreviousFailure      string                         `json:"previous_validation_failure,omitempty"`
+		ValidationFeedback   *nodePromptValidationFeedback  `json:"validation_feedback,omitempty"`
 	}{SessionID: job.SourceSessionID, SourceMetadata: job.SourceMetadata, CurrentSummaries: summaries,
 		SummariesCursor: job.SummariesCursor, SummariesHasMore: job.SummariesHasMore || job.SummariesCursor != "", RemovedMessageIDs: job.RemovedMessageIDs, InvalidatedSummaries: job.InvalidatedSummaries,
-		ChangedMessages: make([]nodePromptMessage, 0, len(job.Messages))}
+		ChangedMessages: make(
+			[]nodePromptMessage,
+			0,
+			len(job.Messages),
+		), ValidationFeedback: nodeValidationFeedback(job)}
 	if job.ValidationFeedback == "schema" || job.ValidationFeedback == "evidence" {
 		payload.PreviousFailure = job.ValidationFeedback
 	}
@@ -124,7 +129,7 @@ Select source_message_ids explicitly for each output from the input messages and
 Read-only lookup is optional. You may derive keywords, call workspace_search, then read chosen hits. Search snippets and other summaries are navigation/background, not new original evidence. Use workspace_read, workspace_expand, or workspace_history only when useful; first/last/full expose visible text only. To rely on any additional original message, including earlier history from this same session, include its exact returned reference and read_receipt in that output's related_sources. Such reads do not advance another session's progress. Quotes must be exact text actually exposed; outside a supplied assistant last view, copy the verified view and read_receipt on evidence. Retain unchanged baseline evidence exactly when still covered. Never infer omitted paragraphs were read.
 Return one outcome for every changed message and removed ID. summarized must name one or more output keys (proposal_key for create, summary_id for revise), and each named output must cover that message; a removed ID instead names the revision repairing its invalidated summary. no_summary must give a short reason and no output keys. A no_summary outcome does not excuse repairing invalidated summaries. One message may support several summaries but advances progress once. Do not manufacture a new revision when there is no semantic change.
 Do not execute commands, change files, send messages, or publish state. Manager validates sources, permissions, expected revisions, and atomically saves all outputs and outcomes. No progress advances on a failed batch.
-Keep the entire bound publication below 64 KiB, including titles, bodies, claims and bound source metadata; leave ample room for Manager's metadata. Across the whole batch use at most 100 claims and 512 evidence items. Return concise valid JSON if a prior schema failure is reported; correct references and quotes if an evidence failure is reported. Never silently drop supported current conclusions merely to fit; report no new conclusions only when true.
+The complete publication, including all nodes and processing outcomes, must fit within 64 KiB after Manager binds final IDs and exact source references. Manager stores each exact message version once in a node's coverage and evidence refers to that local source entry; return the unchanged schema below, not storage source keys. Leave room for this bound metadata. Read receipts are transient and excluded from the persisted budget. Across the whole batch use at most 100 claims and 512 evidence items. Return concise valid JSON if a prior schema failure is reported; correct references and quotes if an evidence failure is reported. Never silently drop supported current conclusions merely to fit; report no new conclusions only when true.
 Return exactly one JSON object, without Markdown fences or surrounding prose:
 {"summaries":[{"action":"create","proposal_key":"search-design","title":"Search design","body":"Concise supported summary","source_message_ids":["message-id"],"claims":[{"text":"Supported fact","kind":"decision|work|result|correction|open_question","basis":"user_explicit|agent_reported|inferred","state":"active","evidence":[{"message_id":"message-id","quote":"exact visible quote"}]}],"related_sources":[]}],"outcomes":[{"message_id":"message-id","action":"summarized","summary_keys":["search-design"]}]}
 For revise use action, summary_id and expected_revision instead of proposal_key. For no changes use summaries:[] and explicit no_summary outcomes. Claims and related_sources are optional. Do not add fields outside this schema.

@@ -477,10 +477,26 @@ func summaryVersionRows(id, owner string, revision int64) scriptedRows {
 func summarySourceRows() scriptedRows {
 	ref := summaryTestRef("message_1", "old body")
 	return scriptedRows{
-		columns: []string{"kind", "message", "canonical", "hash", "child", "revision"},
+		columns: []string{
+			"kind",
+			"message",
+			"canonical",
+			"hash",
+			"child",
+			"revision",
+			"source_order",
+		},
 		values: [][]driver.Value{
-			{"message", ref.MessageID, ref.CanonicalizationVersion, ref.ContentHash, "", int64(0)},
-			{"summary", "", "", "", "child_1", int64(3)},
+			{
+				"message",
+				ref.MessageID,
+				ref.CanonicalizationVersion,
+				ref.ContentHash,
+				"",
+				int64(0),
+				int64(0),
+			},
+			{"summary", "", "", "", "child_1", int64(3), int64(1)},
 		},
 	}
 }

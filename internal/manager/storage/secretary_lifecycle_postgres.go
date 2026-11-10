@@ -360,16 +360,15 @@ func (s *PostgresStore) FailSecretaryAttempt(
 			batchState,
 		)
 	}
-	if err == nil && batchState == "superseded" {
-		_, err = tx.ExecContext(
+	if err == nil {
+		err = failSecretaryAttemptJobTx(
 			ctx,
-			`UPDATE secretary_jobs SET retry_epoch=retry_epoch+1,execution_blocked=FALSE WHERE source_id=$1`,
-			job.SourceID,
+			tx,
+			job,
+			batchState,
+			failure,
+			batch.attemptCount-batch.undispatchedAttempts,
 		)
-	} else if err == nil && batchState == "unknown" {
-		_, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET execution_blocked=TRUE WHERE source_id=$1`, job.SourceID)
-	} else if err == nil && batchState != "pending" {
-		_, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET execution_blocked=(desired_revision<=(SELECT through_revision FROM secretary_batches WHERE batch_id=$2)) WHERE source_id=$1`, job.SourceID, job.BatchID)
 	}
 	if err != nil {
 		return err

@@ -146,7 +146,7 @@ func validateSummaryHead(
 func insertSummaryTx(ctx context.Context, tx *sql.Tx, request domain.PublishSummaryRequest,
 	requestHash string, result domain.SummaryVersion, frozen []domain.SearchDocument,
 ) error {
-	claims, err := json.Marshal(result.Claims)
+	claims, err := domain.EncodeCompactSummaryClaims(result.Claims, result.Coverage)
 	if err != nil {
 		return err
 	}
@@ -242,13 +242,16 @@ func getSummaryTx(
 	owner, summaryID string,
 	revision int64,
 ) (domain.SummaryVersion, error) {
-	result, err := scanSummary(tx.QueryRowContext(ctx, summarySelectSQL+`
+	result, claims, err := scanSummary(tx.QueryRowContext(ctx, summarySelectSQL+`
         WHERE summary_id = $1 AND owner_user_id = $2 AND ($3::bigint = 0 OR revision = $3)
         ORDER BY revision DESC LIMIT 1`, summaryID, owner, revision))
 	if err != nil {
 		return domain.SummaryVersion{}, err
 	}
 	if err = loadSummarySources(ctx, tx, &result); err != nil {
+		return domain.SummaryVersion{}, err
+	}
+	if result.Claims, err = decodeSummaryClaims(claims, result.Coverage); err != nil {
 		return domain.SummaryVersion{}, err
 	}
 	if err = validateSummaryAccess(ctx, tx, owner, result.SummaryID, result.Revision); err != nil {
@@ -264,45 +267,55 @@ func getSummaryTx(
 	return result, nil
 }
 
-func scanSummary(row interface{ Scan(...any) error }) (domain.SummaryVersion, error) {
+func scanSummary(row interface{ Scan(...any) error }) (domain.SummaryVersion, []byte, error) {
 	var result domain.SummaryVersion
 	var claims []byte
 	err := row.Scan(&result.SummaryID, &result.Revision, &result.OwnerUserID, &result.SubjectType,
 		&result.SubjectID, &result.Title, &result.Body, &claims, &result.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.SummaryVersion{}, ErrNotFound
+		return domain.SummaryVersion{}, nil, ErrNotFound
 	}
 	if err != nil {
-		return domain.SummaryVersion{}, err
+		return domain.SummaryVersion{}, nil, err
 	}
-	if err = json.Unmarshal(claims, &result.Claims); err != nil {
-		return domain.SummaryVersion{}, err
+	if !json.Valid(claims) {
+		return domain.SummaryVersion{}, nil, ErrConflict
 	}
 	result.Coverage = []domain.MessageVersionRef{}
-	return result, nil
+	return result, claims, nil
 }
 
 func loadSummarySources(ctx context.Context, tx *sql.Tx, result *domain.SummaryVersion) error {
 	rows, err := tx.QueryContext(ctx, `SELECT source_kind, COALESCE(message_id,''),
         COALESCE(canonicalization_version,''), COALESCE(content_hash,''), COALESCE(child_summary_id,''),
-        COALESCE(child_revision,0) FROM summary_sources WHERE summary_id = $1 AND revision = $2
+        COALESCE(child_revision,0), source_order FROM summary_sources WHERE summary_id = $1 AND revision = $2
         ORDER BY source_order`, result.SummaryID, result.Revision)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = rows.Close() }()
+	position, children := 0, false
 	for rows.Next() {
 		var kind string
 		var message domain.MessageVersionRef
 		var child domain.SummaryRef
+		var order int
 		if err = rows.Scan(&kind, &message.MessageID, &message.CanonicalizationVersion,
-			&message.ContentHash, &child.SummaryID, &child.Revision); err != nil {
+			&message.ContentHash, &child.SummaryID, &child.Revision, &order); err != nil {
 			return err
 		}
-		if kind == "message" {
+		if order != position || kind == "message" && children {
+			return ErrConflict
+		}
+		position++
+		switch kind {
+		case "message":
 			result.Coverage = append(result.Coverage, message)
-		} else {
+		case "summary":
+			children = true
 			result.SummarySources = append(result.SummarySources, child)
+		default:
+			return ErrConflict
 		}
 	}
 	return rows.Err()
@@ -417,7 +430,7 @@ func loadSummarySearchDocument(
 	tx *sql.Tx,
 	sourceID string,
 ) (domain.SearchDocument, error) {
-	result, err := scanSummary(tx.QueryRowContext(ctx, summarySelectSQL+`
+	result, _, err := scanSummary(tx.QueryRowContext(ctx, summarySelectSQL+`
         WHERE summary_id = $1 ORDER BY revision DESC LIMIT 1`, sourceID))
 	if err != nil {
 		return domain.SearchDocument{}, err

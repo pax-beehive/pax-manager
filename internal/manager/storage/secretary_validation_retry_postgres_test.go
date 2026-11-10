@@ -154,7 +154,7 @@ func TestSecretaryValidationRetryPostgresGivenStaleLeaseDisabledSettingsOrTransi
 func TestSecretaryValidationRetryDriverGivenTypedFailureThenSavesBoundedBudgetUnderMatchingLease(
 	t *testing.T,
 ) {
-	for _, failure := range []error{validationFailure(), domain.ErrSecretaryInvalidReadReceipt, context.DeadlineExceeded} {
+	for _, failure := range []error{validationFailure(), domain.ErrSecretaryInvalidReadReceipt, context.DeadlineExceeded, domain.ErrSecretaryExecutionFailed} {
 		t.Run(failure.Error(), func(t *testing.T) {
 			script := &scriptedPostgresScript{}
 			store, cleanup := scriptedPostgresStore(t, script)
@@ -184,7 +184,7 @@ func TestSecretaryValidationRetryDriverGivenTypedFailureThenSavesBoundedBudgetUn
 				{
 					Ordinal: 5,
 					Value:   int64(domain.SecretaryMaxValidationRetries),
-				}, {Ordinal: 6, Value: code},
+				}, {Ordinal: 6, Value: code}, {Ordinal: 7, Value: secretaryKnownExecutionFailure(failure)},
 			}, script.execArgs[updateIndex])
 		})
 	}

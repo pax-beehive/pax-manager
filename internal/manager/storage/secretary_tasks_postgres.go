@@ -354,6 +354,9 @@ func (s *PostgresStore) ClaimSecretaryTaskRecovery(
 		BatchID:          record.task.BatchID,
 		ThroughRevision:  record.desired,
 	}
+	if err = tx.QueryRowContext(ctx, `SELECT retry_generation FROM secretary_jobs WHERE source_id=$1`, id).Scan(&current.RetryGeneration); err != nil {
+		return domain.SecretaryJob{}, err
+	}
 	batch, err := loadSecretaryExecutionBatch(ctx, tx, current)
 	if err != nil {
 		return domain.SecretaryJob{}, err
@@ -460,8 +463,15 @@ func (s *PostgresStore) ReleaseSecretaryTaskRecovery(
 		}
 		return domain.ErrSecretaryFenced
 	}
+	proven := false
+	if batch.state == "unknown" {
+		proven, err = secretaryExecutionTerminalTx(ctx, tx, job)
+		if err != nil {
+			return err
+		}
+	}
 	_, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET lease_token='',lease_until=NULL,
- execution_blocked=$2 WHERE source_id=$1`, job.SourceID, batch.state != "committed")
+ execution_blocked=CASE WHEN $2='committed' THEN FALSE WHEN $2='pending' THEN execution_blocked ELSE NOT $3 END WHERE source_id=$1`, job.SourceID, batch.state, proven)
 	if err != nil {
 		return err
 	}

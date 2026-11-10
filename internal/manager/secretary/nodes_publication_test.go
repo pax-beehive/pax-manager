@@ -282,12 +282,16 @@ func TestNodePublicationGivenSummaryReadOutsideFirstPageThenRequiresConsistentEx
 
 func TestNodePublicationGivenManyOutputsThenEnforcesOneBoundBudget(t *testing.T) {
 	summary := newNodeProposal()
-	summary.Body = strings.Repeat("x", 33*1024)
-	second := summary
-	second.ProposalKey = "other"
+	summary.Body = strings.Repeat("x", 53*1024)
+	var summaries []generatedNodeSummary
+	for _, key := range []string{"database", "second", "third", "fourth", "fifth"} {
+		item := summary
+		item.ProposalKey = key
+		summaries = append(summaries, item)
+	}
 	_, err := BuildNodePublication(
 		nodeTestJob(),
-		nodeBatchOutput(t, []generatedNodeSummary{summary, second}, summarizedNodeOutcome()),
+		nodeBatchOutput(t, summaries, summarizedNodeOutcome()),
 		domain.SecretaryToolReads{},
 	)
 	assert.ErrorContains(t, err, "64 KiB")
