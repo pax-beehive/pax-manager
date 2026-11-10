@@ -118,6 +118,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 076 | open | [Secretary compares a read receipt as message identity](076-secretary-read-receipt-compared-as-identity.md) | medium | Secretary / evidence read proof |
 
+| 077 | partial | [Search summary source checks repeat display replacement parsing](077-search-summary-replacement-check-cost.md) | high | Search / summary source visibility |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
