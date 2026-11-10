@@ -30,7 +30,8 @@ func (w *Worker) RecoverJob(ctx context.Context, job domain.SecretaryJob) error 
 			return err
 		}
 		if err != nil && !completedOutputFailure(err) && !errors.Is(err, ErrNoOutput) &&
-			!errors.Is(err, domain.ErrSecretaryExecutionUnknown) {
+			!errors.Is(err, domain.ErrSecretaryExecutionUnknown) &&
+			!errors.Is(err, domain.ErrSecretaryExecutionFailed) {
 			err = errors.Join(domain.ErrSecretaryExecutionUnknown, err)
 		}
 		if err = w.persistRecoveredNodeOutput(ctx, executions, job, result, err); err != nil {

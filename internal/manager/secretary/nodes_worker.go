@@ -229,6 +229,7 @@ func (w *Worker) failNodeAttempt(
 	notDispatched := errors.Is(failure, domain.ErrSecretaryNotDispatched) &&
 		!errors.Is(failure, domain.ErrSecretaryExecutionUnknown)
 	if !notDispatched && !completedOutputFailure(failure) && !errors.Is(failure, ErrNoOutput) &&
+		!errors.Is(failure, domain.ErrSecretaryExecutionFailed) &&
 		!errors.Is(failure, domain.ErrSecretaryFenced) &&
 		!errors.Is(failure, domain.ErrSourceVersionUnavailable) &&
 		!errors.Is(failure, domain.ErrSummaryVersionMismatch) {

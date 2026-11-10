@@ -368,7 +368,10 @@ func (s *MemoryStore) FailSecretaryJob(
 		}
 		job.work.LeaseToken = ""
 		job.leaseUntil = time.Time{}
-		job.available = s.now().Add(5 * time.Second)
+		available := s.now().Add(5 * time.Second)
+		if !secretaryKnownExecutionFailure(failure) || job.available.Before(available) {
+			job.available = available
+		}
 		job.lastError = secretaryErrorText(failure)
 	}
 	return nil

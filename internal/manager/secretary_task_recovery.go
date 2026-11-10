@@ -51,6 +51,9 @@ func recoverSecretaryTask(
 	if errors.Is(runErr, domain.ErrSecretaryExecutionUnknown) {
 		return "still_unknown", nil
 	}
+	if errors.Is(runErr, domain.ErrSecretaryExecutionFailed) {
+		return "result_failed", nil
+	}
 	if domain.SecretaryValidationFailureCode(runErr) != "" ||
 		errors.Is(
 			runErr,

@@ -2044,6 +2044,9 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 		); err != nil {
 			return err
 		}
+		if err := persistSecretaryExecutionTerminal(ctx, a, reliableFrame); err != nil {
+			return err
+		}
 		requestID := acpJSONRPCID(frame.frame)
 		frameSessionID := frameSessionID(frame.frame)
 		deliveredWaiter := false

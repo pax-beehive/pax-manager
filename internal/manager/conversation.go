@@ -73,6 +73,7 @@ type conversationRunner struct {
 	agentType        string
 	managerSessionID string
 	turnID           string
+	secretaryJob     *domain.SecretaryJob
 }
 
 type conversationResponse struct {
@@ -936,6 +937,10 @@ func (r *conversationRunner) sendTurnPrompt(
 	}
 	payload, err := conversationRequestPayload(requestID, method, params)
 	if err != nil {
+		return 0, nil, func() {}, err
+	}
+	if err := persistSecretaryPromptCorrelation(ctx, r.agentConn, r.managerSessionID, turnID,
+		json.RawMessage(fmt.Sprint(requestID)), r.secretaryJob); err != nil {
 		return 0, nil, func() {}, err
 	}
 	waiter, cancel := r.agentConn.addResponseWaiter(

@@ -8,6 +8,8 @@ import (
 
 var (
 	ErrSecretaryExecutionUnknown = errors.New("secretary execution outcome is unknown")
+	// ErrSecretaryExecutionFailed requires a verified unsuccessful execution terminal.
+	ErrSecretaryExecutionFailed  = errors.New("secretary execution ended without success")
 	ErrSecretaryExecutionBlocked = errors.New("secretary execution requires an explicit retry")
 	ErrSecretarySourceIncomplete = errors.New("secretary source turn is not complete")
 	ErrSecretaryNotDispatched    = errors.New("secretary request was not dispatched")

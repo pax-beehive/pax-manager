@@ -402,6 +402,10 @@ func (s *MemoryStore) ReleaseSecretaryTaskRecovery(
 		return domain.ErrSecretaryFenced
 	}
 	queued.work.LeaseToken, queued.leaseUntil = "", time.Time{}
-	queued.executionBlocked = batch.state != "committed"
+	if batch.state == "committed" {
+		queued.executionBlocked = false
+	} else if batch.state != "pending" {
+		queued.executionBlocked = batch.state != "unknown" || !s.secretaryExecutionTerminalLocked(job)
+	}
 	return nil
 }

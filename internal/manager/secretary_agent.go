@@ -127,6 +127,7 @@ func (s *Service) promptOwnedSecretaryAgent(
 		return result, secretaryTunnelClaimFailure(err)
 	}
 	defer release()
+	runner.secretaryJob = &request.Job
 	conversation := conversationSession{managerID: sessionID, nativeID: session.NativeID}
 	if session.NativeID == "" || capability != "" {
 		conversation, err = s.createConversationSession(
@@ -201,10 +202,17 @@ func (s *Service) readSecretaryExecution(
 	if err != nil {
 		return "", false, false, err
 	}
+	if err := secretaryKnownExecutionFailure(ctx, s.store, messages, agentID, sessionID, turnID); err != nil {
+		return "", true, false, err
+	}
 	started, completed := false, false
 	responseEnd := len(messages)
 	for index, message := range messages {
 		if message.TurnID != turnID {
+			continue
+		}
+		if message.MessageType == secretaryExecutionRequestType ||
+			message.MessageType == secretaryExecutionFailedType {
 			continue
 		}
 		started = true

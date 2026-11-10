@@ -165,10 +165,33 @@ limit 省略或 0 默认 20，最大 50。响应 `{items,next_cursor?}`，正常
 | prompt 摘要 / summaries 工具页 | 各 64 KiB；大项转目录头后显式读整版 |
 | 一次执行累计 MCP 读取 | 4 MiB，最多 512 份原文读取凭证、100 个 summary revision |
 | 原始模型输出解析 | 1 MiB 的外围保护；不代表可发布 1 MiB 摘要 |
-| 绑定后的发布结构 | 单摘要及整批各不超过 64 KiB，含服务端补齐来源元数据，排除快照正文 |
+| Bound publication JSON | Whole batch at most 64 KiB, using revision-local source keys for evidence; excludes source snapshot bodies |
 | 整批结构化输出 | 合计最多 100 claims、512 evidence；依赖展开最多 4096 项 |
 
 不能按摘要数量放大整批预算。旧摘要超过整版读取预算时明确阻塞；本版没有自动拆分历史大摘要的模型迁移。
+
+New summary revisions store each complete message-version reference once in
+`summary_sources`. Evidence in `summary_versions.claims_json` uses an integer
+`source_key` pointing to that revision's message-source order, while retaining
+its exact quote and view. The shared publication encoder uses the same compact
+claim representation for the unchanged 64 KiB budget. Public reads restore the
+complete reference; ES still indexes only the summary title and body plus
+search metadata. No claims, quotes, facts or source versions are discarded.
+
+The reader accepts both legacy full-reference claims and compact claims. It
+rejects missing, out-of-range, conflicting or malformed keys and broken source
+ordering. Old immutable revisions are not rewritten. Existing full-reference
+request and publication hash encodings remain unchanged for idempotency.
+Deploy the new reader and writer together: an older binary cannot resolve new
+compact claims. A rollback must retain the new reader or use a separately
+reviewed data conversion; simply restarting an older binary is not compatible.
+
+Unchanged evidence from the same supplied baseline may retain its complete
+quote or a nonempty, contiguous literal substring. The shorter quote inherits
+the exact message version and view without mutating the old revision. This is
+the same literal containment rule used for supplied and explicitly read text;
+it does not allow paraphrases, joined excerpts, another node's evidence,
+uncovered sources, or reuse after a message changes or is removed.
 
 ## 一次 job 的持久生命周期
 
@@ -200,6 +223,24 @@ attempt 状态为 `running/output_received/invalid/failed/unknown/canceled/super
 等待期间不占用 worker。重启、新 turn 和原文变化不清零连接预算；自动替换过期输入的批次继承预算，
 显式 run 才建立新的重试预算。第 9 次连接失败后暂停，等待用户 Retry run。
 已经发出但结果不明的执行仍只回查原 attempt，不进入此自动重试流程。
+
+For node executions, Manager records a prompt request association before
+dispatch without storing its prompt. A reliable inbox RPC cancellation or error
+is a known failure only when its authenticated agent, sealed session/turn,
+request ID and persisted batch/attempt binding all match. That durable terminal
+record wakes recovery of the same attempt; it does not directly dispatch a new
+one. Exact primary-key proof checks under the task lock cover both terminal
+arrival orders around timeout handling. Pauses, settings changes and retry
+epochs continue to fence scheduling.
+
+A recovered known failure saves no partial output and advances no checkpoint.
+It enters the existing bounded actual-failure budget (three attempts total)
+with retry backoff. A result check returns `result_failed` for this case.
+Missing correlation, a timeout, a sent cancellation, an idle snapshot or a lost
+connection alone still leave the outcome unknown. Old unknown executions that
+predate these records are not automatically replayed. Validation retries also
+receive fixed safe correction hints for capacity, unavailable sources and
+unverified quotes; raw errors are never inserted into the prompt.
 
 ## 权限、失效和状态
 

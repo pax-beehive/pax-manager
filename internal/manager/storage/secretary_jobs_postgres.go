@@ -296,7 +296,8 @@ func (s *PostgresStore) FailSecretaryJob(
  retry_generation=retry_generation+CASE WHEN $4<>'' AND (auto_retry_key<>$4 OR auto_retry_count<$5) THEN 1 ELSE 0 END,
  auto_retry_count=CASE WHEN $4='' THEN auto_retry_count WHEN auto_retry_key<>$4 THEN 1 ELSE LEAST(auto_retry_count+1,$5) END,
  auto_retry_key=CASE WHEN $4<>'' THEN $4 ELSE auto_retry_key END,
- last_error=$3,last_validation_failure=$6,available_at=NOW()+LEAST(300,POWER(2,LEAST(attempts,8))) * INTERVAL '1 second'
+ last_error=$3,last_validation_failure=$6,available_at=CASE WHEN $7 THEN GREATEST(available_at,NOW()+INTERVAL '5 seconds')
+ ELSE NOW()+LEAST(300,POWER(2,LEAST(attempts,8))) * INTERVAL '1 second' END
  WHERE source_id=$1 AND lease_token=$2 AND lease_token<>'' AND lease_until>NOW()`,
 		job.SourceID,
 		job.LeaseToken,
@@ -304,6 +305,7 @@ func (s *PostgresStore) FailSecretaryJob(
 		retryKey,
 		domain.SecretaryMaxValidationRetries,
 		code,
+		secretaryKnownExecutionFailure(failure),
 	)
 	return err
 }

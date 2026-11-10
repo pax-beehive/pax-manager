@@ -177,7 +177,7 @@ func (s *SecretaryTaskService) recheck(
 		return SecretaryTaskActionResponse{}, err
 	}
 	switch outcome {
-	case "recovered", "still_unknown", "result_invalid", "output_saved":
+	case "recovered", "still_unknown", "result_invalid", "result_failed", "output_saved":
 	default:
 		outcome = "status_refreshed"
 	}

@@ -112,6 +112,12 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 072 | partial | [DSCODE long terminal input can block a Secretary execution](072-dscode-long-pty-command-blocks-secretary.md) | high | DSCODE runtime / terminal / Secretary |
 
+| 074 | partial | [Secretary canceled executions remain unknown](074-secretary-canceled-executions-remain-unknown.md) | high | Secretary / ACP terminal projection / recovery |
+
+| 075 | partial | [Secretary rejects shortened baseline evidence quotes](075-secretary-shortened-baseline-quotes-rejected.md) | high | Secretary / evidence binding |
+
+| 076 | open | [Secretary compares a read receipt as message identity](076-secretary-read-receipt-compared-as-identity.md) | medium | Secretary / evidence read proof |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

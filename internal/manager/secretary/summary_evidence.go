@@ -177,7 +177,9 @@ func retainedEvidence(
 	}
 	for _, claim := range job.CurrentSummary.Claims {
 		for _, old := range claim.Evidence {
-			if old.Message.MessageID == evidence.MessageID && old.Quote == evidence.Quote {
+			if old.Message.MessageID == evidence.MessageID &&
+				strings.Contains(old.Quote, evidence.Quote) {
+				old.Quote = evidence.Quote
 				return old, true
 			}
 		}
