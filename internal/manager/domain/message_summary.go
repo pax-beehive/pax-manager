@@ -11,14 +11,22 @@ type MessageToolSummary struct {
 	ContextCompaction bool   `json:"context_compaction,omitempty"`
 	// Subagent marks an Agent or Task call of the main agent, and
 	// ParentToolCallID marks a call made inside such a subagent.
-	Subagent         *MessageToolSubagent `json:"subagent,omitempty"`
-	ParentToolCallID string               `json:"parent_tool_call_id,omitempty"`
+	Subagent         *MessageToolSubagent      `json:"subagent,omitempty"`
+	ParentToolCallID string                    `json:"parent_tool_call_id,omitempty"`
+	CodexSubagent    *MessageToolCodexSubagent `json:"codex_subagent,omitempty"`
 }
 
 type MessageToolSubagent struct {
 	Background  bool   `json:"background,omitempty"`
 	Description string `json:"description,omitempty"`
 	AgentType   string `json:"agent_type,omitempty"`
+}
+
+// MessageToolCodexSubagent preserves lifecycle events independently of tool status.
+type MessageToolCodexSubagent struct {
+	ThreadID     string `json:"thread_id"`
+	ActivityKind string `json:"activity_kind"`
+	AgentPath    string `json:"agent_path,omitempty"`
 }
 
 // MessageDetailPage offsets count Unicode code points, not bytes. A revision
