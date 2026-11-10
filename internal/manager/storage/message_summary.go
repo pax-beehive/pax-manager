@@ -16,6 +16,10 @@ import (
 const toolMessageSQL = `message_type IN ('tool_call', 'tool_call_update', 'tool_call_content_chunk')`
 const toolUpdateSQL = `COALESCE(NULLIF(raw_json #> '{params,update}', 'null'::jsonb), raw_json)`
 
+// Use the same Unicode whitespace set as strings.TrimSpace in the Go projection.
+const toolSummaryWhitespaceSQL = `U&'\0009\000A\000B\000C\000D\0020\0085\00A0\1680` +
+	`\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000'`
+
 var messageSummaryReturningSQL = strings.Replace(messageReturningSQL,
 	`COALESCE(raw_json, '{}'::jsonb)`,
 	`CASE WHEN `+toolMessageSQL+` THEN (
@@ -30,8 +34,19 @@ var messageSummaryReturningSQL = strings.Replace(messageReturningSQL,
  OR u #>> '{_meta,claudeCode,toolResponse,status}' = 'async_launched' THEN true END,
  'description', NULLIF(LEFT(COALESCE(u #>> '{rawInput,description}', ''), 512), ''),
  'agent_type', NULLIF(LEFT(COALESCE(u #>> '{rawInput,subagent_type}', ''), 128), '')) END,
+ 'codex_subagent', CASE WHEN jsonb_typeof(ci->'activityKind') = 'string'
+ AND BTRIM(ci->>'activityKind', `+toolSummaryWhitespaceSQL+`) IN ('started', 'interacted', 'completed', 'interrupted')
+ AND jsonb_typeof(ci->'agentThreadId') = 'string'
+ AND BTRIM(ci->>'agentThreadId', `+toolSummaryWhitespaceSQL+`) <> '' THEN jsonb_build_object(
+ 'thread_id', BTRIM(ci->>'agentThreadId', `+toolSummaryWhitespaceSQL+`),
+ 'activity_kind', BTRIM(ci->>'activityKind', `+toolSummaryWhitespaceSQL+`),
+ 'agent_path', CASE WHEN jsonb_typeof(ci->'agentPath') = 'string'
+ THEN NULLIF(BTRIM(ci->>'agentPath', `+toolSummaryWhitespaceSQL+`), '') END) END,
  'parent_tool_call_id', NULLIF(COALESCE(u #>> '{_meta,claudeCode,parentToolUseId}', ''), '')))
  FROM (SELECT `+toolUpdateSQL+` AS u) tool
+ CROSS JOIN LATERAL (SELECT COALESCE(
+ CASE WHEN jsonb_typeof(u->'rawInput') = 'object' THEN u->'rawInput' END,
+ u->'raw_input') AS ci) codex
  ) ELSE COALESCE(raw_json, '{}'::jsonb) END`, 1)
 
 func (s *PostgresStore) ListMessageSummaryPage(
@@ -307,6 +322,7 @@ func toolSummaryFromUpdate(u map[string]any) domain.MessageToolSummary {
 		Kind:              toolSummaryString(u, "kind"),
 		ContextCompaction: toolSummaryCompaction(u),
 		ParentToolCallID:  parentToolCallID,
+		CodexSubagent:     toolSummaryCodexSubagent(u),
 	}
 	toolName := toolSummaryString(claudeCode, "toolName")
 	if (toolName == "Agent" || toolName == "Task") && parentToolCallID == "" {
@@ -320,6 +336,28 @@ func toolSummaryFromUpdate(u map[string]any) domain.MessageToolSummary {
 		}
 	}
 	return summary
+}
+
+func toolSummaryCodexSubagent(u map[string]any) *domain.MessageToolCodexSubagent {
+	input, ok := u["rawInput"].(map[string]any)
+	if !ok {
+		input, _ = u["raw_input"].(map[string]any)
+	}
+	kind := strings.TrimSpace(toolSummaryString(input, "activityKind"))
+	switch kind {
+	case "started", "interacted", "completed", "interrupted":
+	default:
+		return nil
+	}
+	threadID := strings.TrimSpace(toolSummaryString(input, "agentThreadId"))
+	if threadID == "" {
+		return nil
+	}
+	return &domain.MessageToolCodexSubagent{
+		ThreadID:     threadID,
+		ActivityKind: kind,
+		AgentPath:    strings.TrimSpace(toolSummaryString(input, "agentPath")),
+	}
 }
 
 func truncateRunes(value string, limit int) string {
