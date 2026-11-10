@@ -186,6 +186,13 @@ Deploy the new reader and writer together: an older binary cannot resolve new
 compact claims. A rollback must retain the new reader or use a separately
 reviewed data conversion; simply restarting an older binary is not compatible.
 
+Unchanged evidence from the same supplied baseline may retain its complete
+quote or a nonempty, contiguous literal substring. The shorter quote inherits
+the exact message version and view without mutating the old revision. This is
+the same literal containment rule used for supplied and explicitly read text;
+it does not allow paraphrases, joined excerpts, another node's evidence,
+uncovered sources, or reuse after a message changes or is removed.
+
 ## 一次 job 的持久生命周期
 
 `secretary_jobs` 是来源队列，batch 是固定输入，attempt 是一次实际模型调用，三者不是同一个 ID。
