@@ -85,8 +85,8 @@ jobs:
           path: coverage.out
           if-no-files-found: error
 
-  integration:
-    name: integration tests
+  integration-core:
+    name: Core integration tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -124,31 +124,112 @@ jobs:
       - name: Run integration tests
         run: make integration-test
 
-      - name: Release shared integration fixtures before feature acceptance
+      - name: Clean integration stack
+        if: always()
         run: make integration-down
+
+  search-acceptance:
+    name: Search acceptance tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOCACHE: /tmp/go-build
+      GOPRIVATE: github.com/pax-beehive/*
+      PAX_BEEHIVE_READ_TOKEN: ${{ secrets.PAX_BEEHIVE_READ_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Configure private module access
+        run: |
+          if [ -z "$PAX_BEEHIVE_READ_TOKEN" ]; then
+            echo "PAX_BEEHIVE_READ_TOKEN is required to download private pax-beehive Go modules." >&2
+            exit 1
+          fi
+          git config --global url."https://x-access-token:${PAX_BEEHIVE_READ_TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Verify search, source versions, and MCP over PostgreSQL and Elasticsearch
         run: make search-acceptance
 
-      - name: Verify automatic Secretary execution and coverage progress
-        run: make secretary-acceptance
-
-      - name: Preserve feature test diagnostics on failure
+      - name: Preserve search diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: feature-acceptance-diagnostics
+          name: search-acceptance-diagnostics
           path: |
-            /tmp/pax-secretary-acceptance.*/go.json
-            /tmp/pax-secretary-acceptance.*/worker.json
             /tmp/pax-search-acceptance.*/go.jsonl
             /tmp/pax-search-acceptance.*/go.stderr
+            /tmp/pax-search-acceptance.*/*.log
+            /tmp/pax-search-live.*/*.log
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Clean integration stack
-        if: always()
-        run: make integration-down
+  secretary-acceptance:
+    name: Secretary acceptance tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOCACHE: /tmp/go-build
+      GOPRIVATE: github.com/pax-beehive/*
+      PAX_BEEHIVE_READ_TOKEN: ${{ secrets.PAX_BEEHIVE_READ_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Configure private module access
+        run: |
+          if [ -z "$PAX_BEEHIVE_READ_TOKEN" ]; then
+            echo "PAX_BEEHIVE_READ_TOKEN is required to download private pax-beehive Go modules." >&2
+            exit 1
+          fi
+          git config --global url."https://x-access-token:${PAX_BEEHIVE_READ_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+      - name: Verify automatic Secretary execution and coverage progress
+        run: make secretary-acceptance
+
+      - name: Preserve Secretary diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secretary-acceptance-diagnostics
+          path: |
+            /tmp/pax-secretary-acceptance.*/go.json
+            /tmp/pax-secretary-acceptance.*/worker.json
+            /tmp/pax-secretary-acceptance.*/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  integration:
+    name: integration tests
+    needs: [integration-core, search-acceptance, secretary-acceptance]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require every integration suite to pass
+        env:
+          CORE_RESULT: ${{ needs.integration-core.result }}
+          SEARCH_RESULT: ${{ needs.search-acceptance.result }}
+          SECRETARY_RESULT: ${{ needs.secretary-acceptance.result }}
+        run: |
+          printf 'Core: %s\nSearch: %s\nSecretary: %s\n' "$CORE_RESULT" "$SEARCH_RESULT" "$SECRETARY_RESULT"
+          test "$CORE_RESULT" = success
+          test "$SEARCH_RESULT" = success
+          test "$SECRETARY_RESULT" = success
 
   region-directory:
     name: Region directory and direct gateway

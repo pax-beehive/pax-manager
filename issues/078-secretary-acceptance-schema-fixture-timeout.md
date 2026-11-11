@@ -30,15 +30,32 @@ budget as the regression suite grew.
 
 ## Current note
 
-The acceptance container mounts its PostgreSQL 16 data directory on a 4 GiB
-tmpfs. This reduces disk-backed volume I/O for repeatedly rebuilt schema
-fixtures. The ceiling is not a preallocation. Container naming, loopback port
-allocation and cleanup are unchanged; no application or deployment code changes.
+The previous tmpfs mitigation passed main CI once, but main run 42973018519
+again exceeded the storage package's 300-second limit. It completed 223
+top-level tests without a named-test failure. The final case had run for only
+0.541 seconds and was executing schema DDL. The job took about 11 minutes
+because core integration, search acceptance and Secretary acceptance ran
+serially.
 
-A controlled 18-scenario terminal-proof comparison passed with both settings:
-default storage took 24.287 seconds and tmpfs took 19.009 seconds. PostgreSQL
-fsync, full_page_writes and synchronous_commit remained enabled. The exact full
-local `make secretary-acceptance` passed 1342 named checks with no skipped tests;
-the storage package completed in 225.234 seconds. This is not a same-runner
-comparison with CI. GitHub verification and main image publication remain
-pending.
+The disposable acceptance container now opts into a pristine PostgreSQL
+template database. Production DDL is applied once, then each case clones a
+separate database and inserts fresh seed data. Case pools close before their
+databases are dropped. The template lives only for the disposable container's
+lifetime. Ordinary local fixtures still use independent schemas and do not
+require database-creation privileges. The 4 GiB tmpfs, durability defaults,
+full test selection, no-skips gate and 300-second package limit are retained.
+
+Regression cases check DDL and data isolation, fresh seed timestamps, template
+contents, cleanup and template-name validation. A same-runner comparison of the
+exact 18-scenario terminal-proof selection, including fresh template setup,
+passed in 19.243 seconds before and 5.049 seconds after (73.8% less time).
+
+CI runs core integration, search acceptance and Secretary acceptance on separate
+runners. The existing `integration tests` check aggregates all three and fails
+unless each succeeds; image and Worker publication still require that gate.
+Secretary diagnostics include PostgreSQL logs, and successful acceptance logs
+report package timings. The exact full local `make secretary-acceptance` passed
+1355 named checks with zero skips; storage completed in 40.388 seconds, Manager
+in 9.568 seconds, userapi in 1.193 seconds and the worker in 0.433 seconds.
+GitHub verification is pending; the local full run is not a same-runner
+comparison with the 300-second failed CI run.
