@@ -22,8 +22,8 @@ make one old failed task look like a stopped Secretary while other work continue
 
 ## Required behavior
 
-- Classify relevant display replacements once per progress query while keeping
-  current owner, deletion, archival and internal-session checks.
+- Read persisted progress counters instead of hashing all historical messages
+  on each poll; retain current owner, deletion, archival and internal checks.
 - Preserve exact global counts, current content hashes and pagination behavior.
 - Keep active processing visible alongside conversation-specific diagnostics.
 - Keep finite retry budgets and explicit controls for uncertain executions.
@@ -31,15 +31,42 @@ make one old failed task look like a stopped Secretary while other work continue
 
 ## Current note
 
-The progress query now materializes owner/session scopes, display classification
+The first correction materialized owner/session scopes, display classification
 and replacement targets. The existing display partial index remains in use.
 The source metadata filter, parts/hash processing and Go aggregation are unchanged;
-the separate pending-source query is unchanged. No schema or index is added.
+the separate pending-source query was unchanged. That correction alone still
+scaled with visible history and did not remove full-history work from polling.
+
+The follow-up adds a persistent, body-free progress projection and an independent
+bounded worker. Clean GETs read readiness, session counters and current scope
+metadata without touching messages or parts. Message/part/display/access changes
+reuse the transactional search change ledger even when ES and Secretary are off;
+published coverage checkpoints and internal-session registrations also enqueue
+changes. Index acknowledgements do not. Reverse indexes support old-owner and
+deleted-message cleanup without scanning the projection or queue.
+
+Historical discovery persists primary-key cursors and bounds raw pages before
+owner filtering. New history queue entries commit before their source bodies
+are read in a fresh transaction. Writers serialize projection changes and hold
+committed dirty rows through generation acknowledgement. A deletion or ownership
+change therefore preserves the cleanup obligation even before the first cached
+message exists. Real PostgreSQL tests reproduce the former first-projection
+deletion/owner-move race and verify the corrected fence.
+
+The worker handles at most 128 messages per step, prioritizes live changes and
+uses remaining capacity for historical staging. It waits between steps, backs
+off errors exponentially and resumes after restart independently of models or
+Secretary settings. Existing inactive owners begin bootstrap on their first
+progress read; deployment does not scan all user accounts. Bounded request-side
+preparation handles up to 256 messages; an unfinished projection or busy writer
+returns an explicit updating 503 instead of partial zero counts. Console hides
+stale counts/rows and continues its normal polling. Serialization/deadlock races
+also return updating rather than an unexpected server error.
 
 A 128-source/24-display regression reduced JSON array expansion loops from 3096
 to 48. Sixty-three replacement-shape comparisons match the original full progress
-page, with additional owner/session isolation checks. The new query builder has
-100% coverage and the progress read method has 95.5% coverage.
+page, with additional owner/session isolation checks. These measurements describe
+the first SQL optimization, not the final cached read path.
 
 Production read-only checks found zero differences across 15,787 old/new SQL
 result rows in one snapshot. A separate same-snapshot plan pair returned 15,790

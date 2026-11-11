@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -93,35 +94,27 @@ func TestSecretaryProgressPostgresDriverGivenCanonicalSourceThenCountsOnlyPublis
 			if mode == "empty" {
 				rows.values = nil
 			}
-			script := &scriptedPostgresScript{queries: []scriptedRows{
-				{columns: []string{"as_of"}, values: [][]driver.Value{{time.Now()}}}, rows,
-			}}
+			script := &scriptedPostgresScript{queries: []scriptedRows{rows}}
 			store, cleanup := scriptedPostgresStore(t, script)
 			defer cleanup()
-			page, err := store.ReadSecretaryProgress(
+			result, err := store.db.QueryContext(
 				t.Context(),
+				secretaryProgressSQL,
 				"owner",
-				domain.SecretaryProgressQuery{},
+				secretaryProgressWhitespace,
 			)
+			require.NoError(t, err)
+			progress, err := scanSecretaryProgress(result, "owner")
 			if strings.HasPrefix(mode, "invalid-") {
 				assert.Error(t, err)
-				assert.False(t, script.committed)
 				return
 			}
 			require.NoError(t, err)
-			assert.True(t, script.committed)
-			assert.Equal(t, "owner", script.queryArgs[1][0].Value)
-			assert.Contains(t, script.queryTexts[1], "a.owner_user_id = $1")
-			assert.Contains(t, script.queryTexts[1], "secretary_internal_sessions")
-			assert.Contains(t, script.queryTexts[1], "sha256(convert_to(parts.body,'UTF8'))")
-			assert.NotContains(t, script.queryTexts[1], "to_jsonb(m)")
-			assert.NotContains(t, script.queryTexts[1], "to_jsonb(p)")
-			assert.NotContains(t, script.queryTexts[1], "ORDER BY v.source_id")
-			assert.Contains(
-				t,
-				strings.Join(script.execTexts, "\n"),
-				"SET LOCAL statement_timeout='8s'",
-			)
+			page := progress.page("owner", "", 20, time.Now())
+			assert.Equal(t, "owner", script.queryArgs[0][0].Value)
+			assert.Contains(t, script.queryTexts[0], "a.owner_user_id = $1")
+			assert.Contains(t, script.queryTexts[0], "secretary_internal_sessions")
+			assert.Contains(t, script.queryTexts[0], "sha256(convert_to(parts.body,'UTF8'))")
 			if mode == "reasoning" || mode == "tool" ||
 				mode == "empty" {
 				assert.Zero(t, page.Counts.TotalMessages)
@@ -141,7 +134,7 @@ func TestSecretaryProgressPostgresDriverGivenCanonicalSourceThenCountsOnlyPublis
 }
 
 func TestSecretaryProgressPostgresDriverGivenUnavailableDatabaseThenReturnsErrors(t *testing.T) {
-	for _, mode := range []string{"closed", "time-query", "source-query", "anonymous", "bad-cursor"} {
+	for _, mode := range []string{"closed", "readiness-query", "readiness-scan", "anonymous", "bad-cursor"} {
 		t.Run(mode, func(t *testing.T) {
 			script := &scriptedPostgresScript{}
 			store, cleanup := scriptedPostgresStore(t, script)
@@ -150,7 +143,7 @@ func TestSecretaryProgressPostgresDriverGivenUnavailableDatabaseThenReturnsError
 			switch mode {
 			case "closed":
 				require.NoError(t, store.db.Close())
-			case "source-query":
+			case "readiness-scan":
 				script.queries = []scriptedRows{
 					{columns: []string{"time"}, values: [][]driver.Value{{time.Now()}}},
 				}
@@ -161,6 +154,34 @@ func TestSecretaryProgressPostgresDriverGivenUnavailableDatabaseThenReturnsError
 			}
 			_, err := store.ReadSecretaryProgress(t.Context(), owner, query)
 			assert.Error(t, err)
+		})
+	}
+}
+
+func TestSecretaryProgressPostgresDriverGivenConcurrentRefreshThenReturnsPreparing(t *testing.T) {
+	for _, code := range []string{"40001", "40P01", "23503"} {
+		t.Run(code, func(t *testing.T) {
+			script := &scriptedPostgresScript{
+				queries: []scriptedRows{
+					secretaryProjectionValue("ready", false),
+					secretaryProjectionValue("writer", true),
+				},
+				execErrors: []error{&pgconn.PgError{Code: code}},
+			}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+			_, err := store.ReadSecretaryProgress(
+				t.Context(),
+				"owner",
+				domain.SecretaryProgressQuery{},
+			)
+			if code == "23503" {
+				assert.Error(t, err)
+				assert.NotErrorIs(t, err, domain.ErrSecretaryProgressPreparing)
+			} else {
+				assert.ErrorIs(t, err, domain.ErrSecretaryProgressPreparing)
+			}
+			assert.False(t, script.committed)
 		})
 	}
 }

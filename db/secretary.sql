@@ -293,3 +293,137 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS knowledge_node_access_changed ON nodes;
 CREATE TRIGGER knowledge_node_access_changed BEFORE UPDATE OF deleted_at OR DELETE ON nodes
     FOR EACH ROW EXECUTE FUNCTION pax_knowledge_node_access_changed();
+
+CREATE TABLE IF NOT EXISTS secretary_progress_owners (
+    owner_user_id TEXT PRIMARY KEY,
+    projection_version TEXT NOT NULL,
+    bootstrap_after BIGINT NOT NULL DEFAULT 0 CHECK (bootstrap_after >= 0),
+    bootstrap_upper BIGINT NOT NULL DEFAULT 0 CHECK (bootstrap_upper >= 0),
+    bootstrap_complete BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS secretary_progress_messages (
+    owner_user_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    source_id BIGINT NOT NULL,
+    turn_id TEXT NOT NULL DEFAULT '',
+    current_hash TEXT NOT NULL,
+    canonicalization_version TEXT NOT NULL,
+    completed BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY(owner_user_id,message_id)
+);
+CREATE INDEX IF NOT EXISTS secretary_progress_messages_source
+    ON secretary_progress_messages(owner_user_id,source_id);
+CREATE INDEX IF NOT EXISTS secretary_progress_messages_identity
+    ON secretary_progress_messages(message_id,owner_user_id);
+CREATE INDEX IF NOT EXISTS secretary_progress_messages_scope
+    ON secretary_progress_messages(source_id,message_id);
+
+CREATE TABLE IF NOT EXISTS secretary_progress_sessions (
+    owner_user_id TEXT NOT NULL,
+    source_id BIGINT NOT NULL,
+    total_messages BIGINT NOT NULL DEFAULT 0 CHECK (total_messages >= 0),
+    completed_messages BIGINT NOT NULL DEFAULT 0 CHECK (completed_messages >= 0),
+    pending_messages BIGINT NOT NULL DEFAULT 0 CHECK (pending_messages >= 0),
+    total_turns BIGINT NOT NULL DEFAULT 0 CHECK (total_turns >= 0),
+    completed_turns BIGINT NOT NULL DEFAULT 0 CHECK (completed_turns >= 0),
+    pending_turns BIGINT NOT NULL DEFAULT 0 CHECK (pending_turns >= 0),
+    ungrouped_messages BIGINT NOT NULL DEFAULT 0 CHECK (ungrouped_messages >= 0),
+    PRIMARY KEY(owner_user_id,source_id)
+);
+
+CREATE SEQUENCE IF NOT EXISTS secretary_progress_generation;
+CREATE TABLE IF NOT EXISTS secretary_progress_dirty (
+    owner_user_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    generation BIGINT NOT NULL DEFAULT nextval('secretary_progress_generation'),
+    is_backfill BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY(owner_user_id,message_id)
+);
+CREATE INDEX IF NOT EXISTS secretary_progress_dirty_pending
+    ON secretary_progress_dirty(is_backfill,generation,owner_user_id,message_id);
+CREATE INDEX IF NOT EXISTS secretary_progress_dirty_owner
+    ON secretary_progress_dirty(owner_user_id,is_backfill,generation,message_id);
+CREATE INDEX IF NOT EXISTS secretary_progress_dirty_identity
+    ON secretary_progress_dirty(message_id,owner_user_id);
+
+-- Keep tombstones independent of source rows so asynchronous removal can finish.
+CREATE OR REPLACE FUNCTION pax_secretary_progress_enqueue(target_message TEXT)
+RETURNS VOID LANGUAGE plpgsql AS $$
+BEGIN
+    IF target_message IS NULL OR target_message='' THEN RETURN; END IF;
+    INSERT INTO secretary_progress_dirty(owner_user_id,message_id)
+    SELECT owners.owner_user_id,target_message FROM (
+        SELECT a.owner_user_id FROM messages m JOIN agents a ON a.agent_id=m.agent_id
+        LEFT JOIN agent_sessions s ON s.agent_id=m.agent_id AND s.session_id=m.session_id
+        WHERE m.message_id=target_message
+        AND COALESCE(s.source,'')<>'secretary_internal'
+        AND NOT starts_with(COALESCE(m.session_id,''),'sess_secretary_')
+        AND NOT EXISTS(SELECT 1 FROM secretary_internal_sessions i
+            WHERE i.agent_id=m.agent_id AND i.session_id=m.session_id)
+        UNION
+        SELECT p.owner_user_id FROM secretary_progress_messages p WHERE p.message_id=target_message
+        UNION
+        SELECT d.owner_user_id FROM secretary_progress_dirty d WHERE d.message_id=target_message
+    ) owners ORDER BY owners.owner_user_id
+    ON CONFLICT(owner_user_id,message_id) DO UPDATE
+        SET generation=EXCLUDED.generation,is_backfill=FALSE;
+END $$;
+
+CREATE OR REPLACE FUNCTION pax_secretary_progress_search_trigger()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.kind<>'message' THEN RETURN NULL; END IF;
+    IF TG_OP='UPDATE' AND NEW.desired_revision IS NOT DISTINCT FROM OLD.desired_revision THEN
+        RETURN NULL;
+    END IF;
+    PERFORM pax_secretary_progress_enqueue(NEW.source_id);
+    RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS secretary_progress_search_dirty ON search_sync_state;
+CREATE TRIGGER secretary_progress_search_dirty AFTER INSERT OR UPDATE OF desired_revision ON search_sync_state
+    FOR EACH ROW EXECUTE FUNCTION pax_secretary_progress_search_trigger();
+
+CREATE OR REPLACE FUNCTION pax_secretary_progress_checkpoint_trigger()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP='UPDATE' AND
+        (NEW.source_id,NEW.message_id,NEW.processed_hash,NEW.processed_owner_user_id,NEW.processed_canonicalization_version)
+        IS NOT DISTINCT FROM
+        (OLD.source_id,OLD.message_id,OLD.processed_hash,OLD.processed_owner_user_id,OLD.processed_canonicalization_version)
+    THEN RETURN NULL; END IF;
+    IF TG_OP<>'INSERT' THEN PERFORM pax_secretary_progress_enqueue(OLD.message_id); END IF;
+    IF TG_OP<>'DELETE' AND (TG_OP='INSERT' OR NEW.message_id IS DISTINCT FROM OLD.message_id) THEN
+        PERFORM pax_secretary_progress_enqueue(NEW.message_id);
+    END IF;
+    RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS secretary_progress_checkpoint_dirty ON secretary_message_state;
+CREATE TRIGGER secretary_progress_checkpoint_dirty AFTER INSERT OR DELETE OR
+    UPDATE OF source_id,message_id,processed_hash,processed_owner_user_id,processed_canonicalization_version
+    ON secretary_message_state FOR EACH ROW EXECUTE FUNCTION pax_secretary_progress_checkpoint_trigger();
+
+CREATE OR REPLACE FUNCTION pax_secretary_progress_internal_trigger()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE affected RECORD;
+BEGIN
+    IF TG_OP='UPDATE' AND (NEW.agent_id,NEW.session_id) IS NOT DISTINCT FROM (OLD.agent_id,OLD.session_id) THEN
+        RETURN NULL;
+    END IF;
+    FOR affected IN
+        SELECT m.message_id FROM messages m WHERE
+            (TG_OP<>'INSERT' AND m.agent_id=OLD.agent_id AND m.session_id=OLD.session_id) OR
+            (TG_OP<>'DELETE' AND m.agent_id=NEW.agent_id AND m.session_id=NEW.session_id)
+        UNION
+        SELECT p.message_id FROM secretary_progress_messages p JOIN agent_sessions s ON s.id=p.source_id WHERE
+            (TG_OP<>'INSERT' AND s.agent_id=OLD.agent_id AND s.session_id=OLD.session_id) OR
+            (TG_OP<>'DELETE' AND s.agent_id=NEW.agent_id AND s.session_id=NEW.session_id)
+    LOOP
+        PERFORM pax_secretary_progress_enqueue(affected.message_id);
+    END LOOP;
+    RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS secretary_progress_internal_dirty ON secretary_internal_sessions;
+CREATE TRIGGER secretary_progress_internal_dirty AFTER INSERT OR DELETE OR UPDATE OF agent_id,session_id
+    ON secretary_internal_sessions FOR EACH ROW EXECUTE FUNCTION pax_secretary_progress_internal_trigger();

@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -20,11 +20,21 @@ var secretaryProgressSQL = buildSecretaryProgressSQL()
 const secretaryProgressWhitespace = "\t\n\v\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
 
 func buildSecretaryProgressSQL() string {
+	return buildSecretaryProgressBatchSQL(false)
+}
+
+func buildSecretaryProgressBatchSQL(batch bool) string {
+	sessionScope, messageScope, identity := "", "", ""
+	if batch {
+		sessionScope = ` AND EXISTS (SELECT 1 FROM messages selected WHERE selected.agent_id=s.agent_id AND selected.session_id=s.session_id AND selected.message_id IN (SELECT jsonb_array_elements_text($3::jsonb)))`
+		messageScope = ` AND m.message_id IN (SELECT jsonb_array_elements_text($3::jsonb))`
+		identity = "v.message_id,"
+	}
 	// Classify each display once across the owner's sessions before counting sources.
 	prefix := `WITH target_sessions AS MATERIALIZED (
  SELECT DISTINCT s.agent_id,s.session_id FROM agent_sessions s
  JOIN agents a ON a.agent_id=s.agent_id
- WHERE a.owner_user_id=$1 AND a.deleted_at IS NULL AND s.archived_at IS NULL
+ WHERE a.owner_user_id=$1 AND a.deleted_at IS NULL AND s.archived_at IS NULL` + sessionScope + `
 ), display_rows AS MATERIALIZED (
  SELECT display.agent_id,display.session_id,display.parent_message_id,
  CASE WHEN jsonb_typeof(display.raw_json->'replaces_message_ids')='array' THEN
@@ -47,7 +57,10 @@ func buildSecretaryProgressSQL() string {
  SELECT 1 FROM replacement_targets replacement
  WHERE replacement.agent_id=m.agent_id AND replacement.session_id=m.session_id
  AND replacement.message_id=m.message_id)`
-	return prefix + strings.TrimPrefix(buildSecretaryProgressScopeSQL("", "", visibility), "WITH ")
+	return prefix + strings.TrimPrefix(
+		buildSecretaryProgressScopeSQL(messageScope, identity, visibility),
+		"WITH ",
+	)
 }
 
 func buildSecretaryProgressScopeSQL(scope, identityColumn, visibility string) string {
@@ -92,29 +105,12 @@ func (s *PostgresStore) ReadSecretaryProgress(
 	if err != nil {
 		return domain.SecretaryProgressPage{}, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
-	defer cancel()
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
-	if err != nil {
-		return domain.SecretaryProgressPage{}, err
+	page, err := s.readSecretaryProgressProjection(ctx, owner, after, limit)
+	var state interface{ SQLState() string }
+	if errors.As(err, &state) && (state.SQLState() == "40001" || state.SQLState() == "40P01") {
+		err = domain.ErrSecretaryProgressPreparing
 	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err = tx.ExecContext(ctx, `SET LOCAL statement_timeout='8s'`); err != nil {
-		return domain.SecretaryProgressPage{}, err
-	}
-	var asOf time.Time
-	if err = tx.QueryRowContext(ctx, `SELECT CURRENT_TIMESTAMP`).Scan(&asOf); err != nil {
-		return domain.SecretaryProgressPage{}, err
-	}
-	rows, err := tx.QueryContext(ctx, secretaryProgressSQL, owner, secretaryProgressWhitespace)
-	if err != nil {
-		return domain.SecretaryProgressPage{}, err
-	}
-	progress, err := scanSecretaryProgress(rows, owner)
-	if err != nil {
-		return domain.SecretaryProgressPage{}, err
-	}
-	return progress.page(owner, after, limit, asOf), tx.Commit()
+	return page, err
 }
 
 func scanSecretaryProgress(rows *sql.Rows, owner string) (secretaryProgressAccumulator, error) {

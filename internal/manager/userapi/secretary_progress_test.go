@@ -3,6 +3,7 @@ package userapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -130,6 +131,29 @@ func TestSecretaryProgressGivenCursorOrStorageFailureThenPreservesErrorSemantics
 	store.err = errors.New("database unavailable")
 	_, err = service.Progress(t.Context(), auth.RequestMetadata{}, domain.SecretaryProgressQuery{})
 	assert.ErrorIs(t, err, store.err)
+}
+
+func TestSecretaryProgressGivenProjectionPreparingThenReturnsSafeRetryableUnavailable(
+	t *testing.T,
+) {
+	store := &secretaryProgressFixture{
+		page: domain.SecretaryProgressPage{
+			Counts: domain.SecretaryProgressCounts{TotalSessions: 10},
+		},
+		err: fmt.Errorf("private projection metadata: %w", domain.ErrSecretaryProgressPreparing),
+	}
+	service := NewSecretaryService(workspacePrincipal{owner: "owner"}, store, nil, nil)
+	page, err := service.Progress(
+		t.Context(),
+		auth.RequestMetadata{},
+		domain.SecretaryProgressQuery{},
+	)
+	var apiErr apperr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, http.StatusServiceUnavailable, apiErr.Status)
+	assert.Equal(t, "Secretary progress is updating. Please try again shortly.", apiErr.Message)
+	assert.Empty(t, page)
+	assert.Equal(t, "owner", store.owner)
 }
 
 func TestSecretaryProgressGivenMissingIdentityOrCapabilityThenFailsClosed(t *testing.T) {
