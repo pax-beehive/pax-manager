@@ -133,6 +133,10 @@ func artifactPreviewPolicy(contentType string) (string, bool) {
 	switch {
 	case strings.HasPrefix(mediaType, "image/") && mediaType != "image/svg+xml":
 		return "image", true
+	case strings.HasPrefix(mediaType, "audio/"):
+		return "audio", true
+	case strings.HasPrefix(mediaType, "video/"):
+		return "video", true
 	case mediaType == "application/pdf":
 		return "pdf", true
 	case mediaType == "text/plain":

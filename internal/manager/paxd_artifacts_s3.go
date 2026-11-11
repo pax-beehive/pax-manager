@@ -172,6 +172,7 @@ func (b *s3PaxdArtifactBackend) SignObjectDownloadURL(
 	if err != nil {
 		return "", err
 	}
+	// Leave Range unsigned so media players can reuse the URL while buffering or seeking.
 	input := &s3.GetObjectInput{Bucket: aws.String(bucket), Key: aws.String(object)}
 	if versionID != "" {
 		input.VersionId = aws.String(versionID)
