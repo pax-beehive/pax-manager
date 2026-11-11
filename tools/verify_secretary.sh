@@ -26,7 +26,9 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+# Repeated schema fixtures need no persistent data after this isolated run.
 docker run -d --name "${secretary_container}" \
+  --tmpfs /var/lib/postgresql/data:rw,size=4g \
   -e POSTGRES_USER=pax -e POSTGRES_PASSWORD=pax -e POSTGRES_DB=secretary_test \
   -p 127.0.0.1::5432 postgres:16-alpine >"${secretary_logs}/startup.log"
 secretary_ready=false
