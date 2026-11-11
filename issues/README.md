@@ -122,6 +122,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 078 | partial | [Secretary acceptance schema fixtures exceed the package timeout (template isolation and parallel CI)](078-secretary-acceptance-schema-fixture-timeout.md) | high | CI / Secretary acceptance fixtures |
 
+| 079 | partial | [Secretary progress times out and conversation failures obscure overall work](079-secretary-progress-timeout-and-status-scope.md) | high | Secretary / progress SQL / status |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

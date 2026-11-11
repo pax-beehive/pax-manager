@@ -21,7 +21,7 @@ func TestSecretaryExecutionAPIGivenPersistedStateThenExposesSafeDetailsWithoutCh
 	}{
 		{"running", "", "processing", true},
 		{"needs_recovery", "lease_expired", "error", true},
-		{"unknown", "execution_unknown", "error", true},
+		{"unknown", "execution_unknown", "error", false},
 		{"blocked", "invalid_output", "error", false},
 		{"blocked", "execution_failed", "error", false},
 		{"blocked", "canceled", "error", false},
@@ -56,6 +56,41 @@ func TestSecretaryExecutionAPIGivenPersistedStateThenExposesSafeDetailsWithoutCh
 			if test.legacy == "error" {
 				assert.NotEmpty(t, response.LastError)
 			}
+		})
+	}
+}
+
+func TestSecretaryExecutionAPIGivenProcessingAlongsideConversationAttentionThenPreservesBothScopes(
+	t *testing.T,
+) {
+	for _, test := range []struct {
+		state, reason string
+	}{
+		{"unknown", "execution_unknown"},
+		{"blocked", "invalid_output"},
+		{"blocked", "execution_failed"},
+		{"blocked", "canceled"},
+		{"blocked", "retry_required"},
+	} {
+		t.Run(test.state+"/"+test.reason, func(t *testing.T) {
+			store := &secretaryAPIFixture{status: domain.SecretaryStatus{
+				SecretarySettings: domain.SecretarySettings{AgentID: "secretary", Enabled: true},
+				ExecutionState:    test.state,
+				BlockedReason:     test.reason,
+				Processing:        true,
+				PendingCount:      13,
+				LastError:         "private raw execution details",
+			}}
+			service := NewSecretaryService(workspacePrincipal{owner: "owner"}, store, nil,
+				func(context.Context, string, string) bool { return true })
+			response, err := service.Get(t.Context(), auth.RequestMetadata{})
+			require.NoError(t, err)
+			assert.Equal(t, "processing", response.State)
+			assert.Equal(t, test.state, response.ExecutionState)
+			assert.Equal(t, test.reason, response.BlockedReason)
+			assert.Equal(t, 13, response.PendingCount)
+			assert.NotEmpty(t, response.LastError)
+			assert.NotContains(t, response.LastError, "private")
 		})
 	}
 }
