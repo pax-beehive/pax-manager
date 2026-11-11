@@ -114,7 +114,8 @@ func (s *Service) startQueuedTurn(
 		defer func() { <-s.queueRunSlots }()
 		runCtx, cancel := context.WithCancel(s.queueContext)
 		defer cancel()
-		runner := conversationRunner{service: s, agentConn: conn, managerSessionID: turn.SessionID}
+		runner := conversationRunner{service: s, agentConn: conn, managerSessionID: turn.SessionID,
+			searchAccess: turn.SearchAccess, searchAccessOwnerID: turn.OwnerID}
 		session := conversationSession{managerID: turn.SessionID, nativeID: turn.NativeID}
 		sub := conn.subscribeSSE(turn.SessionID)
 		defer conn.unsubscribeSSE(sub)

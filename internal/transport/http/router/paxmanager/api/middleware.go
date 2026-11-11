@@ -931,3 +931,13 @@ func _nodemobilecontrolMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _workspaceMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _callworkspacetoolMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

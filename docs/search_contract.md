@@ -1,5 +1,10 @@
 # Workspace search and summary contract
 
+Ordinary agent access is described in [turn search access](turn_search_access.md).
+It requires an explicit search scope and an active turn. The default permission
+covers the calling agent's sessions; wider access requires turn authorization.
+User API key and Secretary execution authorization paths remain separate.
+
 The MVP searches Manager-persisted, owner-visible plaintext messages, session
 titles, and current summary versions. PostgreSQL owns source content and access.
 Elasticsearch is a disposable derived projection. No embedding, model call, or

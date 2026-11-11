@@ -52,6 +52,10 @@ func Register(r *server.Hertz) {
 								_session_id.GET("/mailbox", append(_pullnodeagentsessionmailboxMw(), handler.PullNodeAgentSessionMailbox)...)
 							}
 						}
+						{
+							_workspace := _agent_id.Group("/workspace", _workspaceMw()...)
+							_workspace.POST("/tools", append(_callworkspacetoolMw(), handler.CallWorkspaceTool)...)
+						}
 					}
 				}
 				{

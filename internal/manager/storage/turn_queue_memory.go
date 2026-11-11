@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
@@ -26,7 +27,8 @@ func (s *MemoryStore) PutQueuedTurn(
 	if exists {
 		old.Input = q.Input
 		old.CommandID = q.CommandID
-		if !patch {
+		old.SearchAccess = q.SearchAccess
+		if !patch || q.OwnerID != "" {
 			old.OwnerID = q.OwnerID
 		}
 		q = old
@@ -107,7 +109,8 @@ func (s *MemoryStore) ClaimQueuedTurn(
 	if !ok || current.TurnID != q.TurnID || current.State != "queued" ||
 		!current.UpdatedAt.Equal(q.UpdatedAt) ||
 		current.Input != q.Input ||
-		current.CommandID != q.CommandID {
+		current.CommandID != q.CommandID || current.OwnerID != q.OwnerID ||
+		!reflect.DeepEqual(current.SearchAccess, q.SearchAccess) {
 		return false, nil
 	}
 	head := s.agentRuntimeSnapshotHeads[q.AgentID]

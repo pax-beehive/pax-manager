@@ -4280,6 +4280,29 @@
         ],
         "type": "object"
       },
+      "WorkspaceToolRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "arguments_json": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id",
+          "session_id",
+          "tool",
+          "arguments_json"
+        ],
+        "type": "object"
+      },
       "WriteNodeSecretVersionRequest": {
         "properties": {
           "agent_id": {
@@ -5293,6 +5316,103 @@
           }
         ],
         "summary": "Pull node agent session mailbox",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/agents/{agent_id}/workspace/tools": {
+      "post": {
+        "description": "Requires node authentication and an active Manager turn. Search scope is explicit; the default permission covers all sessions of the calling agent. Wider scopes require turn authorization, and access requests return immediately.",
+        "parameters": [
+          {
+            "description": "Agent on the authenticated node.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceToolRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Search an explicit agent scope or request wider turn access",
         "tags": [
           "node"
         ]

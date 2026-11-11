@@ -42,6 +42,7 @@ type SearchQuery struct {
 	OwnerUserID string   `json:"-"`
 	Cursor      string   `json:"cursor,omitempty"`
 	Kinds       []string `json:"kinds,omitempty"`
+	AgentIDs    []string `json:"agent_ids,omitempty"`
 	SessionIDs  []string `json:"session_ids,omitempty"`
 	Limit       int      `json:"limit,omitempty"`
 }

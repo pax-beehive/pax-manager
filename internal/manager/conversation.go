@@ -27,16 +27,17 @@ var provisionalConversationCleanupTimeout = time.Second
 
 type conversationRequest struct {
 	secretaryCapability string
-	SessionID           string                     `json:"session_id,omitempty"`
-	InitializeOnly      bool                       `json:"initialize_only,omitempty"`
-	Input               string                     `json:"input"`
-	Content             []conversationContentBlock `json:"content,omitempty"`
-	Resume              json.RawMessage            `json:"resume,omitempty"`
-	CWD                 string                     `json:"cwd,omitempty"`
-	ApprovalMode        string                     `json:"approval_mode,omitempty"`
-	PermissionChoiceID  string                     `json:"permission_choice_id,omitempty"`
-	PrimaryProjectID    string                     `json:"primary_project_id,omitempty"`
-	ProjectTargetID     string                     `json:"project_target_id,omitempty"`
+	SessionID           string                        `json:"session_id,omitempty"`
+	InitializeOnly      bool                          `json:"initialize_only,omitempty"`
+	Input               string                        `json:"input"`
+	Content             []conversationContentBlock    `json:"content,omitempty"`
+	Resume              json.RawMessage               `json:"resume,omitempty"`
+	CWD                 string                        `json:"cwd,omitempty"`
+	ApprovalMode        string                        `json:"approval_mode,omitempty"`
+	PermissionChoiceID  string                        `json:"permission_choice_id,omitempty"`
+	PrimaryProjectID    string                        `json:"primary_project_id,omitempty"`
+	ProjectTargetID     string                        `json:"project_target_id,omitempty"`
+	SearchAccess        *domain.WorkspaceSearchAccess `json:"search_access,omitempty"`
 }
 
 type conversationEvent struct {
@@ -68,12 +69,14 @@ type conversationSession struct {
 }
 
 type conversationRunner struct {
-	service          *Service
-	agentConn        *ACPTunnelAgent
-	agentType        string
-	managerSessionID string
-	turnID           string
-	secretaryJob     *domain.SecretaryJob
+	service             *Service
+	agentConn           *ACPTunnelAgent
+	agentType           string
+	managerSessionID    string
+	turnID              string
+	secretaryJob        *domain.SecretaryJob
+	searchAccess        *domain.WorkspaceSearchAccess
+	searchAccessOwnerID string
 }
 
 type conversationResponse struct {
@@ -183,10 +186,11 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 	defer release()
 
 	runner := conversationRunner{
-		service:          s,
-		agentConn:        agentConn,
-		agentType:        agent.AgentType,
-		managerSessionID: session.managerID,
+		service:             s,
+		agentConn:           agentConn,
+		agentType:           agent.AgentType,
+		managerSessionID:    session.managerID,
+		searchAccessOwnerID: principal.User.UserID,
 	}
 	if session.nativeID == "" {
 		session, err = s.createConversationSession(r.Context(), principal, &runner, req)
@@ -251,6 +255,7 @@ func (s *Service) completeConversationRequest(
 		return
 	}
 	var err error
+	runner.searchAccess = req.SearchAccess
 	if resumeReq.Requested {
 		err = s.resumeConversation(ctx, w, flusher, runner, session, principal, resumeReq)
 	} else {
@@ -284,6 +289,16 @@ func (s *Service) readConversationRequest(
 		return conversationRequest{}, conversationResumeRequest{}, false
 	}
 	req.Input = strings.TrimSpace(req.Input)
+	var scopeErr error
+	req.SearchAccess, scopeErr = domain.NormalizeWorkspaceSearchAccess(req.SearchAccess)
+	if scopeErr != nil || req.SearchAccess != nil && (req.InitializeOnly || len(req.Resume) > 0) {
+		writeHTTPError(
+			w,
+			http.StatusBadRequest,
+			"search access requires a prompt and a valid scope",
+		)
+		return conversationRequest{}, conversationResumeRequest{}, false
+	}
 	if err := normalizeConversationContentBlocks(req.Content); err != nil {
 		writeHTTPError(w, http.StatusBadRequest, err.Error())
 		return conversationRequest{}, conversationResumeRequest{}, false
@@ -642,6 +657,10 @@ func (s *Service) promptConversationOnce(
 	prompt []map[string]any,
 ) (bool, error) {
 	runner.turnID = turnID
+	if err := s.prepareConversationSearchAccess(ctx, runner, session, turnID); err != nil {
+		s.expireConversationSearchAccess(ctx, runner, session)
+		return false, err
+	}
 	if err := s.writeConversationEvent(w, flusher, conversationEvent{
 		Type:      "turn_started",
 		NodeID:    runner.agentConn.nodeID,
@@ -650,6 +669,7 @@ func (s *Service) promptConversationOnce(
 		TurnID:    turnID,
 		Status:    "running",
 	}); err != nil {
+		s.expireConversationSearchAccess(ctx, runner, session)
 		return false, err
 	}
 	params := map[string]any{
@@ -663,6 +683,7 @@ func (s *Service) promptConversationOnce(
 			params,
 		)
 		if err != nil {
+			s.expireConversationSearchAccess(ctx, runner, session)
 			return false, err
 		}
 		completed, streamErr := s.streamConversationUntilPromptDone(
@@ -678,6 +699,10 @@ func (s *Service) promptConversationOnce(
 		cancel()
 		if !isConversationACPErrorKind(streamErr, "session_route_missing") || attempt > 0 {
 			if streamErr != nil {
+				var promptErr conversationACPError
+				if errors.As(streamErr, &promptErr) {
+					s.expireConversationSearchAccess(ctx, runner, session)
+				}
 				return false, streamErr
 			}
 			if !completed {
@@ -696,6 +721,7 @@ func (s *Service) promptConversationOnce(
 			return true, nil
 		}
 		if err := runner.resumeMissingRoute(ctx); err != nil {
+			s.expireConversationSearchAccess(ctx, runner, session)
 			return false, err
 		}
 	}

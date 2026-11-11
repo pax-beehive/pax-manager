@@ -44,32 +44,35 @@ type Service struct {
 		Flush(context.Context) error
 		Close(context.Context) error
 	}
-	clock             func() time.Time
-	agentWS           *AgentWSHub
-	acpTunnels        *ACPTunnelHub
-	nodeControls      *NodeControlHub
-	conversationTurns *conversationTurnQueue
-	queueChecks       sync.Map
-	queueCheckSlots   chan struct{}
-	queueRunSlots     chan struct{}
-	acpRuntime        *acpRuntimeProjector
-	maxBodyBytes      int64
-	apiLimiter        *rateLimiter
-	registerLimiter   *rateLimiter
-	regionalUsers     regionalUserStore
-	auth              *auth.Service
-	secrets           auth.Secrets
-	paxd              *paxd.Service
-	userapi           *userapi.Service
-	workspaceSearch   *userapi.WorkspaceSearchService
-	secretary         *userapi.SecretaryService
-	secretaryTasks    *userapi.SecretaryTaskService
-	secretaryStore    domain.SecretaryStore
-	secretaryTools    sync.Map
-	searchBackend     domain.SearchBackend
-	paxdArtifacts     paxdArtifactBackend
-	backgroundRunner  func(context.Context, func(context.Context))
-	e2eeEventWakes    *e2eeWakeRegistry
+	clock                func() time.Time
+	agentWS              *AgentWSHub
+	acpTunnels           *ACPTunnelHub
+	nodeControls         *NodeControlHub
+	conversationTurns    *conversationTurnQueue
+	queueChecks          sync.Map
+	queueCheckSlots      chan struct{}
+	queueRunSlots        chan struct{}
+	acpRuntime           *acpRuntimeProjector
+	maxBodyBytes         int64
+	apiLimiter           *rateLimiter
+	registerLimiter      *rateLimiter
+	regionalUsers        regionalUserStore
+	auth                 *auth.Service
+	secrets              auth.Secrets
+	paxd                 *paxd.Service
+	userapi              *userapi.Service
+	workspaceSearch      *userapi.WorkspaceSearchService
+	secretary            *userapi.SecretaryService
+	secretaryTasks       *userapi.SecretaryTaskService
+	secretaryStore       domain.SecretaryStore
+	secretaryTools       sync.Map
+	workspaceAccessMu    sync.Mutex
+	workspaceAccessEnds  sync.Map
+	workspaceAccessTurns sync.Map
+	searchBackend        domain.SearchBackend
+	paxdArtifacts        paxdArtifactBackend
+	backgroundRunner     func(context.Context, func(context.Context))
+	e2eeEventWakes       *e2eeWakeRegistry
 }
 
 type Server = Service

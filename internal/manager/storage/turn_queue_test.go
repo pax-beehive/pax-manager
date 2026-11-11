@@ -28,22 +28,43 @@ func exerciseTurnQueue(t *testing.T, store domain.TurnQueueStore, agentID, nodeI
 		TurnID:    "turn-queued",
 		CommandID: "cmd",
 		Input:     "first",
+		SearchAccess: &domain.WorkspaceSearchAccess{
+			Queries:    []string{"cicd"},
+			AgentIDs:   []string{agentID},
+			SessionIDs: []string{"*"},
+		},
 	}
 	first, replaced, err := store.PutQueuedTurn(ctx, q, false)
 	require.NoError(t, err)
 	require.False(t, replaced)
+	require.Equal(t, q.SearchAccess, first.SearchAccess)
 	q.TurnID = "unused-new-id"
 	q.Input = "edited"
 	q.CommandID = "cmd-edit"
+	q.SearchAccess = &domain.WorkspaceSearchAccess{
+		Queries:    []string{"*"},
+		AgentIDs:   []string{"*"},
+		SessionIDs: []string{"queue-session"},
+	}
 	edited, replaced, err := store.PutQueuedTurn(ctx, q, false)
 	require.NoError(t, err)
 	require.True(t, replaced)
 	require.Equal(t, first.TurnID, edited.TurnID)
+	q.SearchAccess = &domain.WorkspaceSearchAccess{
+		Queries: []string{
+			"cicd",
+		}, AgentIDs: []string{agentID}, SessionIDs: []string{"queue-session"},
+	}
+	patched, _, err := store.PutQueuedTurn(ctx, q, true)
+	require.NoError(t, err)
+	require.Equal(t, q.SearchAccess, patched.SearchAccess)
+	require.Equal(t, ownerID, patched.OwnerID)
 	entries, err := store.ListQueuedTurns(ctx, nodeID, agentID)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	queued := entries[0]
 	require.Equal(t, "edited", queued.Input)
+	require.Equal(t, q.SearchAccess, queued.SearchAccess)
 	require.Equal(t, "native-queue", queued.NativeID)
 	entries, err = store.ListQueuedTurns(ctx, "another-node", agentID)
 	require.NoError(t, err)
@@ -62,6 +83,16 @@ func exerciseTurnQueue(t *testing.T, store domain.TurnQueueStore, agentID, nodeI
 	claimed, err = store.ClaimQueuedTurn(ctx, stale, snapshot)
 	require.NoError(t, err)
 	require.False(t, claimed, "an edited draft cannot be sent with old contents")
+	stale = queued
+	stale.SearchAccess = first.SearchAccess
+	claimed, err = store.ClaimQueuedTurn(ctx, stale, snapshot)
+	require.NoError(t, err)
+	require.False(t, claimed, "an edited authorization cannot be sent with an old scope")
+	stale = queued
+	stale.OwnerID = "another-owner"
+	claimed, err = store.ClaimQueuedTurn(ctx, stale, snapshot)
+	require.NoError(t, err)
+	require.False(t, claimed, "the initiating owner is part of the claimed authorization")
 	var wins atomic.Int32
 	var wg sync.WaitGroup
 	for i := 0; i < 12; i++ {

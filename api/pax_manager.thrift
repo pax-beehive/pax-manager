@@ -1585,6 +1585,13 @@ struct SecretaryToolRequest {
   5: required string arguments_json
 }
 
+struct WorkspaceToolRequest {
+  1: required string agent_id (api.path = "agent_id")
+  2: required string session_id
+  3: required string tool
+  4: required string arguments_json
+}
+
 struct SecretarySettingsRequest {
   1: optional string user_id (api.path = "user_id")
 }
@@ -1695,6 +1702,15 @@ service PaxManagerAPI {
     openapi.description = "Read-only search, source reads, and paginated history scoped to an active Secretary lease and an ephemeral execution capability.",
     openapi.security = "nodeBearer",
     openapi.path.agent_id = "Selected Secretary agent on the authenticated node."
+  )
+
+  WorkspaceSearchResponse CallWorkspaceTool(1: required WorkspaceToolRequest request) (
+    api.post = "/api/v1/node/agents/:agent_id/workspace/tools",
+    openapi.tag = "node",
+    openapi.summary = "Search an explicit agent scope or request wider turn access",
+    openapi.description = "Requires node authentication and an active Manager turn. Search scope is explicit; the default permission covers all sessions of the calling agent. Wider scopes require turn authorization, and access requests return immediately.",
+    openapi.security = "nodeBearer",
+    openapi.path.agent_id = "Agent on the authenticated node."
   )
 
   HealthResponse Health(1: optional EmptyRequest request) (
