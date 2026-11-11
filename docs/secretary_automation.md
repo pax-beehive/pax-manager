@@ -99,6 +99,40 @@ queue revisions nor changes retry state. Progress counts processed visible text,
 including reviewed `no_summary` outcomes; pending cleanup or execution recovery can
 therefore remain even when there are no unread visible messages.
 
+Progress uses a persistent projection in `secretary_progress_owners`,
+`secretary_progress_messages`, `secretary_progress_sessions` and
+`secretary_progress_dirty`. A caught-up read checks the owner's readiness and
+reads current session counters with the existing cursor; it does not read
+`messages` or `message_parts`. Both global totals and the page retain current
+owner, node, archive and internal-session checks. Hashes and canonicalization
+versions remain exact completion criteria, including reviewed `no_summary`.
+
+An independent Manager worker coalesces source changes and publication checkpoint
+changes, processing at most 128 queued messages per step. It runs when Secretary
+is disabled and without ES or a configured agent. Successful steps wait 100 ms;
+errors back off exponentially to 10 seconds. Historical bootstrap uses persistent
+primary-key pages, bounded before owner filtering, and resumes after restart.
+Existing inactive owners start bootstrap on their first progress request; new
+source changes also discover owners. Deployment does not enqueue every account.
+Live changes take priority while unused batch capacity advances history.
+
+New historical queue rows commit before a later transaction reads their bodies.
+Projection writers use a schema-scoped advisory lock and lock dirty rows through
+counter refresh and generation acknowledgement. Triggers include owners from
+current messages, cached projections and committed dirty rows, so a concurrent
+deletion or owner change cannot erase an in-flight cleanup obligation. Changes
+to indexing acknowledgements do not enqueue progress work.
+
+If progress is not ready, a request can stage and refresh a bounded batch of up
+to 256 messages. Remaining bootstrap/dirty work or writer contention returns
+HTTP 503 with `Secretary progress is updating. Please try again shortly.`
+Console displays an updating state and continues polling; it does not display
+partial totals as zero or reuse old rows as current. Successful responses keep
+the previous JSON shape and global-count/pagination semantics. The eight-second
+request limit remains a ceiling for bounded preparation, not a latency promise.
+The projection version includes the canonicalization version; changing other
+visibility/counting rules also requires bumping the projection policy version.
+
 默认输入是用户完整可见正文和每条 assistant 消息的最后一个自然段。
 part 不是段落，message 不是 turn。`first/last/full` 只是同一可见正文的视图。
 聊天 tool call、tool result、thought/reasoning 不进入总结输入、hash、coverage、evidence 或快照；

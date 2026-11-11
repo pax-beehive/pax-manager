@@ -199,10 +199,12 @@ func (s *SecretaryService) status(ctx context.Context, owner string) (SecretaryR
 		result.State = "error"
 	case !available:
 		result.State = "waiting_for_agent"
-	case secretaryExecutionNeedsAttention(result.ExecutionState):
+	case result.ExecutionState == "needs_recovery":
 		result.State = "error"
 	case status.Processing:
 		result.State = "processing"
+	case secretaryExecutionNeedsAttention(result.ExecutionState):
+		result.State = "error"
 	case status.LastError != "":
 		result.State = "error"
 	}

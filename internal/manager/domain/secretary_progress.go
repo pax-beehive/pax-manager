@@ -8,6 +8,8 @@ import (
 
 var ErrInvalidCursor = errors.New("invalid cursor")
 
+var ErrSecretaryProgressPreparing = errors.New("secretary progress projection is preparing")
+
 type SecretaryProgressQuery struct {
 	Cursor string
 	Limit  int
@@ -55,4 +57,10 @@ type SecretaryProgressStore interface {
 		string,
 		SecretaryProgressQuery,
 	) (SecretaryProgressPage, error)
+}
+
+// SecretaryProgressProjectionStore maintains progress independently of summary generation.
+type SecretaryProgressProjectionStore interface {
+	// Advance refreshes bounded work and reports whether more remains.
+	AdvanceSecretaryProgress(context.Context, int) (bool, error)
 }

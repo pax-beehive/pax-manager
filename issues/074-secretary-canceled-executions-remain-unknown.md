@@ -51,9 +51,11 @@ cover terminal-before-timeout and terminal-after-timeout ordering without a
 full source scan. Bounded failure retries preserve pauses and current settings.
 Full Go tests, isolated PostgreSQL contracts, HTTP/ACP acceptance, the isolated
 Docker integration suite, build and lint passed. Final review found no blocker.
-The implementation has not been deployed. Runtime sealing compatibility and
-production acceptance remain rollout checks; preexisting unknown executions
-are not automatically reset.
+The implementation was confirmed deployed in production Manager e6ae940 on
+2026-11-11. A preexisting unknown attempt still has neither the prepared request
+association nor a terminal record required by the new recovery proof. Such old
+executions are not automatically reset. Runtime sealing compatibility and
+complete production recovery acceptance remain separate checks.
 
 ## Operational boundary
 

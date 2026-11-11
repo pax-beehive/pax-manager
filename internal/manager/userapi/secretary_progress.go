@@ -35,6 +35,12 @@ func (s *SecretaryService) Progress(
 		)
 	}
 	page, err := progress.ReadSecretaryProgress(ctx, principal.User.UserID, query)
+	if errors.Is(err, domain.ErrSecretaryProgressPreparing) {
+		return domain.SecretaryProgressPage{}, searchHTTPError(
+			http.StatusServiceUnavailable,
+			"Secretary progress is updating. Please try again shortly.",
+		)
+	}
 	if errors.Is(err, domain.ErrInvalidCursor) {
 		return domain.SecretaryProgressPage{}, searchHTTPError(
 			http.StatusBadRequest,
