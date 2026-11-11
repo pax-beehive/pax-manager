@@ -120,6 +120,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 077 | partial | [Search summary source checks repeat display replacement parsing](077-search-summary-replacement-check-cost.md) | high | Search / summary source visibility |
 
+| 078 | partial | [Secretary acceptance schema fixtures exceed the package timeout](078-secretary-acceptance-schema-fixture-timeout.md) | high | CI / Secretary acceptance fixtures |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
