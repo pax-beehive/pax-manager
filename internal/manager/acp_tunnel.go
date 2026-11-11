@@ -995,6 +995,7 @@ func (s *Service) agentACPFramePipeline() acpFramePipeline {
 		sessionCommandsObservationMiddleware{service: s},
 		permissionObservationMiddleware{service: s},
 		acpApprovalMiddleware{store: s.store, runtime: s.acpRuntime},
+		workspaceAccessLifecycleMiddleware{service: s},
 		acpRuntimeStateMiddleware{projector: s.acpRuntime},
 	)
 }

@@ -73,14 +73,18 @@ func newConversationTurnID() (string, error) { return auth.Secrets{}.New("turn")
 func (q *conversationTurnQueue) patch(
 	ctx context.Context,
 	agentID, sessionID, commandID, input string,
+	searchAccess *domain.WorkspaceSearchAccess,
+	ownerID string,
 ) (conversationQueuedTurn, error) {
 	turn, _, err := q.store.PutQueuedTurn(
 		ctx,
 		conversationQueuedTurn{
-			AgentID:   agentID,
-			SessionID: sessionID,
-			CommandID: commandID,
-			Input:     input,
+			AgentID:      agentID,
+			SessionID:    sessionID,
+			CommandID:    commandID,
+			Input:        input,
+			SearchAccess: searchAccess,
+			OwnerID:      ownerID,
 		},
 		true,
 	)
@@ -99,8 +103,9 @@ func (q *conversationTurnQueue) delete(
 }
 
 type conversationTurnInput struct {
-	Input  string `json:"input"`
-	Reason string `json:"reason"`
+	Input        string                        `json:"input"`
+	Reason       string                        `json:"reason"`
+	SearchAccess *domain.WorkspaceSearchAccess `json:"search_access,omitempty"`
 }
 
 type conversationTurnStopResponse struct {
@@ -198,12 +203,13 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 			return
 		}
 		turn, effect, err := s.conversationTurns.upsert(r.Context(), conversationQueuedTurn{
-			CommandID: commandID,
-			OwnerID:   control.principal.User.UserID,
-			NodeID:    control.agent.NodeID,
-			AgentID:   control.agent.AgentID,
-			SessionID: control.session.SessionID,
-			Input:     input.Input,
+			CommandID:    commandID,
+			OwnerID:      control.principal.User.UserID,
+			NodeID:       control.agent.NodeID,
+			AgentID:      control.agent.AgentID,
+			SessionID:    control.session.SessionID,
+			Input:        input.Input,
+			SearchAccess: input.SearchAccess,
 		})
 		if err != nil {
 			writeHTTPEndpointError(w, err)
@@ -230,6 +236,8 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 			control.session.SessionID,
 			commandID,
 			input.Input,
+			input.SearchAccess,
+			control.principal.User.UserID,
 		)
 		if err != nil {
 			writeHTTPEndpointError(w, err)
@@ -329,12 +337,13 @@ func (s *Service) handleConversationTurnSteer(w http.ResponseWriter, r *http.Req
 	}
 	commandID := conversationCommandID(r)
 	turn, queueEffect, err := s.conversationTurns.upsert(r.Context(), conversationQueuedTurn{
-		CommandID: commandID,
-		OwnerID:   control.principal.User.UserID,
-		NodeID:    control.agent.NodeID,
-		AgentID:   control.agent.AgentID,
-		SessionID: control.session.SessionID,
-		Input:     input.Input,
+		CommandID:    commandID,
+		OwnerID:      control.principal.User.UserID,
+		NodeID:       control.agent.NodeID,
+		AgentID:      control.agent.AgentID,
+		SessionID:    control.session.SessionID,
+		Input:        input.Input,
+		SearchAccess: input.SearchAccess,
 	})
 	if err != nil {
 		writeHTTPEndpointError(w, err)
@@ -393,6 +402,10 @@ func (s *Service) stopConversationTurn(
 	})
 	if err != nil {
 		return "", err
+	}
+	if err := s.expireTurnSearchAccess(ctx, control.agent.NodeID, control.agent.AgentID,
+		control.session.SessionID, conversationActiveTurnID(control.session)); err != nil {
+		logging.Warn(ctx, "turn search authorization expiry failed", logging.Err(err))
 	}
 	if err := runner.sendCancelRaw(ctx, payload); err != nil {
 		return "", err
@@ -472,6 +485,12 @@ func readConversationTurnInput(
 	}
 	input.Input = strings.TrimSpace(input.Input)
 	input.Reason = strings.TrimSpace(input.Reason)
+	var err error
+	input.SearchAccess, err = domain.NormalizeWorkspaceSearchAccess(input.SearchAccess)
+	if err != nil {
+		writeHTTPError(w, http.StatusBadRequest, "invalid search access scope")
+		return conversationTurnInput{}, false
+	}
 	if input.Input == "" || len(input.Input) > domain.MaxQueuedTurnBytes {
 		writeHTTPError(w, http.StatusBadRequest, "input must contain between 1 and 65536 bytes")
 		return conversationTurnInput{}, false
@@ -485,6 +504,7 @@ func conversationQueuedTurnData(turn conversationQueuedTurn) map[string]any {
 		"command_id":     turn.CommandID,
 		"created_at":     turn.CreatedAt,
 		"input":          turn.Input,
+		"search_access":  turn.SearchAccess,
 		"node_id":        turn.NodeID,
 		"queued_turn_id": turn.TurnID,
 		"session_id":     turn.SessionID,

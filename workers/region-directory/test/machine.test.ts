@@ -130,6 +130,93 @@ it("does not treat an arbitrary user ID as permission to access an account", asy
   expect(response.status).toBe(401);
   expect(response.headers.has("X-Pax-User-ID")).toBe(false);
 });
+it.each([200, 403])(
+  "routes workspace tools by node identity and preserves Manager decision %s",
+  async (status) => {
+    const { worker, calls, fetch } = setup("usr_wrong");
+    const path = "/api/v1/node/agents/agent_real/workspace/tools";
+    const body = JSON.stringify({
+      session_id: "session_real",
+      tool: "search",
+      arguments_json: JSON.stringify({
+        query: "cicd",
+        scope: { agent_ids: ["self"], session_ids: ["*"] },
+      }),
+    });
+    const original = fetch.getMockImplementation()!;
+    fetch.mockImplementation(async (input, init) => {
+      if (new URL(input).pathname === "/api/v1/node/identity")
+        return original(input, init);
+      calls.push({ url: new URL(input), init });
+      const headers = new Headers(init.headers);
+      expect(headers.get("X-Pax-Key")).toBe("valid-node-key");
+      for (const header of [
+        "X-Pax-User-ID",
+        "X-User-Email",
+        "X-Pax-Identity-Assertion",
+        "Cf-Access-Jwt-Assertion",
+        "Cookie",
+      ])
+        expect(headers.has(header)).toBe(false);
+      expect(await new Response(init.body).text()).toBe(body);
+      return Response.json(
+        status === 200
+          ? { code: 200, data: { hits: [] } }
+          : { code: 403, message: "workspace turn requires authorization" },
+        { status },
+      );
+    });
+    const response = await worker.fetch(
+      new Request(env.MACHINE_PUBLIC_ORIGIN + path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Pax-Key": "valid-node-key",
+          "X-Pax-User-ID": "usr_wrong",
+          "X-User-Email": "attacker@example.com",
+          "X-Pax-Identity-Assertion": "forged",
+          "Cf-Access-Jwt-Assertion": "forged",
+          Cookie: "browser=forged",
+        },
+        body,
+      }),
+      env,
+    );
+    expect(response.status).toBe(status);
+    expect(response.headers.get("X-Pax-User-ID")).toBe("usr_real");
+    const business = calls.filter((call) => call.url.pathname === path);
+    expect(business).toHaveLength(1);
+    expect(business[0].url.host).toBe("hk-node.example");
+  },
+);
+it("denies workspace tools with an invalid node key despite forged user identity", async () => {
+  const { worker, fetch, calls } = setup("usr_real");
+  fetch.mockImplementation(async (input, init) => {
+    calls.push({ url: new URL(input), init });
+    return new Response(null, { status: 401 });
+  });
+  const response = await worker.fetch(
+    new Request(
+      env.MACHINE_PUBLIC_ORIGIN +
+        "/api/v1/node/agents/agent_real/workspace/tools",
+      {
+        method: "POST",
+        headers: {
+          "X-Pax-Key": "invalid-key",
+          "X-Pax-User-ID": "usr_real",
+          "X-Pax-Identity-Assertion": "forged",
+        },
+        body: "{}",
+      },
+    ),
+    env,
+  );
+  expect(response.status).toBe(401);
+  expect(response.headers.has("X-Pax-User-ID")).toBe(false);
+  expect(
+    calls.every((call) => call.url.pathname === "/api/v1/node/identity"),
+  ).toBe(true);
+});
 it("preserves unavailable vs invalid credentials and directory failure", async () => {
   const { worker, request, fetch, lookupUser } = setup("usr_real");
   fetch.mockResolvedValue(new Response(null, { status: 503 }));

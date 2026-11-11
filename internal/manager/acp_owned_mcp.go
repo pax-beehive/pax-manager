@@ -18,6 +18,7 @@ func paxConversationToolName(name, sessionID string) bool {
 		"list_agents", "ask", "reply", "publish_artifact",
 		"workspace_search", "workspace_read", "workspace_expand",
 		"workspace_history", "workspace_summaries",
+		"workspace_request_access",
 	} {
 		for _, candidate := range []string{
 			"mcp__" + server + "__" + tool,

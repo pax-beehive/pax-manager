@@ -202,6 +202,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"RunSecretaryNow":               RunSecretaryNow,
 	"SearchWorkspace":               SearchWorkspace,
 	"CallSecretaryTool":             CallSecretaryTool,
+	"CallWorkspaceTool":             CallWorkspaceTool,
 	"UpdateNode":                    UpdateNode,
 	"UpdateNodeAgent":               UpdateNodeAgent,
 	"UpdateNodeAgentSession":        UpdateNodeAgentSession,

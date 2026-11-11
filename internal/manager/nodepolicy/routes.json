@@ -49,6 +49,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/v1/node/agents/:agent_id/workspace/tools",
+    "auth": "node-key",
+    "owner_boundary": "Node-owned agent and active turn; explicit search scope defaults to own agent and requires approved expansion for wider access; owner fixed by the agent",
+    "rate_class": "workspace-search",
+    "caller": "paxd turn-scoped workspace search and access-request MCP"
+  },
+  {
+    "method": "POST",
     "path": "/api/v1/node/status",
     "auth": "node-key",
     "owner_boundary": "Authenticated node; reported agents must belong to that node",

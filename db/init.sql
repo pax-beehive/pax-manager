@@ -1988,6 +1988,7 @@ CREATE TABLE IF NOT EXISTS session_turn_queue (
     command_id TEXT NOT NULL,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     input TEXT NOT NULL CHECK (octet_length(input) BETWEEN 1 AND 65536),
+    search_access JSONB NOT NULL DEFAULT 'null'::jsonb,
     state TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'sending', 'uncertain')),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
@@ -1995,6 +1996,9 @@ CREATE TABLE IF NOT EXISTS session_turn_queue (
     FOREIGN KEY (agent_id, session_id) REFERENCES agent_sessions(agent_id, session_id)
         ON DELETE CASCADE
 );
+
+ALTER TABLE session_turn_queue
+    ADD COLUMN IF NOT EXISTS search_access JSONB NOT NULL DEFAULT 'null'::jsonb;
 
 -- Notification receiver registry.
 CREATE TABLE IF NOT EXISTS notification_receivers (

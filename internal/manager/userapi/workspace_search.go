@@ -401,6 +401,7 @@ func validateWorkspaceQuery(query domain.SearchQuery) error {
 		(query.GroupBy != "" && query.GroupBy != "session") || len(query.GroupKey) > 256 ||
 		(query.GroupBy != "" && query.GroupKey != "") ||
 		len(query.Kinds) > 3 ||
+		len(query.AgentIDs) > 50 ||
 		len(query.SessionIDs) > 50 {
 		return searchHTTPError(http.StatusBadRequest, "invalid search query or limits")
 	}
@@ -443,6 +444,7 @@ func searchMatchesCurrent(
 	query domain.SearchQuery,
 ) bool {
 	if document.Deleted || document.OwnerUserID != owner ||
+		(len(query.AgentIDs) > 0 && !searchFilterContains(query.AgentIDs, document.AgentID)) ||
 		(len(query.SessionIDs) > 0 && !searchFilterContains(query.SessionIDs, document.SessionID)) ||
 		(len(query.Kinds) > 0 && !searchFilterContains(query.Kinds, document.Kind)) {
 		return false
