@@ -2,6 +2,7 @@ package userapi
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"net/http"
 	"strings"
@@ -139,25 +140,36 @@ func (s *SecretaryService) validateAgent(
 func (s *SecretaryService) Run(
 	ctx context.Context,
 	meta auth.RequestMetadata,
-) (SecretaryResponse, error) {
+	requestID string,
+) (domain.SecretaryRunReceipt, error) {
 	principal, err := s.owner(ctx, meta)
 	if err != nil {
-		return SecretaryResponse{}, err
+		return domain.SecretaryRunReceipt{}, err
 	}
-	status, err := s.store.GetSecretaryStatus(ctx, principal.User.UserID)
-	if err != nil {
-		return SecretaryResponse{}, err
+	if requestID == "" {
+		requestID = "srq_" + rand.Text()
 	}
-	if !status.Enabled || status.AgentID == "" {
-		return SecretaryResponse{}, searchHTTPError(
+	if !domain.ValidSecretaryRunRequestID(requestID) {
+		return domain.SecretaryRunReceipt{}, searchHTTPError(
+			http.StatusBadRequest,
+			"Invalid Secretary run request ID",
+		)
+	}
+	store, ok := s.store.(domain.SecretaryRunStore)
+	if !ok {
+		return domain.SecretaryRunReceipt{}, searchHTTPError(
+			http.StatusServiceUnavailable,
+			"Secretary run queue is unavailable",
+		)
+	}
+	receipt, err := store.RequestSecretaryRun(ctx, principal.User.UserID, requestID)
+	if errors.Is(err, domain.ErrConflict) {
+		return domain.SecretaryRunReceipt{}, searchHTTPError(
 			http.StatusConflict,
 			"Enable Secretary before requesting a run",
 		)
 	}
-	if err = s.store.RetrySecretaryJobs(ctx, principal.User.UserID); err != nil {
-		return SecretaryResponse{}, err
-	}
-	return s.status(ctx, principal.User.UserID)
+	return receipt, err
 }
 
 func (s *SecretaryService) status(ctx context.Context, owner string) (SecretaryResponse, error) {

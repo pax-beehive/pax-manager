@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,6 +64,25 @@ func (f *secretaryAPIFixture) RetrySecretaryJobs(_ context.Context, owner string
 	f.owner = owner
 	f.retried++
 	return f.err
+}
+
+func (f *secretaryAPIFixture) RequestSecretaryRun(
+	_ context.Context,
+	owner, id string,
+) (domain.SecretaryRunReceipt, error) {
+	if f.err != nil {
+		return domain.SecretaryRunReceipt{}, f.err
+	}
+	if !f.status.Enabled || f.status.AgentID == "" {
+		return domain.SecretaryRunReceipt{}, domain.ErrConflict
+	}
+	f.owner = owner
+	f.retried++
+	return domain.SecretaryRunReceipt{
+		RequestID:  id,
+		State:      "accepted",
+		AcceptedAt: time.Unix(100, 0),
+	}, nil
 }
 
 type secretaryFleet struct {
@@ -218,14 +238,14 @@ func TestSecretaryAPIGivenRemovedAgentThenCanDisableAndClearSelection(t *testing
 func TestSecretaryAPIGivenRunNowThenOnlyEnabledOwnerWorkIsQueued(t *testing.T) {
 	store := &secretaryAPIFixture{}
 	service := NewSecretaryService(workspacePrincipal{owner: "owner"}, store, secretaryFleet{}, nil)
-	_, err := service.Run(t.Context(), auth.RequestMetadata{})
+	_, err := service.Run(t.Context(), auth.RequestMetadata{}, "")
 	var apiErr apperr.Error
 	require.ErrorAs(t, err, &apiErr)
 	assert.Equal(t, http.StatusConflict, apiErr.Status)
 	assert.Zero(t, store.retried)
 	store.status.Enabled = true
 	store.status.AgentID = "agent"
-	_, err = service.Run(t.Context(), auth.RequestMetadata{})
+	_, err = service.Run(t.Context(), auth.RequestMetadata{}, "")
 	require.NoError(t, err)
 	assert.Equal(t, 1, store.retried)
 	assert.Equal(t, "owner", store.owner)

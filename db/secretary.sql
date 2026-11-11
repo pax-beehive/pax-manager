@@ -427,3 +427,20 @@ END $$;
 DROP TRIGGER IF EXISTS secretary_progress_internal_dirty ON secretary_internal_sessions;
 CREATE TRIGGER secretary_progress_internal_dirty AFTER INSERT OR DELETE OR UPDATE OF agent_id,session_id
     ON secretary_internal_sessions FOR EACH ROW EXECUTE FUNCTION pax_secretary_progress_internal_trigger();
+
+CREATE TABLE IF NOT EXISTS secretary_run_commands (
+    owner_user_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    settings_revision BIGINT NOT NULL,
+    command_version TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','completed','canceled')),
+    source_upper BIGINT NOT NULL CHECK (source_upper >= 0),
+    source_after BIGINT NOT NULL DEFAULT 0 CHECK (source_after >= 0),
+    accepted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    queued_count BIGINT NOT NULL DEFAULT 0 CHECK (queued_count >= 0),
+    PRIMARY KEY(owner_user_id,request_id)
+);
+CREATE INDEX IF NOT EXISTS secretary_run_commands_pending
+    ON secretary_run_commands(accepted_at,owner_user_id,request_id) WHERE state='pending';
+CREATE INDEX IF NOT EXISTS secretary_jobs_owner_source ON secretary_jobs(owner_user_id,source_id);

@@ -55,6 +55,8 @@ func Run(ctx context.Context) error {
 	defer stopSearch()
 	stopSecretaryProgress := srv.startSecretaryProgressWorker(ctx, store)
 	defer stopSecretaryProgress()
+	stopSecretaryRuns := srv.startSecretaryRunWorker(ctx, store)
+	defer stopSecretaryRuns()
 	stopSecretary := srv.startSecretaryWorker(ctx)
 	defer stopSecretary()
 	addr := ":" + cfg.Port

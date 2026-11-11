@@ -1596,6 +1596,11 @@ struct SecretarySettingsRequest {
   1: optional string user_id (api.path = "user_id")
 }
 
+struct SecretaryRunRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string request_id
+}
+
 struct SecretarySettingsUpdateRequest {
   1: optional string user_id (api.path = "user_id")
   2: required string agent_id
@@ -1659,11 +1664,11 @@ service PaxManagerAPI {
     openapi.description = "Persists owner-scoped settings with optimistic revision checks. Disabling fences unfinished publication. Offline owned agents may be selected."
   )
 
-  WorkspaceSearchResponse RunSecretaryNow(1: optional SecretarySettingsRequest request) (
+  WorkspaceSearchResponse RunSecretaryNow(1: optional SecretaryRunRequest request) (
     api.post = "/api/v1/user/:user_id/secretary/run",
     openapi.tag = "user",
     openapi.summary = "Queue pending Secretary work and retry failures",
-    openapi.description = "Queues work for the enabled owner without running a model in the HTTP request. The worker uses the selected owned agent."
+    openapi.description = "Persists a bounded owner-scoped retry command and immediately returns HTTP 202 with request_id, state accepted and accepted_at. Repeating the same request_id returns the original receipt. The worker retries eligible pending jobs in batches without rescanning history, preserving paused and unresolved executions. Missing request_id is supported for legacy clients but cannot provide client retry deduplication."
   )
 
   WorkspaceSearchResponse SearchWorkspace(1: optional WorkspaceSearchRequest request) (
