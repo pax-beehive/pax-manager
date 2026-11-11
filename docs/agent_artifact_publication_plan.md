@@ -594,17 +594,39 @@ disposition=attachment
 redirect=true
 ```
 
-When available, the route signs a short-lived URL pinned to the finalized GCS
-generation. Before availability, the metadata endpoint reports current state
-and the content endpoint returns a typed not-available response.
+When available, the route signs a short-lived S3 GET URL pinned to the finalized
+object generation and S3 version where available. Before availability, the
+metadata endpoint reports current state and the content endpoint returns a typed
+not-available response.
 
 Initial preview policy:
 
 - `image/*`: inline image.
 - `application/pdf`: inline PDF viewer.
+- `audio/*`, `video/*`: native media playback using the signed GET URL directly.
 - `text/plain`, Markdown, and JSON: bounded fetch followed by safe rendering.
 - HTML: sandboxed preview or download-only until a safe renderer is complete.
 - Other binary types: metadata and download only.
+
+The existing artifact and publication content routes issue and renew media URLs;
+no separate streaming endpoint or authentication mechanism is needed. Manager
+authenticates the user and checks artifact ownership before signing every URL.
+The private S3 object is read using the URL signature until it expires, so the
+browser can issue multiple byte-range requests without sending Manager cookies
+or authorization headers to storage. The GET signature leaves `Range` unset so
+the player can change it when buffering or seeking. Explicit
+`disposition=attachment` remains available for downloads.
+
+The default URL lifetime is 15 minutes. After expiry, the client requests another
+URL through the same authenticated route and restores its playback position.
+Treat signed URLs as temporary credentials. Native cross-origin media playback
+uses the element's default mode without a `crossorigin` attribute. JavaScript
+fetch/readback or an explicit `crossorigin` mode would additionally require a
+matching storage CORS policy. Existing MinIO CORS configuration is unchanged.
+
+Range playback reads one stored file; it does not transcode, create HLS segments,
+or guarantee browser codec support. Producers should place MP4 metadata at the
+front of the file (for example, FFmpeg `-movflags +faststart`) for prompt startup.
 
 Browser WebSocket publication updates are an optimization. Reconnect and
 history reload must reconstruct the card from durable messages and resolve its
