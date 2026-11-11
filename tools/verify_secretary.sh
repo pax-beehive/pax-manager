@@ -49,6 +49,8 @@ if [[ ! "${secretary_address}" =~ ^127\.0\.0\.1:[0-9]+$ ]]; then
   exit 1
 fi
 export PAX_MANAGER_SECRETARY_TEST_DATABASE_URL="postgres://pax:pax@${secretary_address}/secretary_test?sslmode=disable"
+# Only this disposable container opts into template cloning; ordinary local fixtures keep schema isolation.
+export PAX_MANAGER_SECRETARY_TEST_TEMPLATE_DATABASE=pax_secretary_fixture_template
 export PAX_NOTIFICATIONS_TEST_DATABASE_URL="${PAX_MANAGER_SECRETARY_TEST_DATABASE_URL}"
 export GOWORK=off
 export GOCACHE="${GOCACHE:-/tmp/pax-manager-go-cache}"
@@ -94,7 +96,7 @@ import os
 from pathlib import Path
 import sys
 
-passed, skipped = set(), set()
+passed, skipped, package_seconds = set(), set(), {}
 for name in ("go.json", "worker.json"):
     for line in (Path(sys.argv[1]) / name).read_text().splitlines():
         try:
@@ -106,7 +108,11 @@ for name in ("go.json", "worker.json"):
                 passed.add(event["Test"])
             if event.get("Action") == "skip":
                 skipped.add(event["Test"])
+        elif event.get("Action") == "pass" and event.get("Package"):
+            package_seconds[event["Package"]] = event["Elapsed"]
 required = {
+    "TestSecretaryPostgresFixtureGivenIndependentCasesWhenOneChangesDDLThenOthersKeepFreshSeeds",
+    "TestSecretaryPostgresFixtureGivenCompletedCaseWhenCleanedThenItsStorageIsRemoved",
     "TestSecretaryHTTPGivenOwnerThenSettingsArePersistentAndDefaultOff",
     "TestSecretaryAgentGivenOwnedAgentThenRunsRealACPAndRecoversCompletedOutput",
     "TestSecretaryAgentGivenDisabledRunThenSendsNativeCancel",
@@ -125,4 +131,6 @@ if os.environ.get("PAX_SECRETARY_TEST_PAXD_BINARY"):
 if skipped or required - passed:
     raise SystemExit(f"Acceptance incomplete: skipped={sorted(skipped)}, missing={sorted(required - passed)}")
 print(f"PASS {len(passed)} Secretary checks, including actual HTTP/ACP/PostgreSQL; no skipped tests")
+for package, seconds in sorted(package_seconds.items()):
+    print(f"PASS {package}: {seconds:.3f}s")
 PY

@@ -1,16 +1,13 @@
 package storage
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,33 +22,8 @@ func secretaryPostgresFixture(t *testing.T) *PostgresStore {
 	}
 	config, err := pgx.ParseConfig(dsn)
 	require.NoError(t, err)
-	admin := stdlib.OpenDB(*config)
-	schema := fmt.Sprintf("secretary_%d", time.Now().UnixNano())
-	_, err = admin.ExecContext(t.Context(), "CREATE SCHEMA "+schema)
-	require.NoError(t, err)
-	config.RuntimeParams["search_path"] = schema
-	db := stdlib.OpenDB(*config)
-	t.Cleanup(func() {
-		_ = db.Close()
-		_, _ = admin.ExecContext(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-		_ = admin.Close()
-	})
-	for _, name := range []string{"init.sql", "summaries.sql", "search.sql", "secretary.sql"} {
-		raw, readErr := os.ReadFile(filepath.Join("..", "..", "..", "db", name))
-		require.NoError(t, readErr)
-		_, err = db.ExecContext(t.Context(), string(raw))
-		require.NoError(t, err)
-	}
-	_, err = db.ExecContext(
-		t.Context(),
-		`ALTER TABLE messages ALTER COLUMN status SET DEFAULT 'complete';
- INSERT INTO users(user_id,email) VALUES ('owner','owner@example.test'),('other','other@example.test');
- INSERT INTO agents(agent_id,owner_user_id,hostname,os,api_key_hash) VALUES ('source','owner','host','linux','source-key'),('secretary','owner','host','linux','secretary-key'),('other','other','host','linux','other-key');
- INSERT INTO agent_sessions(agent_id,session_id,session_name) VALUES ('source','session','Original session');
- INSERT INTO messages(message_id,agent_id,session_id,source,direction,role,message_type,session_seq) VALUES ('m1','source','session','test','inbound','assistant','agent_message_chunk',1);
- INSERT INTO message_parts(message_id,part_index,part_type,text) VALUES ('m1',0,'text','original');`,
-	)
-	require.NoError(t, err)
+	db := secretaryPostgresCaseDatabase(t, config)
+	require.NoError(t, seedSecretaryPostgresFixture(t.Context(), db))
 	return NewPostgresStore(db, time.Now)
 }
 
