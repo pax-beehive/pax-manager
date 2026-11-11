@@ -68,6 +68,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/daemon/commands", ListNodeDaemonCommands)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/daemon/commands/:command_id", GetNodeDaemonCommand)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/daemon/browser", NodeBrowserControl)
+	h.POST("/api/v1/user/:user_id/nodes/:node_id/daemon/mobile", NodeMobileControl)
 	h.GET("/api/v1/user/:user_id/nodes/:node_id/daemon/secret-channel/open", OpenNodeDaemonSecretChannel)
 	h.POST("/api/v1/user/:user_id/nodes/:node_id/daemon/secret-channel/push", PushNodeDaemonSecretChannel)
 	h.PATCH("/api/v1/user/:user_id/nodes/:node_id", UpdateNode)

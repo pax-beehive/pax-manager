@@ -926,3 +926,8 @@ func _controlsecretarytaskMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _nodemobilecontrolMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
