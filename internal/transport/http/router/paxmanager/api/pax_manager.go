@@ -178,6 +178,7 @@ func Register(r *server.Hertz) {
 								_daemon.GET("/commands", append(_listnodedaemoncommandsMw(), handler.ListNodeDaemonCommands)...)
 								_daemon.GET("/directories", append(_listnodedaemondirectoriesMw(), handler.ListNodeDaemonDirectories)...)
 								_daemon.GET("/harnesses", append(_listnodedaemonharnessesMw(), handler.ListNodeDaemonHarnesses)...)
+								_daemon.POST("/mobile", append(_nodemobilecontrolMw(), handler.NodeMobileControl)...)
 								_daemon.POST("/restart", append(_restartnodedaemonMw(), handler.RestartNodeDaemon)...)
 								_daemon.GET("/status", append(_getnodedaemonstatusMw(), handler.GetNodeDaemonStatus)...)
 								_daemon.POST("/upgrade", append(_upgradenodedaemonMw(), handler.UpgradeNodeDaemon)...)

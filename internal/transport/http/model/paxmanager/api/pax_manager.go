@@ -65141,6 +65141,328 @@ func (p *NodeBrowserControlRequest) String() string {
 
 }
 
+type NodeMobileControlRequest struct {
+	UserID    *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID    *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	Operation *string `thrift:"operation,3,optional" form:"operation" json:"operation,omitempty" query:"operation"`
+	Payload   JSON    `thrift:"payload,4,optional" form:"payload" json:"payload,omitempty" query:"payload"`
+}
+
+func NewNodeMobileControlRequest() *NodeMobileControlRequest {
+	return &NodeMobileControlRequest{}
+}
+
+func (p *NodeMobileControlRequest) InitDefault() {
+}
+
+var NodeMobileControlRequest_UserID_DEFAULT string
+
+func (p *NodeMobileControlRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return NodeMobileControlRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var NodeMobileControlRequest_NodeID_DEFAULT string
+
+func (p *NodeMobileControlRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return NodeMobileControlRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var NodeMobileControlRequest_Operation_DEFAULT string
+
+func (p *NodeMobileControlRequest) GetOperation() (v string) {
+	if !p.IsSetOperation() {
+		return NodeMobileControlRequest_Operation_DEFAULT
+	}
+	return *p.Operation
+}
+
+var NodeMobileControlRequest_Payload_DEFAULT JSON
+
+func (p *NodeMobileControlRequest) GetPayload() (v JSON) {
+	if !p.IsSetPayload() {
+		return NodeMobileControlRequest_Payload_DEFAULT
+	}
+	return p.Payload
+}
+
+var fieldIDToName_NodeMobileControlRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+	3: "operation",
+	4: "payload",
+}
+
+func (p *NodeMobileControlRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *NodeMobileControlRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *NodeMobileControlRequest) IsSetOperation() bool {
+	return p.Operation != nil
+}
+
+func (p *NodeMobileControlRequest) IsSetPayload() bool {
+	return p.Payload != nil
+}
+
+func (p *NodeMobileControlRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_NodeMobileControlRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *NodeMobileControlRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *NodeMobileControlRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *NodeMobileControlRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Operation = _field
+	return nil
+}
+func (p *NodeMobileControlRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field JSON
+	if v, err := iprot.ReadBinary(); err != nil {
+		return err
+	} else {
+		_field = JSON(v)
+	}
+	p.Payload = _field
+	return nil
+}
+
+func (p *NodeMobileControlRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NodeMobileControlRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *NodeMobileControlRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *NodeMobileControlRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *NodeMobileControlRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetOperation() {
+		if err = oprot.WriteFieldBegin("operation", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Operation); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *NodeMobileControlRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPayload() {
+		if err = oprot.WriteFieldBegin("payload", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBinary([]byte(p.Payload)); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *NodeMobileControlRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeMobileControlRequest(%+v)", *p)
+
+}
+
 type OpenNodeDaemonSecretChannelRequest struct {
 	UserID *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
 	NodeID *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
@@ -76876,6 +77198,8 @@ type PaxManagerAPI interface {
 
 	NodeBrowserControl(ctx context.Context, request *NodeBrowserControlRequest) (r *NodeDaemonQueryResponse, err error)
 
+	NodeMobileControl(ctx context.Context, request *NodeMobileControlRequest) (r *NodeDaemonQueryResponse, err error)
+
 	OpenNodeDaemonSecretChannel(ctx context.Context, request *OpenNodeDaemonSecretChannelRequest) (r *NodeDaemonQueryResponse, err error)
 
 	PushNodeDaemonSecretChannel(ctx context.Context, request *PushNodeDaemonSecretChannelRequest) (r *NodeDaemonCommandResponse, err error)
@@ -77534,6 +77858,15 @@ func (p *PaxManagerAPIClient) NodeBrowserControl(ctx context.Context, request *N
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) NodeMobileControl(ctx context.Context, request *NodeMobileControlRequest) (r *NodeDaemonQueryResponse, err error) {
+	var _args PaxManagerAPINodeMobileControlArgs
+	_args.Request = request
+	var _result PaxManagerAPINodeMobileControlResult
+	if err = p.Client_().Call(ctx, "NodeMobileControl", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) OpenNodeDaemonSecretChannel(ctx context.Context, request *OpenNodeDaemonSecretChannelRequest) (r *NodeDaemonQueryResponse, err error) {
 	var _args PaxManagerAPIOpenNodeDaemonSecretChannelArgs
 	_args.Request = request
@@ -77985,6 +78318,7 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("ListNodeDaemonCommands", &paxManagerAPIProcessorListNodeDaemonCommands{handler: handler})
 	self.AddToProcessorMap("GetNodeDaemonCommand", &paxManagerAPIProcessorGetNodeDaemonCommand{handler: handler})
 	self.AddToProcessorMap("NodeBrowserControl", &paxManagerAPIProcessorNodeBrowserControl{handler: handler})
+	self.AddToProcessorMap("NodeMobileControl", &paxManagerAPIProcessorNodeMobileControl{handler: handler})
 	self.AddToProcessorMap("OpenNodeDaemonSecretChannel", &paxManagerAPIProcessorOpenNodeDaemonSecretChannel{handler: handler})
 	self.AddToProcessorMap("PushNodeDaemonSecretChannel", &paxManagerAPIProcessorPushNodeDaemonSecretChannel{handler: handler})
 	self.AddToProcessorMap("UpdateNode", &paxManagerAPIProcessorUpdateNode{handler: handler})
@@ -80957,6 +81291,54 @@ func (p *paxManagerAPIProcessorNodeBrowserControl) Process(ctx context.Context, 
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("NodeBrowserControl", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorNodeMobileControl struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorNodeMobileControl) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPINodeMobileControlArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("NodeMobileControl", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPINodeMobileControlResult{}
+	var retval *NodeDaemonQueryResponse
+	if retval, err2 = p.handler.NodeMobileControl(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing NodeMobileControl: "+err2.Error())
+		oprot.WriteMessageBegin("NodeMobileControl", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("NodeMobileControl", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -100905,6 +101287,300 @@ func (p *PaxManagerAPINodeBrowserControlResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPINodeBrowserControlResult(%+v)", *p)
+
+}
+
+type PaxManagerAPINodeMobileControlArgs struct {
+	Request *NodeMobileControlRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPINodeMobileControlArgs() *PaxManagerAPINodeMobileControlArgs {
+	return &PaxManagerAPINodeMobileControlArgs{}
+}
+
+func (p *PaxManagerAPINodeMobileControlArgs) InitDefault() {
+}
+
+var PaxManagerAPINodeMobileControlArgs_Request_DEFAULT *NodeMobileControlRequest
+
+func (p *PaxManagerAPINodeMobileControlArgs) GetRequest() (v *NodeMobileControlRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPINodeMobileControlArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPINodeMobileControlArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPINodeMobileControlArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPINodeMobileControlArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPINodeMobileControlArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeMobileControlArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewNodeMobileControlRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPINodeMobileControlArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NodeMobileControl_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeMobileControlArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeMobileControlArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPINodeMobileControlArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPINodeMobileControlResult struct {
+	Success *NodeDaemonQueryResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPINodeMobileControlResult() *PaxManagerAPINodeMobileControlResult {
+	return &PaxManagerAPINodeMobileControlResult{}
+}
+
+func (p *PaxManagerAPINodeMobileControlResult) InitDefault() {
+}
+
+var PaxManagerAPINodeMobileControlResult_Success_DEFAULT *NodeDaemonQueryResponse
+
+func (p *PaxManagerAPINodeMobileControlResult) GetSuccess() (v *NodeDaemonQueryResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPINodeMobileControlResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPINodeMobileControlResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPINodeMobileControlResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPINodeMobileControlResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPINodeMobileControlResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeMobileControlResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewNodeDaemonQueryResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPINodeMobileControlResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("NodeMobileControl_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeMobileControlResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPINodeMobileControlResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPINodeMobileControlResult(%+v)", *p)
 
 }
 

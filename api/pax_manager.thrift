@@ -1376,6 +1376,13 @@ struct NodeBrowserControlRequest {
   4: optional JSON payload
 }
 
+struct NodeMobileControlRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string operation
+  4: optional JSON payload
+}
+
 struct OpenNodeDaemonSecretChannelRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
@@ -2243,6 +2250,18 @@ service PaxManagerAPI {
     openapi.tag = "user",
     openapi.summary = "Operate node browser permissions",
     openapi.description = "Owner-authorized, transient browser operator requests. Credentials remain on the node. No arbitrary proxy routes are accepted.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier."
+  )
+
+  NodeDaemonQueryResponse NodeMobileControl(
+    1: optional NodeMobileControlRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/daemon/mobile",
+    openapi.tag = "user",
+    openapi.summary = "Operate managed Android devices on a node",
+    openapi.description = "Owner-authorized transient mobile operations over the existing node control tunnel. Only named lifecycle, screenshot, input and bounded recording operations are accepted. Runtime credentials stay on the node. WebRTC signaling and arbitrary proxy routes are not exposed.",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier."
