@@ -565,7 +565,7 @@ func TestSecretaryTerminalGivenWakeFailureThenReliableRetryRetainsOneTerminalAnd
 ) {
 	f := newSecretaryTerminalFixture(t)
 	store := &secretaryTerminalWakeStore{Store: f.service.store, fail: true}
-	f.agent.store = store
+	f.agent.store = newCanonicalSessionStore(store)
 	assert.ErrorIs(
 		t,
 		persistSecretaryExecutionTerminal(t.Context(), f.agent, f.frame),

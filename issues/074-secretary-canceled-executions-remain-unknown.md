@@ -57,6 +57,26 @@ association nor a terminal record required by the new recovery proof. Such old
 executions are not automatically reset. Runtime sealing compatibility and
 complete production recovery acceptance remain separate checks.
 
+The 2026-11-11 follow-up found a production wiring gap: `newServer` wraps the
+storage implementation in `canonicalSessionStore`, which did not forward the
+optional terminal-recovery wake. A verified cancellation persisted about
+0.7 seconds after an attempt became unknown, but the wrapper silently prevented
+its recovery wake. The fix preserves the named wake interface through the
+wrapper and propagates wake errors so reliable delivery can retry projection.
+Regression coverage must exercise the actual service wrapper, not just raw
+storage or a replacement wake mock. This does not change the five-minute
+execution deadline or classify an unconfirmed timeout as a known failure.
+
+Terminals already acknowledged before this fix will not be delivered again
+on deployment. For those tasks, use the existing per-task `recheck` action
+with the observed task revision, batch, attempt, retry epoch and settings
+revision. It reads the
+original attempt only, does not dispatch a prompt, and applies the existing
+bounded retry policy only after a verified failure. Missing proof remains
+unknown. Changed settings or source versions can return a conflict; inspect
+the current task instead of bypassing that guard. Do not reset all tasks or
+force a new epoch as a recovery shortcut.
+
 ## Operational boundary
 
 The two native-aborted attempts can be retried individually after verifying
