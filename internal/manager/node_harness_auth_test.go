@@ -243,6 +243,40 @@ func TestNodeHarnessAuthGivenLostStartAckWhenTunnelReconnectsThenStatusRecoversA
 	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 }
 
+func TestNodeHarnessAuthGivenLoggedInAccountWhenReadingStatusThenReturnsUncachedPublicIdentity(
+	t *testing.T,
+) {
+	srv, registered := testNodeControlServer(t, "todd@example.com")
+	ws, closeServer := dialNodeControlTunnel(t, srv, registered)
+	defer closeServer()
+	defer func() { _ = ws.Close() }()
+	waitNodeControlConnection(t, srv.nodeControls, registered.NodeID)
+	writeNodeControlHeartbeat(t, ws, registered.NodeID, "account-identity")
+	waitNodeControlRemoteID(t, srv.nodeControls, registered.NodeID, "remote_prod")
+	path := "/api/v1/user/self/nodes/" + registered.NodeID + "/harnesses/claude/auth/status"
+	rec := serveAsync(t, srv, http.MethodGet, path, "", func() {
+		query := readNodeControlFrame(t, ws)
+		require.NoError(
+			t,
+			ws.WriteMessage(
+				websocket.TextMessage,
+				[]byte(
+					`{"kind":"response","request_id":`+strconv.Quote(
+						query.RequestID,
+					)+`,"query_result":{"type":"harness_auth.status","harness_auth":{"harness":"claude","state":"logged_in","logged_in":true,"account":{"email":"person@example.com","display_name":"Person","organization":"Workspace","plan":"Pro","access_token":"private-token"}}}}`,
+				),
+			),
+		)
+	})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+	assert.Equal(t, &domain.HarnessAuthAccount{
+		Email: "person@example.com", DisplayName: "Person", Organization: "Workspace", Plan: "Pro",
+	}, decodeData[domain.HarnessAuthData](t, rec.Body.Bytes()).HarnessAuth.Account)
+	assert.NotContains(t, rec.Body.String(), "access_token")
+	assert.NotContains(t, rec.Body.String(), "private-token")
+}
+
 func writeHarnessAuthQueryResult(
 	t *testing.T,
 	ws *websocket.Conn,
