@@ -15,7 +15,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
 )
 
-const workspaceSearchGrantLifetime = 24 * time.Hour
+const defaultWorkspaceRequestTimeoutSeconds = 600
 
 type workspaceToolRequest struct {
 	SessionID     string `json:"session_id"`
@@ -24,10 +24,11 @@ type workspaceToolRequest struct {
 }
 
 type workspaceAccessRequest struct {
-	Queries    []string `json:"queries,omitempty"`
-	AgentIDs   []string `json:"agent_ids,omitempty"`
-	SessionIDs []string `json:"session_ids,omitempty"`
-	Reason     string   `json:"reason,omitempty"`
+	Queries        []string `json:"queries,omitempty"`
+	AgentIDs       []string `json:"agent_ids,omitempty"`
+	SessionIDs     []string `json:"session_ids,omitempty"`
+	Reason         string   `json:"reason,omitempty"`
+	TimeoutSeconds *int     `json:"timeout_seconds,omitempty"`
 }
 
 type workspaceSearchRequest struct {
@@ -46,16 +47,20 @@ type workspaceScopedSearchPage struct {
 }
 
 type workspaceAccessBody struct {
-	TurnID string                        `json:"turn_id"`
-	Scope  *domain.WorkspaceSearchAccess `json:"scope"`
-	Source string                        `json:"source,omitempty"`
+	TurnID           string                        `json:"turn_id"`
+	Scope            *domain.WorkspaceSearchAccess `json:"scope"`
+	Source           string                        `json:"source,omitempty"`
+	TimeoutSeconds   *int                          `json:"timeout_seconds,omitempty"`
+	RequestExpiresAt *time.Time                    `json:"request_expires_at,omitempty"`
 }
 
 type workspaceAccessStatus struct {
-	Status     string                       `json:"status"`
-	ApprovalID string                       `json:"approval_id"`
-	TurnID     string                       `json:"turn_id"`
-	Scope      domain.WorkspaceSearchAccess `json:"scope"`
+	Status      string                       `json:"status"`
+	ApprovalID  string                       `json:"approval_id"`
+	TurnID      string                       `json:"turn_id"`
+	Scope       domain.WorkspaceSearchAccess `json:"scope"`
+	ExpiresAt   *time.Time                   `json:"expires_at"`
+	PollAfterMS int                          `json:"poll_after_ms,omitempty"`
 }
 
 func (s *Service) prepareTurnSearchAccess(
@@ -91,7 +96,16 @@ func (s *Service) prepareTurnSearchAccess(
 	if normalized == nil {
 		return nil
 	}
-	_, err = s.ensureWorkspaceApproval(ctx, agent, session, turnID, *normalized, "user", "")
+	_, err = s.ensureWorkspaceApproval(
+		ctx,
+		agent,
+		session,
+		turnID,
+		*normalized,
+		"user",
+		"",
+		defaultWorkspaceRequestTimeoutSeconds,
+	)
 	return err
 }
 
@@ -111,12 +125,21 @@ func (s *Service) registerWorkspaceAccessTurn(agentID, sessionID, turnID string)
 func (s *Service) callWorkspaceTool(
 	ctx context.Context, node domain.Node, agentID string, request workspaceToolRequest,
 ) (any, error) {
-	if request.SessionID == "" || (request.Tool != "search" && request.Tool != "request_access") {
+	if request.SessionID == "" || !validWorkspaceToolOperation(request.Tool) {
 		return nil, workspaceAccessError(http.StatusBadRequest, "invalid workspace tool request")
 	}
 	session, agent, err := s.workspaceAccessSession(ctx, node, agentID, request.SessionID)
 	if err != nil {
 		return nil, err
+	}
+	if request.Tool == "access_status" || request.Tool == "cancel_access" {
+		return s.workspaceAccessRequestByID(
+			ctx,
+			agent,
+			session,
+			request.Tool,
+			request.ArgumentsJSON,
+		)
 	}
 	turnID, err := s.workspaceAccessActiveTurn(session)
 	if err != nil {
@@ -218,6 +241,16 @@ func (s *Service) requestWorkspaceAccess(
 	if err := decodeSecretaryToolJSON(arguments, &request); err != nil {
 		return workspaceAccessStatus{}, err
 	}
+	timeoutSeconds := defaultWorkspaceRequestTimeoutSeconds
+	if request.TimeoutSeconds != nil {
+		timeoutSeconds = *request.TimeoutSeconds
+	}
+	if timeoutSeconds < 0 || timeoutSeconds > 86400 {
+		return workspaceAccessStatus{}, workspaceAccessError(
+			http.StatusBadRequest,
+			"timeout_seconds must be an integer between 0 and 86400",
+		)
+	}
 	scope, err := domain.NormalizeWorkspaceSearchAccess(&domain.WorkspaceSearchAccess{
 		Queries: request.Queries, AgentIDs: request.AgentIDs, SessionIDs: request.SessionIDs,
 	})
@@ -240,6 +273,7 @@ func (s *Service) requestWorkspaceAccess(
 		*scope,
 		source,
 		request.Reason,
+		timeoutSeconds,
 	)
 	if err != nil {
 		return workspaceAccessStatus{}, err
@@ -260,12 +294,7 @@ func (s *Service) requestWorkspaceAccess(
 			"workspace search turn is no longer active",
 		)
 	}
-	return workspaceAccessStatus{
-		Status:     s.workspaceApprovalStatus(approval),
-		ApprovalID: approval.ApprovalID,
-		TurnID:     turnID,
-		Scope:      *scope,
-	}, nil
+	return s.workspaceAccessStatusResult(approval, *scope), nil
 }
 
 func workspaceAccessAutoApproved(session domain.AgentSession) bool {
@@ -275,7 +304,7 @@ func workspaceAccessAutoApproved(session domain.AgentSession) bool {
 
 func (s *Service) ensureWorkspaceApproval(
 	ctx context.Context, agent domain.Agent, session domain.AgentSession, turnID string,
-	scope domain.WorkspaceSearchAccess, source, reason string,
+	scope domain.WorkspaceSearchAccess, source, reason string, timeoutSeconds int,
 ) (domain.AgentApproval, error) {
 	s.workspaceAccessMu.Lock()
 	defer s.workspaceAccessMu.Unlock()
@@ -289,20 +318,14 @@ func (s *Service) ensureWorkspaceApproval(
 	if err != nil {
 		return domain.AgentApproval{}, err
 	}
-	for _, approval := range approvals {
-		if approval.ExpiresAt != nil && !approval.ExpiresAt.After(s.clock()) {
-			return domain.AgentApproval{}, workspaceAccessError(
-				http.StatusForbidden,
-				"workspace search turn authorization has expired",
-			)
-		}
-	}
-	body := workspaceAccessBody{TurnID: turnID, Scope: &scope}
+	body := workspaceAccessBody{TurnID: turnID, Scope: &scope, TimeoutSeconds: &timeoutSeconds}
 	encoded, _ := json.Marshal(body)
 	digest := sha256.Sum256(encoded)
 	fingerprint := "workspace-search:" + hex.EncodeToString(digest[:])
 	for _, approval := range approvals {
-		if approval.ActionFingerprint == fingerprint {
+		status := s.workspaceApprovalStatus(approval)
+		if approval.ActionFingerprint == fingerprint && status != "expired" &&
+			status != "cancelled" {
 			return s.approveWorkspaceAccess(ctx, agent, approval, source)
 		}
 	}
@@ -312,14 +335,20 @@ func (s *Service) ensureWorkspaceApproval(
 			"workspace search access request limit reached for this turn",
 		)
 	}
-	expiresAt := s.clock().Add(workspaceSearchGrantLifetime)
+	var expiresAt *time.Time
+	if timeoutSeconds > 0 {
+		deadline := s.clock().Add(time.Duration(timeoutSeconds) * time.Second)
+		expiresAt = &deadline
+	}
+	body.RequestExpiresAt = expiresAt
+	encoded, _ = json.Marshal(body)
 	approval, err := s.store.CreateApproval(
 		ctx,
 		domain.Node{NodeID: agent.NodeID, OwnerUserID: agent.OwnerUserID},
 		domain.CreateApprovalRequest{
 			AgentID: agent.AgentID, SessionID: session.SessionID, Domain: "workspace", Operation: "search",
 			ResourceType: "turn", ResourceRef: turnID, Title: "Search workspace for this turn", Description: reason,
-			RiskLevel: "read", ActionFingerprint: fingerprint, RequestBody: encoded, ExpiresAt: &expiresAt,
+			RiskLevel: "read", ActionFingerprint: fingerprint, RequestBody: encoded, ExpiresAt: expiresAt,
 			Options: []domain.ApprovalOption{
 				{
 					OptionID: "allow_once",
@@ -366,9 +395,14 @@ func (s *Service) workspaceTurnApprovals(
 }
 
 func (s *Service) workspaceApprovalStatus(approval domain.AgentApproval) string {
-	if approval.GrantRevokedAt != nil ||
-		(approval.ExpiresAt != nil && !approval.ExpiresAt.After(s.clock())) {
+	if approval.GrantRevokedAt != nil {
+		return "cancelled"
+	}
+	if approval.Status == "decided" && approval.Decision == "deny" {
 		return "denied"
+	}
+	if approval.ExpiresAt != nil && !approval.ExpiresAt.After(s.clock()) {
+		return "expired"
 	}
 	if approval.Status == "pending" {
 		return "pending"

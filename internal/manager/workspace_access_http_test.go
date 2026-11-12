@@ -47,6 +47,13 @@ func TestWorkspaceAccessHTTPRequiresNodeAndUserDecisionForCurrentTurn(t *testing
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	access := decodeData[workspaceAccessStatus](t, response.Body.Bytes())
 	require.Equal(t, "pending", access.Status)
+	arguments, err := json.Marshal(map[string]string{"approval_id": access.ApprovalID})
+	require.NoError(t, err)
+	response = post(path, fixture.nodeAPIKey, "", workspaceToolRequest{
+		SessionID: "caller-session", Tool: "access_status", ArgumentsJSON: string(arguments),
+	})
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Equal(t, "pending", decodeData[workspaceAccessStatus](t, response.Body.Bytes()).Status)
 	decisionPath := "/api/v1/user/self/approvals/" + access.ApprovalID + "/decision"
 	response = post(
 		decisionPath,
@@ -57,6 +64,17 @@ func TestWorkspaceAccessHTTPRequiresNodeAndUserDecisionForCurrentTurn(t *testing
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	response = post(path, fixture.nodeAPIKey, "", search)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	response = post(path, fixture.nodeAPIKey, "", workspaceToolRequest{
+		SessionID: "caller-session", Tool: "cancel_access", ArgumentsJSON: string(arguments),
+	})
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Equal(
+		t,
+		"cancelled",
+		decodeData[workspaceAccessStatus](t, response.Body.Bytes()).Status,
+	)
+	response = post(path, fixture.nodeAPIKey, "", search)
+	require.Equal(t, http.StatusForbidden, response.Code, response.Body.String())
 	setWorkspaceAccessTurn(t, srv, fixture, "turn-two", domain.RuntimeLifecycleRunning)
 	response = post(path, fixture.nodeAPIKey, "", search)
 	require.Equal(t, http.StatusForbidden, response.Code, response.Body.String())

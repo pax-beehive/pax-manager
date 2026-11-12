@@ -4,8 +4,11 @@ import (
 	"errors"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
+
+const WorkspaceSearchGrantLifetime = 24 * time.Hour
 
 // WorkspaceSearchAccess limits searches authorized for one business turn.
 type WorkspaceSearchAccess struct {

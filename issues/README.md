@@ -128,6 +128,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 081 | resolved | [Native harness login has no owner-scoped user API](081-native-harness-login-user-api.md) | medium | api / auth / node control |
 
+| 082 | resolved | [Workspace search requests lack status, cancellation and pending deadlines](082-workspace-access-request-lifecycle.md) | medium | api / auth / storage / MCP |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

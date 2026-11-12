@@ -23,7 +23,7 @@ func (s *MemoryStore) approvalNotificationAllowed(approval AgentApproval) bool {
 		AgentID: approval.RequestAgentID, SessionID: approval.RequestSessionID,
 	}
 	session := s.sessions[sessionKey(approval.RequestAgentID, approval.RequestSessionID)]
-	return approval.Status == "pending" &&
+	return approval.Status == "pending" && approval.GrantRevokedAt == nil &&
 		(approval.ExpiresAt == nil || s.now().Before(*approval.ExpiresAt)) &&
 		s.notificationSessionAllowed(row) &&
 		domain.NormalizeSessionApprovalMode(
@@ -76,7 +76,7 @@ func approvalNotificationAllowed(
 		SELECT 1 FROM agent_approvals p JOIN agents a ON a.agent_id=p.request_agent_id
 		JOIN nodes n ON n.node_id=p.request_node_id
 		JOIN agent_sessions s ON s.agent_id=p.request_agent_id AND s.session_id=p.request_session_id
-		WHERE p.approval_id=$1 AND p.owner_user_id=$2 AND p.status='pending'
+		WHERE p.approval_id=$1 AND p.owner_user_id=$2 AND p.status='pending' AND p.grant_revoked_at IS NULL
 		AND (p.expires_at IS NULL OR p.expires_at > $3)
 		AND a.owner_user_id=p.owner_user_id AND n.owner_user_id=p.owner_user_id
 		AND a.node_id=p.request_node_id AND a.deleted_at IS NULL AND n.deleted_at IS NULL

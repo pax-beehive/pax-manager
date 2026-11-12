@@ -72,15 +72,43 @@ continues to use the existing literal matching contract.
 
 ## Nonblocking expansion requests
 
-Ordinary injected conversation MCP servers expose `workspace_request_access`
-and `workspace_search`. `workspace_request_access` accepts optional `queries`,
-`agent_ids`, `session_ids`, and `reason`. It returns `pending`, `approved`, or `denied` with an
-approval ID, turn ID, and scope. Identical requests within a turn reuse the same
-record on the handling Manager. It does not wait or suspend the agent through
-ACP `session/request_permission`. The agent can continue independent work and
-check the request again before searching.
-At most 32 distinct scope requests can be created in a turn; repeating an
-existing request does not consume an additional record.
+Ordinary injected conversation MCP servers expose `workspace_request_access`,
+`workspace_access_status`, `workspace_cancel_access`, and `workspace_search`.
+An expansion request accepts optional `queries`, `agent_ids`, `session_ids`,
+`reason`, and `timeout_seconds`. The timeout is an integer from 0 through 86400;
+omitting it uses 600 seconds. Zero means no time deadline while pending, not
+permission to survive the end of the turn.
+
+```json
+{"queries":["ci cd"],"agent_ids":["*"],"session_ids":["*"],"timeout_seconds":0}
+```
+
+The response contains `status`, `approval_id`, `turn_id`, `scope`, and `expires_at`.
+Pending results also suggest `poll_after_ms: 2000`. Status is one of `pending`,
+`approved`, `denied`, `expired`, or `cancelled`. While pending, `expires_at` is the
+request deadline (null for zero timeout). After approval, it is the grant's
+fallback deadline; the pending timeout no longer limits an approved grant.
+
+Both follow-up tools accept only `{"approval_id":"appr_example"}`. Status reads
+are allowed for an existing request owned by the calling node, agent and session,
+including after its original turn has ended; they report `expired` without
+reviving that turn. They cannot read another session's approval or a different
+approval domain. Cancellation is idempotent and revokes a pending request or an
+already-approved grant if approval won the race. Late approval of a cancelled
+or expired request is rejected. A denied result remains denied after its old
+pending deadline.
+
+Identical live requests (turn, normalized scope and timeout) reuse the same
+record and deadline on the handling Manager. Status checks never create or renew
+an approval. A new explicit request may replace an expired or cancelled request;
+there is no automatic retry after denial. At most 32 records can be created in a
+turn, including replaced requests.
+
+Requests and status checks return promptly. They do not suspend ACP, wait for a
+user decision, automatically poll, or resume a finished agent. The agent may do
+independent work, query status before a dependent search, or cancel and abandon
+the request. If it still needs approval, ending its turn abandons that turn's
+request and grant; a later decision cannot authorize a new turn.
 
 The Console polls the current turn's workspace approval records and offers
 `Allow this turn` and `Deny`. These decisions do not resume an ACP permission
@@ -104,7 +132,7 @@ Content-Type: application/json
 }
 ```
 
-`tool` is `search` or `request_access`. Manager resolves the authenticated node,
+`tool` is `search`, `request_access`, `access_status`, or `cancel_access`. Manager resolves the authenticated node,
 agent owner, session, and active turn; callers cannot select a user or supply a
 turn ID, capability, or grant to bypass that resolution. The MCP helper is
 session-scoped, but no authorization is cached in it between calls. Native
@@ -118,16 +146,16 @@ its separate execution capability and its existing five read tools.
 ## Lifetime and records
 
 Records use domain `workspace`, operation `search`, resource type `turn`, and
-the actual turn ID as `resource_ref`. `request_body` contains `turn_id` and
-`scope`; the decision records whether approval came from explicit user
+the actual turn ID as `resource_ref`. `request_body` contains `turn_id`, `scope`, `timeout_seconds`, and
+the optional `request_expires_at`; the decision records whether approval came from explicit user
 preauthorization or PAX auto approve. The default range does not create an
 approval record. Expanded access requires a matching active turn and a valid
 approval, checked again before releasing search results.
 
 Prompt completion, prompt failure, and user cancellation expire matching records.
 A local ended-turn fence also prevents new requests in the interval before the
-next runtime snapshot. A 24-hour maximum lifetime is a fallback, not permission
-to continue after the turn ends. Reusing a session for a new turn does not reuse
+next runtime snapshot. An approved grant has a 24-hour fallback lifetime from approval, independent of
+the pending request deadline. This does not permit access after the turn ends. Reusing a session for a new turn does not reuse
 the old authorization. An SSE disconnect or a pending native tool approval alone
 does not terminate the turn or revoke its authorization.
 

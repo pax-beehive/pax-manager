@@ -66,6 +66,43 @@ func setApprovalNotificationMode(t *testing.T, store approvalNotificationStore, 
 	}
 }
 
+func TestApprovalNotificationGivenCancelledWorkspaceRequestThenSuppressesQueuedNotification(
+	t *testing.T,
+) {
+	for _, backend := range []string{"memory", "postgres"} {
+		t.Run(backend, func(t *testing.T) {
+			now := time.Now().UTC()
+			store, owner := approvalNotificationFixture(t, backend, func() time.Time { return now })
+			_, err := store.RegisterNotificationReceiver(
+				t.Context(),
+				owner,
+				notificationRegistration(t, "phone"),
+			)
+			require.NoError(t, err)
+			approval := createWorkspaceApproval(t, store.(workspaceApprovalTestStore), owner, nil)
+			jobs, err := store.ClaimNotificationDeliveries(t.Context(), 10, 30*time.Second)
+			require.NoError(t, err)
+			require.Len(t, jobs, 1)
+			allowed, err := store.CanDeliverApprovalNotification(t.Context(), jobs[0])
+			require.NoError(t, err)
+			assert.True(t, allowed)
+			_, err = store.(workspaceApprovalTestStore).CancelWorkspaceApproval(
+				t.Context(),
+				owner,
+				"node",
+				"agent",
+				"session",
+				"turn-one",
+				approval.ApprovalID,
+			)
+			require.NoError(t, err)
+			allowed, err = store.CanDeliverApprovalNotification(t.Context(), jobs[0])
+			require.NoError(t, err)
+			assert.False(t, allowed)
+		})
+	}
+}
+
 func TestApprovalNotificationGivenManualOrAutoSessionThenOnlyNotifiesActionableRequests(
 	t *testing.T,
 ) {
