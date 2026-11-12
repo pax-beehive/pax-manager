@@ -15,13 +15,18 @@
 ## Current note
 
 2026-11-12: recurring activity is now an explicit prompt policy shared by node
-and legacy summaries. Repeated manual releases can be represented once as a
-workflow pattern; later routine events use node `no_summary` outcomes rather
-than growing revisions, claims or coverage. Material exceptions and workflow
-changes remain useful memory. A Memory/PostgreSQL contract verifies selective
-coverage, claim-free aggregation and subsequent no-summary progress without a
-new summary revision. This is not server-side semantic deduplication; real-model
-adherence remains to verify. Quote-validation failures and unknown executions
+and legacy summaries. Repeated procedure does not imply repeated information:
+new facts, states or useful associations remain meaningful. Useful artifact,
+PR/commit and source references can guide optional agent search and authorized
+original reads across sessions. A verified connection can be retained in the
+current summary with both original sources; this does not create relationship
+entities, revise other sessions or advance their processing. Routine messages
+without useful differences use node `no_summary` outcomes. Manager still
+performs input clipping and inserts the inline gap marker in code before the
+model sees it; the v2 view and quote contracts are unchanged. Memory/PostgreSQL
+and publication contracts cover selective coverage, no-summary progress and
+new association evidence. This is not server-side semantic deduplication;
+real-model adherence remains to verify. Quote failures and unknown executions
 are separate and are not automatically retried by this change.
 
 2026-11-12: long user messages now use a bounded first-and-last preview for new
