@@ -14,6 +14,16 @@
 
 ## Current note
 
+2026-11-11: the node prompt now explicitly requests selective, concise memory.
+It permits omitting routine/repeated/superseded detail and consolidating old
+claims when an otherwise meaningful revision is needed. It preserves key
+current conclusions, source/quote verification, invalidation repair and one
+explicit processing outcome per input. Claims are optional and lookup does not
+require traversing every summary page. The publication schema already supports
+these choices; this change adds no content quota or historical recomputation.
+Tool response compaction and real-model quality/runtime evaluation remain
+separate work. This does not resolve the unknown-execution recovery issue.
+
 2026-11-10: revision-local evidence source keys replace repeated complete
 message-version references in new persisted claims and the publication budget
 projection. The batch limit remains 64 KiB. Public reads restore complete

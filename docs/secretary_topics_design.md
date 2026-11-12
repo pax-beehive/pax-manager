@@ -130,6 +130,34 @@ hash 和快照继续复用，但分别承担异常检测和引用留档，不把
 
 ### 摘要输入与输出
 
+#### Summary selection policy (2026-11-11)
+
+Secretary writes selective memory for future follow-up. It keeps key current
+conclusions, decisions, constraints, material results, corrections and unresolved
+questions. It may omit routine acknowledgments, repetition, command/log detail,
+exploratory dead ends and superseded intermediate states, except when they are
+needed to explain a key conclusion, reproduce a result or preserve an unresolved
+risk. Repeated updates should become their latest meaningful state rather than
+a full chronology. Reported results and verified facts remain distinguishable.
+
+When already revising for a meaningful change, the agent may consolidate or
+omit low-value old claims and their unused coverage. Claims are optional, not
+one per message or body sentence; evidence uses short exact quotes for the
+facts retained. Important still-current conclusions and their supporting
+sources remain. A routine-only batch does not require cleanup revisions, and
+unrelated summary pages need not be enumerated.
+
+Every changed message still receives an explicit processing outcome.
+`no_summary` is valid for routine or repetitive content and advances processing
+without adding that message to this batch's published coverage. It cannot excuse
+skipping important new conclusions or failing to repair invalidated summaries. Source
+messages remain available to authorized search/read, and immutable old summary
+versions retain their original claims and coverage. No schema migration,
+historical rewrite, new hard content quota or permission change is introduced.
+The existing byte and claim limits remain rejection ceilings, not generation
+targets. This policy guides model selection; protocol tests do not prove the
+quality or runtime of a real model's summaries.
+
 已有摘要通过有界列表提供：包括稳定 ID、current revision 和本页内容；prompt 的首批不超过 64 KiB。
 `summaries_has_more`为 true 时可以调用 `workspace_summaries`；
 非空 `summaries_cursor` 用于续页，cursor 为空则从第一页获取，不能据此判断已读完。
