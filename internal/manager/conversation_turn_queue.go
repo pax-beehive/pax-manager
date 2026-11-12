@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -102,10 +104,16 @@ func (q *conversationTurnQueue) delete(
 	return turn, turnQueueDeleteEffectDeleted, err
 }
 
+// conversationTurnInput accepts the same content blocks as a conversation
+// request. Text blocks join the input; attachment blocks become files of the
+// queued prompt.
 type conversationTurnInput struct {
 	Input        string                        `json:"input"`
+	Content      []conversationContentBlock    `json:"content,omitempty"`
 	Reason       string                        `json:"reason"`
 	SearchAccess *domain.WorkspaceSearchAccess `json:"search_access,omitempty"`
+
+	attachmentIDs []string
 }
 
 type conversationTurnStopResponse struct {
@@ -118,15 +126,18 @@ type conversationTurnStopResponse struct {
 	Status                string `json:"status"`
 }
 
+// Attachments echoes what was stored, so a client can tell a Manager that
+// queued its files from one that predates queued attachments.
 type conversationTurnQueueResponse struct {
-	ActivePromptRequestID string `json:"active_prompt_request_id,omitempty"`
-	AgentID               string `json:"agent_id"`
-	CommandID             string `json:"command_id"`
-	Effect                string `json:"effect"`
-	NodeID                string `json:"node_id,omitempty"`
-	QueuedTurnID          string `json:"queued_turn_id"`
-	SessionID             string `json:"session_id"`
-	Status                string `json:"status"`
+	ActivePromptRequestID string                        `json:"active_prompt_request_id,omitempty"`
+	AgentID               string                        `json:"agent_id"`
+	Attachments           []domain.QueuedTurnAttachment `json:"attachments"`
+	CommandID             string                        `json:"command_id"`
+	Effect                string                        `json:"effect"`
+	NodeID                string                        `json:"node_id,omitempty"`
+	QueuedTurnID          string                        `json:"queued_turn_id"`
+	SessionID             string                        `json:"session_id"`
+	Status                string                        `json:"status"`
 }
 
 type conversationTurnQueueDeleteResponse struct {
@@ -140,16 +151,17 @@ type conversationTurnQueueDeleteResponse struct {
 }
 
 type conversationTurnSteerResponse struct {
-	ActivePromptRequestID string `json:"active_prompt_request_id,omitempty"`
-	AgentID               string `json:"agent_id"`
-	CommandID             string `json:"command_id"`
-	Effect                string `json:"effect"`
-	NodeID                string `json:"node_id,omitempty"`
-	QueueEffect           string `json:"queue_effect"`
-	QueuedTurnID          string `json:"queued_turn_id"`
-	SessionID             string `json:"session_id"`
-	Status                string `json:"status"`
-	StopEffect            string `json:"stop_effect"`
+	ActivePromptRequestID string                        `json:"active_prompt_request_id,omitempty"`
+	AgentID               string                        `json:"agent_id"`
+	Attachments           []domain.QueuedTurnAttachment `json:"attachments"`
+	CommandID             string                        `json:"command_id"`
+	Effect                string                        `json:"effect"`
+	NodeID                string                        `json:"node_id,omitempty"`
+	QueueEffect           string                        `json:"queue_effect"`
+	QueuedTurnID          string                        `json:"queued_turn_id"`
+	SessionID             string                        `json:"session_id"`
+	Status                string                        `json:"status"`
+	StopEffect            string                        `json:"stop_effect"`
 }
 
 func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Request) {
@@ -198,8 +210,18 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		input, ok := readConversationTurnInput(w, r)
+		input, ok := readConversationTurnInput(w, r, true)
 		if !ok {
+			return
+		}
+		attachments, err := s.queuedTurnAttachments(
+			r.Context(),
+			control.principal,
+			control.agent.NodeID,
+			input.attachmentIDs,
+		)
+		if err != nil {
+			writeHTTPEndpointError(w, err)
 			return
 		}
 		turn, effect, err := s.conversationTurns.upsert(r.Context(), conversationQueuedTurn{
@@ -209,6 +231,7 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 			AgentID:      control.agent.AgentID,
 			SessionID:    control.session.SessionID,
 			Input:        input.Input,
+			Attachments:  attachments,
 			SearchAccess: input.SearchAccess,
 		})
 		if err != nil {
@@ -218,6 +241,7 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 		writeHTTPData(w, http.StatusOK, conversationTurnQueueResponse{
 			ActivePromptRequestID: conversationActivePromptRequestID(control.session),
 			AgentID:               control.agent.AgentID,
+			Attachments:           queuedTurnAttachmentsData(turn.Attachments),
 			CommandID:             commandID,
 			Effect:                effect,
 			NodeID:                control.agent.NodeID,
@@ -226,7 +250,7 @@ func (s *Service) handleConversationTurnQueue(w http.ResponseWriter, r *http.Req
 			Status:                conversationSessionStatus(control.session),
 		})
 	case http.MethodPatch:
-		input, ok := readConversationTurnInput(w, r)
+		input, ok := readConversationTurnInput(w, r, false)
 		if !ok {
 			return
 		}
@@ -331,8 +355,20 @@ func (s *Service) handleConversationTurnSteer(w http.ResponseWriter, r *http.Req
 		)
 		return
 	}
-	input, ok := readConversationTurnInput(w, r)
+	input, ok := readConversationTurnInput(w, r, true)
 	if !ok {
+		return
+	}
+	// Files reach the node before the running turn is stopped, so the steering
+	// prompt follows without a gap.
+	attachments, err := s.queuedTurnAttachments(
+		r.Context(),
+		control.principal,
+		control.agent.NodeID,
+		input.attachmentIDs,
+	)
+	if err != nil {
+		writeHTTPEndpointError(w, err)
 		return
 	}
 	commandID := conversationCommandID(r)
@@ -343,6 +379,7 @@ func (s *Service) handleConversationTurnSteer(w http.ResponseWriter, r *http.Req
 		AgentID:      control.agent.AgentID,
 		SessionID:    control.session.SessionID,
 		Input:        input.Input,
+		Attachments:  attachments,
 		SearchAccess: input.SearchAccess,
 	})
 	if err != nil {
@@ -357,6 +394,7 @@ func (s *Service) handleConversationTurnSteer(w http.ResponseWriter, r *http.Req
 	writeHTTPData(w, http.StatusOK, conversationTurnSteerResponse{
 		ActivePromptRequestID: conversationActivePromptRequestID(control.session),
 		AgentID:               control.agent.AgentID,
+		Attachments:           queuedTurnAttachmentsData(turn.Attachments),
 		CommandID:             commandID,
 		Effect:                turnSteerEffectSteering,
 		NodeID:                control.agent.NodeID,
@@ -473,9 +511,12 @@ func conversationTurnControlRouteIDs(path string) (userID, agentID, sessionID st
 	return parts[0], parts[2], parts[4]
 }
 
+// readConversationTurnInput parses a queued prompt. Attachments are only
+// accepted when the request creates the prompt; editing keeps the files.
 func readConversationTurnInput(
 	w http.ResponseWriter,
 	r *http.Request,
+	allowAttachments bool,
 ) (conversationTurnInput, bool) {
 	var input conversationTurnInput
 	body := r.Body
@@ -491,11 +532,117 @@ func readConversationTurnInput(
 		writeHTTPError(w, http.StatusBadRequest, "invalid search access scope")
 		return conversationTurnInput{}, false
 	}
-	if input.Input == "" || len(input.Input) > domain.MaxQueuedTurnBytes {
+	if err := normalizeConversationContentBlocks(input.Content); err != nil {
+		writeHTTPError(w, http.StatusBadRequest, err.Error())
+		return conversationTurnInput{}, false
+	}
+	texts := make([]string, 0, len(input.Content)+1)
+	if input.Input != "" {
+		texts = append(texts, input.Input)
+	}
+	seen := map[string]bool{}
+	for _, block := range input.Content {
+		switch block.Type {
+		case "text":
+			texts = append(texts, block.Text)
+		case "attachment":
+			if !seen[block.AttachmentID] {
+				seen[block.AttachmentID] = true
+				input.attachmentIDs = append(input.attachmentIDs, block.AttachmentID)
+			}
+		}
+	}
+	input.Input = strings.Join(texts, "\n\n")
+	switch {
+	case len(input.attachmentIDs) > 0 && !allowAttachments:
+		writeHTTPError(w, http.StatusBadRequest, "attachments cannot be changed on a queued turn")
+		return conversationTurnInput{}, false
+	case len(input.attachmentIDs) > domain.MaxQueuedTurnAttachments:
+		writeHTTPError(w, http.StatusBadRequest, fmt.Sprintf(
+			"a queued turn accepts at most %d attachments",
+			domain.MaxQueuedTurnAttachments,
+		))
+		return conversationTurnInput{}, false
+	case len(input.Input) > domain.MaxQueuedTurnBytes,
+		input.Input == "" && (len(input.attachmentIDs) == 0 || !allowAttachments):
 		writeHTTPError(w, http.StatusBadRequest, "input must contain between 1 and 65536 bytes")
 		return conversationTurnInput{}, false
 	}
 	return input, true
+}
+
+// Bounds how long queuing or starting a queued turn waits for its files to
+// reach the node.
+const queuedTurnAttachmentTimeout = time.Minute
+
+// queuedTurnAttachments authorizes the files of a new queued prompt and
+// localizes them on the node now, so the turn can start without waiting and
+// a missing or unreadable file fails the request instead of the later turn.
+func (s *Service) queuedTurnAttachments(
+	ctx context.Context,
+	principal UserPrincipal,
+	nodeID string,
+	attachmentIDs []string,
+) ([]domain.QueuedTurnAttachment, error) {
+	if len(attachmentIDs) == 0 {
+		return nil, nil
+	}
+	localizeCtx, cancel := context.WithTimeout(ctx, queuedTurnAttachmentTimeout)
+	defer cancel()
+	localized, err := s.ensureAttachmentsLocal(localizeCtx, principal, nodeID, attachmentIDs)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return nil, apperr.Error{
+			Status:  http.StatusGatewayTimeout,
+			Message: "attachments did not reach the agent node in time",
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	attachments := make([]domain.QueuedTurnAttachment, 0, len(attachmentIDs))
+	for _, attachmentID := range attachmentIDs {
+		item, ok := localized[attachmentID]
+		if !ok {
+			return nil, apperr.Error{
+				Status:  http.StatusBadGateway,
+				Message: "attachment was not localized",
+			}
+		}
+		attachments = append(attachments, domain.QueuedTurnAttachment{
+			AttachmentID: attachmentID,
+			Filename:     item.Attachment.Filename,
+			ContentType:  item.Attachment.ContentType,
+			SizeBytes:    item.Attachment.SizeBytes,
+		})
+	}
+	return attachments, nil
+}
+
+// queuedTurnPrompt builds the ACP prompt of a claimed queued turn. Files are
+// authorized for the owner again and localized if the node lost them.
+func (s *Service) queuedTurnPrompt(
+	ctx context.Context,
+	owner domain.User,
+	turn domain.QueuedTurn,
+) ([]map[string]any, error) {
+	if len(turn.Attachments) == 0 {
+		return []map[string]any{{"type": "text", "text": turn.Input}}, nil
+	}
+	request := conversationRequest{Input: turn.Input}
+	for _, attachment := range turn.Attachments {
+		request.Content = append(request.Content, conversationContentBlock{
+			Type:         "attachment",
+			AttachmentID: attachment.AttachmentID,
+		})
+	}
+	localizeCtx, cancel := context.WithTimeout(ctx, queuedTurnAttachmentTimeout)
+	defer cancel()
+	return s.resolveConversationPrompt(
+		localizeCtx,
+		UserPrincipal{User: owner},
+		turn.NodeID,
+		request,
+	)
 }
 
 func conversationQueuedTurnData(turn conversationQueuedTurn) map[string]any {
@@ -504,6 +651,7 @@ func conversationQueuedTurnData(turn conversationQueuedTurn) map[string]any {
 		"command_id":     turn.CommandID,
 		"created_at":     turn.CreatedAt,
 		"input":          turn.Input,
+		"attachments":    queuedTurnAttachmentsData(turn.Attachments),
 		"search_access":  turn.SearchAccess,
 		"node_id":        turn.NodeID,
 		"queued_turn_id": turn.TurnID,
@@ -511,6 +659,16 @@ func conversationQueuedTurnData(turn conversationQueuedTurn) map[string]any {
 		"updated_at":     turn.UpdatedAt,
 		"state":          turn.State,
 	}
+}
+
+// Clients always receive a list, never null.
+func queuedTurnAttachmentsData(
+	attachments []domain.QueuedTurnAttachment,
+) []domain.QueuedTurnAttachment {
+	if attachments == nil {
+		return []domain.QueuedTurnAttachment{}
+	}
+	return attachments
 }
 
 func conversationCommandID(r *http.Request) string {

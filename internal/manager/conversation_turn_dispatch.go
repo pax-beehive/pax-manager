@@ -114,6 +114,14 @@ func (s *Service) startQueuedTurn(
 		defer func() { <-s.queueRunSlots }()
 		runCtx, cancel := context.WithCancel(s.queueContext)
 		defer cancel()
+		prompt, err := s.queuedTurnPrompt(runCtx, user, turn)
+		if err != nil {
+			// Without its files the prompt would be wrong; leave it unconfirmed
+			// for the user rather than sending text alone.
+			logging.Warn(runCtx, "queued turn attachments unavailable", logging.Err(err))
+			s.finishQueuedTurn(runCtx, turn, false)
+			return
+		}
 		runner := conversationRunner{service: s, agentConn: conn, managerSessionID: turn.SessionID,
 			searchAccess: turn.SearchAccess, searchAccessOwnerID: turn.OwnerID}
 		session := conversationSession{managerID: turn.SessionID, nativeID: turn.NativeID}
@@ -128,7 +136,7 @@ func (s *Service) startQueuedTurn(
 			session,
 			sub,
 			turn.TurnID,
-			[]map[string]any{{"type": "text", "text": turn.Input}},
+			prompt,
 		)
 		if err != nil {
 			logging.Warn(runCtx, "queued turn execution interrupted", logging.Err(err))

@@ -590,10 +590,29 @@ func addACPWebSocketPaths(doc map[string]any) {
 		"content": map[string]any{
 			"application/json": map[string]any{
 				"schema": map[string]any{
-					"type":     "object",
-					"required": []string{"input"},
+					"type": "object",
+					"description": "Text in input and text content blocks is joined. Queue and " +
+						"steer also accept up to 20 attachment blocks of completed user " +
+						"attachments, which are localized on the agent node before the " +
+						"request returns; a prompt may be attachments only. PATCH edits " +
+						"the text and keeps the queued attachments.",
 					"properties": map[string]any{
 						"input": map[string]string{"type": "string"},
+						"content": map[string]any{
+							"type": "array",
+							"items": map[string]any{
+								"type":     "object",
+								"required": []string{"type"},
+								"properties": map[string]any{
+									"type": map[string]any{
+										"type": "string",
+										"enum": []string{"text", "attachment"},
+									},
+									"text":          map[string]string{"type": "string"},
+									"attachment_id": map[string]string{"type": "string"},
+								},
+							},
+						},
 					},
 				},
 			},
