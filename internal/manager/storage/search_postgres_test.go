@@ -148,6 +148,7 @@ func TestSearchReadGivenSessionTitleThenReturnsIndependentTitleDocument(t *testi
 				{
 					columns: []string{
 						"owner",
+						"node",
 						"agent",
 						"session",
 						"conversation",
@@ -156,7 +157,16 @@ func TestSearchReadGivenSessionTitleThenReturnsIndependentTitleDocument(t *testi
 						"revision",
 					},
 					values: [][]driver.Value{
-						{"owner", "agent", "session", "conversation", title, time.Now(), int64(3)},
+						{
+							"owner",
+							"node",
+							"agent",
+							"session",
+							"conversation",
+							title,
+							time.Now(),
+							int64(3),
+						},
 					},
 				},
 			},
@@ -258,7 +268,12 @@ func TestSearchQueueGivenEmptyBackfillOrClaimThenSucceeds(t *testing.T) {
 	store, cleanup := scriptedPostgresStore(t, script)
 	defer cleanup()
 	require.NoError(t, store.BackfillSearch(t.Context()))
-	assert.Contains(t, script.execTexts[0], "ON CONFLICT (kind,source_id) DO NOTHING")
+	assert.Contains(
+		t,
+		script.execTexts[0],
+		"desired_revision=GREATEST(desired_revision,indexed_revision)+1",
+	)
+	assert.Contains(t, script.execTexts[1], "ON CONFLICT (kind,source_id) DO NOTHING")
 	work, err := store.ClaimSearchBatch(t.Context(), 0, 0)
 	require.NoError(t, err)
 	assert.Empty(t, work)

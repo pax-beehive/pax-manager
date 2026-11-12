@@ -327,45 +327,59 @@ func validateSummaryAccess(
 	owner, summaryID string,
 	revision int64,
 ) error {
+	_, err := validateSummaryAccessWithNode(ctx, tx, owner, summaryID, revision)
+	return err
+}
+
+func validateSummaryAccessWithNode(
+	ctx context.Context, tx *sql.Tx, owner, summaryID string, revision int64,
+) (string, error) {
 	rows, err := tx.QueryContext(ctx, `WITH RECURSIVE dependencies(summary_id, revision) AS (
         SELECT $1::text, $2::bigint UNION SELECT src.child_summary_id, src.child_revision
         FROM summary_sources src JOIN dependencies d USING (summary_id, revision)
         WHERE src.source_kind = 'summary')
-        SELECT DISTINCT COALESCE(v.owner_user_id,''), COALESCE(src.message_id,'') FROM dependencies d
+        SELECT DISTINCT COALESCE(v.owner_user_id,''), COALESCE(src.message_id,''), src.source_kind IS NULL FROM dependencies d
         LEFT JOIN summary_versions v USING (summary_id, revision)
         LEFT JOIN summary_sources src USING (summary_id, revision) LIMIT 4097`, summaryID, revision)
 	if err != nil {
-		return err
+		return "", err
 	}
 	var ids []string
 	rowCount := 0
+	unknown := false
 	for rows.Next() {
 		rowCount++
 		if rowCount > 4096 {
 			_ = rows.Close()
-			return ErrConflict
+			return "", ErrConflict
 		}
 		var sourceOwner, id string
-		if err = rows.Scan(&sourceOwner, &id); err != nil {
+		var missingSource bool
+		if err = rows.Scan(&sourceOwner, &id, &missingSource); err != nil {
 			_ = rows.Close()
-			return err
+			return "", err
 		}
 		if sourceOwner != owner {
 			_ = rows.Close()
-			return ErrNotFound
+			return "", ErrNotFound
 		}
 		if id != "" {
 			ids = append(ids, id)
 		}
+		unknown = unknown || missingSource
 	}
 	if err = rows.Err(); err != nil {
 		_ = rows.Close()
-		return err
+		return "", err
 	}
 	if err = rows.Close(); err != nil {
-		return err
+		return "", err
 	}
-	return validateSearchMessageAccess(ctx, tx, owner, ids)
+	nodeID, err := validateSearchMessageAccessWithNode(ctx, tx, owner, ids)
+	if unknown {
+		nodeID = ""
+	}
+	return nodeID, err
 }
 
 func (s *PostgresStore) ReadMessageVersion(
@@ -435,13 +449,30 @@ func loadSummarySearchDocument(
 	if err != nil {
 		return domain.SearchDocument{}, err
 	}
-	if err = validateSummaryAccess(ctx, tx, result.OwnerUserID, result.SummaryID, result.Revision); err != nil {
+	nodeID, err := validateSummaryAccessWithNode(
+		ctx,
+		tx,
+		result.OwnerUserID,
+		result.SummaryID,
+		result.Revision,
+	)
+	if err != nil {
 		return domain.SearchDocument{}, err
+	}
+	consistent, err := summarySearchPrimaryNodesMatch(
+		ctx, tx, result.OwnerUserID, result.SummaryID, result.Revision, nodeID,
+	)
+	if err != nil {
+		return domain.SearchDocument{}, err
+	}
+	if !consistent {
+		nodeID = ""
 	}
 	doc := domain.SearchDocument{
 		Kind:                    "summary",
 		SourceID:                result.SummaryID,
 		OwnerUserID:             result.OwnerUserID,
+		NodeID:                  nodeID,
 		Title:                   result.Title,
 		Body:                    result.Body,
 		ContentHash:             domain.SearchContentHash(result.Body),
@@ -456,6 +487,9 @@ func loadSummarySearchDocument(
 		}
 		if readErr == nil {
 			doc.AgentID, doc.SessionID = group.AgentID, group.SessionID
+			if doc.NodeID != group.NodeID {
+				doc.NodeID = ""
+			}
 		}
 	}
 	return doc, nil

@@ -13,12 +13,14 @@ const WorkspaceSearchGrantLifetime = 24 * time.Hour
 // WorkspaceSearchAccess limits searches authorized for one business turn.
 type WorkspaceSearchAccess struct {
 	Queries    []string `json:"queries,omitempty"`
+	NodeIDs    []string `json:"node_ids,omitempty"`
 	AgentIDs   []string `json:"agent_ids,omitempty"`
 	SessionIDs []string `json:"session_ids,omitempty"`
 }
 
 // WorkspaceSearchScope is mandatory on ordinary agent searches.
 type WorkspaceSearchScope struct {
+	NodeIDs    []string `json:"node_ids"`
 	AgentIDs   []string `json:"agent_ids"`
 	SessionIDs []string `json:"session_ids"`
 }
@@ -32,6 +34,10 @@ func NormalizeWorkspaceSearchAccess(scope *WorkspaceSearchAccess) (*WorkspaceSea
 	if err != nil {
 		return nil, err
 	}
+	nodes, err := normalizeWorkspaceAccessValues(scope.NodeIDs, false)
+	if err != nil {
+		return nil, err
+	}
 	sessions, err := normalizeWorkspaceAccessValues(scope.SessionIDs, false)
 	if err != nil {
 		return nil, err
@@ -40,17 +46,33 @@ func NormalizeWorkspaceSearchAccess(scope *WorkspaceSearchAccess) (*WorkspaceSea
 	if err != nil {
 		return nil, err
 	}
-	return &WorkspaceSearchAccess{Queries: queries, AgentIDs: agents, SessionIDs: sessions}, nil
+	return &WorkspaceSearchAccess{
+		Queries:    queries,
+		NodeIDs:    nodes,
+		AgentIDs:   agents,
+		SessionIDs: sessions,
+	}, nil
 }
 
 func NormalizeWorkspaceSearchScope(
 	scope *WorkspaceSearchScope,
-	agentID string,
+	agentID, nodeID string,
 ) (WorkspaceSearchScope, error) {
 	if scope == nil || len(scope.AgentIDs) == 0 || len(scope.SessionIDs) == 0 {
 		return WorkspaceSearchScope{}, errors.New(
-			"explicit scope is required: use agent_ids [self] and session_ids [*] to search this agent's sessions",
+			"explicit scope is required: use node_ids [self], agent_ids [*] and session_ids [*] to search this node's sessions",
 		)
+	}
+	nodes, err := normalizeWorkspaceAccessValues(scope.NodeIDs, false)
+	if err != nil {
+		return WorkspaceSearchScope{}, err
+	}
+	for _, value := range nodes {
+		if value == "self" && nodeID == "" {
+			return WorkspaceSearchScope{}, errors.New(
+				"calling node is required to resolve node_ids self",
+			)
+		}
 	}
 	agents, err := normalizeWorkspaceAccessValues(scope.AgentIDs, false)
 	if err != nil {
@@ -61,9 +83,14 @@ func NormalizeWorkspaceSearchScope(
 		return WorkspaceSearchScope{}, err
 	}
 	return WorkspaceSearchScope{
+		NodeIDs:    ResolveWorkspaceSearchNodes(nodes, nodeID),
 		AgentIDs:   ResolveWorkspaceSearchAgents(agents, agentID),
 		SessionIDs: sessions,
 	}, nil
+}
+
+func ResolveWorkspaceSearchNodes(values []string, nodeID string) []string {
+	return ResolveWorkspaceSearchAgents(values, nodeID)
 }
 
 func ResolveWorkspaceSearchAgents(values []string, agentID string) []string {
@@ -83,7 +110,15 @@ func ResolveWorkspaceSearchAgents(values []string, agentID string) []string {
 }
 
 func (scope WorkspaceSearchAccess) Covers(request WorkspaceSearchScope) bool {
-	return workspaceScopeContains(scope.AgentIDs, request.AgentIDs) &&
+	allowedNodes, requestedNodes := scope.NodeIDs, request.NodeIDs
+	if allowedNodes == nil {
+		allowedNodes = []string{"*"}
+	}
+	if requestedNodes == nil {
+		requestedNodes = []string{"*"}
+	}
+	return workspaceScopeContains(allowedNodes, requestedNodes) &&
+		workspaceScopeContains(scope.AgentIDs, request.AgentIDs) &&
 		workspaceScopeContains(scope.SessionIDs, request.SessionIDs)
 }
 

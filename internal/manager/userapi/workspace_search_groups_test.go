@@ -40,6 +40,7 @@ func (s *groupedSources) ReadSearchGroup(
 	return domain.SearchGroupMetadata{
 		Key:       domain.SearchDocumentGroupKey(doc),
 		Title:     "Canonical current session name",
+		NodeID:    doc.NodeID,
 		AgentID:   doc.AgentID,
 		SessionID: doc.SessionID,
 	}, nil

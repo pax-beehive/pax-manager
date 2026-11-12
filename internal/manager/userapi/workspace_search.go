@@ -55,6 +55,7 @@ type WorkspaceSearchHit struct {
 	Ref       SearchRef `json:"ref"`
 	Title     string    `json:"title,omitempty"`
 	Snippet   string    `json:"snippet"`
+	NodeID    string    `json:"node_id,omitempty"`
 	AgentID   string    `json:"agent_id,omitempty"`
 	SessionID string    `json:"session_id,omitempty"`
 }
@@ -134,11 +135,10 @@ func (s *WorkspaceSearchService) Search(
 		)
 	}
 	result := WorkspaceSearchPage{
-		Hits:       make([]WorkspaceSearchHit, 0, len(page.Hits)),
-		NextCursor: page.NextCursor,
+		Hits: make([]WorkspaceSearchHit, 0, len(page.Hits)),
 	}
-	for _, hit := range page.Hits {
-		current, readErr := s.currentDocument(ctx, owner, hit.Kind, hit.SourceID)
+	for i, hit := range page.Hits {
+		current, readErr := s.currentSearchDocument(ctx, owner, query, hit)
 		if errors.Is(readErr, domain.ErrNotFound) {
 			continue
 		}
@@ -159,12 +159,22 @@ func (s *WorkspaceSearchService) Search(
 		}
 		result.Hits = append(
 			result.Hits,
-			WorkspaceSearchHit{Ref: documentRef(current), Title: current.Title,
+			WorkspaceSearchHit{
+				Ref:    documentRef(current),
+				Title:  current.Title,
+				NodeID: current.NodeID,
 				Snippet: searchSnippet(
 					text,
 					query.Query,
-				), AgentID: current.AgentID, SessionID: current.SessionID},
+				),
+				AgentID:   current.AgentID,
+				SessionID: current.SessionID,
+			},
 		)
+		// Flat cursors contain the boundary document ID and its sort values.
+		if i == len(page.Hits)-1 {
+			result.NextCursor = page.NextCursor
+		}
 	}
 	return result, nil
 }
@@ -318,6 +328,18 @@ func (s *WorkspaceSearchService) owner(
 	return principal.User.UserID, nil
 }
 
+func (s *WorkspaceSearchService) currentSearchDocument(
+	ctx context.Context, owner string, query domain.SearchQuery, hit domain.SearchDocument,
+) (domain.SearchDocument, error) {
+	if hit.Kind == "summary" && len(query.NodeIDs) > 0 {
+		if s.sources == nil {
+			return domain.SearchDocument{}, domain.ErrNotFound
+		}
+		return s.sources.ReadSearchDocument(ctx, owner, hit.Kind, hit.SourceID)
+	}
+	return s.currentDocument(ctx, owner, hit.Kind, hit.SourceID)
+}
+
 func (s *WorkspaceSearchService) currentDocument(
 	ctx context.Context,
 	owner, kind, id string,
@@ -401,6 +423,7 @@ func validateWorkspaceQuery(query domain.SearchQuery) error {
 		(query.GroupBy != "" && query.GroupBy != "session") || len(query.GroupKey) > 256 ||
 		(query.GroupBy != "" && query.GroupKey != "") ||
 		len(query.Kinds) > 3 ||
+		len(query.NodeIDs) > 50 ||
 		len(query.AgentIDs) > 50 ||
 		len(query.SessionIDs) > 50 {
 		return searchHTTPError(http.StatusBadRequest, "invalid search query or limits")
@@ -444,6 +467,7 @@ func searchMatchesCurrent(
 	query domain.SearchQuery,
 ) bool {
 	if document.Deleted || document.OwnerUserID != owner ||
+		(len(query.NodeIDs) > 0 && !searchFilterContains(query.NodeIDs, document.NodeID)) ||
 		(len(query.AgentIDs) > 0 && !searchFilterContains(query.AgentIDs, document.AgentID)) ||
 		(len(query.SessionIDs) > 0 && !searchFilterContains(query.SessionIDs, document.SessionID)) ||
 		(len(query.Kinds) > 0 && !searchFilterContains(query.Kinds, document.Kind)) {
