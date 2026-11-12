@@ -377,7 +377,7 @@ func TestSecretaryJobsGivenInternalSessionsAndConcurrentClaimsThenNeverCreatesFe
 
 func TestSecretaryJobsGivenOversizedMessageWhenClaimedThenReportsWithoutTruncation(t *testing.T) {
 	store, _ := secretaryMemoryFixture(t)
-	secretaryMemoryMessage(store, "m1", strings.Repeat("x", domain.SecretaryMaxBytes+1), 1)
+	secretaryMemoryMessage(store, "m1", strings.Repeat("x", domain.SecretaryMaxSourceBytes+1), 1)
 	secretaryEnable(t, store)
 	jobs, err := store.ClaimSecretaryJobs(t.Context(), 1, time.Minute, 0)
 	require.NoError(t, err)

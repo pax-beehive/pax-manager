@@ -50,6 +50,7 @@ func TestSecretaryTaskMetadataGivenKnownFailureKindsThenUsesOnlyFixedSafeMessage
 	}{
 		{state: "unknown", failure: secretaryModelConnectionFailure, code: "model_connection_failed"},
 		{state: "unknown", code: "execution_unknown"},
+		{failure: secretaryInputLimitPrefix + "bounded batch", code: "input_size_limit"},
 		{state: "pending", notDispatched: true, code: "connection_backoff"},
 		{state: "blocked", notDispatched: true, code: "connection_retries_exhausted"},
 		{attempt: "invalid", code: "invalid_output"},

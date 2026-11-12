@@ -30,8 +30,9 @@ func secretaryBatchID(job domain.SecretaryJob) string {
 		Settings, Epoch                            int64
 		Messages, Removed                          []string
 		Heads                                      []domain.SummaryRef
+		InputPolicy                                string `json:",omitempty"`
 	}{job.OwnerUserID, job.SourceID, job.AgentID, domain.SecretaryNodePolicyVersion, job.InvalidationKey,
-		job.SettingsRevision, job.RetryEpoch, refs, removed, heads})
+		job.SettingsRevision, job.RetryEpoch, refs, removed, heads, job.InputPolicyVersion})
 	return "batch_" + strings.TrimPrefix(domain.SearchContentHash(string(input)), "sha256:")[:32]
 }
 

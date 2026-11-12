@@ -14,6 +14,16 @@
 
 ## Current note
 
+2026-11-12: long user messages now use a bounded first-and-last preview for new
+v2 jobs, with explicit omission metadata. Secretary can use the corresponding
+assistant reply and selectively read original ranges when needed. Full source
+identity and evidence snapshots are unchanged; hidden-middle quotes require
+actual read receipts, and synthetic marker/join quotes are rejected. Old frozen
+jobs retain v1 visibility. Deterministic preparation size failures now block
+instead of repeating every 30 seconds. Protocol and publication contracts cover
+the long-user case, full reads, permissions, frozen policy compatibility and
+source-preserving progress. Rollout and real-model behavior remain to verify.
+
 2026-11-11: the node prompt now explicitly requests selective, concise memory.
 It permits omitting routine/repeated/superseded detail and consolidating old
 claims when an otherwise meaningful revision is needed. It preserves key

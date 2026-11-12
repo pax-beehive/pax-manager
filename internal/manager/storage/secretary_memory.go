@@ -414,6 +414,9 @@ func (s *MemoryStore) ClaimSecretaryJobs(
 		work, err := s.loadMemorySecretaryJobLocked(job)
 		if err != nil {
 			job.lastError = secretaryErrorText(err)
+			job.executionBlocked = secretaryInputBlocked(err)
+			job.work.LeaseToken = ""
+			job.leaseUntil = time.Time{}
 			job.available = s.now().Add(30 * time.Second)
 			continue
 		}

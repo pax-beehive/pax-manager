@@ -8,13 +8,14 @@ import (
 )
 
 const (
-	SecretaryMaxMessages           = 64
-	SecretaryMaxBytes              = 128 * 1024
-	SecretaryMaxSourceBytes        = 8 * 1024 * 1024
-	SecretaryInputPolicyVersion    = "user-full-assistant-last-v1"
-	SecretaryInternalSource        = "secretary_internal"
-	SecretaryInternalSessionPrefix = "sess_secretary_"
-	SecretaryMaxValidationRetries  = 2
+	SecretaryMaxMessages              = 64
+	SecretaryMaxBytes                 = 128 * 1024
+	SecretaryMaxSourceBytes           = 8 * 1024 * 1024
+	SecretaryLegacyInputPolicyVersion = "user-full-assistant-last-v1"
+	SecretaryInputPolicyVersion       = "user-head-tail-assistant-last-v2"
+	SecretaryInternalSource           = "secretary_internal"
+	SecretaryInternalSessionPrefix    = "sess_secretary_"
+	SecretaryMaxValidationRetries     = 2
 )
 
 var ErrSecretaryFenced = fmt.Errorf("secretary work canceled or superseded: %w", ErrConflict)
@@ -55,6 +56,7 @@ type SecretarySourceMetadata struct {
 }
 
 type SecretaryJob struct {
+	InputPolicyVersion      string `json:",omitempty"`
 	BatchID                 string
 	AttemptID               string
 	RetryEpoch              int64

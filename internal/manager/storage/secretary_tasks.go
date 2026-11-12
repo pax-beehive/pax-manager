@@ -93,6 +93,9 @@ func secretaryTaskFailure(state, attempt, failure string, notDispatched bool) (s
 	if state == "unknown" || attempt == "unknown" {
 		return "execution_unknown", "The execution outcome is unknown. Check the existing result before retrying."
 	}
+	if strings.HasPrefix(failure, secretaryInputLimitPrefix) {
+		return "input_size_limit", "This source exceeds the supported input size. Reduce it or retry after the input limit changes."
+	}
 	if notDispatched {
 		if state == "blocked" {
 			return "connection_retries_exhausted", "Connection retries are exhausted. Retry this task to start a new retry budget."

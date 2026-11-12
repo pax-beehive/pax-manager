@@ -130,6 +130,42 @@ hash 和快照继续复用，但分别承担异常检测和引用留档，不把
 
 ### 摘要输入与输出
 
+#### Long user message previews (input policy v2)
+
+New Secretary jobs freeze `InputPolicyVersion=user-head-tail-assistant-last-v2`.
+User text up to 32 KiB remains complete; longer user messages expose only a
+UTF-8-safe beginning and end within a combined 32 KiB preview budget, including
+an explicit middle-omitted marker. The message is labeled `view:head_tail`,
+`truncated:true`, and includes its original byte count and the available full
+view. Assistant messages keep their existing last-paragraph view.
+
+The agent uses the visible request and the corresponding assistant reply to
+decide whether the omitted paste matters. If the reply falls outside the batch,
+it can use the existing history tool and turn identity to inspect context.
+Reading the entire middle is optional. Existing full reads support offset/limit
+and receipts, so only necessary ranges need to be retrieved. A message may be
+summarized or explicitly marked `no_summary` from this selective view; processed
+does not mean every character was read.
+
+Evidence without an additional read must fit wholly within a real head or tail
+segment. The marker and joins across omitted text cannot support quotes. Middle
+quotes require actual authorized reads of the same canonical source version.
+`head_tail` is internal to the initial prompt, not a new public tool view.
+Original message IDs, full visible text, canonical hashes, snapshots and ES
+documents remain unchanged.
+
+Empty or v1 policy fields in existing frozen batches retain full-user semantics,
+including verification of old outputs. New batch identities include the policy.
+No historical message-state reset or summary recomputation occurs. Unsupported
+future policy values fail closed. Rollback must retain a reader that understands
+v2 while v2 executions or saved outputs remain unresolved.
+
+The existing full-source safety budget still applies. Deterministic preparation
+size errors block the task with their recorded reason and no checkpoint advance;
+they do not enter the fixed 30-second retry loop. An actual source change or an
+explicit task retry can make that preparation eligible again. This does not
+restart unresolved native executions or weaken their terminal-proof rules.
+
 #### Summary selection policy (2026-11-11)
 
 Secretary writes selective memory for future follow-up. It keeps key current

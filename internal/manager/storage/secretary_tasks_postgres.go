@@ -17,7 +17,10 @@ const secretaryTaskSelectSQL = `SELECT j.source_id::text,j.source_session_id,j.s
  COALESCE(j.lease_token<>'' AND j.lease_until>clock_timestamp(),FALSE),j.desired_revision,j.processed_revision,
  j.available_at,GREATEST(j.updated_at,b.updated_at,a.updated_at),s.created_at,s.runtime_status,cfg.enabled,
  COALESCE(b.batch_id,''),COALESCE(b.state,''),COALESCE(b.attempt_count,0),COALESCE(b.connection_failures,0),b.retry_after,
- COALESCE(a.attempt_id,''),COALESCE(a.state,''),COALESCE(a.not_dispatched,FALSE),COALESCE(a.last_error,j.last_error),j.execution_blocked
+ COALESCE(a.attempt_id,''),COALESCE(a.state,''),COALESCE(a.not_dispatched,FALSE),
+ CASE WHEN j.execution_blocked AND starts_with(j.last_error,'` + secretaryInputLimitPrefix + `')
+ AND COALESCE(b.state,'') NOT IN ('running','unknown','output_received') THEN j.last_error
+ ELSE COALESCE(a.last_error,j.last_error) END,j.execution_blocked
  FROM secretary_jobs j JOIN secretary_settings cfg ON cfg.owner_user_id=j.owner_user_id
  JOIN agents source ON source.agent_id=j.source_agent_id AND source.owner_user_id=j.owner_user_id AND source.deleted_at IS NULL
  JOIN agent_sessions s ON s.id=j.source_id AND s.agent_id=j.source_agent_id AND s.session_id=j.source_session_id AND s.archived_at IS NULL

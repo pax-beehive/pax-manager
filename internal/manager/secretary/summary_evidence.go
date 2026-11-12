@@ -101,10 +101,18 @@ func bindTrustedEvidence(
 		)
 	}
 	for _, message := range job.Messages {
-		view := domain.DefaultSearchMessageView(message.Role)
-		text, _ := domain.SearchMessageView(message.Body, view)
+		_, view := domain.SecretaryMessageViewForPolicy(
+			message.Body,
+			message.Role,
+			job.InputPolicyVersion,
+		)
 		if message.SourceID == evidence.MessageID && evidence.ReadReceipt == "" &&
-			strings.Contains(text, evidence.Quote) {
+			domain.SecretaryMessageContainsQuoteForPolicy(
+				message.Body,
+				message.Role,
+				evidence.Quote,
+				job.InputPolicyVersion,
+			) {
 			return domain.SummaryEvidence{
 				Message: messageReference(message),
 				Quote:   evidence.Quote,

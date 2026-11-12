@@ -100,7 +100,7 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 066 | resolved | [Secretary startup requeues previously processed sessions](066-secretary-startup-requeues-completed-sessions.md) | medium | storage / Secretary bootstrap |
 
-| 067 | partial | [Secretary summary selection, capacity and execution lifecycle](067-secretary-topic-capacity-and-execution-lifecycle.md) | high | Secretary / summary / lifecycle |
+| 067 | partial | [Secretary summary selection, long-input previews and execution lifecycle](067-secretary-topic-capacity-and-execution-lifecycle.md) | high | Secretary / summary / lifecycle |
 
 | 068 | open | [Legacy Paxd container fixture uses obsolete bootstrap and Hermes transport](068-legacy-paxd-container-integration-fixture.md) | medium | integration / Paxd harness |
 
