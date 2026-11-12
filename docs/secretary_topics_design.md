@@ -139,6 +139,12 @@ an explicit middle-omitted marker. The message is labeled `view:head_tail`,
 `truncated:true`, and includes its original byte count and the available full
 view. Assistant messages keep their existing last-paragraph view.
 
+Manager code performs this projection before prompt serialization, including
+the inline omission marker. Secretary receives the already projected text;
+it does not decide where to cut it or calculate preview budgets. The model's
+only input-view decision is whether additional original context is useful.
+The existing v2 marker, slicing and frozen-policy compatibility stay unchanged.
+
 The agent uses the visible request and the corresponding assistant reply to
 decide whether the omitted paste matters. If the reply falls outside the batch,
 it can use the existing history tool and turn identity to inspect context.
@@ -168,16 +174,32 @@ restart unresolved native executions or weaken their terminal-proof rules.
 
 #### Summary selection policy (2026-11-11)
 
-Recurring activity is retained as a pattern, not an event log. For example, a
-session with repeated manual deployments may need only a short supported
-description of that workflow. Subsequent routine repetitions receive explicit
-`no_summary` outcomes: processing progresses without a new summary revision,
-claim or cumulative coverage entry. Retain representative sources sufficient
-to support the abstraction; do not invent operation counts or infer a workflow
-from the session title alone. Important failures, rollbacks, lasting fixes,
-workflow changes and unresolved risks still warrant supported updates to the
-appropriate existing node. This policy is applied by the agent; Manager does
+Recurring activity is retained as a pattern, not an event log. A repeated
+procedure is not necessarily repeated information. Use `no_summary` only when
+a message adds no useful fact, state change or supported association; this
+advances processing without a new summary revision, claim or coverage entry.
+Retain representative sources sufficient to support the abstraction; do not
+invent counts or infer a workflow from the session title. Important failures,
+lasting fixes, workflow changes, new associations and unresolved risks still
+warrant supported updates. This policy is applied by the agent; Manager does
 not classify or discard messages by keywords or session identity.
+
+Stable artifact references, repository-qualified PRs, commit IDs and source
+links may connect a routine-looking event to work in another session. Preserve
+useful references rather than discarding them as operational detail. When useful,
+the agent searches with that identity and project/repository context, then reads
+authorized original messages. A search snippet, bare PR number or matching word
+does not establish the relationship. Do not assume that a merge commit and a
+different commit identify the same change; keep unverified connections uncertain.
+Manager does not perform these semantic associations or inject related sessions.
+
+The current schema can express a verified connection as concise text in the
+current session's summary, supported by selected messages from both sessions.
+Additional original messages require exact `related_sources` references and
+read receipts. This does not create a topic/relationship entity, revise the
+other session's summaries or advance its processing. Other summaries remain
+navigation/background rather than original evidence. Permissions and normal
+source/version validation still apply. This is not a graph or board update.
 
 Secretary writes selective memory for future follow-up. It keeps key current
 conclusions, decisions, constraints, material results, corrections and unresolved
