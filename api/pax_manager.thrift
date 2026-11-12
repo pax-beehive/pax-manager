@@ -1434,6 +1434,47 @@ struct UpgradeNodeHarnessRequest {
   7: optional string connection_id
 }
 
+struct GetNodeHarnessAuthStatusRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string harness (api.path = "harness")
+  4: optional string session_id (api.query = "session_id")
+}
+
+struct LoginNodeHarnessRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string harness (api.path = "harness")
+  4: optional string command_id
+  5: optional string operation
+  6: optional string session_id
+  7: optional string method
+  8: optional string code
+}
+
+struct HarnessAuthView {
+  1: optional string harness
+  2: optional string session_id
+  3: optional string state
+  4: optional string authorization_url
+  5: optional string method
+  6: optional string user_code
+  7: optional string expires_at
+  8: optional bool logged_in
+  9: optional string auth_method
+  10: optional string error_code
+}
+
+struct HarnessAuthData {
+  1: optional HarnessAuthView harness_auth
+}
+
+struct HarnessAuthResponse {
+  1: optional HarnessAuthData data
+  2: optional i32 code
+  3: optional string message
+}
+
 struct UpgradeNodePaxlRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
@@ -2141,6 +2182,33 @@ service PaxManagerAPI {
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier."
+  )
+
+  HarnessAuthResponse GetNodeHarnessAuthStatus(
+    1: optional GetNodeHarnessAuthStatusRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/nodes/:node_id/harnesses/:harness/auth/status",
+    openapi.tag = "user",
+    openapi.summary = "Get node harness login status",
+    openapi.description = "Forwards an ephemeral harness_auth.status query after checking node and login ownership. Responses must not be cached. Login attempts require routing to the Manager instance holding the node control tunnel and attempt ownership.",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.harness = "claude or codex."
+  )
+
+  HarnessAuthResponse LoginNodeHarness(
+    1: optional LoginNodeHarnessRequest request
+  ) (
+    api.post = "/api/v1/user/:user_id/nodes/:node_id/harnesses/:harness/auth/login",
+    openapi.tag = "user",
+    openapi.summary = "Authenticate a node harness",
+    openapi.description = "Forwards ephemeral harness_auth.login start, submit, or cancel. Supports Claude subscription/console and Codex device/api-key/access-token. Secret code is never recorded in Manager command history; callers and proxies must not log bodies or cache responses. An accepted command does not mean login has completed.",
+    openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.harness = "claude or codex."
   )
 
   NodeDaemonCommandResponse UpgradeNodePaxl(

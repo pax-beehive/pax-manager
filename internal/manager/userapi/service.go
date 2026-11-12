@@ -553,6 +553,7 @@ type Service struct {
 	historyReconciler func(context.Context, string, string) error
 	commandSyncMu     sync.Mutex
 	commandSyncAt     map[string]time.Time
+	harnessAuthNodes  sync.Map
 }
 
 func NewService(
