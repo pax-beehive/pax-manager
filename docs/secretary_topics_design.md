@@ -168,6 +168,17 @@ restart unresolved native executions or weaken their terminal-proof rules.
 
 #### Summary selection policy (2026-11-11)
 
+Recurring activity is retained as a pattern, not an event log. For example, a
+session with repeated manual deployments may need only a short supported
+description of that workflow. Subsequent routine repetitions receive explicit
+`no_summary` outcomes: processing progresses without a new summary revision,
+claim or cumulative coverage entry. Retain representative sources sufficient
+to support the abstraction; do not invent operation counts or infer a workflow
+from the session title alone. Important failures, rollbacks, lasting fixes,
+workflow changes and unresolved risks still warrant supported updates to the
+appropriate existing node. This policy is applied by the agent; Manager does
+not classify or discard messages by keywords or session identity.
+
 Secretary writes selective memory for future follow-up. It keeps key current
 conclusions, decisions, constraints, material results, corrections and unresolved
 questions. It may omit routine acknowledgments, repetition, command/log detail,

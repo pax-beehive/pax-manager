@@ -14,6 +14,16 @@
 
 ## Current note
 
+2026-11-12: recurring activity is now an explicit prompt policy shared by node
+and legacy summaries. Repeated manual releases can be represented once as a
+workflow pattern; later routine events use node `no_summary` outcomes rather
+than growing revisions, claims or coverage. Material exceptions and workflow
+changes remain useful memory. A Memory/PostgreSQL contract verifies selective
+coverage, claim-free aggregation and subsequent no-summary progress without a
+new summary revision. This is not server-side semantic deduplication; real-model
+adherence remains to verify. Quote-validation failures and unknown executions
+are separate and are not automatically retried by this change.
+
 2026-11-12: long user messages now use a bounded first-and-last preview for new
 v2 jobs, with explicit omission metadata. Secretary can use the corresponding
 assistant reply and selectively read original ranges when needed. Full source
