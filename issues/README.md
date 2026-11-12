@@ -130,6 +130,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 082 | resolved | [Workspace search requests lack status, cancellation and pending deadlines](082-workspace-access-request-lifecycle.md) | medium | api / auth / storage / MCP |
 
+| 083 | resolved | [Native harness status omits the logged-in account](083-native-harness-account-identity.md) | medium | api / auth / node control |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

@@ -321,6 +321,10 @@ func decodeHarnessAuthView(
 	if view.State != "awaiting_browser" && view.State != "awaiting_code" {
 		view.AuthorizationURL, view.UserCode = "", ""
 	}
+	view.Account = sanitizeHarnessAuthAccount(view.Account)
+	if view.State != "logged_in" && view.State != "succeeded" {
+		view.Account = nil
+	}
 	return view, nil
 }
 

@@ -1452,6 +1452,13 @@ struct LoginNodeHarnessRequest {
   8: optional string code
 }
 
+struct HarnessAuthAccount {
+  1: optional string email
+  2: optional string display_name
+  3: optional string organization
+  4: optional string plan
+}
+
 struct HarnessAuthView {
   1: optional string harness
   2: optional string session_id
@@ -1463,6 +1470,7 @@ struct HarnessAuthView {
   8: optional bool logged_in
   9: optional string auth_method
   10: optional string error_code
+  11: optional HarnessAuthAccount account
 }
 
 struct HarnessAuthData {

@@ -1532,6 +1532,23 @@
         },
         "type": "object"
       },
+      "HarnessAuthAccount": {
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "HarnessAuthData": {
         "properties": {
           "harness_auth": {
@@ -1557,6 +1574,9 @@
       },
       "HarnessAuthView": {
         "properties": {
+          "account": {
+            "$ref": "#/components/schemas/HarnessAuthAccount"
+          },
           "auth_method": {
             "type": "string"
           },
