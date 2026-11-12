@@ -47,6 +47,7 @@ if [[ ! "${search_pg_address}" =~ ^127\.0\.0\.1:[0-9]+$ ]] || [[ ! "${search_es_
 fi
 export PAX_MANAGER_SEARCH_TEST_DATABASE_URL="postgres://pax:pax@${search_pg_address}/search_test?sslmode=disable"
 export PAX_MANAGER_SECRETARY_TEST_DATABASE_URL="${PAX_MANAGER_SEARCH_TEST_DATABASE_URL}"
+export PAX_NOTIFICATIONS_TEST_DATABASE_URL="${PAX_MANAGER_SEARCH_TEST_DATABASE_URL}"
 export SEARCH_TEST_URL="http://${search_es_address}"
 
 printf 'Running message, HTTP, real PG/ES, and summary acceptance checks...\n'

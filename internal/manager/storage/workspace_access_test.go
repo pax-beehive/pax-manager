@@ -87,7 +87,12 @@ func TestWorkspaceApprovalStorageSeparatesPendingDeadlineAndGrantLifetime(t *tes
 					expiresAt = &deadline
 				}
 				approval := createWorkspaceApproval(t, store, owner, expiresAt)
-				assert.Equal(t, expiresAt, approval.ExpiresAt)
+				if expiresAt == nil {
+					assert.Nil(t, approval.ExpiresAt)
+				} else {
+					require.NotNil(t, approval.ExpiresAt)
+					assert.WithinDuration(t, *expiresAt, *approval.ExpiresAt, 0)
+				}
 				decisionAt := created.Add(599 * time.Second)
 				clock.Store(decisionAt.UnixNano())
 				approved, err := store.DecideApproval(
@@ -98,10 +103,11 @@ func TestWorkspaceApprovalStorageSeparatesPendingDeadlineAndGrantLifetime(t *tes
 				)
 				require.NoError(t, err)
 				require.NotNil(t, approved.ExpiresAt)
-				assert.Equal(
+				assert.WithinDuration(
 					t,
 					decisionAt.Add(domain.WorkspaceSearchGrantLifetime),
 					*approved.ExpiresAt,
+					0,
 				)
 				clock.Store(created.Add(601 * time.Second).UnixNano())
 				current, err := store.GetApproval(
@@ -370,7 +376,8 @@ func TestWorkspaceApprovalStorageDoesNotChangeOtherApprovalDomains(t *testing.T)
 			)
 			require.NoError(t, err)
 			assert.Equal(t, "agent", decided.DecisionScope)
-			assert.Equal(t, &expired, decided.ExpiresAt)
+			require.NotNil(t, decided.ExpiresAt)
+			assert.WithinDuration(t, expired, *decided.ExpiresAt, 0)
 		})
 	}
 }
