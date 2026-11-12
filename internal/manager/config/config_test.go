@@ -113,6 +113,66 @@ func TestLoad(t *testing.T) {
 	)
 
 	t.Run(
+		"Given no voice environment when loading config then voice is off and admin only",
+		func(t *testing.T) {
+			clearConfigEnv(t)
+
+			cfg := config.Load()
+
+			require.Empty(t, cfg.VoiceProvider)
+			require.Equal(t, []string{"zh-cn", "en"}, cfg.VoiceLanguages)
+			require.Equal(t, 5*time.Minute, cfg.VoiceMaxSession)
+			require.True(t, cfg.VoiceAdminOnly)
+			require.Empty(t, cfg.OpenAIAPIKey)
+			require.Empty(t, cfg.VoiceSeedASRURL)
+		},
+	)
+
+	t.Run(
+		"Given voice environment overrides when loading config then provider settings are read",
+		func(t *testing.T) {
+			clearConfigEnv(t)
+			t.Setenv("VOICE_PROVIDER", " volcengine ")
+			t.Setenv("VOICE_LANGUAGES", "zh-cn, ,en-us")
+			t.Setenv("VOICE_MAX_SESSION_SECONDS", "120")
+			t.Setenv("VOICE_ADMIN_ONLY", "false")
+			t.Setenv("OPENAI_API_KEY", " sk-test ")
+			t.Setenv("VOICE_OPENAI_URL", "wss://openai.example/v1/realtime")
+			t.Setenv("VOICE_OPENAI_MODEL", "gpt-transcribe-test")
+			t.Setenv("VOICE_OPENAI_DELAY", "minimal")
+			t.Setenv("DASHSCOPE_API_KEY", " sk-dashscope ")
+			t.Setenv("VOICE_QWEN_URL", "wss://dashscope.aliyuncs.com/api-ws/v1/realtime")
+			t.Setenv("VOICE_QWEN_MODEL", "qwen3-asr-flash-realtime-2026-02-10")
+			t.Setenv("VOICE_QWEN_LANGUAGE", "zh")
+			t.Setenv("VOICE_SEEDASR_URL", "wss://asr.example/api/v3/sauc/bigmodel_async")
+			t.Setenv("VOICE_SEEDASR_API_KEY", "seed-key")
+			t.Setenv("VOICE_SEEDASR_APP_KEY", "seed-app")
+			t.Setenv("VOICE_SEEDASR_ACCESS_KEY", "seed-access")
+			t.Setenv("VOICE_SEEDASR_RESOURCE_ID", "volc.bigasr.sauc.duration")
+
+			cfg := config.Load()
+
+			require.Equal(t, "volcengine", cfg.VoiceProvider)
+			require.Equal(t, []string{"zh-cn", "en-us"}, cfg.VoiceLanguages)
+			require.Equal(t, 2*time.Minute, cfg.VoiceMaxSession)
+			require.False(t, cfg.VoiceAdminOnly)
+			require.Equal(t, "sk-test", cfg.OpenAIAPIKey)
+			require.Equal(t, "wss://openai.example/v1/realtime", cfg.VoiceOpenAIURL)
+			require.Equal(t, "gpt-transcribe-test", cfg.VoiceOpenAIModel)
+			require.Equal(t, "minimal", cfg.VoiceOpenAIDelay)
+			require.Equal(t, "sk-dashscope", cfg.DashScopeAPIKey)
+			require.Equal(t, "wss://dashscope.aliyuncs.com/api-ws/v1/realtime", cfg.VoiceQwenURL)
+			require.Equal(t, "qwen3-asr-flash-realtime-2026-02-10", cfg.VoiceQwenModel)
+			require.Equal(t, "zh", cfg.VoiceQwenLanguage)
+			require.Equal(t, "wss://asr.example/api/v3/sauc/bigmodel_async", cfg.VoiceSeedASRURL)
+			require.Equal(t, "seed-key", cfg.VoiceSeedASRAPIKey)
+			require.Equal(t, "seed-app", cfg.VoiceSeedASRAppKey)
+			require.Equal(t, "seed-access", cfg.VoiceSeedASRAccessKey)
+			require.Equal(t, "volc.bigasr.sauc.duration", cfg.VoiceSeedASRResourceID)
+		},
+	)
+
+	t.Run(
 		"Given only an internal object endpoint when loading config then the public endpoint defaults to it",
 		func(t *testing.T) {
 			clearConfigEnv(t)
@@ -197,6 +257,23 @@ func clearConfigEnv(t *testing.T) {
 		"DEEPSEEK_TIMEOUT_SECONDS",
 		"DEEPSEEK_MAX_TOKENS",
 		"DEEPSEEK_TEMPERATURE",
+		"VOICE_PROVIDER",
+		"VOICE_LANGUAGES",
+		"VOICE_MAX_SESSION_SECONDS",
+		"VOICE_ADMIN_ONLY",
+		"OPENAI_API_KEY",
+		"VOICE_OPENAI_URL",
+		"VOICE_OPENAI_MODEL",
+		"VOICE_OPENAI_DELAY",
+		"DASHSCOPE_API_KEY",
+		"VOICE_QWEN_URL",
+		"VOICE_QWEN_MODEL",
+		"VOICE_QWEN_LANGUAGE",
+		"VOICE_SEEDASR_URL",
+		"VOICE_SEEDASR_API_KEY",
+		"VOICE_SEEDASR_APP_KEY",
+		"VOICE_SEEDASR_ACCESS_KEY",
+		"VOICE_SEEDASR_RESOURCE_ID",
 	} {
 		t.Setenv(key, "")
 	}
