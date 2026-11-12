@@ -23,6 +23,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/notifications"
 	"github.com/pax-beehive/pax-manager/internal/manager/paxd"
 	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
+	"github.com/pax-beehive/pax-manager/internal/manager/voice"
 )
 
 type Service struct {
@@ -73,6 +74,7 @@ type Service struct {
 	paxdArtifacts        paxdArtifactBackend
 	backgroundRunner     func(context.Context, func(context.Context))
 	e2eeEventWakes       *e2eeWakeRegistry
+	voice                voice.Provider
 }
 
 type Server = Service
@@ -187,6 +189,7 @@ func newServer(cfg Config, store Store) *Service {
 		)
 	})
 	s.configureTeamMemexExecutor()
+	s.configureVoice()
 	s.paxdArtifacts = newS3PaxdArtifactBackend(cfg)
 	return s
 }
@@ -463,6 +466,11 @@ func (s *Service) registerRoutes(h *hertzserver.Hertz) {
 	h.POST(routeUpsertRepresentativeAgent, UpsertRepresentativeAgent)
 	h.POST(routeStartUserAgentInquiry, StartUserAgentInquiry)
 	h.GET(routeListAgentConversationMessages, ListAgentConversationMessages)
+	h.GET(routeUserVoiceConfig, s.handleGetVoiceConfig)
+	h.GET(
+		routeUserVoiceStream,
+		adaptor.HertzHandler(http.HandlerFunc(s.handleVoiceStream)),
+	)
 	h.POST(routeCreateUserAttachment, s.handleCreateUserAttachment)
 	h.POST(routeCompleteUserAttachment, s.handleCompleteUserAttachment)
 	h.GET(routeUserAttachmentContent, s.handleUserAttachmentContent)

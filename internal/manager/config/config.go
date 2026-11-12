@@ -66,6 +66,23 @@ type Config struct {
 	DeepSeekTimeout                  time.Duration
 	DeepSeekMaxTokens                int
 	DeepSeekTemperature              float64
+	VoiceProvider                    string
+	VoiceLanguages                   []string
+	VoiceMaxSession                  time.Duration
+	VoiceAdminOnly                   bool
+	OpenAIAPIKey                     string
+	VoiceOpenAIURL                   string
+	VoiceOpenAIModel                 string
+	VoiceOpenAIDelay                 string
+	DashScopeAPIKey                  string
+	VoiceQwenURL                     string
+	VoiceQwenModel                   string
+	VoiceQwenLanguage                string
+	VoiceSeedASRURL                  string
+	VoiceSeedASRAPIKey               string
+	VoiceSeedASRAppKey               string
+	VoiceSeedASRAccessKey            string
+	VoiceSeedASRResourceID           string
 }
 
 func Load() Config {
@@ -142,6 +159,25 @@ func Load() Config {
 		) * time.Second,
 		DeepSeekMaxTokens:   parseIntEnv("DEEPSEEK_MAX_TOKENS", 384000),
 		DeepSeekTemperature: parseFloatEnv("DEEPSEEK_TEMPERATURE", 0.2),
+		VoiceProvider:       strings.TrimSpace(os.Getenv("VOICE_PROVIDER")),
+		VoiceLanguages:      parseList(envDefault("VOICE_LANGUAGES", "zh-cn,en")),
+		VoiceMaxSession: time.Duration(
+			parseIntEnv("VOICE_MAX_SESSION_SECONDS", 300),
+		) * time.Second,
+		VoiceAdminOnly:         parseBoolDefault("VOICE_ADMIN_ONLY", true),
+		OpenAIAPIKey:           strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
+		VoiceOpenAIURL:         strings.TrimSpace(os.Getenv("VOICE_OPENAI_URL")),
+		VoiceOpenAIModel:       strings.TrimSpace(os.Getenv("VOICE_OPENAI_MODEL")),
+		VoiceOpenAIDelay:       strings.TrimSpace(os.Getenv("VOICE_OPENAI_DELAY")),
+		DashScopeAPIKey:        strings.TrimSpace(os.Getenv("DASHSCOPE_API_KEY")),
+		VoiceQwenURL:           strings.TrimSpace(os.Getenv("VOICE_QWEN_URL")),
+		VoiceQwenModel:         strings.TrimSpace(os.Getenv("VOICE_QWEN_MODEL")),
+		VoiceQwenLanguage:      strings.TrimSpace(os.Getenv("VOICE_QWEN_LANGUAGE")),
+		VoiceSeedASRURL:        strings.TrimSpace(os.Getenv("VOICE_SEEDASR_URL")),
+		VoiceSeedASRAPIKey:     strings.TrimSpace(os.Getenv("VOICE_SEEDASR_API_KEY")),
+		VoiceSeedASRAppKey:     strings.TrimSpace(os.Getenv("VOICE_SEEDASR_APP_KEY")),
+		VoiceSeedASRAccessKey:  strings.TrimSpace(os.Getenv("VOICE_SEEDASR_ACCESS_KEY")),
+		VoiceSeedASRResourceID: strings.TrimSpace(os.Getenv("VOICE_SEEDASR_RESOURCE_ID")),
 	}
 }
 
@@ -241,6 +277,23 @@ func parseBool(raw string) bool {
 	default:
 		return false
 	}
+}
+
+func parseBoolDefault(key string, fallback bool) bool {
+	if strings.TrimSpace(os.Getenv(key)) == "" {
+		return fallback
+	}
+	return parseBool(os.Getenv(key))
+}
+
+func parseList(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func parseIntEnv(key string, fallback int) int {

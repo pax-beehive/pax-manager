@@ -142,6 +142,8 @@ const (
 	routeUpsertRepresentativeAgent     = "/api/v1/user/:user_id/representative-agents"
 	routeStartUserAgentInquiry         = "/api/v1/user/:user_id/nodes/:node_id/agents/:agent_id/inquiries"
 	routeListAgentConversationMessages = "/api/v1/user/:user_id/conversations/:conversation_id/messages"
+	routeUserVoiceConfig               = "/api/v1/user/:user_id/voice/config"
+	routeUserVoiceStream               = "/api/v1/user/:user_id/voice/stream"
 
 	routeDownloadGenericArtifact = "/api/v1/public/artifacts/download"
 	routeDownloadPaxdArtifact    = "/api/v1/public/paxd/download"
@@ -175,4 +177,6 @@ const (
 	openAPIUserArtifactContent          = "/api/v1/user/{user_id}/artifact-publications/{publication_id}/content/{content_ref}"
 	openAPIUserArtifactFetches          = "/api/v1/user/{user_id}/sessions/{session_id}/artifact-fetches"
 	openAPIUserArtifactFetchCheck       = openAPIUserArtifactFetches + "/check"
+	openAPIUserVoiceConfigPath          = "/api/v1/user/{user_id}/voice/config"
+	openAPIUserVoiceStreamPath          = "/api/v1/user/{user_id}/voice/stream"
 )
