@@ -1463,6 +1463,20 @@
         },
         "type": "object"
       },
+      "GetNodeHarnessUsageRequest": {
+        "properties": {
+          "harness": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "GetNodeRequest": {
         "properties": {
           "node_id": {
@@ -1606,6 +1620,88 @@
           },
           "user_code": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HarnessUsageData": {
+        "properties": {
+          "harness_usage": {
+            "$ref": "#/components/schemas/HarnessUsageView"
+          }
+        },
+        "type": "object"
+      },
+      "HarnessUsageExtra": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "HarnessUsageResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HarnessUsageData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HarnessUsageView": {
+        "properties": {
+          "error_code": {
+            "type": "string"
+          },
+          "extra_usage": {
+            "$ref": "#/components/schemas/HarnessUsageExtra"
+          },
+          "harness": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/HarnessUsageWindow"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "HarnessUsageWindow": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "resets_at": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "used_percent": {
+            "format": "double",
+            "type": "number"
+          },
+          "window_minutes": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -12647,6 +12743,87 @@
           }
         ],
         "summary": "Get node harness login status",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/harnesses/{harness}/usage": {
+      "get": {
+        "description": "Forwards a harness_usage.status query after checking node ownership. paxd reads subscription plan usage from the native CLI on demand, without reading credentials. paxd and the native CLI cache the result, so it may be up to about one minute old. state is available, unsupported (the sign-in method has no plan limits), or unavailable with error_code cli_unsupported, read_failed, timeout, or daemon_unsupported (the node paxd predates this query). Windows report used_percent from 0 to 100. Responses must not be cached.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetNodeHarnessUsageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HarnessUsageResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Get node harness plan usage",
         "tags": [
           "user"
         ]

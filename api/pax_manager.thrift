@@ -1483,6 +1483,44 @@ struct HarnessAuthResponse {
   3: optional string message
 }
 
+struct GetNodeHarnessUsageRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: optional string node_id (api.path = "node_id")
+  3: optional string harness (api.path = "harness")
+}
+
+struct HarnessUsageWindow {
+  1: optional string id
+  2: optional i32 window_minutes
+  3: optional string scope
+  4: optional double used_percent
+  5: optional string resets_at
+}
+
+struct HarnessUsageExtra {
+  1: optional bool enabled
+}
+
+struct HarnessUsageView {
+  1: optional string harness
+  2: optional string state
+  3: optional string observed_at
+  4: optional string plan
+  5: optional list<HarnessUsageWindow> windows
+  6: optional HarnessUsageExtra extra_usage
+  7: optional string error_code
+}
+
+struct HarnessUsageData {
+  1: optional HarnessUsageView harness_usage
+}
+
+struct HarnessUsageResponse {
+  1: optional HarnessUsageData data
+  2: optional i32 code
+  3: optional string message
+}
+
 struct UpgradeNodePaxlRequest {
   1: optional string user_id (api.path = "user_id")
   2: optional string node_id (api.path = "node_id")
@@ -2213,6 +2251,19 @@ service PaxManagerAPI {
     openapi.summary = "Authenticate a node harness",
     openapi.description = "Forwards ephemeral harness_auth.login start, submit, or cancel. Supports Claude subscription/console and Codex device/api-key/access-token. Secret code is never recorded in Manager command history; callers and proxies must not log bodies or cache responses. An accepted command does not mean login has completed.",
     openapi.status = "202",
+    openapi.security = "cloudflareAccess",
+    openapi.path.user_id = "User identifier.",
+    openapi.path.node_id = "Node identifier.",
+    openapi.path.harness = "claude or codex."
+  )
+
+  HarnessUsageResponse GetNodeHarnessUsage(
+    1: optional GetNodeHarnessUsageRequest request
+  ) (
+    api.get = "/api/v1/user/:user_id/nodes/:node_id/harnesses/:harness/usage",
+    openapi.tag = "user",
+    openapi.summary = "Get node harness plan usage",
+    openapi.description = "Forwards a harness_usage.status query after checking node ownership. paxd reads subscription plan usage from the native CLI on demand, without reading credentials. paxd and the native CLI cache the result, so it may be up to about one minute old. state is available, unsupported (the sign-in method has no plan limits), or unavailable with error_code cli_unsupported, read_failed, timeout, or daemon_unsupported (the node paxd predates this query). Windows report used_percent from 0 to 100. Responses must not be cached.",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier.",

@@ -966,3 +966,8 @@ func _getnodeharnessauthstatusMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _getnodeharnessusageMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
