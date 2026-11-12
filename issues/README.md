@@ -126,6 +126,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 080 | partial | [Bulk Secretary retry times out after committing work](080-secretary-bulk-retry-response-timeout.md) | high | Secretary / bulk retry / acknowledgement |
 
+| 081 | resolved | [Native harness login has no owner-scoped user API](081-native-harness-login-user-api.md) | medium | api / auth / node control |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

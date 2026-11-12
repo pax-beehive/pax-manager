@@ -941,3 +941,28 @@ func _callworkspacetoolMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _harnesses0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _harness0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _authMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _loginnodeharnessMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getnodeharnessauthstatusMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
