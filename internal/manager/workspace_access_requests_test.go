@@ -338,4 +338,9 @@ func TestWorkspaceRequestCannotBeApprovedAfterManagerLosesTurnRegistration(t *te
 		"expired",
 		accessRequestStatus(t, srv, fixture, "access_status", request.ApprovalID).Status,
 	)
+	require.Equal(
+		t,
+		"cancelled",
+		accessRequestStatus(t, srv, fixture, "cancel_access", request.ApprovalID).Status,
+	)
 }

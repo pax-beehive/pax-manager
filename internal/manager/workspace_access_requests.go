@@ -163,9 +163,11 @@ func (s *Service) workspaceAccessRequestByID(
 			result.PollAfterMS = 0
 		}
 	}
-	if operation != "cancel_access" || (result.Status != "pending" && result.Status != "approved") {
+	if operation != "cancel_access" {
 		return result, nil
 	}
+	// Revocation never requires a live turn. In particular, a no-deadline
+	// pending record left by a restart must remain explicitly cancellable.
 	store, ok := s.store.(workspaceApprovalCanceller)
 	if !ok {
 		return workspaceAccessStatus{}, domain.ErrConflict
