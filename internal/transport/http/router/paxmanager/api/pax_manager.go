@@ -225,6 +225,7 @@ func Register(r *server.Hertz) {
 								_harnesses0 := _node_id.Group("/harnesses", _harnesses0Mw()...)
 								{
 									_harness0 := _harnesses0.Group("/:harness", _harness0Mw()...)
+									_harness0.GET("/usage", append(_getnodeharnessusageMw(), handler.GetNodeHarnessUsage)...)
 									{
 										_auth := _harness0.Group("/auth", _authMw()...)
 										_auth.POST("/login", append(_loginnodeharnessMw(), handler.LoginNodeHarness)...)

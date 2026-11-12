@@ -28,6 +28,8 @@ type fakeNodeControlClient struct {
 	requestID    string
 	query        any
 	calls        int
+	deadline     time.Time
+	hasDeadline  bool
 	commandID    string
 	command      any
 	commandAck   json.RawMessage
@@ -40,12 +42,13 @@ func (c *fakeNodeControlClient) RemoteID(_ string) (string, error) {
 }
 
 func (c *fakeNodeControlClient) Query(
-	_ context.Context,
+	ctx context.Context,
 	nodeID string,
 	requestID string,
 	query any,
 ) (json.RawMessage, error) {
 	c.calls++
+	c.deadline, c.hasDeadline = ctx.Deadline()
 	c.nodeID = nodeID
 	c.requestID = requestID
 	c.query = query

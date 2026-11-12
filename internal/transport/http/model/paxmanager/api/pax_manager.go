@@ -70307,6 +70307,1721 @@ func (p *HarnessAuthResponse) String() string {
 
 }
 
+type GetNodeHarnessUsageRequest struct {
+	UserID  *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	NodeID  *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
+	Harness *string `thrift:"harness,3,optional" json:"harness,omitempty" path:"harness"`
+}
+
+func NewGetNodeHarnessUsageRequest() *GetNodeHarnessUsageRequest {
+	return &GetNodeHarnessUsageRequest{}
+}
+
+func (p *GetNodeHarnessUsageRequest) InitDefault() {
+}
+
+var GetNodeHarnessUsageRequest_UserID_DEFAULT string
+
+func (p *GetNodeHarnessUsageRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return GetNodeHarnessUsageRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+var GetNodeHarnessUsageRequest_NodeID_DEFAULT string
+
+func (p *GetNodeHarnessUsageRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return GetNodeHarnessUsageRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var GetNodeHarnessUsageRequest_Harness_DEFAULT string
+
+func (p *GetNodeHarnessUsageRequest) GetHarness() (v string) {
+	if !p.IsSetHarness() {
+		return GetNodeHarnessUsageRequest_Harness_DEFAULT
+	}
+	return *p.Harness
+}
+
+var fieldIDToName_GetNodeHarnessUsageRequest = map[int16]string{
+	1: "user_id",
+	2: "node_id",
+	3: "harness",
+}
+
+func (p *GetNodeHarnessUsageRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *GetNodeHarnessUsageRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *GetNodeHarnessUsageRequest) IsSetHarness() bool {
+	return p.Harness != nil
+}
+
+func (p *GetNodeHarnessUsageRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_GetNodeHarnessUsageRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *GetNodeHarnessUsageRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *GetNodeHarnessUsageRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *GetNodeHarnessUsageRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Harness = _field
+	return nil
+}
+
+func (p *GetNodeHarnessUsageRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetNodeHarnessUsageRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *GetNodeHarnessUsageRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *GetNodeHarnessUsageRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *GetNodeHarnessUsageRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetHarness() {
+		if err = oprot.WriteFieldBegin("harness", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Harness); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *GetNodeHarnessUsageRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("GetNodeHarnessUsageRequest(%+v)", *p)
+
+}
+
+type HarnessUsageWindow struct {
+	ID            *string  `thrift:"id,1,optional" form:"id" json:"id,omitempty" query:"id"`
+	WindowMinutes *int32   `thrift:"window_minutes,2,optional" form:"window_minutes" json:"window_minutes,omitempty" query:"window_minutes"`
+	Scope         *string  `thrift:"scope,3,optional" form:"scope" json:"scope,omitempty" query:"scope"`
+	UsedPercent   *float64 `thrift:"used_percent,4,optional" form:"used_percent" json:"used_percent,omitempty" query:"used_percent"`
+	ResetsAt      *string  `thrift:"resets_at,5,optional" form:"resets_at" json:"resets_at,omitempty" query:"resets_at"`
+}
+
+func NewHarnessUsageWindow() *HarnessUsageWindow {
+	return &HarnessUsageWindow{}
+}
+
+func (p *HarnessUsageWindow) InitDefault() {
+}
+
+var HarnessUsageWindow_ID_DEFAULT string
+
+func (p *HarnessUsageWindow) GetID() (v string) {
+	if !p.IsSetID() {
+		return HarnessUsageWindow_ID_DEFAULT
+	}
+	return *p.ID
+}
+
+var HarnessUsageWindow_WindowMinutes_DEFAULT int32
+
+func (p *HarnessUsageWindow) GetWindowMinutes() (v int32) {
+	if !p.IsSetWindowMinutes() {
+		return HarnessUsageWindow_WindowMinutes_DEFAULT
+	}
+	return *p.WindowMinutes
+}
+
+var HarnessUsageWindow_Scope_DEFAULT string
+
+func (p *HarnessUsageWindow) GetScope() (v string) {
+	if !p.IsSetScope() {
+		return HarnessUsageWindow_Scope_DEFAULT
+	}
+	return *p.Scope
+}
+
+var HarnessUsageWindow_UsedPercent_DEFAULT float64
+
+func (p *HarnessUsageWindow) GetUsedPercent() (v float64) {
+	if !p.IsSetUsedPercent() {
+		return HarnessUsageWindow_UsedPercent_DEFAULT
+	}
+	return *p.UsedPercent
+}
+
+var HarnessUsageWindow_ResetsAt_DEFAULT string
+
+func (p *HarnessUsageWindow) GetResetsAt() (v string) {
+	if !p.IsSetResetsAt() {
+		return HarnessUsageWindow_ResetsAt_DEFAULT
+	}
+	return *p.ResetsAt
+}
+
+var fieldIDToName_HarnessUsageWindow = map[int16]string{
+	1: "id",
+	2: "window_minutes",
+	3: "scope",
+	4: "used_percent",
+	5: "resets_at",
+}
+
+func (p *HarnessUsageWindow) IsSetID() bool {
+	return p.ID != nil
+}
+
+func (p *HarnessUsageWindow) IsSetWindowMinutes() bool {
+	return p.WindowMinutes != nil
+}
+
+func (p *HarnessUsageWindow) IsSetScope() bool {
+	return p.Scope != nil
+}
+
+func (p *HarnessUsageWindow) IsSetUsedPercent() bool {
+	return p.UsedPercent != nil
+}
+
+func (p *HarnessUsageWindow) IsSetResetsAt() bool {
+	return p.ResetsAt != nil
+}
+
+func (p *HarnessUsageWindow) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.DOUBLE {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_HarnessUsageWindow[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *HarnessUsageWindow) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ID = _field
+	return nil
+}
+func (p *HarnessUsageWindow) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.WindowMinutes = _field
+	return nil
+}
+func (p *HarnessUsageWindow) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Scope = _field
+	return nil
+}
+func (p *HarnessUsageWindow) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *float64
+	if v, err := iprot.ReadDouble(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UsedPercent = _field
+	return nil
+}
+func (p *HarnessUsageWindow) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ResetsAt = _field
+	return nil
+}
+
+func (p *HarnessUsageWindow) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("HarnessUsageWindow"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *HarnessUsageWindow) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetID() {
+		if err = oprot.WriteFieldBegin("id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *HarnessUsageWindow) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetWindowMinutes() {
+		if err = oprot.WriteFieldBegin("window_minutes", thrift.I32, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.WindowMinutes); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *HarnessUsageWindow) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetScope() {
+		if err = oprot.WriteFieldBegin("scope", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Scope); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *HarnessUsageWindow) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUsedPercent() {
+		if err = oprot.WriteFieldBegin("used_percent", thrift.DOUBLE, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteDouble(*p.UsedPercent); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *HarnessUsageWindow) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetResetsAt() {
+		if err = oprot.WriteFieldBegin("resets_at", thrift.STRING, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ResetsAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *HarnessUsageWindow) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("HarnessUsageWindow(%+v)", *p)
+
+}
+
+type HarnessUsageExtra struct {
+	Enabled *bool `thrift:"enabled,1,optional" form:"enabled" json:"enabled,omitempty" query:"enabled"`
+}
+
+func NewHarnessUsageExtra() *HarnessUsageExtra {
+	return &HarnessUsageExtra{}
+}
+
+func (p *HarnessUsageExtra) InitDefault() {
+}
+
+var HarnessUsageExtra_Enabled_DEFAULT bool
+
+func (p *HarnessUsageExtra) GetEnabled() (v bool) {
+	if !p.IsSetEnabled() {
+		return HarnessUsageExtra_Enabled_DEFAULT
+	}
+	return *p.Enabled
+}
+
+var fieldIDToName_HarnessUsageExtra = map[int16]string{
+	1: "enabled",
+}
+
+func (p *HarnessUsageExtra) IsSetEnabled() bool {
+	return p.Enabled != nil
+}
+
+func (p *HarnessUsageExtra) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_HarnessUsageExtra[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *HarnessUsageExtra) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Enabled = _field
+	return nil
+}
+
+func (p *HarnessUsageExtra) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("HarnessUsageExtra"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *HarnessUsageExtra) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetEnabled() {
+		if err = oprot.WriteFieldBegin("enabled", thrift.BOOL, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.Enabled); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *HarnessUsageExtra) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("HarnessUsageExtra(%+v)", *p)
+
+}
+
+type HarnessUsageView struct {
+	Harness    *string               `thrift:"harness,1,optional" form:"harness" json:"harness,omitempty" query:"harness"`
+	State      *string               `thrift:"state,2,optional" form:"state" json:"state,omitempty" query:"state"`
+	ObservedAt *string               `thrift:"observed_at,3,optional" form:"observed_at" json:"observed_at,omitempty" query:"observed_at"`
+	Plan       *string               `thrift:"plan,4,optional" form:"plan" json:"plan,omitempty" query:"plan"`
+	Windows    []*HarnessUsageWindow `thrift:"windows,5,optional,list<HarnessUsageWindow>" form:"windows" json:"windows,omitempty" query:"windows"`
+	ExtraUsage *HarnessUsageExtra    `thrift:"extra_usage,6,optional" form:"extra_usage" json:"extra_usage,omitempty" query:"extra_usage"`
+	ErrorCode  *string               `thrift:"error_code,7,optional" form:"error_code" json:"error_code,omitempty" query:"error_code"`
+}
+
+func NewHarnessUsageView() *HarnessUsageView {
+	return &HarnessUsageView{}
+}
+
+func (p *HarnessUsageView) InitDefault() {
+}
+
+var HarnessUsageView_Harness_DEFAULT string
+
+func (p *HarnessUsageView) GetHarness() (v string) {
+	if !p.IsSetHarness() {
+		return HarnessUsageView_Harness_DEFAULT
+	}
+	return *p.Harness
+}
+
+var HarnessUsageView_State_DEFAULT string
+
+func (p *HarnessUsageView) GetState() (v string) {
+	if !p.IsSetState() {
+		return HarnessUsageView_State_DEFAULT
+	}
+	return *p.State
+}
+
+var HarnessUsageView_ObservedAt_DEFAULT string
+
+func (p *HarnessUsageView) GetObservedAt() (v string) {
+	if !p.IsSetObservedAt() {
+		return HarnessUsageView_ObservedAt_DEFAULT
+	}
+	return *p.ObservedAt
+}
+
+var HarnessUsageView_Plan_DEFAULT string
+
+func (p *HarnessUsageView) GetPlan() (v string) {
+	if !p.IsSetPlan() {
+		return HarnessUsageView_Plan_DEFAULT
+	}
+	return *p.Plan
+}
+
+var HarnessUsageView_Windows_DEFAULT []*HarnessUsageWindow
+
+func (p *HarnessUsageView) GetWindows() (v []*HarnessUsageWindow) {
+	if !p.IsSetWindows() {
+		return HarnessUsageView_Windows_DEFAULT
+	}
+	return p.Windows
+}
+
+var HarnessUsageView_ExtraUsage_DEFAULT *HarnessUsageExtra
+
+func (p *HarnessUsageView) GetExtraUsage() (v *HarnessUsageExtra) {
+	if !p.IsSetExtraUsage() {
+		return HarnessUsageView_ExtraUsage_DEFAULT
+	}
+	return p.ExtraUsage
+}
+
+var HarnessUsageView_ErrorCode_DEFAULT string
+
+func (p *HarnessUsageView) GetErrorCode() (v string) {
+	if !p.IsSetErrorCode() {
+		return HarnessUsageView_ErrorCode_DEFAULT
+	}
+	return *p.ErrorCode
+}
+
+var fieldIDToName_HarnessUsageView = map[int16]string{
+	1: "harness",
+	2: "state",
+	3: "observed_at",
+	4: "plan",
+	5: "windows",
+	6: "extra_usage",
+	7: "error_code",
+}
+
+func (p *HarnessUsageView) IsSetHarness() bool {
+	return p.Harness != nil
+}
+
+func (p *HarnessUsageView) IsSetState() bool {
+	return p.State != nil
+}
+
+func (p *HarnessUsageView) IsSetObservedAt() bool {
+	return p.ObservedAt != nil
+}
+
+func (p *HarnessUsageView) IsSetPlan() bool {
+	return p.Plan != nil
+}
+
+func (p *HarnessUsageView) IsSetWindows() bool {
+	return p.Windows != nil
+}
+
+func (p *HarnessUsageView) IsSetExtraUsage() bool {
+	return p.ExtraUsage != nil
+}
+
+func (p *HarnessUsageView) IsSetErrorCode() bool {
+	return p.ErrorCode != nil
+}
+
+func (p *HarnessUsageView) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_HarnessUsageView[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *HarnessUsageView) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Harness = _field
+	return nil
+}
+func (p *HarnessUsageView) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.State = _field
+	return nil
+}
+func (p *HarnessUsageView) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ObservedAt = _field
+	return nil
+}
+func (p *HarnessUsageView) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Plan = _field
+	return nil
+}
+func (p *HarnessUsageView) ReadField5(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]*HarnessUsageWindow, 0, size)
+	values := make([]HarnessUsageWindow, size)
+	for i := 0; i < size; i++ {
+		_elem := &values[i]
+		_elem.InitDefault()
+
+		if err := _elem.Read(iprot); err != nil {
+			return err
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.Windows = _field
+	return nil
+}
+func (p *HarnessUsageView) ReadField6(iprot thrift.TProtocol) error {
+	_field := NewHarnessUsageExtra()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.ExtraUsage = _field
+	return nil
+}
+func (p *HarnessUsageView) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ErrorCode = _field
+	return nil
+}
+
+func (p *HarnessUsageView) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("HarnessUsageView"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *HarnessUsageView) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetHarness() {
+		if err = oprot.WriteFieldBegin("harness", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Harness); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *HarnessUsageView) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetState() {
+		if err = oprot.WriteFieldBegin("state", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.State); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *HarnessUsageView) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetObservedAt() {
+		if err = oprot.WriteFieldBegin("observed_at", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ObservedAt); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *HarnessUsageView) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetPlan() {
+		if err = oprot.WriteFieldBegin("plan", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Plan); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *HarnessUsageView) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetWindows() {
+		if err = oprot.WriteFieldBegin("windows", thrift.LIST, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRUCT, len(p.Windows)); err != nil {
+			return err
+		}
+		for _, v := range p.Windows {
+			if err := v.Write(oprot); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *HarnessUsageView) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetExtraUsage() {
+		if err = oprot.WriteFieldBegin("extra_usage", thrift.STRUCT, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.ExtraUsage.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *HarnessUsageView) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErrorCode() {
+		if err = oprot.WriteFieldBegin("error_code", thrift.STRING, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ErrorCode); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *HarnessUsageView) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("HarnessUsageView(%+v)", *p)
+
+}
+
+type HarnessUsageData struct {
+	HarnessUsage *HarnessUsageView `thrift:"harness_usage,1,optional" form:"harness_usage" json:"harness_usage,omitempty" query:"harness_usage"`
+}
+
+func NewHarnessUsageData() *HarnessUsageData {
+	return &HarnessUsageData{}
+}
+
+func (p *HarnessUsageData) InitDefault() {
+}
+
+var HarnessUsageData_HarnessUsage_DEFAULT *HarnessUsageView
+
+func (p *HarnessUsageData) GetHarnessUsage() (v *HarnessUsageView) {
+	if !p.IsSetHarnessUsage() {
+		return HarnessUsageData_HarnessUsage_DEFAULT
+	}
+	return p.HarnessUsage
+}
+
+var fieldIDToName_HarnessUsageData = map[int16]string{
+	1: "harness_usage",
+}
+
+func (p *HarnessUsageData) IsSetHarnessUsage() bool {
+	return p.HarnessUsage != nil
+}
+
+func (p *HarnessUsageData) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_HarnessUsageData[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *HarnessUsageData) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewHarnessUsageView()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.HarnessUsage = _field
+	return nil
+}
+
+func (p *HarnessUsageData) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("HarnessUsageData"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *HarnessUsageData) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetHarnessUsage() {
+		if err = oprot.WriteFieldBegin("harness_usage", thrift.STRUCT, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.HarnessUsage.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *HarnessUsageData) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("HarnessUsageData(%+v)", *p)
+
+}
+
+type HarnessUsageResponse struct {
+	Data    *HarnessUsageData `thrift:"data,1,optional" form:"data" json:"data,omitempty" query:"data"`
+	Code    *int32            `thrift:"code,2,optional" form:"code" json:"code,omitempty" query:"code"`
+	Message *string           `thrift:"message,3,optional" form:"message" json:"message,omitempty" query:"message"`
+}
+
+func NewHarnessUsageResponse() *HarnessUsageResponse {
+	return &HarnessUsageResponse{}
+}
+
+func (p *HarnessUsageResponse) InitDefault() {
+}
+
+var HarnessUsageResponse_Data_DEFAULT *HarnessUsageData
+
+func (p *HarnessUsageResponse) GetData() (v *HarnessUsageData) {
+	if !p.IsSetData() {
+		return HarnessUsageResponse_Data_DEFAULT
+	}
+	return p.Data
+}
+
+var HarnessUsageResponse_Code_DEFAULT int32
+
+func (p *HarnessUsageResponse) GetCode() (v int32) {
+	if !p.IsSetCode() {
+		return HarnessUsageResponse_Code_DEFAULT
+	}
+	return *p.Code
+}
+
+var HarnessUsageResponse_Message_DEFAULT string
+
+func (p *HarnessUsageResponse) GetMessage() (v string) {
+	if !p.IsSetMessage() {
+		return HarnessUsageResponse_Message_DEFAULT
+	}
+	return *p.Message
+}
+
+var fieldIDToName_HarnessUsageResponse = map[int16]string{
+	1: "data",
+	2: "code",
+	3: "message",
+}
+
+func (p *HarnessUsageResponse) IsSetData() bool {
+	return p.Data != nil
+}
+
+func (p *HarnessUsageResponse) IsSetCode() bool {
+	return p.Code != nil
+}
+
+func (p *HarnessUsageResponse) IsSetMessage() bool {
+	return p.Message != nil
+}
+
+func (p *HarnessUsageResponse) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.I32 {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_HarnessUsageResponse[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *HarnessUsageResponse) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewHarnessUsageData()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Data = _field
+	return nil
+}
+func (p *HarnessUsageResponse) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *int32
+	if v, err := iprot.ReadI32(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Code = _field
+	return nil
+}
+func (p *HarnessUsageResponse) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Message = _field
+	return nil
+}
+
+func (p *HarnessUsageResponse) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("HarnessUsageResponse"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *HarnessUsageResponse) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetData() {
+		if err = oprot.WriteFieldBegin("data", thrift.STRUCT, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Data.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *HarnessUsageResponse) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCode() {
+		if err = oprot.WriteFieldBegin("code", thrift.I32, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI32(*p.Code); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *HarnessUsageResponse) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetMessage() {
+		if err = oprot.WriteFieldBegin("message", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Message); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *HarnessUsageResponse) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("HarnessUsageResponse(%+v)", *p)
+
+}
+
 type UpgradeNodePaxlRequest struct {
 	UserID    *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
 	NodeID    *string `thrift:"node_id,2,optional" json:"node_id,omitempty" path:"node_id"`
@@ -80021,6 +81736,8 @@ type PaxManagerAPI interface {
 
 	LoginNodeHarness(ctx context.Context, request *LoginNodeHarnessRequest) (r *HarnessAuthResponse, err error)
 
+	GetNodeHarnessUsage(ctx context.Context, request *GetNodeHarnessUsageRequest) (r *HarnessUsageResponse, err error)
+
 	UpgradeNodePaxl(ctx context.Context, request *UpgradeNodePaxlRequest) (r *NodeDaemonCommandResponse, err error)
 
 	CancelNodeDaemonMaintenance(ctx context.Context, request *CancelNodeDaemonMaintenanceRequest) (r *NodeDaemonCommandResponse, err error)
@@ -80638,6 +82355,15 @@ func (p *PaxManagerAPIClient) LoginNodeHarness(ctx context.Context, request *Log
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) GetNodeHarnessUsage(ctx context.Context, request *GetNodeHarnessUsageRequest) (r *HarnessUsageResponse, err error) {
+	var _args PaxManagerAPIGetNodeHarnessUsageArgs
+	_args.Request = request
+	var _result PaxManagerAPIGetNodeHarnessUsageResult
+	if err = p.Client_().Call(ctx, "GetNodeHarnessUsage", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) UpgradeNodePaxl(ctx context.Context, request *UpgradeNodePaxlRequest) (r *NodeDaemonCommandResponse, err error) {
 	var _args PaxManagerAPIUpgradeNodePaxlArgs
 	_args.Request = request
@@ -81181,6 +82907,7 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("UpgradeNodeHarness", &paxManagerAPIProcessorUpgradeNodeHarness{handler: handler})
 	self.AddToProcessorMap("GetNodeHarnessAuthStatus", &paxManagerAPIProcessorGetNodeHarnessAuthStatus{handler: handler})
 	self.AddToProcessorMap("LoginNodeHarness", &paxManagerAPIProcessorLoginNodeHarness{handler: handler})
+	self.AddToProcessorMap("GetNodeHarnessUsage", &paxManagerAPIProcessorGetNodeHarnessUsage{handler: handler})
 	self.AddToProcessorMap("UpgradeNodePaxl", &paxManagerAPIProcessorUpgradeNodePaxl{handler: handler})
 	self.AddToProcessorMap("CancelNodeDaemonMaintenance", &paxManagerAPIProcessorCancelNodeDaemonMaintenance{handler: handler})
 	self.AddToProcessorMap("CreateNodeDaemonAgentConnection", &paxManagerAPIProcessorCreateNodeDaemonAgentConnection{handler: handler})
@@ -83828,6 +85555,54 @@ func (p *paxManagerAPIProcessorLoginNodeHarness) Process(ctx context.Context, se
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("LoginNodeHarness", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorGetNodeHarnessUsage struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorGetNodeHarnessUsage) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIGetNodeHarnessUsageArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("GetNodeHarnessUsage", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIGetNodeHarnessUsageResult{}
+	var retval *HarnessUsageResponse
+	if retval, err2 = p.handler.GetNodeHarnessUsage(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing GetNodeHarnessUsage: "+err2.Error())
+		oprot.WriteMessageBegin("GetNodeHarnessUsage", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("GetNodeHarnessUsage", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -102254,6 +104029,300 @@ func (p *PaxManagerAPILoginNodeHarnessResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPILoginNodeHarnessResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetNodeHarnessUsageArgs struct {
+	Request *GetNodeHarnessUsageRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIGetNodeHarnessUsageArgs() *PaxManagerAPIGetNodeHarnessUsageArgs {
+	return &PaxManagerAPIGetNodeHarnessUsageArgs{}
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageArgs) InitDefault() {
+}
+
+var PaxManagerAPIGetNodeHarnessUsageArgs_Request_DEFAULT *GetNodeHarnessUsageRequest
+
+func (p *PaxManagerAPIGetNodeHarnessUsageArgs) GetRequest() (v *GetNodeHarnessUsageRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIGetNodeHarnessUsageArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIGetNodeHarnessUsageArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetNodeHarnessUsageArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewGetNodeHarnessUsageRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetNodeHarnessUsage_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetNodeHarnessUsageArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetNodeHarnessUsageResult struct {
+	Success *HarnessUsageResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIGetNodeHarnessUsageResult() *PaxManagerAPIGetNodeHarnessUsageResult {
+	return &PaxManagerAPIGetNodeHarnessUsageResult{}
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageResult) InitDefault() {
+}
+
+var PaxManagerAPIGetNodeHarnessUsageResult_Success_DEFAULT *HarnessUsageResponse
+
+func (p *PaxManagerAPIGetNodeHarnessUsageResult) GetSuccess() (v *HarnessUsageResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIGetNodeHarnessUsageResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIGetNodeHarnessUsageResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetNodeHarnessUsageResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewHarnessUsageResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetNodeHarnessUsage_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetNodeHarnessUsageResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetNodeHarnessUsageResult(%+v)", *p)
 
 }
 

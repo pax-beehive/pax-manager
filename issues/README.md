@@ -132,6 +132,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 083 | resolved | [Native harness status omits the logged-in account](083-native-harness-account-identity.md) | medium | api / auth / node control |
 
+| 084 | partial | [Native harness plan usage is not visible to node owners](084-native-harness-plan-usage.md) | medium | api / node control |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
