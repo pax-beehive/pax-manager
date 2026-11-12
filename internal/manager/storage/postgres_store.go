@@ -2394,6 +2394,9 @@ func (s *PostgresStore) DecideApproval(
 	if err != nil {
 		return AgentApproval{}, err
 	}
+	if isWorkspaceSearchApproval(approval) {
+		return s.decideWorkspaceApproval(ctx, principal, approvalID, req)
+	}
 	if approval.Status != "pending" {
 		return AgentApproval{}, ErrConflict
 	}

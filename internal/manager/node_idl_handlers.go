@@ -778,7 +778,7 @@ func DecideUserApproval(c context.Context, ctx *app.RequestContext) {
 	}
 	var req ApprovalDecisionRequest
 	decodeBody(ctx, &req)
-	approval, err := serviceFromContext(ctx).store.DecideApproval(
+	approval, err := serviceFromContext(ctx).decideUserApproval(
 		c,
 		principal,
 		ctx.Param("approval_id"),

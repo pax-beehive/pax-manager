@@ -19,7 +19,7 @@ import (
 func TestPaxConversationToolNameGivenKnownServerThenMatchesOnlyRegisteredTools(t *testing.T) {
 	server := agentConversationMCPServerName("sess_owned")
 	normalized := strings.ReplaceAll(server, "-", "_")
-	for _, tool := range []string{"list_agents", "ask", "reply", "publish_artifact", "workspace_search", "workspace_read", "workspace_expand", "workspace_history", "workspace_summaries"} {
+	for _, tool := range []string{"list_agents", "ask", "reply", "publish_artifact", "workspace_search", "workspace_read", "workspace_expand", "workspace_history", "workspace_summaries", "workspace_request_access", "workspace_access_status", "workspace_cancel_access"} {
 		for _, name := range []string{"mcp__" + server + "__" + tool, "mcp__" + normalized + "__" + tool, "mcp_" + normalized + "_" + tool} {
 			assert.True(t, paxConversationToolName(name, "sess_owned"), name)
 		}

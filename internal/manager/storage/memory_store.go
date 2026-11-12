@@ -2045,6 +2045,10 @@ func (s *MemoryStore) DecideApproval(
 	if approval.Status != "pending" {
 		return AgentApproval{}, ErrConflict
 	}
+	if isWorkspaceSearchApproval(approval) &&
+		!workspaceApprovalCanDecide(approval, req, s.now().UTC()) {
+		return AgentApproval{}, ErrConflict
+	}
 	decision, scope, grantNodeID, grantAgentID, grantSessionID, err := approvalDecisionGrant(
 		approval,
 		req,
@@ -2063,6 +2067,10 @@ func (s *MemoryStore) DecideApproval(
 	approval.GrantBody = jsonDefault(req.GrantBody, "{}")
 	approval.DecidedByUserID = principal.User.UserID
 	approval.DecidedAt = &now
+	if isWorkspaceSearchApproval(approval) && decision == "allow" {
+		expiresAt := now.Add(domain.WorkspaceSearchGrantLifetime)
+		approval.ExpiresAt = &expiresAt
+	}
 	s.approvals[approvalID] = approval
 	for _, event := range auditEventsForApprovalDecided(approval) {
 		s.upsertAuditEventLocked(event)
