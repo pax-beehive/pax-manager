@@ -124,6 +124,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 079 | partial | [Secretary progress times out and conversation failures obscure overall work](079-secretary-progress-timeout-and-status-scope.md) | high | Secretary / progress SQL / status |
 
+| 080 | partial | [Bulk Secretary retry times out after committing work](080-secretary-bulk-retry-response-timeout.md) | high | Secretary / bulk retry / acknowledgement |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

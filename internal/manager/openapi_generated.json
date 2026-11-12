@@ -3342,6 +3342,17 @@
         },
         "type": "object"
       },
+      "SecretaryRunRequest": {
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SecretarySettingsRequest": {
         "properties": {
           "user_id": {
@@ -13834,12 +13845,12 @@
     },
     "/api/v1/user/{user_id}/secretary/run": {
       "post": {
-        "description": "Queues work for the enabled owner without running a model in the HTTP request. The worker uses the selected owned agent.",
+        "description": "Persists a bounded owner-scoped retry command and immediately returns HTTP 202 with request_id, state accepted and accepted_at. Repeating the same request_id returns the original receipt. The worker retries eligible pending jobs in batches without rescanning history, preserving paused and unresolved executions. Missing request_id is supported for legacy clients but cannot provide client retry deduplication.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SecretarySettingsRequest"
+                "$ref": "#/components/schemas/SecretaryRunRequest"
               }
             }
           },

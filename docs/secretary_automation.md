@@ -99,6 +99,28 @@ queue revisions nor changes retry state. Progress counts processed visible text,
 including reviewed `no_summary` outcomes; pending cleanup or execution recovery can
 therefore remain even when there are no unread visible messages.
 
+Bulk retry is an asynchronous command, separate from historical backfill.
+`POST /api/v1/user/self/secretary/run` accepts an optional `request_id` and returns
+HTTP 202 with only `request_id`, `state: accepted` and `accepted_at`. This confirms
+durable acceptance, not model execution or publication. The owner/request ID pair
+is idempotent; replay returns the original immutable receipt, including after a
+response was lost or settings subsequently changed. Missing IDs are generated
+for legacy clients, which cannot deduplicate an uncertain client retry.
+
+The request does not calculate pending status, read source bodies, reconcile
+history or update every job. An independent maintenance worker advances durable
+command cursors over bounded existing job metadata. It leaves desired revisions
+and message coverage unchanged. Paused, completed, leased, hidden/foreign sources
+and unresolved executions retain their state. Old unknown executions still
+require explicit per-task recovery; incremented retry epochs are not terminal
+proof. A settings revision change cancels unprocessed work from the old command.
+
+Console stores an unconfirmed request ID per owner and reuses it after transport
+failure or reload. A validated receipt is acknowledged independently of settings
+and task refreshes. Deploy the Console decoder before the Manager receipt change;
+it also recognizes legacy successful responses. The previous Manager has no
+server deduplication guarantee during this transition.
+
 Progress uses a persistent projection in `secretary_progress_owners`,
 `secretary_progress_messages`, `secretary_progress_sessions` and
 `secretary_progress_dirty`. A caught-up read checks the owner's readiness and
@@ -109,7 +131,8 @@ versions remain exact completion criteria, including reviewed `no_summary`.
 
 An independent Manager worker coalesces source changes and publication checkpoint
 changes, processing at most 128 queued messages per step. It runs when Secretary
-is disabled and without ES or a configured agent. Successful steps wait 100 ms;
+is disabled and without ES or a configured agent. Backlog steps wait 100 ms and
+idle steps wait one second;
 errors back off exponentially to 10 seconds. Historical bootstrap uses persistent
 primary-key pages, bounded before owner filtering, and resumes after restart.
 Existing inactive owners start bootstrap on their first progress request; new

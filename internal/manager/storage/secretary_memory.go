@@ -11,6 +11,7 @@ import (
 var _ domain.SecretaryStore = (*MemoryStore)(nil)
 
 type memorySecretaryState struct {
+	runCommands   map[string]*memorySecretaryRunCommand
 	executions    map[string]*memorySecretaryExecutionBatch
 	settings      map[string]domain.SecretarySettings
 	jobs          map[string]*memorySecretaryJob

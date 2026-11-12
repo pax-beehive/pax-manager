@@ -36,6 +36,14 @@ func startSecretaryProgressProjectionWorker(
 	store domain.SecretaryProgressProjectionStore,
 	cfg secretaryProgressWorkerConfig,
 ) func() {
+	return startSecretaryMaintenanceWorker(parent, store.AdvanceSecretaryProgress, cfg)
+}
+
+func startSecretaryMaintenanceWorker(
+	parent context.Context,
+	advance func(context.Context, int) (bool, error),
+	cfg secretaryProgressWorkerConfig,
+) func() {
 	if cfg.stepTimeout <= 0 {
 		cfg.stepTimeout = 5 * time.Second
 	}
@@ -46,21 +54,21 @@ func startSecretaryProgressProjectionWorker(
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runSecretaryProgressProjectionWorker(ctx, store, cfg)
+		runSecretaryMaintenanceWorker(ctx, advance, cfg)
 	}()
 	return func() { cancel(); <-done }
 }
 
-func runSecretaryProgressProjectionWorker(
+func runSecretaryMaintenanceWorker(
 	ctx context.Context,
-	store domain.SecretaryProgressProjectionStore,
+	advance func(context.Context, int) (bool, error),
 	cfg secretaryProgressWorkerConfig,
 ) {
 	const pollInterval = 100 * time.Millisecond
 	retryDelay := pollInterval
 	for ctx.Err() == nil {
 		stepCtx, cancel := context.WithTimeout(ctx, cfg.stepTimeout)
-		_, err := store.AdvanceSecretaryProgress(stepCtx, 128)
+		more, err := advance(stepCtx, 128)
 		cancel()
 		if ctx.Err() != nil {
 			return
@@ -74,6 +82,9 @@ func runSecretaryProgressProjectionWorker(
 			retryDelay = min(2*retryDelay, 10*time.Second)
 		} else {
 			retryDelay = pollInterval
+			if !more {
+				delay = time.Second
+			}
 		}
 		// Remaining work never bypasses the bounded polling interval.
 		if !cfg.wait(ctx, delay) {

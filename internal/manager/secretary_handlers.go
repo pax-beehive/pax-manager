@@ -48,6 +48,30 @@ func UpdateSecretarySettings(c context.Context, ctx *app.RequestContext) {
 }
 
 func RunSecretaryNow(c context.Context, ctx *app.RequestContext) {
-	data, err := serviceFromContext(ctx).secretary.Run(c, requestMetadata(ctx))
+	var body struct {
+		RequestID json.RawMessage `json:"request_id"`
+	}
+	raw := bytes.TrimSpace(ctx.Request.Body())
+	if len(raw) > 1024 {
+		writeError(ctx, http.StatusRequestEntityTooLarge, "Secretary run request is too large")
+		return
+	}
+	if len(raw) > 0 {
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.DisallowUnknownFields()
+		if bytes.Equal(raw, []byte("null")) || decoder.Decode(&body) != nil ||
+			decoder.Decode(new(any)) != io.EOF {
+			writeError(ctx, http.StatusBadRequest, "A valid request_id is required when provided")
+			return
+		}
+	}
+	id := ""
+	if len(body.RequestID) > 0 {
+		if json.Unmarshal(body.RequestID, &id) != nil || !domain.ValidSecretaryRunRequestID(id) {
+			writeError(ctx, http.StatusBadRequest, "A valid request_id is required when provided")
+			return
+		}
+	}
+	data, err := serviceFromContext(ctx).secretary.Run(c, requestMetadata(ctx), id)
 	writeEndpointResult(ctx, http.StatusAccepted, data, err)
 }
