@@ -50,7 +50,7 @@ func (b *secretaryBatch) consume(
 	case doc.AgentID != b.work.SourceAgentID || doc.SessionID != b.work.SourceSessionID:
 		b.remove(change.id)
 	case doc.ContentHash != change.hash || doc.CanonicalizationVersion != change.canonical:
-		text, _ := domain.SearchMessageView(doc.Body, domain.DefaultSearchMessageView(doc.Role))
+		text, _ := domain.SecretaryMessageView(doc.Body, doc.Role)
 		if len(b.work.Messages) > 0 && (b.bytes+len(text) > domain.SecretaryMaxBytes ||
 			b.sourceBytes+len(doc.Body) > domain.SecretaryMaxSourceBytes) {
 			return false, nil

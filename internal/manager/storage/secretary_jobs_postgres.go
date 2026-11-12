@@ -77,7 +77,9 @@ func (s *PostgresStore) ClaimSecretaryJobs(
 			return nil, err
 		}
 		if err = loadSecretaryJob(ctx, tx, &job); err != nil {
-			if _, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET lease_token='',lease_until=NULL,last_error=$2,attempts=attempts+1,available_at=NOW()+INTERVAL '30 seconds' WHERE source_id=$1`, job.SourceID, secretaryErrorText(err)); err != nil {
+			if _, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET lease_token='',lease_until=NULL,last_error=$2,attempts=attempts+1,
+ execution_blocked=$3,available_at=NOW()+INTERVAL '30 seconds' WHERE source_id=$1`,
+				job.SourceID, secretaryErrorText(err), secretaryInputBlocked(err)); err != nil {
 				return nil, err
 			}
 			continue

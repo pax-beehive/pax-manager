@@ -119,6 +119,9 @@ func (s *MemoryStore) memorySecretaryTaskLocked(owner, id string) (secretaryTask
 		record.task.ExecutionSessionID, record.task.ExecutionAgentID, record.task.ExecutionStatus =
 			s.memorySecretaryExecutionLinkLocked(owner, cfg.AgentID, attempt.ID)
 	}
+	if secretaryInputFailureVisible(job.lastError, batch.state, job.executionBlocked) {
+		record.failure = job.lastError
+	}
 	return record, nil
 }
 

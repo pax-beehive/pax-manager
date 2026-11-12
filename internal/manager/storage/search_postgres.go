@@ -132,9 +132,8 @@ func scanCanonicalSearchMessage(
 		return domain.SearchDocument{}, err
 	}
 	if byteLimit > 0 && (len(messageJSON) == 0 || len(partsJSON) == 0) {
-		return domain.SearchDocument{}, fmt.Errorf(
-			"secretary source exceeds the full-source byte limit: %w",
-			ErrConflict,
+		return domain.SearchDocument{}, secretaryInputLimit(
+			"secretary source exceeds the full-source byte limit",
 		)
 	}
 	var message domain.MessageWithParts

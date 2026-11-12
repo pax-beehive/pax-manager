@@ -39,7 +39,7 @@ func TestSecretaryBatchGivenCompactViewsThenBudgetsFullSnapshotsIndependently(t 
 	assert.NoError(t, secretaryWithinBounds(work.Messages))
 	assert.Equal(t, 2*len("Final."), batch.bytes)
 	work.Messages[0].Role = "user"
-	assert.Error(t, secretaryWithinBounds(work.Messages))
+	assert.NoError(t, secretaryWithinBounds(work.Messages))
 }
 
 func TestSecretarySourceGivenOversizedPartsThenRejectsBeforeJSONAggregation(t *testing.T) {

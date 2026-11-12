@@ -2,7 +2,6 @@ package storage
 
 import (
 	"encoding/json"
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,7 +28,11 @@ func secretaryRunID(work domain.SecretaryJob) string {
 	}
 	metadata, _ := json.Marshal(work.SourceMetadata)
 	refs = append(refs, "metadata:"+domain.SearchContentHash(string(metadata)))
-	refs = append(refs, "input_policy:"+domain.SecretaryInputPolicyVersion)
+	policy := work.InputPolicyVersion
+	if policy == "" {
+		policy = domain.SecretaryLegacyInputPolicyVersion
+	}
+	refs = append(refs, "input_policy:"+policy)
 	sort.Strings(refs)
 	return "secretary:" + strings.TrimPrefix(
 		domain.SearchContentHash(work.OwnerUserID+":"+work.SourceID+":"+
@@ -48,6 +51,9 @@ func secretaryValidationRetryKey(work domain.SecretaryJob) string {
 }
 
 func secretaryPrepareJob(work *domain.SecretaryJob) {
+	if work.InputPolicyVersion == "" {
+		work.InputPolicyVersion = domain.SecretaryInputPolicyVersion
+	}
 	work.RunID = secretaryRunID(*work)
 	if work.TargetSummaryID == "" {
 		work.TargetSummaryID = secretarySummaryID(work.OwnerUserID, work.SourceID)
@@ -84,13 +90,13 @@ func secretaryErrorText(err error) string {
 func secretaryWithinBounds(documents []domain.SearchDocument) error {
 	size, sourceSize := 0, 0
 	for _, doc := range documents {
-		text, _ := domain.SearchMessageView(doc.Body, domain.DefaultSearchMessageView(doc.Role))
+		text, _ := domain.SecretaryMessageView(doc.Body, doc.Role)
 		size += len(text)
 		sourceSize += len(doc.Body)
 	}
 	if len(documents) > domain.SecretaryMaxMessages || size > domain.SecretaryMaxBytes ||
 		sourceSize > domain.SecretaryMaxSourceBytes {
-		return fmt.Errorf("secretary source exceeds bounded batch: %w", ErrConflict)
+		return secretaryInputLimit("secretary source exceeds bounded batch")
 	}
 	return nil
 }

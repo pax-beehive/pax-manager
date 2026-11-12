@@ -235,7 +235,7 @@ func TestSecretaryPostgresGivenOversizeOrChangedSourceThenNoPrematureCheckpoint(
 	_, err := store.db.ExecContext(
 		t.Context(),
 		`UPDATE message_parts SET text=$1 WHERE message_id='m1'`,
-		strings.Repeat("x", domain.SecretaryMaxBytes+1),
+		strings.Repeat("x", domain.SecretaryMaxSourceBytes+1),
 	)
 	require.NoError(t, err)
 	jobs, err := store.ClaimSecretaryJobs(t.Context(), 1, time.Minute, 0)
@@ -243,7 +243,7 @@ func TestSecretaryPostgresGivenOversizeOrChangedSourceThenNoPrematureCheckpoint(
 	assert.Empty(t, jobs)
 	status, err := store.GetSecretaryStatus(t.Context(), "owner")
 	require.NoError(t, err)
-	assert.Contains(t, status.LastError, "bounded batch")
+	assert.Contains(t, status.LastError, "full-source byte limit")
 	_, err = store.db.ExecContext(
 		t.Context(),
 		`UPDATE message_parts SET text='fixed' WHERE message_id='m1'`,

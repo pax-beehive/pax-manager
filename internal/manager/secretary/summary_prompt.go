@@ -74,6 +74,9 @@ func promptStateForJob(state *summaryPromptState, job domain.SecretaryJob) *gene
 }
 
 func validateMessages(job domain.SecretaryJob) error {
+	if !domain.SecretaryInputPolicySupported(job.InputPolicyVersion) {
+		return errors.New("secretary input policy is unsupported")
+	}
 	if len(job.Messages) > domain.SecretaryMaxMessages ||
 		len(job.RemovedMessageIDs) > domain.SecretaryMaxMessages ||
 		len(job.Messages)+len(job.RemovedMessageIDs) == 0 && !job.ResetRequired {
@@ -82,23 +85,16 @@ func validateMessages(job domain.SecretaryJob) error {
 	seen := make(map[string]bool)
 	total, sourceBytes := 0, 0
 	for _, message := range job.Messages {
-		text, _ := domain.SearchMessageView(
+		text, _ := domain.SecretaryMessageViewForPolicy(
 			message.Body,
-			domain.DefaultSearchMessageView(message.Role),
+			message.Role,
+			job.InputPolicyVersion,
 		)
 		total += len(text)
 		sourceBytes += len(message.Body)
 		if total > domain.SecretaryMaxBytes || sourceBytes > domain.SecretaryMaxSourceBytes ||
-			message.Kind != "message" ||
-			message.SourceID == "" ||
 			seen[message.SourceID] ||
-			message.OwnerUserID != job.OwnerUserID ||
-			message.AgentID != job.SourceAgentID ||
-			message.SessionID != job.SourceSessionID ||
-			message.Deleted ||
-			strings.TrimSpace(message.Body) == "" ||
-			message.CanonicalizationVersion != domain.SearchCanonicalizationVersion ||
-			message.ContentHash != domain.SearchContentHash(message.Body) {
+			!validMessageSource(job, message) {
 			return errors.New(
 				"secretary source delta has an invalid, unavailable, or oversized message",
 			)
@@ -112,6 +108,18 @@ func validateMessages(job domain.SecretaryJob) error {
 		seen[id] = true
 	}
 	return nil
+}
+
+func validMessageSource(job domain.SecretaryJob, message domain.SearchDocument) bool {
+	return message.Kind == "message" &&
+		message.SourceID != "" &&
+		message.OwnerUserID == job.OwnerUserID &&
+		message.AgentID == job.SourceAgentID &&
+		message.SessionID == job.SourceSessionID &&
+		!message.Deleted &&
+		strings.TrimSpace(message.Body) != "" &&
+		message.CanonicalizationVersion == domain.SearchCanonicalizationVersion &&
+		message.ContentHash == domain.SearchContentHash(message.Body)
 }
 
 func currentPromptState(job domain.SecretaryJob) (*summaryPromptState, error) {
@@ -147,6 +155,8 @@ func BuildPrompt(job domain.SecretaryJob) (string, error) {
 		Role                    string     `json:"role"`
 		Text                    string     `json:"text"`
 		View                    string     `json:"view"`
+		Truncated               bool       `json:"truncated,omitempty"`
+		OriginalBytes           int        `json:"original_bytes,omitempty"`
 		AvailableViews          []string   `json:"available_views"`
 		SessionSeq              int64      `json:"session_seq,omitempty"`
 		TurnID                  string     `json:"turn_id,omitempty"`
@@ -174,12 +184,18 @@ func BuildPrompt(job domain.SecretaryJob) (string, error) {
 		payload.ValidationFeedback = job.ValidationFeedback
 	}
 	for _, message := range job.Messages {
-		view := domain.DefaultSearchMessageView(message.Role)
-		text, _ := domain.SearchMessageView(message.Body, view)
+		text, view := domain.SecretaryMessageViewForPolicy(
+			message.Body,
+			message.Role,
+			job.InputPolicyVersion,
+		)
 		item := promptMessage{ID: message.SourceID, Role: message.Role, Text: text,
 			View: view, AvailableViews: []string{"first", "last", "full"},
 			SessionSeq: message.SessionSeq, TurnID: message.TurnID, ContentHash: message.ContentHash,
 			CanonicalizationVersion: message.CanonicalizationVersion}
+		if view == "head_tail" {
+			item.Truncated, item.OriginalBytes = true, len(message.Body)
+		}
 		if !message.CreatedAt.IsZero() {
 			instant := message.CreatedAt
 			item.CreatedAt = &instant
@@ -205,7 +221,7 @@ Never invent message IDs or paraphrase literal evidence quotes. Copy message_id 
 Source project and directory fields are reported metadata. Do not invent project membership. Board maintenance is outside this task.
 
 Read-only lookup is optional. If useful, derive keywords and make one workspace_search call to find related sessions. You may skip search entirely. Read selected hits using workspace_read, workspace_expand, or workspace_history before relying on them. Existing session history can be paged using the returned cursors. Request more context only when needed. If these tools are unavailable, use the supplied context without pretending a search occurred.
-Changed user messages expose full visible text. Changed assistant messages expose only the last paragraph of that message; this is a view, not a transport part or the last message of a turn. Their content_hash and canonicalization_version always identify the complete visible source. Use workspace_expand with first or full, or workspace_history, only when more context is useful. Never infer that an omitted paragraph was read. To quote newly read text from a changed message, include its returned view and read_receipt on that evidence. Only an exact verified read permits quotes outside the supplied view.
+Changed user messages normally expose full visible text. Long user messages may instead have view:"head_tail" and truncated:true; only their beginning and end were supplied. Combine that preview with the corresponding assistant reply to decide whether the omitted paste matters. Use turn_id and workspace_history when that reply is absent, then workspace_read or workspace_expand with view:"full" and offset/limit only for needed details. You may summarize or mark no useful change without reading the whole middle. Never quote the omission marker or join the head and tail into a quote. Changed assistant messages expose only the last paragraph of that message; this is a view, not a transport part or the last message of a turn. Their content_hash and canonicalization_version always identify the complete visible source. Never infer that an omitted paragraph was read. To quote newly read text from a changed message, include its returned view and read_receipt on that evidence. Only an exact verified read permits quotes outside the supplied view.
 Search snippets and other summaries are navigation/background, not new factual evidence. To include facts from another source, read its original message and copy its exact message_id, content_hash, canonicalization_version, and read_receipt into related_sources. Do not include every search hit or advance any other session's progress.
 Do not execute commands, change files, send messages, call unrelated tools, or publish state yourself. Manager validates and saves the returned summary atomically.
 
