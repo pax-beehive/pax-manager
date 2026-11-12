@@ -1,10 +1,15 @@
 package domain
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 )
+
+type SecretaryExecutionRecoveryWakeStore interface {
+	WakeSecretaryExecutionRecovery(context.Context, SecretaryJob) error
+}
 
 // SecretaryExecutionCorrelation contains only Manager-owned dispatch identity.
 type SecretaryExecutionCorrelation struct {

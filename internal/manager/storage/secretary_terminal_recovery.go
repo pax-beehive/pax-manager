@@ -10,6 +10,11 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
 
+var (
+	_ domain.SecretaryExecutionRecoveryWakeStore = (*MemoryStore)(nil)
+	_ domain.SecretaryExecutionRecoveryWakeStore = (*PostgresStore)(nil)
+)
+
 func secretaryKnownFailureRetryDelay(attempts int) time.Duration {
 	if attempts > 1 {
 		return 10 * time.Second

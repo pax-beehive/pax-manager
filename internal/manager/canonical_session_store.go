@@ -12,8 +12,21 @@ type canonicalSessionStore struct {
 	domain.Store
 }
 
+var _ domain.SecretaryExecutionRecoveryWakeStore = canonicalSessionStore{}
+
 func newCanonicalSessionStore(store domain.Store) domain.Store {
 	return canonicalSessionStore{Store: store}
+}
+
+func (s canonicalSessionStore) WakeSecretaryExecutionRecovery(
+	ctx context.Context,
+	job domain.SecretaryJob,
+) error {
+	wake, ok := s.Store.(domain.SecretaryExecutionRecoveryWakeStore)
+	if !ok {
+		return domain.ErrConflict
+	}
+	return wake.WakeSecretaryExecutionRecovery(ctx, job)
 }
 
 func (s canonicalSessionStore) LatestSessionMessage(

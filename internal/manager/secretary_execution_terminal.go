@@ -159,9 +159,7 @@ func persistSecretaryExecutionTerminal(
 		return err
 	}
 	if terminal.Binding != nil {
-		if wake, ok := agent.store.(interface {
-			WakeSecretaryExecutionRecovery(context.Context, domain.SecretaryJob) error
-		}); ok {
+		if wake, ok := agent.store.(domain.SecretaryExecutionRecoveryWakeStore); ok {
 			return wake.WakeSecretaryExecutionRecovery(ctx, job)
 		}
 	}
