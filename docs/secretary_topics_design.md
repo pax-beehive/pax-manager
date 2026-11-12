@@ -150,7 +150,7 @@ unrelated summary pages need not be enumerated.
 Every changed message still receives an explicit processing outcome.
 `no_summary` is valid for routine or repetitive content and advances processing
 without adding that message to this batch's published coverage. It cannot excuse
-skipping important new conclusions or repairing invalidated summaries. Source
+skipping important new conclusions or failing to repair invalidated summaries. Source
 messages remain available to authorized search/read, and immutable old summary
 versions retain their original claims and coverage. No schema migration,
 historical rewrite, new hard content quota or permission change is introduced.
