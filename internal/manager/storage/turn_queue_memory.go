@@ -16,16 +16,21 @@ func (s *MemoryStore) PutQueuedTurn(
 ) (domain.QueuedTurn, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(q.Input) == 0 || len(q.Input) > domain.MaxQueuedTurnBytes {
-		return domain.QueuedTurn{}, false, ErrConflict
-	}
 	key := queueKey(q.AgentID, q.SessionID)
 	old, exists := s.turnQueue[key]
 	if exists && old.State != "queued" || patch && !exists {
 		return domain.QueuedTurn{}, false, ErrConflict
 	}
+	// A patch edits the text of the queued prompt and keeps its files.
+	if patch {
+		q.Attachments = old.Attachments
+	}
+	if !domain.ValidQueuedTurnPrompt(q) {
+		return domain.QueuedTurn{}, false, ErrConflict
+	}
 	if exists {
 		old.Input = q.Input
+		old.Attachments = q.Attachments
 		old.CommandID = q.CommandID
 		old.SearchAccess = q.SearchAccess
 		if !patch || q.OwnerID != "" {
@@ -110,7 +115,8 @@ func (s *MemoryStore) ClaimQueuedTurn(
 		!current.UpdatedAt.Equal(q.UpdatedAt) ||
 		current.Input != q.Input ||
 		current.CommandID != q.CommandID || current.OwnerID != q.OwnerID ||
-		!reflect.DeepEqual(current.SearchAccess, q.SearchAccess) {
+		!reflect.DeepEqual(current.SearchAccess, q.SearchAccess) ||
+		!reflect.DeepEqual(current.Attachments, q.Attachments) {
 		return false, nil
 	}
 	head := s.agentRuntimeSnapshotHeads[q.AgentID]

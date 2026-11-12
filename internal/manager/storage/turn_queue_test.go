@@ -162,6 +162,7 @@ func TestMemoryTurnQueueClaimsAndRecovery(t *testing.T) {
 	)
 	require.NoError(t, err)
 	exerciseTurnQueue(t, store, agent.AgentID, node.NodeID, node.OwnerUserID)
+	exerciseTurnQueueAttachments(t, store, agent.AgentID, node.NodeID, node.OwnerUserID)
 }
 
 func TestPostgresTurnQueueClaimsAndRecovery(t *testing.T) {
@@ -220,4 +221,79 @@ func TestPostgresTurnQueueClaimsAndRecovery(t *testing.T) {
 	_, err = reopened.DeleteQueuedTurn(ctx, "agent", "queue-session")
 	require.NoError(t, err)
 	exerciseTurnQueue(t, reopened, "agent", "node", "owner")
+	exerciseTurnQueueAttachments(t, reopened, "agent", "node", "owner")
+}
+
+func exerciseTurnQueueAttachments(
+	t *testing.T,
+	store domain.TurnQueueStore,
+	agentID, nodeID, ownerID string,
+) {
+	t.Helper()
+	ctx := t.Context()
+	files := []domain.QueuedTurnAttachment{
+		{AttachmentID: "att_1", Filename: "notes.txt", ContentType: "text/plain", SizeBytes: 5},
+		{AttachmentID: "att_2", Filename: "shot.png", ContentType: "image/png", SizeBytes: 9},
+	}
+	q := domain.QueuedTurn{
+		AgentID:     agentID,
+		NodeID:      nodeID,
+		SessionID:   "queue-session",
+		OwnerID:     ownerID,
+		TurnID:      "turn-files",
+		CommandID:   "cmd-files",
+		Attachments: files,
+	}
+	stored, _, err := store.PutQueuedTurn(ctx, q, false)
+	require.NoError(t, err, "a prompt may be attachments only")
+	require.Equal(t, files, stored.Attachments)
+	require.Empty(t, stored.Input)
+
+	q.Input = "describe these"
+	q.Attachments = nil
+	patched, _, err := store.PutQueuedTurn(ctx, q, true)
+	require.NoError(t, err)
+	require.Equal(t, "describe these", patched.Input)
+	require.Equal(t, files, patched.Attachments, "editing the text keeps the files")
+
+	entries, err := store.ListQueuedTurns(ctx, nodeID, agentID)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Equal(t, files, entries[0].Attachments)
+	snapshot := domain.AgentRuntimeSnapshot{
+		AgentID:         agentID,
+		ConnectionFence: "queue-fence",
+		Sequence:        3,
+	}
+	stale := entries[0]
+	stale.Attachments = files[:1]
+	claimed, err := store.ClaimQueuedTurn(ctx, stale, snapshot)
+	require.NoError(t, err)
+	require.False(t, claimed, "a turn cannot be sent with different files")
+	claimed, err = store.ClaimQueuedTurn(ctx, entries[0], snapshot)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, store.FinishQueuedTurn(ctx, entries[0], true))
+
+	q.Input = ""
+	_, _, err = store.PutQueuedTurn(ctx, q, false)
+	require.ErrorIs(t, err, domain.ErrConflict, "a prompt needs text or files")
+	q.Input = "too many files"
+	q.Attachments = make([]domain.QueuedTurnAttachment, domain.MaxQueuedTurnAttachments+1)
+	_, _, err = store.PutQueuedTurn(ctx, q, false)
+	require.ErrorIs(t, err, domain.ErrConflict)
+
+	// A text-only turn round-trips without an attachment list.
+	q.Attachments = nil
+	q.Input = "text only"
+	textOnly, _, err := store.PutQueuedTurn(ctx, q, false)
+	require.NoError(t, err)
+	require.Nil(t, textOnly.Attachments)
+	entries, err = store.ListQueuedTurns(ctx, nodeID, agentID)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	claimed, err = store.ClaimQueuedTurn(ctx, entries[0], snapshot)
+	require.NoError(t, err)
+	require.True(t, claimed, "empty attachment lists compare equal")
+	require.NoError(t, store.FinishQueuedTurn(ctx, entries[0], true))
 }

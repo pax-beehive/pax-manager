@@ -1987,8 +1987,9 @@ CREATE TABLE IF NOT EXISTS session_turn_queue (
     turn_id TEXT NOT NULL,
     command_id TEXT NOT NULL,
     owner_user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    input TEXT NOT NULL CHECK (octet_length(input) BETWEEN 1 AND 65536),
+    input TEXT NOT NULL,
     search_access JSONB NOT NULL DEFAULT 'null'::jsonb,
+    attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
     state TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'sending', 'uncertain')),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
@@ -1999,6 +2000,30 @@ CREATE TABLE IF NOT EXISTS session_turn_queue (
 
 ALTER TABLE session_turn_queue
     ADD COLUMN IF NOT EXISTS search_access JSONB NOT NULL DEFAULT 'null'::jsonb;
+ALTER TABLE session_turn_queue
+    ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- A queued prompt may carry only attachments, so text is bounded but optional
+-- as long as the prompt has text or files.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'session_turn_queue_input_check'
+    ) THEN
+        ALTER TABLE session_turn_queue DROP CONSTRAINT session_turn_queue_input_check;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'session_turn_queue_prompt_check'
+    ) THEN
+        ALTER TABLE session_turn_queue ADD CONSTRAINT session_turn_queue_prompt_check
+            CHECK (
+                octet_length(input) <= 65536
+                AND jsonb_typeof(attachments) = 'array'
+                AND (octet_length(input) > 0 OR jsonb_array_length(attachments) > 0)
+            );
+    END IF;
+END;
+$$;
 
 -- Notification receiver registry.
 CREATE TABLE IF NOT EXISTS notification_receivers (
