@@ -7,9 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSecretaryAutoRestartBudgetGivenSpentAttemptsThenAllowsOneFreshStart(t *testing.T) {
-	assert.Equal(t, 1, SecretaryAutoRestartBudget(true))
-	assert.Equal(t, SecretaryAutoRestartMax, SecretaryAutoRestartBudget(false))
+func TestSecretaryAutoRestartBudgetGivenSpentModelCallsThenAllowsOneFreshStart(t *testing.T) {
+	assert.Equal(t, SecretaryAutoRestartMax, SecretaryAutoRestartBudget(0))
+	assert.Equal(t, SecretaryAutoRestartMax, SecretaryAutoRestartBudget(1))
+	assert.Equal(t, 1, SecretaryAutoRestartBudget(2))
+	assert.Equal(t, 1, SecretaryAutoRestartBudget(3))
 }
 
 func TestSecretaryAutoRestartDelayGivenRepeatedRestartsThenBacksOffWithinTheBudget(t *testing.T) {

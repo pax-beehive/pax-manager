@@ -43,6 +43,8 @@ ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS control_revision BIGINT NOT 
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS auto_restart_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS auto_restart_epoch BIGINT NOT NULL DEFAULT -1;
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS auto_restarted_at TIMESTAMPTZ;
+-- The attempt whose saved output was last released automatically for publishing.
+ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS auto_resumed_attempt_id TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS secretary_batches (
     batch_id TEXT PRIMARY KEY,

@@ -8,8 +8,10 @@ import (
 )
 
 // secretarySessionCreationTimeout bounds session/new for an internal execution.
-// Creating a session normally takes seconds, including adapter and MCP startup.
-var secretarySessionCreationTimeout = 90 * time.Second
+// Creating a session normally takes seconds, including adapter and MCP startup;
+// the bound leaves room for a slow cold start but not for the whole execution
+// deadline on every retry.
+var secretarySessionCreationTimeout = 2 * time.Minute
 
 // secretaryNotDispatchedFailure classifies a failure that happened before any
 // session/prompt frame was written. No native turn can exist yet, so the

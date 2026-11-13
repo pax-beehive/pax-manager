@@ -72,15 +72,16 @@ func (s *MemoryStore) memorySecretaryTaskLocked(owner, id string) (secretaryTask
 	}
 	cfg := s.secretaryLocked().settings[owner]
 	record := secretaryTaskRecord{
-		desired:          job.desired,
-		processed:        job.processed,
-		available:        job.available,
-		enabled:          cfg.Enabled,
-		blocked:          job.executionBlocked,
-		sourceRuntime:    session.RuntimeStatus,
-		operationPending: s.secretaryOperationPendingLocked(owner, id),
-		autoRestarts:     job.consecutiveAutoRestarts(cfg.UpdatedAt),
-		operationStalled: s.memoryOperationNeedsAttentionLocked(id),
+		desired:            job.desired,
+		processed:          job.processed,
+		available:          job.available,
+		enabled:            cfg.Enabled,
+		blocked:            job.executionBlocked,
+		sourceRuntime:      session.RuntimeStatus,
+		operationPending:   s.secretaryOperationPendingLocked(owner, id),
+		autoRestarts:       job.consecutiveAutoRestarts(cfg.UpdatedAt),
+		autoResumedAttempt: job.autoResumedAttempt,
+		operationStalled:   s.memoryOperationNeedsAttentionLocked(id),
 	}
 	record.task = domain.SecretaryTask{
 		TaskID:        id,
@@ -120,6 +121,11 @@ func (s *MemoryStore) memorySecretaryTaskLocked(owner, id string) (secretaryTask
 		}
 		record.task.AttemptID, record.attemptState = attempt.ID, attempt.State
 		record.attemptCreated, record.attemptUpdated = attempt.CreatedAt, attempt.UpdatedAt
+		for _, previous := range batch.attempts {
+			if !previous.NotDispatched {
+				record.dispatchedAttempts++
+			}
+		}
 		record.failure, record.notDispatched = attempt.Error, attempt.NotDispatched
 		record.task.ExecutionSessionID, record.task.ExecutionAgentID, record.task.ExecutionStatus =
 			s.memorySecretaryExecutionLinkLocked(owner, cfg.AgentID, attempt.ID)

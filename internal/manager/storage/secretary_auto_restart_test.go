@@ -22,6 +22,8 @@ func stalledSecretaryRecord(state string, now time.Time) secretaryTaskRecord {
 		blocked:        true,
 		attemptCreated: now.Add(-domain.SecretaryAutoRestartDelay(0)),
 		attemptUpdated: now.Add(-domain.SecretaryAutoRestartDelay(0)),
+		// One model call spent so far.
+		dispatchedAttempts: 1,
 	}
 }
 
@@ -93,25 +95,37 @@ func TestSecretaryAutoRecoveryDueGivenUnclaimableJobThenDoesNotDependOnTheBlocke
 
 func TestSecretaryAutoRecoveryDueGivenSpentModelCallsThenBudgetsRestartsByCost(t *testing.T) {
 	now := time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC)
-	aged := func(record secretaryTaskRecord) secretaryTaskRecord {
+	aged := func(record secretaryTaskRecord, dispatched int) secretaryTaskRecord {
 		record.attemptCreated = now.Add(-30 * 24 * time.Hour)
 		record.attemptUpdated = record.attemptCreated
+		record.dispatchedAttempts = dispatched
 		return record
 	}
 	t.Run("a batch that used up its attempts gets one fresh start", func(t *testing.T) {
-		record := aged(stalledSecretaryRecord("blocked", now))
-		record.attemptState, record.autoRestarts = "invalid", 1
+		record := aged(stalledSecretaryRecord("blocked", now), 3)
+		record.attemptState = "invalid"
+		assert.Equal(t, secretaryAutoRecoveryRestart, secretaryAutoRecoveryDue(record, now))
+		record.autoRestarts = 1
 		assert.Equal(t, secretaryAutoRecoveryNone, secretaryAutoRecoveryDue(record, now))
 	})
-	t.Run("an unknown outcome gets the full budget", func(t *testing.T) {
-		record := aged(stalledSecretaryRecord("unknown", now))
+	t.Run("a retried batch that ends unknown is budgeted by its calls too", func(t *testing.T) {
+		// Two rejected outputs and a third attempt without a terminal proof.
+		record := aged(stalledSecretaryRecord("unknown", now), 3)
+		assert.Equal(t, secretaryAutoRecoveryRestart, secretaryAutoRecoveryDue(record, now))
+		record.autoRestarts = 1
+		assert.Equal(t, secretaryAutoRecoveryNone, secretaryAutoRecoveryDue(record, now))
+		record.dispatchedAttempts = 2
+		assert.Equal(t, secretaryAutoRecoveryNone, secretaryAutoRecoveryDue(record, now))
+	})
+	t.Run("a single unknown outcome gets the full budget", func(t *testing.T) {
+		record := aged(stalledSecretaryRecord("unknown", now), 1)
 		record.autoRestarts = domain.SecretaryAutoRestartMax - 1
 		assert.Equal(t, secretaryAutoRecoveryRestart, secretaryAutoRecoveryDue(record, now))
 		record.autoRestarts = domain.SecretaryAutoRestartMax
 		assert.Equal(t, secretaryAutoRecoveryNone, secretaryAutoRecoveryDue(record, now))
 	})
 	t.Run("exhausted connection retries cost no model call", func(t *testing.T) {
-		record := aged(stalledSecretaryRecord("blocked", now))
+		record := aged(stalledSecretaryRecord("blocked", now), 0)
 		record.attemptState, record.notDispatched = "failed", true
 		record.task.ConnectionFailures = domain.SecretaryConnectionMaxRetries + 1
 		record.autoRestarts = domain.SecretaryAutoRestartMax - 1
@@ -121,15 +135,23 @@ func TestSecretaryAutoRecoveryDueGivenSpentModelCallsThenBudgetsRestartsByCost(t
 	})
 }
 
-func TestSecretaryAutoRecoveryDueGivenSavedOutputThenResumesWithoutARestart(t *testing.T) {
+func TestSecretaryAutoRecoveryDueGivenSavedOutputThenReleasesItOnceWithoutARestart(t *testing.T) {
 	now := time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC)
 	record := stalledSecretaryRecord("output_received", now)
 	record.attemptState = "output_received"
 	// A spent restart budget must not keep saved output from being published.
-	record.autoRestarts = domain.SecretaryAutoRestartMax
+	record.autoRestarts, record.dispatchedAttempts = domain.SecretaryAutoRestartMax, 3
 	assert.Equal(t, secretaryAutoRecoveryResume, secretaryAutoRecoveryDue(record, now))
 	assert.Equal(t, secretaryAutoRecoveryNone,
 		secretaryAutoRecoveryDue(record, now.Add(-time.Second)))
+
+	released := record
+	released.autoResumedAttempt = record.task.AttemptID
+	assert.Equal(t, secretaryAutoRecoveryNone, secretaryAutoRecoveryDue(released, now),
+		"a job blocked again behind the same output must not be released in a loop")
+	released.autoResumedAttempt = "an-earlier-attempt"
+	assert.Equal(t, secretaryAutoRecoveryResume, secretaryAutoRecoveryDue(released, now))
+
 	record.blocked = false
 	assert.Equal(t, secretaryAutoRecoveryNone, secretaryAutoRecoveryDue(record, now),
 		"unblocked saved output is already published by the worker")

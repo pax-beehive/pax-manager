@@ -186,6 +186,33 @@ func TestSecretaryAutoRestartGivenExhaustedOutputRetriesThenGivesOneFreshBatch(t
 	})
 }
 
+func TestSecretaryAutoRestartGivenRetriedBatchEndsUnknownThenBudgetsItByModelCalls(t *testing.T) {
+	secretaryLifecycleFixtures(t, func(t *testing.T, f *secretaryLifecycleFixture) {
+		// Two rejected outputs, then a third attempt without a terminal proof:
+		// the batch ends unknown although it already spent three model calls.
+		spendThreeCallsAndEndUnknown := func() domain.SecretaryJob {
+			for range domain.SecretaryMaxValidationRetries {
+				f.stall(t, validationFailure())
+				f.releaseBackoff(t)
+			}
+			return f.stall(t, domain.ErrSecretaryExecutionUnknown)
+		}
+		first := spendThreeCallsAndEndUnknown()
+		require.Equal(t, 3, f.attemptCount(t, first.BatchID))
+		f.age(t, domain.SecretaryAutoRestartDelay(0)+time.Minute)
+		restarted := f.restartStalled(t)
+		require.Len(t, restarted, 1)
+		assert.Equal(t, "unknown", restarted[0].PreviousState)
+
+		second := spendThreeCallsAndEndUnknown()
+		require.NotEqual(t, first.BatchID, second.BatchID)
+		f.age(t, 7*24*time.Hour)
+		assert.Empty(t, f.restartStalled(t),
+			"a batch that already retried must not earn the budget of a single unknown outcome")
+		f.assertUnclaimable(t, "the task now waits for its owner")
+	})
+}
+
 func TestSecretaryAutoRestartGivenRepeatedStallsThenStopsAtItsBudgetUntilTheOwnerRetries(
 	t *testing.T,
 ) {
@@ -356,6 +383,26 @@ func TestSecretaryAutoRestartGivenManualRecheckLeftTheTaskBlockedThenRecoversIt(
 			require.NoError(t, err)
 		})
 	})
+	t.Run("saved output is released only once", func(t *testing.T) {
+		secretaryLifecycleFixtures(t, func(t *testing.T, f *secretaryLifecycleFixture) {
+			saved := f.begin(t, f.prepare(t))
+			require.NoError(
+				t,
+				f.store.SaveSecretaryAttemptOutput(t.Context(), saved, saved.AttemptID,
+					"saved", domain.SecretaryToolReads{}),
+			)
+			f.expire(t)
+			f.recheckWithoutResult(t, saved.SourceID)
+			f.age(t, domain.SecretaryAutoRestartDelay(0)+time.Minute)
+			require.Len(t, f.restartStalled(t), 1)
+
+			// Something blocks the job again behind the same saved output.
+			f.recheckWithoutResult(t, saved.SourceID)
+			f.age(t, 7*24*time.Hour)
+			assert.Empty(t, f.restartStalled(t), "releasing the same output again would only loop")
+			f.assertUnclaimable(t, "the task now waits for its owner")
+		})
+	})
 	t.Run("a recheck in progress is not interrupted", func(t *testing.T) {
 		secretaryLifecycleFixtures(t, func(t *testing.T, f *secretaryLifecycleFixture) {
 			stalled := f.stall(t, domain.ErrSecretaryExecutionUnknown)
@@ -428,4 +475,42 @@ func TestSecretaryAutoRestartGivenCanceledContextThenChangesNothing(t *testing.T
 		require.Error(t, err)
 		assert.Len(t, f.restartStalled(t), 1, "the stalled task must still be restartable")
 	})
+}
+
+func TestSecretaryAutoRestartPostgresGivenUnrecoverableCandidateThenStillReachesLaterTasks(
+	t *testing.T,
+) {
+	store := secretaryPostgresFixture(t)
+	f := &secretaryLifecycleFixture{store: store, postgres: store}
+	f.settings = secretaryEnable(t, f.store)
+	previousPage := secretaryAutoRestartPage
+	secretaryAutoRestartPage = 1
+	defer func() { secretaryAutoRestartPage = previousPage }()
+
+	// The first source matches the candidate query but is blocked by the
+	// deterministic input size limit, so the decision under the lock rejects it.
+	first := f.exhaustAttempts(t)
+	_, err := store.db.ExecContext(t.Context(),
+		`UPDATE secretary_jobs SET last_error=$2 WHERE source_id=$1`,
+		first.SourceID, secretaryInputLimitPrefix+" source exceeds the supported size")
+	require.NoError(t, err)
+
+	_, err = store.db.ExecContext(
+		t.Context(),
+		`INSERT INTO agent_sessions(agent_id,session_id,session_name)
+ VALUES('source','session-2','Second session');
+ INSERT INTO messages(message_id,agent_id,session_id,source,direction,role,message_type,session_seq,status)
+ VALUES('n1','source','session-2','test','inbound','user','chat',1,'complete');
+ INSERT INTO message_parts(message_id,part_index,part_type,text) VALUES('n1',0,'text','A second source')`,
+	)
+	require.NoError(t, err)
+	second := f.stall(t, domain.ErrSecretaryExecutionUnknown)
+	require.NotEqual(t, first.SourceID, second.SourceID)
+
+	f.age(t, domain.SecretaryAutoRestartDelay(0)+time.Minute)
+	restarted := f.restartStalled(t)
+	require.Len(t, restarted, 1, "the sweep must page past the task it cannot recover")
+	assert.Equal(t, second.SourceID, restarted[0].TaskID)
+	// The same holds on every later sweep: nothing is left to recover.
+	assert.Empty(t, f.restartStalled(t))
 }

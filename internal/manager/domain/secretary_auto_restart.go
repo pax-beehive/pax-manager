@@ -11,14 +11,22 @@ import (
 // retry starts a new budget.
 const SecretaryAutoRestartMax = 3
 
+// SecretaryAutoRestartRetriedAttempts is how many dispatched attempts show that
+// a batch already retried on the same input.
+const SecretaryAutoRestartRetriedAttempts = 2
+
 const secretaryAutoRestartBaseDelay = 15 * time.Minute
 
 // SecretaryAutoRestartBudget is how many consecutive automatic restarts a
-// stalled task may receive. A batch that used up its dispatched attempts has
-// already spent up to three model calls on the same input, so it gets one
-// fresh start. States that spent at most one call, or none, get the full budget.
-func SecretaryAutoRestartBudget(attemptsExhausted bool) int {
-	if attemptsExhausted {
+// stalled task may receive, given how many attempts its current batch already
+// dispatched to the agent. A batch that retried and still stalled has spent
+// two or three model calls on the same input, so it gets one fresh start. A
+// batch that spent at most one call gets the full budget.
+//
+// Each batch dispatches at most three attempts, so one stalled task can cost
+// at most five further model calls: 1 + 1 + 3 across three restarts.
+func SecretaryAutoRestartBudget(dispatchedAttempts int) int {
+	if dispatchedAttempts >= SecretaryAutoRestartRetriedAttempts {
 		return 1
 	}
 	return SecretaryAutoRestartMax

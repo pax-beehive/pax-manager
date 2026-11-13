@@ -35,6 +35,10 @@ const secretaryOperationStalledSQL = `EXISTS(SELECT 1 FROM secretary_operations 
  WHERE stalled.owner_user_id=j.owner_user_id AND stalled.source_id=j.source_id
  AND stalled.kind='guided_summary' AND stalled.status='needs_attention')`
 
+// Attempts of the current batch that reached the agent, or may have.
+const secretaryDispatchedAttemptsSQL = `COALESCE((SELECT count(*) FROM secretary_attempts dispatched
+ WHERE dispatched.batch_id=b.batch_id AND NOT dispatched.not_dispatched),0)`
+
 // The candidate query mirrors secretaryAutoRecoveryDue closely enough that a
 // page is not filled with tasks that cannot be recovered. The decision itself
 // is always repeated under the task lock.
@@ -53,14 +57,16 @@ const secretaryAutoRestartCandidatesSQL = `SELECT DISTINCT j.source_id,j.owner_u
  AND COALESCE(s.source,'')<>'secretary_internal'
  AND NOT EXISTS(SELECT 1 FROM secretary_internal_sessions i WHERE i.agent_id=s.agent_id AND i.session_id=s.session_id)
  AND (j.execution_blocked OR (b.state='blocked' AND b.connection_failures>$2::int) OR ` + secretaryOperationStalledSQL + `)
- AND (b.state='output_received' OR ` + secretaryAutoRestartCountSQL + `<
- CASE WHEN b.state='blocked' AND b.connection_failures<=$2::int THEN $3::int ELSE $4::int END)
+ AND ((b.state='output_received' AND j.auto_resumed_attempt_id<>b.current_attempt_id)
+ OR (b.state<>'output_received' AND ` + secretaryAutoRestartCountSQL + `<
+ CASE WHEN ` + secretaryDispatchedAttemptsSQL + `>=$8::int THEN $3::int ELSE $4::int END))
  AND CASE WHEN b.state IN ('unknown','running') THEN a.created_at ELSE a.updated_at END
  +($5::double precision*power(4,CASE WHEN b.state='output_received' THEN 0 ELSE ` + secretaryAutoRestartCountSQL + ` END))
  *INTERVAL '1 millisecond'<=$6::timestamptz
  ORDER BY j.source_id LIMIT $7::int`
 
-const secretaryAutoRestartPage = 100
+// A variable so tests can cross page boundaries with few rows.
+var secretaryAutoRestartPage = 100
 
 type secretaryAutoRecovery int
 
@@ -108,7 +114,10 @@ func secretaryAutoRecoveryDue(record secretaryTaskRecord, now time.Time) secreta
 	var since time.Time
 	switch record.batchState {
 	case "output_received":
-		if record.blocked && secretaryAutoRestartWaited(record.attemptUpdated, now, 0) {
+		// Release each saved output at most once. If the job is blocked again
+		// behind the same output, releasing it again would only repeat that.
+		if record.blocked && record.autoResumedAttempt != task.AttemptID &&
+			secretaryAutoRestartWaited(record.attemptUpdated, now, 0) {
 			return secretaryAutoRecoveryResume
 		}
 		return secretaryAutoRecoveryNone
@@ -124,8 +133,7 @@ func secretaryAutoRecoveryDue(record secretaryTaskRecord, now time.Time) secreta
 	if task.ErrorCode == "input_size_limit" {
 		return secretaryAutoRecoveryNone
 	}
-	attemptsExhausted := record.batchState == "blocked" && !exhausted
-	if record.autoRestarts >= domain.SecretaryAutoRestartBudget(attemptsExhausted) ||
+	if record.autoRestarts >= domain.SecretaryAutoRestartBudget(record.dispatchedAttempts) ||
 		!secretaryAutoRestartWaited(since, now, record.autoRestarts) {
 		return secretaryAutoRecoveryNone
 	}
@@ -178,6 +186,7 @@ func (s *MemoryStore) RestartStalledSecretaryTasks(
 		switch secretaryAutoRecoveryDue(record, s.now()) {
 		case secretaryAutoRecoveryResume:
 			job.executionBlocked, job.available = false, s.now()
+			job.autoResumedAttempt = record.task.AttemptID
 			result.Resumed = true
 		case secretaryAutoRecoveryRestart:
 			s.retryMemorySecretaryTaskLocked(job)
@@ -207,11 +216,12 @@ func (s *PostgresStore) secretaryAutoRestartCandidates(
 		secretaryAutoRestartCandidatesSQL,
 		after,
 		domain.SecretaryConnectionMaxRetries,
-		domain.SecretaryAutoRestartBudget(true),
-		domain.SecretaryAutoRestartBudget(false),
+		domain.SecretaryAutoRestartBudget(domain.SecretaryAutoRestartRetriedAttempts),
+		domain.SecretaryAutoRestartBudget(0),
 		float64(domain.SecretaryAutoRestartDelay(0).Milliseconds()),
 		s.now(),
 		secretaryAutoRestartPage,
+		domain.SecretaryAutoRestartRetriedAttempts,
 	)
 	if err != nil {
 		return nil, err
@@ -287,8 +297,9 @@ func (s *PostgresStore) recoverStalledSecretaryTask(
 		_, err = tx.ExecContext(
 			ctx,
 			`UPDATE secretary_jobs SET execution_blocked=FALSE,available_at=NOW(),
- control_revision=control_revision+1 WHERE source_id=$1`,
+ control_revision=control_revision+1,auto_resumed_attempt_id=$2 WHERE source_id=$1`,
 			id,
+			record.task.AttemptID,
 		)
 	case secretaryAutoRecoveryRestart:
 		result.Restarts++

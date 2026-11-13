@@ -38,7 +38,7 @@ is a separate gate, so this stays partial.
   and uses the existing bounded connection retry. Fencing keeps its own
   meaning. An explicitly unknown outcome stays unknown. A failed write is
   treated as dispatched, because it may still have reached the transport.
-  session/new is bounded to 90 seconds for an internal execution.
+  session/new is bounded to two minutes for an internal execution.
 - The fence monitor cancels an execution only for a definitive fence. A failed
   lookup is reported once per execution and the execution continues;
   publication repeats every fence check.
@@ -53,17 +53,18 @@ is a separate gate, so this stays partial.
     restart is the same transition as an explicit owner retry: a new retry
     epoch, with the old batch and attempt fenced so a late result cannot
     commit.
-  - Saved output behind a blocked job is released for publishing. Nothing is
-    discarded and no model call is made.
+  - Saved output behind a blocked job is released for publishing, at most once
+    per saved output. Nothing is discarded and no model call is made.
   - The wait is 15 minutes, then 1 hour, then 4 hours, measured from the start
     of an unknown or interrupted attempt, otherwise from the last failure.
-  - A batch that used up its dispatched attempts gets one restart. Every other
-    state gets three. Publishing, a settings change, an explicit owner retry,
-    or a source change that replaces the frozen batch starts a new budget.
+  - A batch that already dispatched two or three attempts gets one restart; a
+    batch that dispatched at most one gets three. Publishing, a settings
+    change, an explicit owner retry, or a source change that replaces the
+    frozen batch starts a new budget.
 
 A restart spends model calls on the owner's own agent, which is the reason for
 the small budget and the growing wait. One stalled task costs at most five
-extra model calls, and usually one. A task that exhausts the budget still needs
+extra model calls (1 + 1 + 3 across three restarts), and usually one. A task that exhausts the budget still needs
 an owner action, and the task view reports its state as before.
 
 ## Known behavior to keep in mind

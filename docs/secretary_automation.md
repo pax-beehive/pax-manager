@@ -286,7 +286,7 @@ checks. No native turn can exist yet, so these use the existing connection
 retry budget and never become an unknown outcome. Fencing keeps its own
 meaning, and an explicitly unknown outcome stays unknown. A failed write of the
 prompt frame counts as dispatched, because it may have reached the transport.
-session/new is bounded to 90 seconds for an internal execution, so an agent
+session/new is bounded to two minutes for an internal execution, so an agent
 that never answers cannot hold the single worker for the whole execution
 deadline on every retry.
 
@@ -327,6 +327,8 @@ A restart is the same transition as the explicit task retry: a new retry epoch,
 a fresh batch and attempt budget, and the old batch and attempt fenced so a
 late result cannot commit. Saved output is never discarded: it is only released
 so the worker publishes it, which needs no model call and counts no restart.
+Each saved output is released at most once; if the job is blocked again behind
+the same output, it waits for the owner instead of being released in a loop.
 
 An unknown attempt is measured from its start because later rechecks of the
 same attempt refresh every other timestamp. The first wait leaves time for a
@@ -338,16 +340,18 @@ terminal proof to arrive and recover the original result without a model call.
 | 2 | 1 hour |
 | 3 | 4 hours |
 
-The budget depends on what the stalled batch already cost:
+The budget depends on what the stalled batch already cost, counted as the
+attempts it dispatched to the agent, whatever state it ended in:
 
-- A batch that used up its dispatched attempts (rejected or failed output) has
-  spent up to three model calls on the same input. It gets one restart.
-- Every other state gets three: an unknown outcome spent at most one call, and
-  exhausted connection retries spent none.
+- A batch that dispatched two or three attempts has already retried on the same
+  input. It gets one restart.
+- A batch that dispatched one attempt or none gets three. A single unknown
+  outcome spent one call; exhausted connection retries spent none.
 
-So one stalled task costs at most five extra model calls on the owner's own
-agent, and usually one. After the budget is spent the task waits for the owner,
-as before. The count applies only while the job is still in the epoch created
+A restart can therefore be followed by another only if the restarted batch
+spent at most one call. With at most three attempts per batch, one stalled task
+costs at most five extra model calls on the owner's own agent (1 + 1 + 3), and
+usually one. After the budget is spent the task waits for the owner, as before. The count applies only while the job is still in the epoch created
 by its last automatic restart, has not published since, and its settings have
 not changed since (`auto_restart_count`, `auto_restart_epoch`,
 `auto_restarted_at` on `secretary_jobs`). Publishing, a settings change, an
