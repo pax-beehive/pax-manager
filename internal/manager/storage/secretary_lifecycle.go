@@ -33,8 +33,9 @@ func secretaryBatchID(job domain.SecretaryJob) string {
 		InputPolicy                                string `json:",omitempty"`
 		Instructions                               string `json:",omitempty"`
 		Operation                                  string `json:",omitempty"`
+		OutputPolicy                               string `json:",omitempty"`
 	}{job.OwnerUserID, job.SourceID, job.AgentID, domain.SecretaryNodePolicyVersion, job.InvalidationKey,
-		job.SettingsRevision, job.RetryEpoch, refs, removed, heads, job.InputPolicyVersion, secretaryInstructionsHash(job.Instructions), job.OperationID})
+		job.SettingsRevision, job.RetryEpoch, refs, removed, heads, job.InputPolicyVersion, secretaryInstructionsHash(job.Instructions), job.OperationID, job.OutputPolicyVersion})
 	return "batch_" + strings.TrimPrefix(domain.SearchContentHash(string(input)), "sha256:")[:32]
 }
 
@@ -48,6 +49,9 @@ func secretaryRestoreBatch(raw []byte, current domain.SecretaryJob) (domain.Secr
 	var job domain.SecretaryJob
 	if err := json.Unmarshal(raw, &job); err != nil {
 		return job, err
+	}
+	if !domain.SecretaryOutputPolicySupported(job.OutputPolicyVersion) {
+		return job, domain.ErrSecretaryFenced
 	}
 	job.LeaseToken = current.LeaseToken
 	job.ValidationFeedback = current.ValidationFeedback

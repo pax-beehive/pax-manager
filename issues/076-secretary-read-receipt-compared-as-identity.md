@@ -1,10 +1,10 @@
 # ISSUE-076 Secretary compares a read receipt as message identity
 
-**Status:** open
+**Status:** resolved
 **Severity:** medium
 **Component:** Secretary / evidence read proof
 **Found:** 2026-11-10
-**Resolved:** -
+**Resolved:** 2026-11-13
 
 ## Problem
 
@@ -27,9 +27,12 @@ for issue 075: none used nested message references or receipts. The baseline
 substring correction does not change this comparison. Do not expand that fix
 into unverified source guessing or removal of read-proof checks.
 
-## Next steps
+## Resolution
 
-- Add a regression with a verified read, exact tuple and valid top-level proof,
-  with and without a duplicate nested proof.
-- Reject altered version tuples, mismatched views and conflicting proofs.
-- Align the final binder with the source-read contract.
+The final binder compares immutable message identity separately from read
+proofs. A verified top-level receipt no longer has to be duplicated in the
+nested message. A nonempty nested receipt must still match the trusted receipt.
+Regression tests accept top-only, nested-only and matching proofs, and reject
+conflicting proofs, incorrect versions/views and unverified reads. The same
+binder serves node and legacy publications. This bug was not the cause of the
+audited production whitespace failures.

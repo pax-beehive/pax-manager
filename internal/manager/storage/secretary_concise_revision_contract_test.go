@@ -22,7 +22,7 @@ func TestSecretaryConciseRevisionGivenRoutineHistoryThenKeepsDecisionsAndProcess
 		const acknowledgment = "OK, thanks."
 		putConciseRevisionSource(t, f, "m1", decision, 1)
 		putConciseRevisionSource(t, f, "m2", routine, 2)
-		firstJob := secretaryNodesReadyJob(t, f.store)
+		firstJob := secretaryLegacyNodesReadyJob(t, f.store)
 		firstPublication, err := secretary.BuildNodePublication(firstJob, `{
   "summaries":[{"action":"create","proposal_key":"search","title":"Search design",
     "body":"Use PostgreSQL as the source of truth. Ran curl three times; all requests returned 200.",
@@ -42,7 +42,7 @@ func TestSecretaryConciseRevisionGivenRoutineHistoryThenKeepsDecisionsAndProcess
 
 		putConciseRevisionSource(t, f, "m3", constraint, 3)
 		putConciseRevisionSource(t, f, "m4", acknowledgment, 4)
-		next := secretaryNodesReadyJob(t, f.store)
+		next := secretaryLegacyNodesReadyJob(t, f.store)
 		require.Len(
 			t,
 			next.Messages,

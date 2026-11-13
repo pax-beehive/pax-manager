@@ -116,7 +116,7 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 075 | partial | [Secretary rejects shortened baseline evidence quotes](075-secretary-shortened-baseline-quotes-rejected.md) | high | Secretary / evidence binding |
 
-| 076 | open | [Secretary compares a read receipt as message identity](076-secretary-read-receipt-compared-as-identity.md) | medium | Secretary / evidence read proof |
+| 076 | resolved | [Secretary compares a read receipt as message identity](076-secretary-read-receipt-compared-as-identity.md) | medium | Secretary / evidence read proof |
 
 | 077 | partial | [Search summary source checks repeat display replacement parsing](077-search-summary-replacement-check-cost.md) | high | Search / summary source visibility |
 
@@ -135,6 +135,12 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 | 084 | partial | [Native harness plan usage is not visible to node owners](084-native-harness-plan-usage.md) | medium | api / node control |
 
 | 085 | partial | [Secretary owner guidance, manual completion and snapshot stability](085-secretary-owner-guidance-and-manual-completion.md) | high | Secretary / user controls / summary publication |
+
+| 086 | partial | [Secretary model-copied evidence blocks useful summaries](086-secretary-model-copied-evidence-gate.md) | high | Secretary / generation contract |
+
+| 087 | partial | [Secretary session creation failure becomes unknown](087-secretary-slot-unavailable-classification.md) | high | Secretary / ACP dispatch |
+
+| 088 | partial | [Secretary ignores a correlated native completion](088-secretary-native-completion-not-recognized.md) | high | Secretary / ACP recovery |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 

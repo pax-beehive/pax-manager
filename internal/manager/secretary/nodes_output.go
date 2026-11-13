@@ -34,13 +34,21 @@ type generatedNodeBatch struct {
 }
 
 func decodeGeneratedNodeBatch(output string) (generatedNodeBatch, error) {
+	return decodeGeneratedNodeBatchForPolicy(output, "")
+}
+
+func decodeGeneratedNodeBatchForPolicy(output, policy string) (generatedNodeBatch, error) {
 	var generated generatedNodeBatch
+	if !domain.SecretaryOutputPolicySupported(policy) {
+		return generated, generatedOutputError("schema", "secretary output policy is unsupported")
+	}
 	if len(output) > 1024*1024 {
 		return generated, generatedOutputError("schema", "secretary response exceeds 1 MiB")
 	}
 	decoder := json.NewDecoder(bytes.NewBufferString(output))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&generated); err != nil {
+	generated, err := decodeNodeBatchJSON(decoder, domain.SecretarySourceOnlyOutput(policy))
+	if err != nil {
 		return generated, generatedOutputError(
 			"schema",
 			"secretary response must match the summary batch JSON schema",
@@ -77,6 +85,32 @@ func decodeGeneratedNodeBatch(output string) (generatedNodeBatch, error) {
 			"schema",
 			"secretary batch exceeds the claim or evidence limit",
 		)
+	}
+	return generated, nil
+}
+
+func decodeNodeBatchJSON(decoder *json.Decoder, sourceOnly bool) (generatedNodeBatch, error) {
+	var generated generatedNodeBatch
+	if !sourceOnly {
+		err := decoder.Decode(&generated)
+		return generated, err
+	}
+	var projected struct {
+		Summaries []struct {
+			generatedNodeSummary
+			Claims json.RawMessage `json:"claims,omitempty"`
+		} `json:"summaries"`
+		Outcomes []generatedNodeOutcome `json:"outcomes"`
+	}
+	if err := decoder.Decode(&projected); err != nil {
+		return generated, err
+	}
+	generated.Outcomes = projected.Outcomes
+	if projected.Summaries != nil {
+		generated.Summaries = make([]generatedNodeSummary, 0, len(projected.Summaries))
+		for _, summary := range projected.Summaries {
+			generated.Summaries = append(generated.Summaries, summary.generatedNodeSummary)
+		}
 	}
 	return generated, nil
 }
@@ -137,7 +171,7 @@ func RequestedNodeSourceReads(
 	job domain.SecretaryJob,
 	output string,
 ) ([]domain.MessageVersionRef, error) {
-	generated, err := decodeGeneratedNodeBatch(output)
+	generated, err := decodeGeneratedNodeBatchForPolicy(output, job.OutputPolicyVersion)
 	if err != nil {
 		return nil, err
 	}

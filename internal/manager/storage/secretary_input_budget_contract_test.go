@@ -75,6 +75,7 @@ func TestSecretaryBudgetGivenLongUserMessageThenIncludesItsReplyAndPreservesFull
 		assert.Equal(t, "m2", work.Messages[1].SourceID)
 		assert.Equal(t, "Earlier reasoning.\n\nReply conclusion.", work.Messages[1].Body)
 		assert.Equal(t, domain.SecretaryInputPolicyVersion, work.InputPolicyVersion)
+		work.OutputPolicyVersion = domain.SecretaryLegacyOutputPolicyVersion
 		work = secretaryNodesReadyWork(t, f.store, work)
 		publication, err := secretary.BuildNodePublication(work, `{
  "summaries":[{"action":"create","proposal_key":"request","title":"Request",

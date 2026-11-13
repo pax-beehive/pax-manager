@@ -79,6 +79,17 @@ force a new epoch as a recovery shortcut.
 
 ## Operational boundary
 
+On 2026-11-13, a bounded read-only audit found three other historical unknown
+attempts with exact persisted cancellation proofs, current settings/bindings,
+internal-session registration and no active lease. Calling the existing
+WakeSecretaryExecutionRecovery for those exact attempts released their blocked
+flags without changing checkpoints, retry epochs or settings. Normal original-
+attempt recovery then recognized the cancellations and entered bounded retries.
+One source subsequently committed a new batch. This is a targeted operational
+repair, not proof that all historical tasks have completed. Separately, a
+persisted successful native response was ignored by the reader; issue 088
+tracks that different cause.
+
 The two native-aborted attempts can be retried individually after verifying
 their exact identities and no active lease, through the existing task-control
 store with CAS and explicit confirmed restart. This is an operational repair,

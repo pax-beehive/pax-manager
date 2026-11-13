@@ -8,6 +8,32 @@ type nodePromptValidationFeedback struct {
 }
 
 func nodeValidationFeedback(job domain.SecretaryJob) *nodePromptValidationFeedback {
+	feedback := legacyNodeValidationFeedback(job)
+	if feedback == nil || !domain.SecretarySourceOnlyOutput(job.OutputPolicyVersion) {
+		return feedback
+	}
+	switch feedback.Code {
+	case "source_binding_capacity":
+		return &nodePromptValidationFeedback{
+			Code: feedback.Code,
+			Hint: "Keep the entire bound publication within the stated budget, including exact source references and processing outcomes. Condense repeated prose and retain representative sources for useful conclusions.",
+		}
+	case "quote_not_visible", "source_unavailable":
+		return &nodePromptValidationFeedback{
+			Code: "source_unavailable",
+			Hint: "Use supplied source IDs, unchanged baseline coverage, or exact additional sources exposed by an authorized read. Read a missing original or current summary baseline before using it; keep exact source versions and read receipts.",
+		}
+	case "schema":
+		return feedback
+	default:
+		return &nodePromptValidationFeedback{
+			Code: feedback.Code,
+			Hint: "Correct source IDs, selected coverage, exact versions and read receipts using only supplied input, unchanged baseline sources or verified original reads.",
+		}
+	}
+}
+
+func legacyNodeValidationFeedback(job domain.SecretaryJob) *nodePromptValidationFeedback {
 	feedback := genericNodeValidationFeedback(job.ValidationFeedback)
 	attempt := job.Attempt
 	if attempt == nil || attempt.State != "invalid" || attempt.NotDispatched ||

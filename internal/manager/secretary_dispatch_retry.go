@@ -13,3 +13,13 @@ func secretaryTunnelClaimFailure(err error) error {
 	}
 	return err
 }
+
+func secretarySessionCreationFailure(err error) error {
+	// Session creation precedes session/prompt. Only a structured router
+	// readiness failure enters connection backoff; other failures stay unchanged.
+	if !errors.Is(err, domain.ErrSecretaryExecutionUnknown) &&
+		isConversationACPErrorKind(err, "slot_unavailable") && isConversationACPRetryable(err) {
+		return errors.Join(domain.ErrSecretaryNotDispatched, err)
+	}
+	return err
+}

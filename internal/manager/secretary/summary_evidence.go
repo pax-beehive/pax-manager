@@ -80,7 +80,8 @@ func bindRollingEvidence(
 	if err != nil {
 		return domain.SummaryEvidence{}, err
 	}
-	if evidence.Message != nil && *evidence.Message != bound.Message ||
+	if evidence.Message != nil && (evidence.Message.Identity() != bound.Message.Identity() ||
+		evidence.Message.ReadReceipt != "" && evidence.Message.ReadReceipt != bound.ReadReceipt) ||
 		evidence.View != "" && evidence.View != bound.View ||
 		evidence.ReadReceipt != "" && evidence.ReadReceipt != bound.ReadReceipt {
 		return domain.SummaryEvidence{}, generatedOutputError("evidence",

@@ -161,7 +161,10 @@ func (w *Worker) processJob(ctx context.Context, job domain.SecretaryJob) error 
 	if err != nil {
 		return err
 	}
-	job.AllowedRelatedMessages, err = RequestedRelatedSources(result.Text)
+	job.AllowedRelatedMessages, err = RequestedRelatedSourcesForPolicy(
+		result.Text,
+		job.OutputPolicyVersion,
+	)
 	if err != nil {
 		return err
 	}

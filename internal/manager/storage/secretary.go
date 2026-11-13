@@ -33,6 +33,9 @@ func secretaryRunID(work domain.SecretaryJob) string {
 		policy = domain.SecretaryLegacyInputPolicyVersion
 	}
 	refs = append(refs, "input_policy:"+policy)
+	if work.OutputPolicyVersion != "" {
+		refs = append(refs, "output_policy:"+work.OutputPolicyVersion)
+	}
 	if work.OperationID != "" {
 		refs = append(refs, "operation:"+work.OperationID)
 	}
@@ -59,6 +62,9 @@ func secretaryValidationRetryKey(work domain.SecretaryJob) string {
 func secretaryPrepareJob(work *domain.SecretaryJob) {
 	if work.InputPolicyVersion == "" {
 		work.InputPolicyVersion = domain.SecretaryInputPolicyVersion
+	}
+	if work.OutputPolicyVersion == "" {
+		work.OutputPolicyVersion = domain.SecretarySourceOnlyOutputPolicyVersion
 	}
 	work.RunID = secretaryRunID(*work)
 	if work.TargetSummaryID == "" {

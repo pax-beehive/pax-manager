@@ -1,5 +1,26 @@
 # Secretary 自动多摘要：当前实现
 
+## Source-only generation contract
+
+Newly prepared jobs use the frozen output policy `summary-sources-v2`. Secretary
+returns title, body and selected `source_message_ids`, with the existing per-
+message processing outcomes. It does not generate claims or copy quotations.
+New-policy prompts omit legacy claim/evidence metadata; echoed claim metadata
+does not become a quote-validation gate and is not persisted on the new revision.
+
+Manager validates sources/ownership/current versions and freezes exact references
+and original snapshots through the existing publication transaction. Optional
+additional original reads still require verified references/receipts. This is
+traceability, not semantic verification of a summary. No backend quote alignment
+or additional model verifier is part of this version.
+
+An omitted/legacy output policy on an already frozen batch retains its original
+contract, including exact quote validation. Old immutable revisions and their
+claim/evidence reads are unchanged. Only a deliberately new batch/retry adopts
+the new output policy; deployment does not reset work or rewrite history. The
+claim/evidence budgets and compact-claim representation described below remain
+compatibility rules for those old records and generic summary publication.
+
 实现更新：2026-11-04。本文描述本次 summary Node 版本的代码与运行契约，
 不代表已部署或验证生产数据。完整产品边界见[统一 Node 设计](secretary_topics_design.md)，
 交付状态见[问题 067](../issues/067-secretary-topic-capacity-and-execution-lifecycle.md)。
@@ -227,13 +248,13 @@ limit 省略或 0 默认 20，最大 50。响应 `{items,next_cursor?}`，正常
 
 不能按摘要数量放大整批预算。旧摘要超过整版读取预算时明确阻塞；本版没有自动拆分历史大摘要的模型迁移。
 
-New summary revisions store each complete message-version reference once in
+Claim-bearing legacy revisions store each complete message-version reference once in
 `summary_sources`. Evidence in `summary_versions.claims_json` uses an integer
 `source_key` pointing to that revision's message-source order, while retaining
 its exact quote and view. The shared publication encoder uses the same compact
 claim representation for the unchanged 64 KiB budget. Public reads restore the
 complete reference; ES still indexes only the summary title and body plus
-search metadata. No claims, quotes, facts or source versions are discarded.
+search metadata. Stored historical claims and source versions are not rewritten.
 
 The reader accepts both legacy full-reference claims and compact claims. It
 rejects missing, out-of-range, conflicting or malformed keys and broken source

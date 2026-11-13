@@ -15,14 +15,20 @@ func TestSecretaryValidationFeedbackGivenRejectedOutputThenPreparedRetryUsesTheP
 	t *testing.T,
 ) {
 	for _, scenario := range []struct {
-		category, failure, detail string
+		category, failure, detail, policy string
 	}{
-		{"evidence", "secretary evidence was not present in the supplied or verified text", "quote_not_visible"},
-		{"schema", "secretary batch publication exceeds 64 KiB after source binding", "source_binding_capacity"},
+		{"evidence", "secretary evidence was not present in the supplied or verified text", "quote_not_visible", domain.SecretaryLegacyOutputPolicyVersion},
+		{"schema", "secretary batch publication exceeds 64 KiB after source binding", "source_binding_capacity", domain.SecretaryLegacyOutputPolicyVersion},
+		{"evidence", "secretary evidence was not present in the supplied or verified text", "source_unavailable", domain.SecretarySourceOnlyOutputPolicyVersion},
+		{"schema", "secretary batch publication exceeds 64 KiB after source binding", "source_binding_capacity", domain.SecretarySourceOnlyOutputPolicyVersion},
 	} {
-		t.Run(scenario.category, func(t *testing.T) {
+		t.Run(scenario.category+"/"+scenario.policy, func(t *testing.T) {
 			secretaryLifecycleFixtures(t, func(t *testing.T, f *secretaryLifecycleFixture) {
-				job := f.begin(t, f.prepare(t))
+				work := secretaryClaim(t, f.store)
+				work.OutputPolicyVersion = scenario.policy
+				prepared, err := f.store.PrepareSecretaryBatch(t.Context(), work)
+				require.NoError(t, err)
+				job := f.begin(t, prepared)
 				failure := domain.SecretaryOutputValidationError{
 					Code: scenario.category, Err: errors.New(scenario.failure),
 				}
@@ -33,6 +39,7 @@ func TestSecretaryValidationFeedbackGivenRejectedOutputThenPreparedRetryUsesTheP
 				require.NoError(t, f.store.FailSecretaryJob(t.Context(), job, failure))
 				f.releaseBackoff(t)
 				restored := f.prepare(t)
+				assert.Equal(t, scenario.policy, restored.OutputPolicyVersion)
 				require.NotNil(t, restored.Attempt)
 				assert.Equal(t, "invalid", restored.Attempt.State)
 				assert.Equal(t, job.AttemptID, restored.Attempt.ID)

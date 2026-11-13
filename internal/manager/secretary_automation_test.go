@@ -247,6 +247,8 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 		promptText := acpPromptText(prompt.Params)
 		assert.Contains(t, promptText, expectedSource)
 		assert.Contains(t, promptText, "Read-only lookup is optional")
+		assert.NotContains(t, promptText, `"claims"`)
+		assert.NotContains(t, promptText, `"quote"`)
 		var input struct {
 			OwnerInstructions *domain.SecretaryInstructionSnapshot `json:"owner_instructions"`
 			CurrentSummaries  []struct {
