@@ -33,6 +33,12 @@ func secretaryRunID(work domain.SecretaryJob) string {
 		policy = domain.SecretaryLegacyInputPolicyVersion
 	}
 	refs = append(refs, "input_policy:"+policy)
+	if work.OperationID != "" {
+		refs = append(refs, "operation:"+work.OperationID)
+	}
+	if instructions := secretaryInstructionsHash(work.Instructions); instructions != "" {
+		refs = append(refs, "instructions:"+instructions)
+	}
 	sort.Strings(refs)
 	return "secretary:" + strings.TrimPrefix(
 		domain.SearchContentHash(work.OwnerUserID+":"+work.SourceID+":"+

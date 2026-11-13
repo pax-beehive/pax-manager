@@ -35,6 +35,9 @@ func (s *MemoryStore) loadMemorySecretaryJobLocked(
 	if err := s.memorySecretaryBaselineLocked(job, &work); err != nil {
 		return work, err
 	}
+	if operation := s.activeMemoryOperationLocked(work.SourceID); operation != nil {
+		return s.loadMemoryOperationWorkLocked(job, work, operation)
+	}
 	var ids []string
 	for id, revision := range job.changes {
 		if revision > job.processed {
@@ -49,6 +52,10 @@ func (s *MemoryStore) loadMemorySecretaryJobLocked(
 	})
 	batch := newSecretaryBatch(&work)
 	for _, id := range ids[:min(len(ids), secretaryChangeScanLimit)] {
+		if job.processedChanges[id] >= job.changes[id] {
+			work.ThroughRevision = job.changes[id]
+			continue
+		}
 		var doc domain.SearchDocument
 		err := ErrNotFound
 		if domain.SearchVisibleMessageMetadata(s.messages[id]) {

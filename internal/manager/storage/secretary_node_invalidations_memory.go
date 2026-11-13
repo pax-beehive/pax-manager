@@ -8,6 +8,7 @@ type memoryNodeInvalidation struct {
 	ref                          domain.SummaryRef
 	source, message, fingerprint string
 	changeRevision               int64
+	acknowledgedOperationID      string
 }
 
 func (s *MemoryStore) refreshMemoryNodeInvalidationsLocked() {
@@ -112,6 +113,10 @@ func (s *MemoryStore) loadMemoryNodeInvalidationsLocked(job *domain.SecretaryJob
 		}
 		if node, exists := s.secretaryLocked().nodes[pending.ref.SummaryID]; exists {
 			pending.ref.Revision = node.CurrentRevision
+		}
+		if pending.acknowledgedOperationID != "" {
+			invalidated[pending.ref.SummaryID] = true
+			continue
 		}
 		changed := false
 		for _, ref := range s.memoryNodeSourceRefsLocked(pending.ref) {

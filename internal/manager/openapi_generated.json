@@ -3598,6 +3598,147 @@
         },
         "type": "object"
       },
+      "SecretaryGuidanceReadRequest": {
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "type": "object"
+      },
+      "SecretaryGuidanceUpdateRequest": {
+        "properties": {
+          "expected_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "instruction",
+          "expected_revision"
+        ],
+        "type": "object"
+      },
+      "SecretaryOperationPrepareRequest": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "message_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "summary_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "SecretaryOperationReadRequest": {
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ],
+        "type": "object"
+      },
+      "SecretaryOperationSubmitRequest": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "confirm_replace": {
+            "type": "boolean"
+          },
+          "coverage_message_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "expected_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expected_summary_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "message_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "operation_id": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "run_instruction": {
+            "type": "string"
+          },
+          "summary_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "request_id",
+          "expected_revision"
+        ],
+        "type": "object"
+      },
       "SecretaryProgressRequest": {
         "properties": {
           "cursor": {
@@ -14339,6 +14480,409 @@
           }
         },
         "summary": "Configure an owned agent as Secretary",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/secretary/guidance": {
+      "get": {
+        "description": "Owner is derived from authentication. Session guidance requires current source visibility. Unset guidance has revision zero.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretaryGuidanceReadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Read owned default or session Secretary guidance",
+        "tags": [
+          "user"
+        ]
+      },
+      "put": {
+        "description": "User defaults apply to all owned sessions; session guidance overrides them. Empty instructions clear the scope. At most 8192 UTF-8 bytes and 4096 Unicode characters. Saves affect future work only and never reset progress or mutate frozen execution.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretaryGuidanceUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Save owned Secretary guidance with revision checking",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/secretary/operations/prepare": {
+      "post": {
+        "description": "Freezes a bounded exact complete-message selection and guidance. Kinds are guided_summary, human_summary and human_edit. Scopes pending, all and selected cap at 4096 messages without silent truncation. Human edit preserves the existing summary sources.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretaryOperationPrepareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Prepare an owned guided or human summary operation",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/secretary/operations/{operation_id}": {
+      "get": {
+        "description": "Checks current source permissions. Returns safe status, frozen message references and previews, result references and summary content without exposing model capabilities.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretaryOperationReadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Read an owned Secretary operation and results",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/secretary/operations/{operation_id}/submit": {
+      "post": {
+        "description": "Requires a stable idempotency key and exact operation revision. Message progress and representative summary coverage are separate selections. Human completion atomically publishes an immutable summary revision, acknowledges exact selected message changes and fences older workers. Replacing active or uncertain work requires explicit confirmation. Human edit adds no processing progress.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecretaryOperationSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Submit an owned guided operation or atomically save a human summary",
         "tags": [
           "user"
         ]

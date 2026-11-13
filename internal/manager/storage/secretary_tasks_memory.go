@@ -72,15 +72,17 @@ func (s *MemoryStore) memorySecretaryTaskLocked(owner, id string) (secretaryTask
 	}
 	cfg := s.secretaryLocked().settings[owner]
 	record := secretaryTaskRecord{
-		desired:       job.desired,
-		processed:     job.processed,
-		available:     job.available,
-		enabled:       cfg.Enabled,
-		blocked:       job.executionBlocked,
-		sourceRuntime: session.RuntimeStatus,
+		desired:          job.desired,
+		processed:        job.processed,
+		available:        job.available,
+		enabled:          cfg.Enabled,
+		blocked:          job.executionBlocked,
+		sourceRuntime:    session.RuntimeStatus,
+		operationPending: s.secretaryOperationPendingLocked(owner, id),
 	}
 	record.task = domain.SecretaryTask{
 		TaskID:        id,
+		OperationID:   s.secretaryPendingOperationIDLocked(owner, id),
 		SessionID:     session.SessionID,
 		SourceAgentID: session.AgentID,
 		Title: secretaryTaskSessionTitle(
@@ -156,7 +158,8 @@ func (s *MemoryStore) ListSecretaryTasks(
 	var ids []int64
 	for id, job := range s.secretaryLocked().jobs {
 		numeric, _ := strconv.ParseInt(id, 10, 64)
-		if numeric > after && job.work.OwnerUserID == owner && job.desired > job.processed {
+		if numeric > after && job.work.OwnerUserID == owner &&
+			(job.desired > job.processed || s.secretaryOperationPendingLocked(owner, id)) {
 			ids = append(ids, numeric)
 		}
 	}
@@ -286,6 +289,7 @@ func (s *MemoryStore) ControlSecretaryTask(
 }
 
 func (s *MemoryStore) retryMemorySecretaryTaskLocked(job *memorySecretaryJob) {
+	s.retryMemoryOperationLocked(job.work.SourceID)
 	job.work.RetryEpoch++
 	job.work.RetryGeneration++
 	job.work.ValidationFeedback, job.lastError, job.autoRetryKey = "", "", ""

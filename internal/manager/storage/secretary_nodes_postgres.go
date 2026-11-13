@@ -79,6 +79,9 @@ func (s *PostgresStore) publishSecretaryNodes(
 	if err = checkpointSecretaryNodesTx(ctx, tx, job, outcomes); err != nil {
 		return nil, err
 	}
+	if err = finishSecretaryOperationBatchTx(ctx, tx, job, results); err != nil {
+		return nil, err
+	}
 	if err = clearSecretaryInvalidationsTx(ctx, tx, job, results); err != nil {
 		return nil, err
 	}
@@ -181,14 +184,16 @@ func checkpointSecretaryNodesTx(
 ) error {
 	for _, message := range job.Messages {
 		if _, err := tx.ExecContext(ctx, `UPDATE secretary_message_state SET processed_hash=$3,
- processed_canonicalization_version=$4,processed_owner_user_id=$5 WHERE source_id=$1 AND message_id=$2`,
+ processed_canonicalization_version=$4,processed_owner_user_id=$5,processed_change_revision=change_revision
+ WHERE source_id=$1 AND message_id=$2`,
 			job.SourceID, message.SourceID, message.ContentHash, message.CanonicalizationVersion, job.OwnerUserID); err != nil {
 			return err
 		}
 	}
 	for _, id := range job.RemovedMessageIDs {
 		if _, err := tx.ExecContext(ctx, `UPDATE secretary_message_state SET processed_hash='',
- processed_canonicalization_version='',processed_owner_user_id='' WHERE source_id=$1 AND message_id=$2`, job.SourceID, id); err != nil {
+ processed_canonicalization_version='',processed_owner_user_id=$3,processed_change_revision=change_revision
+ WHERE source_id=$1 AND message_id=$2`, job.SourceID, id, job.OwnerUserID); err != nil {
 			return err
 		}
 	}
@@ -199,14 +204,21 @@ func checkpointSecretaryNodesTx(
 			return err
 		}
 	}
+	through := job.ThroughRevision
+	if job.OperationID != "" {
+		through = 0
+	}
 	_, err := tx.ExecContext(
 		ctx,
 		`UPDATE secretary_jobs SET processed_revision=GREATEST(processed_revision,$2),
  lease_token='',lease_until=NULL,execution_blocked=FALSE,completed_at=NOW(),last_error='',attempts=0,available_at=NOW(),
  auto_retry_key='',auto_retry_count=0,last_validation_failure='' WHERE source_id=$1`,
 		job.SourceID,
-		job.ThroughRevision,
+		through,
 	)
+	if err == nil && job.OperationID != "" {
+		err = advanceSecretaryCursorTx(ctx, tx, job.SourceID)
+	}
 	return err
 }
 

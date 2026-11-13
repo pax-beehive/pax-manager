@@ -218,6 +218,9 @@ func (s *PostgresStore) BeginSecretaryAttempt(
 		if err != nil {
 			return domain.SecretaryAttempt{}, err
 		}
+		if err = failSecretaryOperationWorkTx(ctx, tx, job, "unknown", domain.ErrSecretaryExecutionUnknown); err != nil {
+			return domain.SecretaryAttempt{}, err
+		}
 		if err = tx.Commit(); err != nil {
 			return domain.SecretaryAttempt{}, err
 		}
@@ -369,6 +372,9 @@ func (s *PostgresStore) FailSecretaryAttempt(
 			failure,
 			batch.attemptCount-batch.undispatchedAttempts,
 		)
+	}
+	if err == nil {
+		err = failSecretaryOperationWorkTx(ctx, tx, job, batchState, failure)
 	}
 	if err != nil {
 		return err

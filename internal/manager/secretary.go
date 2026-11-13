@@ -21,6 +21,9 @@ func (s *Service) configureSecretary(store Store) {
 	)
 	tasks, _ := store.(domain.SecretaryTaskStore)
 	s.secretaryTasks = userapi.NewSecretaryTaskService(s.auth, tasks, s.recheckSecretaryTask)
+	guidance, _ := store.(domain.SecretaryGuidanceStore)
+	operations, _ := store.(domain.SecretaryOperationStore)
+	s.secretaryControl = userapi.NewSecretaryControlService(s.auth, guidance, operations)
 }
 
 func (s *Service) startSecretaryWorker(ctx context.Context) func() {

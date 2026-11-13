@@ -134,6 +134,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 084 | partial | [Native harness plan usage is not visible to node owners](084-native-harness-plan-usage.md) | medium | api / node control |
 
+| 085 | partial | [Secretary owner guidance and manual completion](085-secretary-owner-guidance-and-manual-completion.md) | high | Secretary / user controls / summary publication |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness

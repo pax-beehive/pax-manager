@@ -971,3 +971,38 @@ func _getnodeharnessusageMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _getsecretaryguidanceMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updatesecretaryguidanceMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _operationsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getsecretaryoperationMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _preparesecretaryoperationMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _operation_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _submitsecretaryoperationMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

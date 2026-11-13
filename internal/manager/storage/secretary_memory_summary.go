@@ -91,6 +91,7 @@ func (s *MemoryStore) publishMemorySummaryLocked(
 		}
 	}
 	result := domain.SummaryVersion{
+		AuthorKind:     "legacy_unknown",
 		SummaryID:      request.SummaryID,
 		Revision:       request.ExpectedRevision + 1,
 		OwnerUserID:    owner,
@@ -260,13 +261,24 @@ func (s *MemoryStore) PublishSecretaryJob(
 	}
 	job.autoRetryKey, job.autoRetryCount = "", 0
 	job.work.ValidationFeedback = ""
+	if job.processedChanges == nil {
+		job.processedChanges = map[string]int64{}
+	}
+	result.AuthorKind, result.AuthorID, result.OperationID = "agent", work.AgentID, work.OperationID
+	s.secretaryLocked().summaries[result.SummaryID][result.Revision-1] = result
 	for _, message := range work.Messages {
 		job.checkpoint[message.SourceID] = message.ContentHash
+		job.processedChanges[message.SourceID] = job.changes[message.SourceID]
 	}
 	for _, id := range work.RemovedMessageIDs {
 		delete(job.checkpoint, id)
+		job.processedChanges[id] = job.changes[id]
 	}
-	job.processed = max(job.processed, work.ThroughRevision)
+	if work.OperationID == "" {
+		job.processed = max(job.processed, work.ThroughRevision)
+	} else {
+		s.advanceMemorySecretaryCursorLocked(job)
+	}
 	job.executionBlocked = false
 	job.work.LeaseToken = ""
 	job.leaseUntil = s.now()
@@ -274,5 +286,6 @@ func (s *MemoryStore) PublishSecretaryJob(
 	now := s.now()
 	job.completed = &now
 	s.clearMemoryNodeInvalidationsLocked(work, []domain.SummaryVersion{result})
+	s.finishMemoryOperationBatchLocked(work, []domain.SummaryVersion{result})
 	return result, nil
 }

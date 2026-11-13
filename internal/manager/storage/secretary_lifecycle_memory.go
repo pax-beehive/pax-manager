@@ -128,6 +128,7 @@ func (s *MemoryStore) BeginSecretaryAttempt(
 				batch.attempts[len(batch.attempts)-1].State = "unknown"
 			}
 		}
+		s.failMemoryOperationWorkLocked(job, "unknown", domain.ErrSecretaryExecutionUnknown)
 		return domain.SecretaryAttempt{}, domain.ErrSecretaryExecutionUnknown
 	}
 	id, err := newSecret("attempt")
@@ -248,6 +249,7 @@ func (s *MemoryStore) FailSecretaryAttempt(
 		_ = json.Unmarshal(batch.input, &input)
 		queued.executionBlocked = queued.desired <= input.ThroughRevision
 	}
+	s.failMemoryOperationWorkLocked(job, batch.state, failure)
 	return nil
 }
 

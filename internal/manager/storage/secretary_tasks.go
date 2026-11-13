@@ -22,6 +22,7 @@ type secretaryTaskRecord struct {
 	sourceRuntime      string
 	enabled            bool
 	blocked            bool
+	operationPending   bool
 }
 
 func secretaryTaskQuery(owner, scope string, query domain.SecretaryTaskQuery) (string, int, error) {
@@ -138,7 +139,7 @@ func secretaryTaskView(record secretaryTaskRecord, now time.Time) domain.Secreta
 }
 
 func secretaryTaskState(record secretaryTaskRecord, now time.Time) string {
-	if record.processed >= record.desired {
+	if record.processed >= record.desired && !record.operationPending {
 		return "completed"
 	}
 	switch record.batchState {

@@ -42,6 +42,9 @@ const secretaryBackfillSQL = `WITH sources AS MATERIALIZED (
  ON CONFLICT(source_id) DO UPDATE SET desired_revision=secretary_jobs.desired_revision+EXCLUDED.desired_revision,
  lease_token=CASE WHEN secretary_jobs.owner_user_id<>EXCLUDED.owner_user_id THEN '' ELSE secretary_jobs.lease_token END,
  lease_until=CASE WHEN secretary_jobs.owner_user_id<>EXCLUDED.owner_user_id THEN NULL ELSE secretary_jobs.lease_until END,
+ retry_epoch=secretary_jobs.retry_epoch+CASE WHEN secretary_jobs.owner_user_id<>EXCLUDED.owner_user_id THEN 1 ELSE 0 END,
+ execution_blocked=CASE WHEN secretary_jobs.owner_user_id<>EXCLUDED.owner_user_id THEN FALSE ELSE secretary_jobs.execution_blocked END,
+ paused=CASE WHEN secretary_jobs.owner_user_id<>EXCLUDED.owner_user_id THEN FALSE ELSE secretary_jobs.paused END,
  owner_user_id=EXCLUDED.owner_user_id,updated_at=NOW(),available_at=NOW()
  RETURNING source_id,desired_revision,processed_revision
 )

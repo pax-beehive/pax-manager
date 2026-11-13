@@ -21,7 +21,8 @@ func loadSecretaryInvalidationsTx(
 ) (map[string]bool, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT n.id,n.current_revision,i.message_id,i.change_revision
  FROM knowledge_node_invalidations i JOIN knowledge_nodes n ON n.id=i.node_id
- WHERE n.owner_user_id=$1 AND i.origin_source_id=$2 ORDER BY n.id,i.message_id`, job.OwnerUserID, job.SourceID)
+ WHERE n.owner_user_id=$1 AND i.origin_source_id=$2 AND i.acknowledged_operation_id=''
+ ORDER BY n.id,i.message_id`, job.OwnerUserID, job.SourceID)
 	if err != nil {
 		return nil, err
 	}

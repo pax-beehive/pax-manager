@@ -2910,6 +2910,42 @@ service PaxManagerAPI {
     openapi.description = "Actions pause or resume future scheduling, queue a retry of only this source, or check its existing result without model execution. Requires exact control revision, batch, attempt, epoch, and settings. Retry of unknown or expired execution requires confirm_restart=true. Active leases reject retry and recheck. Pause never cancels a running native turn. Stale controls return 409."
   )
 
+  WorkspaceSearchResponse GetSecretaryGuidance(1: required SecretaryGuidanceReadRequest request) (
+    api.get = "/api/v1/user/:user_id/secretary/guidance",
+    openapi.tag = "user",
+    openapi.summary = "Read owned default or session Secretary guidance",
+    openapi.description = "Owner is derived from authentication. Session guidance requires current source visibility. Unset guidance has revision zero."
+  )
+
+  WorkspaceSearchResponse UpdateSecretaryGuidance(1: required SecretaryGuidanceUpdateRequest request) (
+    api.put = "/api/v1/user/:user_id/secretary/guidance",
+    openapi.tag = "user",
+    openapi.summary = "Save owned Secretary guidance with revision checking",
+    openapi.description = "User defaults apply to all owned sessions; session guidance overrides them. Empty instructions clear the scope. At most 8192 UTF-8 bytes and 4096 Unicode characters. Saves affect future work only and never reset progress or mutate frozen execution."
+  )
+
+  WorkspaceSearchResponse PrepareSecretaryOperation(1: required SecretaryOperationPrepareRequest request) (
+    api.post = "/api/v1/user/:user_id/secretary/operations/prepare",
+    openapi.tag = "user",
+    openapi.status = "201",
+    openapi.summary = "Prepare an owned guided or human summary operation",
+    openapi.description = "Freezes a bounded exact complete-message selection and guidance. Kinds are guided_summary, human_summary and human_edit. Scopes pending, all and selected cap at 4096 messages without silent truncation. Human edit preserves the existing summary sources."
+  )
+
+  WorkspaceSearchResponse GetSecretaryOperation(1: required SecretaryOperationReadRequest request) (
+    api.get = "/api/v1/user/:user_id/secretary/operations/:operation_id",
+    openapi.tag = "user",
+    openapi.summary = "Read an owned Secretary operation and results",
+    openapi.description = "Checks current source permissions. Returns safe status, frozen message references and previews, result references and summary content without exposing model capabilities."
+  )
+
+  WorkspaceSearchResponse SubmitSecretaryOperation(1: required SecretaryOperationSubmitRequest request) (
+    api.post = "/api/v1/user/:user_id/secretary/operations/:operation_id/submit",
+    openapi.tag = "user",
+    openapi.summary = "Submit an owned guided operation or atomically save a human summary",
+    openapi.description = "Requires a stable idempotency key and exact operation revision. Message progress and representative summary coverage are separate selections. Human completion atomically publishes an immutable summary revision, acknowledges exact selected message changes and fences older workers. Replacing active or uncertain work requires explicit confirmation. Human edit adds no processing progress."
+  )
+
 }
 
 
@@ -2936,4 +2972,47 @@ struct SecretaryTaskActionRequest {
   7: required i64 retry_epoch
   8: required i64 settings_revision
   9: optional bool confirm_restart
+}
+
+struct SecretaryGuidanceReadRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string scope (api.query = "scope")
+  3: optional string source_id (api.query = "source_id")
+}
+
+struct SecretaryGuidanceUpdateRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string scope (api.query = "scope")
+  3: optional string source_id (api.query = "source_id")
+  4: required string instruction
+  5: required i64 expected_revision
+}
+
+struct SecretaryOperationPrepareRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string source_id
+  3: required string kind
+  4: optional string scope
+  5: optional list<string> message_ids
+  6: optional string summary_id
+}
+
+struct SecretaryOperationReadRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string operation_id (api.path = "operation_id")
+}
+
+struct SecretaryOperationSubmitRequest {
+  1: optional string user_id (api.path = "user_id")
+  2: required string operation_id (api.path = "operation_id")
+  3: required string request_id
+  4: required i64 expected_revision
+  5: optional list<string> message_ids
+  6: optional list<string> coverage_message_ids
+  7: optional string run_instruction
+  8: optional string title
+  9: optional string body
+  10: optional string summary_id
+  11: optional i64 expected_summary_revision
+  12: optional bool confirm_replace
 }

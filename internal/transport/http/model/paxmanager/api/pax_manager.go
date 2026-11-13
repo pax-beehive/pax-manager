@@ -82482,6 +82482,2097 @@ func (p *SecretaryTaskActionRequest) String() string {
 
 }
 
+type SecretaryGuidanceReadRequest struct {
+	UserID   *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	Scope    string  `thrift:"scope,2,required" json:"scope,required" query:"scope,required"`
+	SourceID *string `thrift:"source_id,3,optional" json:"source_id,omitempty" query:"source_id"`
+}
+
+func NewSecretaryGuidanceReadRequest() *SecretaryGuidanceReadRequest {
+	return &SecretaryGuidanceReadRequest{}
+}
+
+func (p *SecretaryGuidanceReadRequest) InitDefault() {
+}
+
+var SecretaryGuidanceReadRequest_UserID_DEFAULT string
+
+func (p *SecretaryGuidanceReadRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return SecretaryGuidanceReadRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+func (p *SecretaryGuidanceReadRequest) GetScope() (v string) {
+	return p.Scope
+}
+
+var SecretaryGuidanceReadRequest_SourceID_DEFAULT string
+
+func (p *SecretaryGuidanceReadRequest) GetSourceID() (v string) {
+	if !p.IsSetSourceID() {
+		return SecretaryGuidanceReadRequest_SourceID_DEFAULT
+	}
+	return *p.SourceID
+}
+
+var fieldIDToName_SecretaryGuidanceReadRequest = map[int16]string{
+	1: "user_id",
+	2: "scope",
+	3: "source_id",
+}
+
+func (p *SecretaryGuidanceReadRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *SecretaryGuidanceReadRequest) IsSetSourceID() bool {
+	return p.SourceID != nil
+}
+
+func (p *SecretaryGuidanceReadRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetScope bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetScope = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetScope {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_SecretaryGuidanceReadRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_SecretaryGuidanceReadRequest[fieldId]))
+}
+
+func (p *SecretaryGuidanceReadRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *SecretaryGuidanceReadRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.Scope = _field
+	return nil
+}
+func (p *SecretaryGuidanceReadRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SourceID = _field
+	return nil
+}
+
+func (p *SecretaryGuidanceReadRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SecretaryGuidanceReadRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *SecretaryGuidanceReadRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *SecretaryGuidanceReadRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("scope", thrift.STRING, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.Scope); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SecretaryGuidanceReadRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSourceID() {
+		if err = oprot.WriteFieldBegin("source_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SourceID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *SecretaryGuidanceReadRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("SecretaryGuidanceReadRequest(%+v)", *p)
+
+}
+
+type SecretaryGuidanceUpdateRequest struct {
+	UserID           *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	Scope            string  `thrift:"scope,2,required" json:"scope,required" query:"scope,required"`
+	SourceID         *string `thrift:"source_id,3,optional" json:"source_id,omitempty" query:"source_id"`
+	Instruction      string  `thrift:"instruction,4,required" form:"instruction,required" json:"instruction,required" query:"instruction,required"`
+	ExpectedRevision int64   `thrift:"expected_revision,5,required" form:"expected_revision,required" json:"expected_revision,required" query:"expected_revision,required"`
+}
+
+func NewSecretaryGuidanceUpdateRequest() *SecretaryGuidanceUpdateRequest {
+	return &SecretaryGuidanceUpdateRequest{}
+}
+
+func (p *SecretaryGuidanceUpdateRequest) InitDefault() {
+}
+
+var SecretaryGuidanceUpdateRequest_UserID_DEFAULT string
+
+func (p *SecretaryGuidanceUpdateRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return SecretaryGuidanceUpdateRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+func (p *SecretaryGuidanceUpdateRequest) GetScope() (v string) {
+	return p.Scope
+}
+
+var SecretaryGuidanceUpdateRequest_SourceID_DEFAULT string
+
+func (p *SecretaryGuidanceUpdateRequest) GetSourceID() (v string) {
+	if !p.IsSetSourceID() {
+		return SecretaryGuidanceUpdateRequest_SourceID_DEFAULT
+	}
+	return *p.SourceID
+}
+
+func (p *SecretaryGuidanceUpdateRequest) GetInstruction() (v string) {
+	return p.Instruction
+}
+
+func (p *SecretaryGuidanceUpdateRequest) GetExpectedRevision() (v int64) {
+	return p.ExpectedRevision
+}
+
+var fieldIDToName_SecretaryGuidanceUpdateRequest = map[int16]string{
+	1: "user_id",
+	2: "scope",
+	3: "source_id",
+	4: "instruction",
+	5: "expected_revision",
+}
+
+func (p *SecretaryGuidanceUpdateRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *SecretaryGuidanceUpdateRequest) IsSetSourceID() bool {
+	return p.SourceID != nil
+}
+
+func (p *SecretaryGuidanceUpdateRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetScope bool = false
+	var issetInstruction bool = false
+	var issetExpectedRevision bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetScope = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetInstruction = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.I64 {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetExpectedRevision = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetScope {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetInstruction {
+		fieldId = 4
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetExpectedRevision {
+		fieldId = 5
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_SecretaryGuidanceUpdateRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_SecretaryGuidanceUpdateRequest[fieldId]))
+}
+
+func (p *SecretaryGuidanceUpdateRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *SecretaryGuidanceUpdateRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.Scope = _field
+	return nil
+}
+func (p *SecretaryGuidanceUpdateRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SourceID = _field
+	return nil
+}
+func (p *SecretaryGuidanceUpdateRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.Instruction = _field
+	return nil
+}
+func (p *SecretaryGuidanceUpdateRequest) ReadField5(iprot thrift.TProtocol) error {
+
+	var _field int64
+	if v, err := iprot.ReadI64(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.ExpectedRevision = _field
+	return nil
+}
+
+func (p *SecretaryGuidanceUpdateRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SecretaryGuidanceUpdateRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *SecretaryGuidanceUpdateRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *SecretaryGuidanceUpdateRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("scope", thrift.STRING, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.Scope); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SecretaryGuidanceUpdateRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSourceID() {
+		if err = oprot.WriteFieldBegin("source_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SourceID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *SecretaryGuidanceUpdateRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("instruction", thrift.STRING, 4); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.Instruction); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *SecretaryGuidanceUpdateRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("expected_revision", thrift.I64, 5); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteI64(p.ExpectedRevision); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *SecretaryGuidanceUpdateRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("SecretaryGuidanceUpdateRequest(%+v)", *p)
+
+}
+
+type SecretaryOperationPrepareRequest struct {
+	UserID     *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	SourceID   string   `thrift:"source_id,2,required" form:"source_id,required" json:"source_id,required" query:"source_id,required"`
+	Kind       string   `thrift:"kind,3,required" form:"kind,required" json:"kind,required" query:"kind,required"`
+	Scope      *string  `thrift:"scope,4,optional" form:"scope" json:"scope,omitempty" query:"scope"`
+	MessageIds []string `thrift:"message_ids,5,optional,list<string>" form:"message_ids" json:"message_ids,omitempty" query:"message_ids"`
+	SummaryID  *string  `thrift:"summary_id,6,optional" form:"summary_id" json:"summary_id,omitempty" query:"summary_id"`
+}
+
+func NewSecretaryOperationPrepareRequest() *SecretaryOperationPrepareRequest {
+	return &SecretaryOperationPrepareRequest{}
+}
+
+func (p *SecretaryOperationPrepareRequest) InitDefault() {
+}
+
+var SecretaryOperationPrepareRequest_UserID_DEFAULT string
+
+func (p *SecretaryOperationPrepareRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return SecretaryOperationPrepareRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+func (p *SecretaryOperationPrepareRequest) GetSourceID() (v string) {
+	return p.SourceID
+}
+
+func (p *SecretaryOperationPrepareRequest) GetKind() (v string) {
+	return p.Kind
+}
+
+var SecretaryOperationPrepareRequest_Scope_DEFAULT string
+
+func (p *SecretaryOperationPrepareRequest) GetScope() (v string) {
+	if !p.IsSetScope() {
+		return SecretaryOperationPrepareRequest_Scope_DEFAULT
+	}
+	return *p.Scope
+}
+
+var SecretaryOperationPrepareRequest_MessageIds_DEFAULT []string
+
+func (p *SecretaryOperationPrepareRequest) GetMessageIds() (v []string) {
+	if !p.IsSetMessageIds() {
+		return SecretaryOperationPrepareRequest_MessageIds_DEFAULT
+	}
+	return p.MessageIds
+}
+
+var SecretaryOperationPrepareRequest_SummaryID_DEFAULT string
+
+func (p *SecretaryOperationPrepareRequest) GetSummaryID() (v string) {
+	if !p.IsSetSummaryID() {
+		return SecretaryOperationPrepareRequest_SummaryID_DEFAULT
+	}
+	return *p.SummaryID
+}
+
+var fieldIDToName_SecretaryOperationPrepareRequest = map[int16]string{
+	1: "user_id",
+	2: "source_id",
+	3: "kind",
+	4: "scope",
+	5: "message_ids",
+	6: "summary_id",
+}
+
+func (p *SecretaryOperationPrepareRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *SecretaryOperationPrepareRequest) IsSetScope() bool {
+	return p.Scope != nil
+}
+
+func (p *SecretaryOperationPrepareRequest) IsSetMessageIds() bool {
+	return p.MessageIds != nil
+}
+
+func (p *SecretaryOperationPrepareRequest) IsSetSummaryID() bool {
+	return p.SummaryID != nil
+}
+
+func (p *SecretaryOperationPrepareRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetSourceID bool = false
+	var issetKind bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetSourceID = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetKind = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetSourceID {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetKind {
+		fieldId = 3
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_SecretaryOperationPrepareRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_SecretaryOperationPrepareRequest[fieldId]))
+}
+
+func (p *SecretaryOperationPrepareRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *SecretaryOperationPrepareRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.SourceID = _field
+	return nil
+}
+func (p *SecretaryOperationPrepareRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.Kind = _field
+	return nil
+}
+func (p *SecretaryOperationPrepareRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Scope = _field
+	return nil
+}
+func (p *SecretaryOperationPrepareRequest) ReadField5(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]string, 0, size)
+	for i := 0; i < size; i++ {
+
+		var _elem string
+		if v, err := iprot.ReadString(); err != nil {
+			return err
+		} else {
+			_elem = v
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.MessageIds = _field
+	return nil
+}
+func (p *SecretaryOperationPrepareRequest) ReadField6(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SummaryID = _field
+	return nil
+}
+
+func (p *SecretaryOperationPrepareRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SecretaryOperationPrepareRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *SecretaryOperationPrepareRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *SecretaryOperationPrepareRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("source_id", thrift.STRING, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.SourceID); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SecretaryOperationPrepareRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("kind", thrift.STRING, 3); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.Kind); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *SecretaryOperationPrepareRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetScope() {
+		if err = oprot.WriteFieldBegin("scope", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Scope); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *SecretaryOperationPrepareRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetMessageIds() {
+		if err = oprot.WriteFieldBegin("message_ids", thrift.LIST, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRING, len(p.MessageIds)); err != nil {
+			return err
+		}
+		for _, v := range p.MessageIds {
+			if err := oprot.WriteString(v); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *SecretaryOperationPrepareRequest) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSummaryID() {
+		if err = oprot.WriteFieldBegin("summary_id", thrift.STRING, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SummaryID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *SecretaryOperationPrepareRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("SecretaryOperationPrepareRequest(%+v)", *p)
+
+}
+
+type SecretaryOperationReadRequest struct {
+	UserID      *string `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	OperationID string  `thrift:"operation_id,2,required" json:"operation_id,required" path:"operation_id,required"`
+}
+
+func NewSecretaryOperationReadRequest() *SecretaryOperationReadRequest {
+	return &SecretaryOperationReadRequest{}
+}
+
+func (p *SecretaryOperationReadRequest) InitDefault() {
+}
+
+var SecretaryOperationReadRequest_UserID_DEFAULT string
+
+func (p *SecretaryOperationReadRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return SecretaryOperationReadRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+func (p *SecretaryOperationReadRequest) GetOperationID() (v string) {
+	return p.OperationID
+}
+
+var fieldIDToName_SecretaryOperationReadRequest = map[int16]string{
+	1: "user_id",
+	2: "operation_id",
+}
+
+func (p *SecretaryOperationReadRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *SecretaryOperationReadRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetOperationID bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetOperationID = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetOperationID {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_SecretaryOperationReadRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_SecretaryOperationReadRequest[fieldId]))
+}
+
+func (p *SecretaryOperationReadRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *SecretaryOperationReadRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.OperationID = _field
+	return nil
+}
+
+func (p *SecretaryOperationReadRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SecretaryOperationReadRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *SecretaryOperationReadRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *SecretaryOperationReadRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("operation_id", thrift.STRING, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.OperationID); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SecretaryOperationReadRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("SecretaryOperationReadRequest(%+v)", *p)
+
+}
+
+type SecretaryOperationSubmitRequest struct {
+	UserID                  *string  `thrift:"user_id,1,optional" json:"user_id,omitempty" path:"user_id"`
+	OperationID             string   `thrift:"operation_id,2,required" json:"operation_id,required" path:"operation_id,required"`
+	RequestID               string   `thrift:"request_id,3,required" form:"request_id,required" json:"request_id,required" query:"request_id,required"`
+	ExpectedRevision        int64    `thrift:"expected_revision,4,required" form:"expected_revision,required" json:"expected_revision,required" query:"expected_revision,required"`
+	MessageIds              []string `thrift:"message_ids,5,optional,list<string>" form:"message_ids" json:"message_ids,omitempty" query:"message_ids"`
+	CoverageMessageIds      []string `thrift:"coverage_message_ids,6,optional,list<string>" form:"coverage_message_ids" json:"coverage_message_ids,omitempty" query:"coverage_message_ids"`
+	RunInstruction          *string  `thrift:"run_instruction,7,optional" form:"run_instruction" json:"run_instruction,omitempty" query:"run_instruction"`
+	Title                   *string  `thrift:"title,8,optional" form:"title" json:"title,omitempty" query:"title"`
+	Body                    *string  `thrift:"body,9,optional" form:"body" json:"body,omitempty" query:"body"`
+	SummaryID               *string  `thrift:"summary_id,10,optional" form:"summary_id" json:"summary_id,omitempty" query:"summary_id"`
+	ExpectedSummaryRevision *int64   `thrift:"expected_summary_revision,11,optional" form:"expected_summary_revision" json:"expected_summary_revision,omitempty" query:"expected_summary_revision"`
+	ConfirmReplace          *bool    `thrift:"confirm_replace,12,optional" form:"confirm_replace" json:"confirm_replace,omitempty" query:"confirm_replace"`
+}
+
+func NewSecretaryOperationSubmitRequest() *SecretaryOperationSubmitRequest {
+	return &SecretaryOperationSubmitRequest{}
+}
+
+func (p *SecretaryOperationSubmitRequest) InitDefault() {
+}
+
+var SecretaryOperationSubmitRequest_UserID_DEFAULT string
+
+func (p *SecretaryOperationSubmitRequest) GetUserID() (v string) {
+	if !p.IsSetUserID() {
+		return SecretaryOperationSubmitRequest_UserID_DEFAULT
+	}
+	return *p.UserID
+}
+
+func (p *SecretaryOperationSubmitRequest) GetOperationID() (v string) {
+	return p.OperationID
+}
+
+func (p *SecretaryOperationSubmitRequest) GetRequestID() (v string) {
+	return p.RequestID
+}
+
+func (p *SecretaryOperationSubmitRequest) GetExpectedRevision() (v int64) {
+	return p.ExpectedRevision
+}
+
+var SecretaryOperationSubmitRequest_MessageIds_DEFAULT []string
+
+func (p *SecretaryOperationSubmitRequest) GetMessageIds() (v []string) {
+	if !p.IsSetMessageIds() {
+		return SecretaryOperationSubmitRequest_MessageIds_DEFAULT
+	}
+	return p.MessageIds
+}
+
+var SecretaryOperationSubmitRequest_CoverageMessageIds_DEFAULT []string
+
+func (p *SecretaryOperationSubmitRequest) GetCoverageMessageIds() (v []string) {
+	if !p.IsSetCoverageMessageIds() {
+		return SecretaryOperationSubmitRequest_CoverageMessageIds_DEFAULT
+	}
+	return p.CoverageMessageIds
+}
+
+var SecretaryOperationSubmitRequest_RunInstruction_DEFAULT string
+
+func (p *SecretaryOperationSubmitRequest) GetRunInstruction() (v string) {
+	if !p.IsSetRunInstruction() {
+		return SecretaryOperationSubmitRequest_RunInstruction_DEFAULT
+	}
+	return *p.RunInstruction
+}
+
+var SecretaryOperationSubmitRequest_Title_DEFAULT string
+
+func (p *SecretaryOperationSubmitRequest) GetTitle() (v string) {
+	if !p.IsSetTitle() {
+		return SecretaryOperationSubmitRequest_Title_DEFAULT
+	}
+	return *p.Title
+}
+
+var SecretaryOperationSubmitRequest_Body_DEFAULT string
+
+func (p *SecretaryOperationSubmitRequest) GetBody() (v string) {
+	if !p.IsSetBody() {
+		return SecretaryOperationSubmitRequest_Body_DEFAULT
+	}
+	return *p.Body
+}
+
+var SecretaryOperationSubmitRequest_SummaryID_DEFAULT string
+
+func (p *SecretaryOperationSubmitRequest) GetSummaryID() (v string) {
+	if !p.IsSetSummaryID() {
+		return SecretaryOperationSubmitRequest_SummaryID_DEFAULT
+	}
+	return *p.SummaryID
+}
+
+var SecretaryOperationSubmitRequest_ExpectedSummaryRevision_DEFAULT int64
+
+func (p *SecretaryOperationSubmitRequest) GetExpectedSummaryRevision() (v int64) {
+	if !p.IsSetExpectedSummaryRevision() {
+		return SecretaryOperationSubmitRequest_ExpectedSummaryRevision_DEFAULT
+	}
+	return *p.ExpectedSummaryRevision
+}
+
+var SecretaryOperationSubmitRequest_ConfirmReplace_DEFAULT bool
+
+func (p *SecretaryOperationSubmitRequest) GetConfirmReplace() (v bool) {
+	if !p.IsSetConfirmReplace() {
+		return SecretaryOperationSubmitRequest_ConfirmReplace_DEFAULT
+	}
+	return *p.ConfirmReplace
+}
+
+var fieldIDToName_SecretaryOperationSubmitRequest = map[int16]string{
+	1:  "user_id",
+	2:  "operation_id",
+	3:  "request_id",
+	4:  "expected_revision",
+	5:  "message_ids",
+	6:  "coverage_message_ids",
+	7:  "run_instruction",
+	8:  "title",
+	9:  "body",
+	10: "summary_id",
+	11: "expected_summary_revision",
+	12: "confirm_replace",
+}
+
+func (p *SecretaryOperationSubmitRequest) IsSetUserID() bool {
+	return p.UserID != nil
+}
+
+func (p *SecretaryOperationSubmitRequest) IsSetMessageIds() bool {
+	return p.MessageIds != nil
+}
+
+func (p *SecretaryOperationSubmitRequest) IsSetCoverageMessageIds() bool {
+	return p.CoverageMessageIds != nil
+}
+
+func (p *SecretaryOperationSubmitRequest) IsSetRunInstruction() bool {
+	return p.RunInstruction != nil
+}
+
+func (p *SecretaryOperationSubmitRequest) IsSetTitle() bool {
+	return p.Title != nil
+}
+
+func (p *SecretaryOperationSubmitRequest) IsSetBody() bool {
+	return p.Body != nil
+}
+
+func (p *SecretaryOperationSubmitRequest) IsSetSummaryID() bool {
+	return p.SummaryID != nil
+}
+
+func (p *SecretaryOperationSubmitRequest) IsSetExpectedSummaryRevision() bool {
+	return p.ExpectedSummaryRevision != nil
+}
+
+func (p *SecretaryOperationSubmitRequest) IsSetConfirmReplace() bool {
+	return p.ConfirmReplace != nil
+}
+
+func (p *SecretaryOperationSubmitRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetOperationID bool = false
+	var issetRequestID bool = false
+	var issetExpectedRevision bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetOperationID = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequestID = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.I64 {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetExpectedRevision = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 8:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField8(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 9:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField9(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 10:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField10(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 11:
+			if fieldTypeId == thrift.I64 {
+				if err = p.ReadField11(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 12:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField12(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetOperationID {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetRequestID {
+		fieldId = 3
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetExpectedRevision {
+		fieldId = 4
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_SecretaryOperationSubmitRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_SecretaryOperationSubmitRequest[fieldId]))
+}
+
+func (p *SecretaryOperationSubmitRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserID = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.OperationID = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.RequestID = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field int64
+	if v, err := iprot.ReadI64(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.ExpectedRevision = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField5(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]string, 0, size)
+	for i := 0; i < size; i++ {
+
+		var _elem string
+		if v, err := iprot.ReadString(); err != nil {
+			return err
+		} else {
+			_elem = v
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.MessageIds = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField6(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]string, 0, size)
+	for i := 0; i < size; i++ {
+
+		var _elem string
+		if v, err := iprot.ReadString(); err != nil {
+			return err
+		} else {
+			_elem = v
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.CoverageMessageIds = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.RunInstruction = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField8(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Title = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField9(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Body = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField10(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.SummaryID = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField11(iprot thrift.TProtocol) error {
+
+	var _field *int64
+	if v, err := iprot.ReadI64(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ExpectedSummaryRevision = _field
+	return nil
+}
+func (p *SecretaryOperationSubmitRequest) ReadField12(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ConfirmReplace = _field
+	return nil
+}
+
+func (p *SecretaryOperationSubmitRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SecretaryOperationSubmitRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
+			goto WriteFieldError
+		}
+		if err = p.writeField8(oprot); err != nil {
+			fieldId = 8
+			goto WriteFieldError
+		}
+		if err = p.writeField9(oprot); err != nil {
+			fieldId = 9
+			goto WriteFieldError
+		}
+		if err = p.writeField10(oprot); err != nil {
+			fieldId = 10
+			goto WriteFieldError
+		}
+		if err = p.writeField11(oprot); err != nil {
+			fieldId = 11
+			goto WriteFieldError
+		}
+		if err = p.writeField12(oprot); err != nil {
+			fieldId = 12
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserID() {
+		if err = oprot.WriteFieldBegin("user_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("operation_id", thrift.STRING, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.OperationID); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request_id", thrift.STRING, 3); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.RequestID); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("expected_revision", thrift.I64, 4); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteI64(p.ExpectedRevision); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetMessageIds() {
+		if err = oprot.WriteFieldBegin("message_ids", thrift.LIST, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRING, len(p.MessageIds)); err != nil {
+			return err
+		}
+		for _, v := range p.MessageIds {
+			if err := oprot.WriteString(v); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetCoverageMessageIds() {
+		if err = oprot.WriteFieldBegin("coverage_message_ids", thrift.LIST, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRING, len(p.CoverageMessageIds)); err != nil {
+			return err
+		}
+		for _, v := range p.CoverageMessageIds {
+			if err := oprot.WriteString(v); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetRunInstruction() {
+		if err = oprot.WriteFieldBegin("run_instruction", thrift.STRING, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.RunInstruction); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetTitle() {
+		if err = oprot.WriteFieldBegin("title", thrift.STRING, 8); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Title); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetBody() {
+		if err = oprot.WriteFieldBegin("body", thrift.STRING, 9); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Body); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 9 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSummaryID() {
+		if err = oprot.WriteFieldBegin("summary_id", thrift.STRING, 10); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.SummaryID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField11(oprot thrift.TProtocol) (err error) {
+	if p.IsSetExpectedSummaryRevision() {
+		if err = oprot.WriteFieldBegin("expected_summary_revision", thrift.I64, 11); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI64(*p.ExpectedSummaryRevision); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 11 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) writeField12(oprot thrift.TProtocol) (err error) {
+	if p.IsSetConfirmReplace() {
+		if err = oprot.WriteFieldBegin("confirm_replace", thrift.BOOL, 12); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.ConfirmReplace); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 12 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 12 end error: ", p), err)
+}
+
+func (p *SecretaryOperationSubmitRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("SecretaryOperationSubmitRequest(%+v)", *p)
+
+}
+
 type PaxManagerAPI interface {
 	ListSummaryRevisions(ctx context.Context, request *SummaryRevisionsRequest) (r *WorkspaceSearchResponse, err error)
 
@@ -82696,6 +84787,16 @@ type PaxManagerAPI interface {
 	GetSecretaryTask(ctx context.Context, request *SecretaryTaskReadRequest) (r *WorkspaceSearchResponse, err error)
 
 	ControlSecretaryTask(ctx context.Context, request *SecretaryTaskActionRequest) (r *WorkspaceSearchResponse, err error)
+
+	GetSecretaryGuidance(ctx context.Context, request *SecretaryGuidanceReadRequest) (r *WorkspaceSearchResponse, err error)
+
+	UpdateSecretaryGuidance(ctx context.Context, request *SecretaryGuidanceUpdateRequest) (r *WorkspaceSearchResponse, err error)
+
+	PrepareSecretaryOperation(ctx context.Context, request *SecretaryOperationPrepareRequest) (r *WorkspaceSearchResponse, err error)
+
+	GetSecretaryOperation(ctx context.Context, request *SecretaryOperationReadRequest) (r *WorkspaceSearchResponse, err error)
+
+	SubmitSecretaryOperation(ctx context.Context, request *SecretaryOperationSubmitRequest) (r *WorkspaceSearchResponse, err error)
 }
 
 type PaxManagerAPIClient struct {
@@ -83687,6 +85788,51 @@ func (p *PaxManagerAPIClient) ControlSecretaryTask(ctx context.Context, request 
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) GetSecretaryGuidance(ctx context.Context, request *SecretaryGuidanceReadRequest) (r *WorkspaceSearchResponse, err error) {
+	var _args PaxManagerAPIGetSecretaryGuidanceArgs
+	_args.Request = request
+	var _result PaxManagerAPIGetSecretaryGuidanceResult
+	if err = p.Client_().Call(ctx, "GetSecretaryGuidance", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) UpdateSecretaryGuidance(ctx context.Context, request *SecretaryGuidanceUpdateRequest) (r *WorkspaceSearchResponse, err error) {
+	var _args PaxManagerAPIUpdateSecretaryGuidanceArgs
+	_args.Request = request
+	var _result PaxManagerAPIUpdateSecretaryGuidanceResult
+	if err = p.Client_().Call(ctx, "UpdateSecretaryGuidance", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) PrepareSecretaryOperation(ctx context.Context, request *SecretaryOperationPrepareRequest) (r *WorkspaceSearchResponse, err error) {
+	var _args PaxManagerAPIPrepareSecretaryOperationArgs
+	_args.Request = request
+	var _result PaxManagerAPIPrepareSecretaryOperationResult
+	if err = p.Client_().Call(ctx, "PrepareSecretaryOperation", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) GetSecretaryOperation(ctx context.Context, request *SecretaryOperationReadRequest) (r *WorkspaceSearchResponse, err error) {
+	var _args PaxManagerAPIGetSecretaryOperationArgs
+	_args.Request = request
+	var _result PaxManagerAPIGetSecretaryOperationResult
+	if err = p.Client_().Call(ctx, "GetSecretaryOperation", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) SubmitSecretaryOperation(ctx context.Context, request *SecretaryOperationSubmitRequest) (r *WorkspaceSearchResponse, err error) {
+	var _args PaxManagerAPISubmitSecretaryOperationArgs
+	_args.Request = request
+	var _result PaxManagerAPISubmitSecretaryOperationResult
+	if err = p.Client_().Call(ctx, "SubmitSecretaryOperation", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 
 type PaxManagerAPIProcessor struct {
 	processorMap map[string]thrift.TProcessorFunction
@@ -83815,6 +85961,11 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("ListSecretaryTasks", &paxManagerAPIProcessorListSecretaryTasks{handler: handler})
 	self.AddToProcessorMap("GetSecretaryTask", &paxManagerAPIProcessorGetSecretaryTask{handler: handler})
 	self.AddToProcessorMap("ControlSecretaryTask", &paxManagerAPIProcessorControlSecretaryTask{handler: handler})
+	self.AddToProcessorMap("GetSecretaryGuidance", &paxManagerAPIProcessorGetSecretaryGuidance{handler: handler})
+	self.AddToProcessorMap("UpdateSecretaryGuidance", &paxManagerAPIProcessorUpdateSecretaryGuidance{handler: handler})
+	self.AddToProcessorMap("PrepareSecretaryOperation", &paxManagerAPIProcessorPrepareSecretaryOperation{handler: handler})
+	self.AddToProcessorMap("GetSecretaryOperation", &paxManagerAPIProcessorGetSecretaryOperation{handler: handler})
+	self.AddToProcessorMap("SubmitSecretaryOperation", &paxManagerAPIProcessorSubmitSecretaryOperation{handler: handler})
 	return self
 }
 func (p *PaxManagerAPIProcessor) Process(ctx context.Context, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -88954,6 +91105,246 @@ func (p *paxManagerAPIProcessorControlSecretaryTask) Process(ctx context.Context
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("ControlSecretaryTask", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorGetSecretaryGuidance struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorGetSecretaryGuidance) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIGetSecretaryGuidanceArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("GetSecretaryGuidance", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIGetSecretaryGuidanceResult{}
+	var retval *WorkspaceSearchResponse
+	if retval, err2 = p.handler.GetSecretaryGuidance(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing GetSecretaryGuidance: "+err2.Error())
+		oprot.WriteMessageBegin("GetSecretaryGuidance", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("GetSecretaryGuidance", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorUpdateSecretaryGuidance struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorUpdateSecretaryGuidance) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIUpdateSecretaryGuidanceArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("UpdateSecretaryGuidance", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIUpdateSecretaryGuidanceResult{}
+	var retval *WorkspaceSearchResponse
+	if retval, err2 = p.handler.UpdateSecretaryGuidance(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing UpdateSecretaryGuidance: "+err2.Error())
+		oprot.WriteMessageBegin("UpdateSecretaryGuidance", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("UpdateSecretaryGuidance", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorPrepareSecretaryOperation struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorPrepareSecretaryOperation) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIPrepareSecretaryOperationArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("PrepareSecretaryOperation", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIPrepareSecretaryOperationResult{}
+	var retval *WorkspaceSearchResponse
+	if retval, err2 = p.handler.PrepareSecretaryOperation(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing PrepareSecretaryOperation: "+err2.Error())
+		oprot.WriteMessageBegin("PrepareSecretaryOperation", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("PrepareSecretaryOperation", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorGetSecretaryOperation struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorGetSecretaryOperation) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIGetSecretaryOperationArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("GetSecretaryOperation", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIGetSecretaryOperationResult{}
+	var retval *WorkspaceSearchResponse
+	if retval, err2 = p.handler.GetSecretaryOperation(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing GetSecretaryOperation: "+err2.Error())
+		oprot.WriteMessageBegin("GetSecretaryOperation", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("GetSecretaryOperation", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorSubmitSecretaryOperation struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorSubmitSecretaryOperation) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPISubmitSecretaryOperationArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("SubmitSecretaryOperation", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPISubmitSecretaryOperationResult{}
+	var retval *WorkspaceSearchResponse
+	if retval, err2 = p.handler.SubmitSecretaryOperation(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing SubmitSecretaryOperation: "+err2.Error())
+		oprot.WriteMessageBegin("SubmitSecretaryOperation", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("SubmitSecretaryOperation", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -120482,5 +122873,1515 @@ func (p *PaxManagerAPIControlSecretaryTaskResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIControlSecretaryTaskResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetSecretaryGuidanceArgs struct {
+	Request *SecretaryGuidanceReadRequest `thrift:"request,1,required"`
+}
+
+func NewPaxManagerAPIGetSecretaryGuidanceArgs() *PaxManagerAPIGetSecretaryGuidanceArgs {
+	return &PaxManagerAPIGetSecretaryGuidanceArgs{}
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceArgs) InitDefault() {
+}
+
+var PaxManagerAPIGetSecretaryGuidanceArgs_Request_DEFAULT *SecretaryGuidanceReadRequest
+
+func (p *PaxManagerAPIGetSecretaryGuidanceArgs) GetRequest() (v *SecretaryGuidanceReadRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIGetSecretaryGuidanceArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIGetSecretaryGuidanceArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetRequest bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequest = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetRequest {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetSecretaryGuidanceArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_PaxManagerAPIGetSecretaryGuidanceArgs[fieldId]))
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewSecretaryGuidanceReadRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetSecretaryGuidance_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetSecretaryGuidanceArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetSecretaryGuidanceResult struct {
+	Success *WorkspaceSearchResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIGetSecretaryGuidanceResult() *PaxManagerAPIGetSecretaryGuidanceResult {
+	return &PaxManagerAPIGetSecretaryGuidanceResult{}
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceResult) InitDefault() {
+}
+
+var PaxManagerAPIGetSecretaryGuidanceResult_Success_DEFAULT *WorkspaceSearchResponse
+
+func (p *PaxManagerAPIGetSecretaryGuidanceResult) GetSuccess() (v *WorkspaceSearchResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIGetSecretaryGuidanceResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIGetSecretaryGuidanceResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetSecretaryGuidanceResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewWorkspaceSearchResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetSecretaryGuidance_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetSecretaryGuidanceResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetSecretaryGuidanceResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIUpdateSecretaryGuidanceArgs struct {
+	Request *SecretaryGuidanceUpdateRequest `thrift:"request,1,required"`
+}
+
+func NewPaxManagerAPIUpdateSecretaryGuidanceArgs() *PaxManagerAPIUpdateSecretaryGuidanceArgs {
+	return &PaxManagerAPIUpdateSecretaryGuidanceArgs{}
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceArgs) InitDefault() {
+}
+
+var PaxManagerAPIUpdateSecretaryGuidanceArgs_Request_DEFAULT *SecretaryGuidanceUpdateRequest
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceArgs) GetRequest() (v *SecretaryGuidanceUpdateRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIUpdateSecretaryGuidanceArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIUpdateSecretaryGuidanceArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetRequest bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequest = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetRequest {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIUpdateSecretaryGuidanceArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_PaxManagerAPIUpdateSecretaryGuidanceArgs[fieldId]))
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewSecretaryGuidanceUpdateRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("UpdateSecretaryGuidance_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIUpdateSecretaryGuidanceArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIUpdateSecretaryGuidanceResult struct {
+	Success *WorkspaceSearchResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIUpdateSecretaryGuidanceResult() *PaxManagerAPIUpdateSecretaryGuidanceResult {
+	return &PaxManagerAPIUpdateSecretaryGuidanceResult{}
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceResult) InitDefault() {
+}
+
+var PaxManagerAPIUpdateSecretaryGuidanceResult_Success_DEFAULT *WorkspaceSearchResponse
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceResult) GetSuccess() (v *WorkspaceSearchResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIUpdateSecretaryGuidanceResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIUpdateSecretaryGuidanceResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIUpdateSecretaryGuidanceResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewWorkspaceSearchResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("UpdateSecretaryGuidance_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIUpdateSecretaryGuidanceResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIUpdateSecretaryGuidanceResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIPrepareSecretaryOperationArgs struct {
+	Request *SecretaryOperationPrepareRequest `thrift:"request,1,required"`
+}
+
+func NewPaxManagerAPIPrepareSecretaryOperationArgs() *PaxManagerAPIPrepareSecretaryOperationArgs {
+	return &PaxManagerAPIPrepareSecretaryOperationArgs{}
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationArgs) InitDefault() {
+}
+
+var PaxManagerAPIPrepareSecretaryOperationArgs_Request_DEFAULT *SecretaryOperationPrepareRequest
+
+func (p *PaxManagerAPIPrepareSecretaryOperationArgs) GetRequest() (v *SecretaryOperationPrepareRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIPrepareSecretaryOperationArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIPrepareSecretaryOperationArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetRequest bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequest = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetRequest {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIPrepareSecretaryOperationArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_PaxManagerAPIPrepareSecretaryOperationArgs[fieldId]))
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewSecretaryOperationPrepareRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("PrepareSecretaryOperation_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIPrepareSecretaryOperationArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIPrepareSecretaryOperationResult struct {
+	Success *WorkspaceSearchResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIPrepareSecretaryOperationResult() *PaxManagerAPIPrepareSecretaryOperationResult {
+	return &PaxManagerAPIPrepareSecretaryOperationResult{}
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationResult) InitDefault() {
+}
+
+var PaxManagerAPIPrepareSecretaryOperationResult_Success_DEFAULT *WorkspaceSearchResponse
+
+func (p *PaxManagerAPIPrepareSecretaryOperationResult) GetSuccess() (v *WorkspaceSearchResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIPrepareSecretaryOperationResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIPrepareSecretaryOperationResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIPrepareSecretaryOperationResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewWorkspaceSearchResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("PrepareSecretaryOperation_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIPrepareSecretaryOperationResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIPrepareSecretaryOperationResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetSecretaryOperationArgs struct {
+	Request *SecretaryOperationReadRequest `thrift:"request,1,required"`
+}
+
+func NewPaxManagerAPIGetSecretaryOperationArgs() *PaxManagerAPIGetSecretaryOperationArgs {
+	return &PaxManagerAPIGetSecretaryOperationArgs{}
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationArgs) InitDefault() {
+}
+
+var PaxManagerAPIGetSecretaryOperationArgs_Request_DEFAULT *SecretaryOperationReadRequest
+
+func (p *PaxManagerAPIGetSecretaryOperationArgs) GetRequest() (v *SecretaryOperationReadRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIGetSecretaryOperationArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIGetSecretaryOperationArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetRequest bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequest = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetRequest {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetSecretaryOperationArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_PaxManagerAPIGetSecretaryOperationArgs[fieldId]))
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewSecretaryOperationReadRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetSecretaryOperation_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetSecretaryOperationArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIGetSecretaryOperationResult struct {
+	Success *WorkspaceSearchResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIGetSecretaryOperationResult() *PaxManagerAPIGetSecretaryOperationResult {
+	return &PaxManagerAPIGetSecretaryOperationResult{}
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationResult) InitDefault() {
+}
+
+var PaxManagerAPIGetSecretaryOperationResult_Success_DEFAULT *WorkspaceSearchResponse
+
+func (p *PaxManagerAPIGetSecretaryOperationResult) GetSuccess() (v *WorkspaceSearchResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIGetSecretaryOperationResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIGetSecretaryOperationResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIGetSecretaryOperationResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewWorkspaceSearchResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("GetSecretaryOperation_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIGetSecretaryOperationResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIGetSecretaryOperationResult(%+v)", *p)
+
+}
+
+type PaxManagerAPISubmitSecretaryOperationArgs struct {
+	Request *SecretaryOperationSubmitRequest `thrift:"request,1,required"`
+}
+
+func NewPaxManagerAPISubmitSecretaryOperationArgs() *PaxManagerAPISubmitSecretaryOperationArgs {
+	return &PaxManagerAPISubmitSecretaryOperationArgs{}
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationArgs) InitDefault() {
+}
+
+var PaxManagerAPISubmitSecretaryOperationArgs_Request_DEFAULT *SecretaryOperationSubmitRequest
+
+func (p *PaxManagerAPISubmitSecretaryOperationArgs) GetRequest() (v *SecretaryOperationSubmitRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPISubmitSecretaryOperationArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPISubmitSecretaryOperationArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetRequest bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequest = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetRequest {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPISubmitSecretaryOperationArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_PaxManagerAPISubmitSecretaryOperationArgs[fieldId]))
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewSecretaryOperationSubmitRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SubmitSecretaryOperation_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPISubmitSecretaryOperationArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPISubmitSecretaryOperationResult struct {
+	Success *WorkspaceSearchResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPISubmitSecretaryOperationResult() *PaxManagerAPISubmitSecretaryOperationResult {
+	return &PaxManagerAPISubmitSecretaryOperationResult{}
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationResult) InitDefault() {
+}
+
+var PaxManagerAPISubmitSecretaryOperationResult_Success_DEFAULT *WorkspaceSearchResponse
+
+func (p *PaxManagerAPISubmitSecretaryOperationResult) GetSuccess() (v *WorkspaceSearchResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPISubmitSecretaryOperationResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPISubmitSecretaryOperationResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPISubmitSecretaryOperationResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewWorkspaceSearchResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SubmitSecretaryOperation_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPISubmitSecretaryOperationResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPISubmitSecretaryOperationResult(%+v)", *p)
 
 }

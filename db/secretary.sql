@@ -126,6 +126,9 @@ BEGIN
     ON CONFLICT(source_id) DO UPDATE SET desired_revision = secretary_jobs.desired_revision + 1,
         lease_token = CASE WHEN secretary_jobs.owner_user_id <> EXCLUDED.owner_user_id THEN '' ELSE secretary_jobs.lease_token END,
         lease_until = CASE WHEN secretary_jobs.owner_user_id <> EXCLUDED.owner_user_id THEN NULL ELSE secretary_jobs.lease_until END,
+        retry_epoch = secretary_jobs.retry_epoch + CASE WHEN secretary_jobs.owner_user_id <> EXCLUDED.owner_user_id THEN 1 ELSE 0 END,
+        execution_blocked = CASE WHEN secretary_jobs.owner_user_id <> EXCLUDED.owner_user_id THEN FALSE ELSE secretary_jobs.execution_blocked END,
+        paused = CASE WHEN secretary_jobs.owner_user_id <> EXCLUDED.owner_user_id THEN FALSE ELSE secretary_jobs.paused END,
         owner_user_id = EXCLUDED.owner_user_id, updated_at = NOW(), available_at = NOW()
     RETURNING desired_revision INTO next_revision;
     INSERT INTO secretary_message_state(source_id, message_id, change_revision)
@@ -444,3 +447,41 @@ CREATE TABLE IF NOT EXISTS secretary_run_commands (
 CREATE INDEX IF NOT EXISTS secretary_run_commands_pending
     ON secretary_run_commands(accepted_at,owner_user_id,request_id) WHERE state='pending';
 CREATE INDEX IF NOT EXISTS secretary_jobs_owner_source ON secretary_jobs(owner_user_id,source_id);
+
+ALTER TABLE secretary_message_state ADD COLUMN IF NOT EXISTS processed_change_revision BIGINT NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS secretary_operations (
+    operation_id TEXT PRIMARY KEY,
+    source_id BIGINT NOT NULL REFERENCES secretary_jobs(source_id) ON DELETE CASCADE,
+    owner_user_id TEXT NOT NULL REFERENCES users(user_id),
+    kind TEXT NOT NULL CHECK(kind IN ('guided_summary','human_summary','human_edit')),
+    status TEXT NOT NULL CHECK(status IN ('draft','queued','running','completed','needs_attention','superseded')),
+    revision BIGINT NOT NULL DEFAULT 1,
+    request_id TEXT,
+    request_hash TEXT NOT NULL DEFAULT '',
+    operation_json JSONB NOT NULL,
+    completed_ids JSONB NOT NULL DEFAULT '[]',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(owner_user_id,request_id),
+    CHECK(octet_length(operation_json::text)<=16*1024*1024)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS secretary_operations_active_source
+    ON secretary_operations(source_id) WHERE status IN ('queued','running');
+CREATE INDEX IF NOT EXISTS secretary_operations_owner ON secretary_operations(owner_user_id,updated_at DESC);
+CREATE INDEX IF NOT EXISTS secretary_operations_pending_source ON secretary_operations(owner_user_id,source_id)
+    WHERE status IN ('queued','running','needs_attention');
+
+CREATE TABLE IF NOT EXISTS secretary_guidance (
+    owner_user_id TEXT NOT NULL,
+    scope TEXT NOT NULL CHECK (scope IN ('user','session')),
+    source_id BIGINT REFERENCES agent_sessions(id) ON DELETE CASCADE,
+    revision BIGINT NOT NULL CHECK (revision > 0),
+    instruction TEXT NOT NULL DEFAULT '' CHECK (octet_length(instruction) <= 8192 AND char_length(instruction) <= 4096),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK ((scope='user' AND source_id IS NULL) OR (scope='session' AND source_id IS NOT NULL))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS secretary_guidance_user
+    ON secretary_guidance(owner_user_id) WHERE scope='user';
+CREATE UNIQUE INDEX IF NOT EXISTS secretary_guidance_session
+    ON secretary_guidance(owner_user_id,source_id) WHERE scope='session';

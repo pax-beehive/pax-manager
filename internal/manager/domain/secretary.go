@@ -56,7 +56,9 @@ type SecretarySourceMetadata struct {
 }
 
 type SecretaryJob struct {
-	InputPolicyVersion      string `json:",omitempty"`
+	InputPolicyVersion      string                        `json:",omitempty"`
+	OperationID             string                        `json:",omitempty"`
+	Instructions            *SecretaryInstructionSnapshot `json:",omitempty"`
 	BatchID                 string
 	AttemptID               string
 	RetryEpoch              int64

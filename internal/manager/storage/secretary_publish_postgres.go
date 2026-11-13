@@ -54,7 +54,7 @@ func (s *PostgresStore) publishSecretaryJob(
 	for _, message := range job.Messages {
 		_, err = tx.ExecContext(
 			ctx,
-			`UPDATE secretary_message_state SET processed_hash=$3,processed_canonicalization_version=$4,processed_owner_user_id=$5
+			`UPDATE secretary_message_state SET processed_hash=$3,processed_canonicalization_version=$4,processed_owner_user_id=$5,processed_change_revision=change_revision
 	 WHERE source_id=$1 AND message_id=$2`,
 			job.SourceID,
 			message.SourceID,
@@ -67,9 +67,13 @@ func (s *PostgresStore) publishSecretaryJob(
 		}
 	}
 	for _, id := range job.RemovedMessageIDs {
-		if _, err = tx.ExecContext(ctx, `UPDATE secretary_message_state SET processed_hash='',processed_canonicalization_version='',processed_owner_user_id='' WHERE source_id=$1 AND message_id=$2`, job.SourceID, id); err != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE secretary_message_state SET processed_hash='',processed_canonicalization_version='',processed_owner_user_id=$3,processed_change_revision=change_revision WHERE source_id=$1 AND message_id=$2`, job.SourceID, id, job.OwnerUserID); err != nil {
 			return domain.SummaryVersion{}, err
 		}
+	}
+	through := job.ThroughRevision
+	if job.OperationID != "" {
+		through = 0
 	}
 	_, err = tx.ExecContext(
 		ctx,
@@ -77,10 +81,18 @@ func (s *PostgresStore) publishSecretaryJob(
  lease_token='',lease_until=NULL,execution_blocked=FALSE,completed_at=NOW(),last_error='',attempts=0,available_at=NOW(),auto_retry_key='',auto_retry_count=0,last_validation_failure=''
  WHERE source_id=$1`,
 		job.SourceID,
-		job.ThroughRevision,
+		through,
 	)
 	if err != nil {
 		return domain.SummaryVersion{}, err
+	}
+	if job.OperationID != "" {
+		if err = advanceSecretaryCursorTx(ctx, tx, job.SourceID); err != nil {
+			return domain.SummaryVersion{}, err
+		}
+		if err = finishSecretaryOperationBatchTx(ctx, tx, job, []domain.SummaryVersion{result}); err != nil {
+			return domain.SummaryVersion{}, err
+		}
 	}
 	if err = clearSecretaryInvalidationsTx(ctx, tx, job, []domain.SummaryVersion{result}); err != nil {
 		return domain.SummaryVersion{}, err
@@ -160,6 +172,7 @@ func insertSecretarySummary(
 		}
 	}
 	result := domain.SummaryVersion{
+		AuthorKind: "agent", AuthorID: job.AgentID, OperationID: job.OperationID,
 		SummaryID:      request.SummaryID,
 		Revision:       request.ExpectedRevision + 1,
 		OwnerUserID:    job.OwnerUserID,

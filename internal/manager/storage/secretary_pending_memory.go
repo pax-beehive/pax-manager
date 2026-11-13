@@ -7,7 +7,13 @@ import (
 )
 
 func (s *MemoryStore) secretaryContentPendingLocked(job *memorySecretaryJob, settings int64) bool {
-	if job.desired <= job.processed || !s.secretaryPendingSourceVisibleLocked(job) {
+	if !s.secretaryPendingSourceVisibleLocked(job) {
+		return false
+	}
+	if s.secretaryOperationPendingLocked(job.work.OwnerUserID, job.work.SourceID) {
+		return true
+	}
+	if job.desired <= job.processed {
 		return false
 	}
 	for _, batch := range s.secretaryExecutionsLocked() {
@@ -17,7 +23,7 @@ func (s *MemoryStore) secretaryContentPendingLocked(job *memorySecretaryJob, set
 		}
 	}
 	for id, revision := range job.changes {
-		if revision <= job.processed {
+		if revision <= job.processed || job.processedChanges[id] >= revision {
 			continue
 		}
 		current, err := s.readSearchMessageLocked(job.work.OwnerUserID, id)
@@ -35,6 +41,28 @@ func (s *MemoryStore) secretaryContentPendingLocked(job *memorySecretaryJob, set
 	return s.secretaryResetPendingLocked(job)
 }
 
+func (s *MemoryStore) secretaryOperationPendingLocked(owner, source string) bool {
+	return s.secretaryPendingOperationIDLocked(owner, source) != ""
+}
+
+func (s *MemoryStore) secretaryPendingOperationIDLocked(owner, source string) string {
+	var latest *memorySecretaryOperation
+	for _, operation := range s.secretaryOperationsLocked() {
+		if operation.owner == owner && operation.value.SourceID == source &&
+			(operation.value.Status == "queued" || operation.value.Status == "running" || operation.value.Status == "needs_attention") {
+			if latest == nil || operation.value.UpdatedAt.After(latest.value.UpdatedAt) ||
+				operation.value.UpdatedAt.Equal(latest.value.UpdatedAt) &&
+					operation.value.OperationID > latest.value.OperationID {
+				latest = operation
+			}
+		}
+	}
+	if latest != nil {
+		return latest.value.OperationID
+	}
+	return ""
+}
+
 func (s *MemoryStore) secretaryPendingSourceVisibleLocked(job *memorySecretaryJob) bool {
 	session, exists := s.sessions[sessionKey(job.work.SourceAgentID, job.work.SourceSessionID)]
 	return exists && session.ArchivedAt == nil &&
@@ -47,7 +75,7 @@ func (s *MemoryStore) secretaryPendingSourceVisibleLocked(job *memorySecretaryJo
 
 func (s *MemoryStore) secretaryResetPendingLocked(job *memorySecretaryJob) bool {
 	for _, pending := range s.secretaryLocked().invalidations {
-		if pending.source != job.work.SourceID {
+		if pending.source != job.work.SourceID || pending.acknowledgedOperationID != "" {
 			continue
 		}
 		node := s.secretaryLocked().nodes[pending.ref.SummaryID]

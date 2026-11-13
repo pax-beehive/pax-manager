@@ -16,7 +16,7 @@ import (
 var _ domain.SummaryStore = (*PostgresStore)(nil)
 
 const summarySelectSQL = `SELECT summary_id, revision, owner_user_id, subject_type, subject_id,
-    title, body, claims_json, created_at FROM summary_versions`
+    title, body, claims_json, created_at,author_kind,author_id,operation_id FROM summary_versions`
 
 func (s *PostgresStore) PublishSummary(
 	ctx context.Context, owner string, request domain.PublishSummaryRequest,
@@ -93,6 +93,7 @@ func (s *PostgresStore) publishSummary(
 		}
 	}
 	result := domain.SummaryVersion{
+		AuthorKind:     "legacy_unknown",
 		SummaryID:      request.SummaryID,
 		Revision:       request.ExpectedRevision + 1,
 		OwnerUserID:    owner,
@@ -150,11 +151,26 @@ func insertSummaryTx(ctx context.Context, tx *sql.Tx, request domain.PublishSumm
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO summary_versions (summary_id, revision, owner_user_id,
-        subject_type, subject_id, title, body, claims_json, request_id, request_hash, created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, result.SummaryID, result.Revision,
-		result.OwnerUserID, result.SubjectType, result.SubjectID, result.Title, result.Body,
-		claims, request.RequestID, requestHash, result.CreatedAt)
+	_, err = tx.ExecContext(
+		ctx,
+		`INSERT INTO summary_versions (summary_id, revision, owner_user_id,
+        subject_type, subject_id, title, body, claims_json, request_id, request_hash, created_at,author_kind,author_id,operation_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+		result.SummaryID,
+		result.Revision,
+		result.OwnerUserID,
+		result.SubjectType,
+		result.SubjectID,
+		result.Title,
+		result.Body,
+		claims,
+		request.RequestID,
+		requestHash,
+		result.CreatedAt,
+		summaryAuthorKind(result.AuthorKind),
+		result.AuthorID,
+		result.OperationID,
+	)
 	if err != nil {
 		return err
 	}
@@ -271,7 +287,8 @@ func scanSummary(row interface{ Scan(...any) error }) (domain.SummaryVersion, []
 	var result domain.SummaryVersion
 	var claims []byte
 	err := row.Scan(&result.SummaryID, &result.Revision, &result.OwnerUserID, &result.SubjectType,
-		&result.SubjectID, &result.Title, &result.Body, &claims, &result.CreatedAt)
+		&result.SubjectID, &result.Title, &result.Body, &claims, &result.CreatedAt,
+		&result.AuthorKind, &result.AuthorID, &result.OperationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.SummaryVersion{}, nil, ErrNotFound
 	}
