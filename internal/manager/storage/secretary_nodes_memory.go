@@ -49,6 +49,7 @@ func (s *MemoryStore) PublishSecretaryBatch(
 		return rollback(err)
 	}
 	s.checkpointMemorySecretaryNodesLocked(job, publication.Outcomes)
+	s.finishMemoryOperationBatchLocked(job, results)
 	s.clearMemoryNodeInvalidationsLocked(job, results)
 	return results, nil
 }
@@ -88,6 +89,8 @@ func (s *MemoryStore) publishMemorySecretaryNodeOutputsLocked(
 		if err != nil {
 			return nil, err
 		}
+		result.AuthorKind, result.AuthorID, result.OperationID = "agent", job.AgentID, job.OperationID
+		s.secretaryLocked().summaries[result.SummaryID][result.Revision-1] = result
 		results = append(results, result)
 	}
 	return results, nil
@@ -101,16 +104,25 @@ func (s *MemoryStore) checkpointMemorySecretaryNodesLocked(
 	if current.outcomes == nil {
 		current.outcomes = map[string]domain.SecretaryMessageOutcome{}
 	}
+	if current.processedChanges == nil {
+		current.processedChanges = map[string]int64{}
+	}
 	for _, outcome := range outcomes {
 		current.outcomes[outcome.MessageID] = outcome
 	}
 	for _, message := range job.Messages {
 		current.checkpoint[message.SourceID] = message.ContentHash
+		current.processedChanges[message.SourceID] = current.changes[message.SourceID]
 	}
 	for _, id := range job.RemovedMessageIDs {
 		delete(current.checkpoint, id)
+		current.processedChanges[id] = current.changes[id]
 	}
-	current.processed = max(current.processed, job.ThroughRevision)
+	if job.OperationID == "" {
+		current.processed = max(current.processed, job.ThroughRevision)
+	} else {
+		s.advanceMemorySecretaryCursorLocked(current)
+	}
 	current.executionBlocked = false
 	current.work.LeaseToken, current.work.ValidationFeedback = "", ""
 	current.autoRetryKey, current.autoRetryCount, current.lastError = "", 0, ""

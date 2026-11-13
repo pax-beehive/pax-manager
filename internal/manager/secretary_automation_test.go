@@ -67,6 +67,10 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 	t.Cleanup(func() { require.NoError(t, srv.CloseTransportStore(context.Background())) })
 	fixture := testNodeAgent(t, srv, "automatic-secretary@example.test")
 	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	guidanceResponse := taskHTTPRequest(t, srv, http.MethodPut,
+		"/api/v1/user/self/secretary/guidance?scope=user", fixture.userEmail,
+		`{"instruction":"Keep decisions and condense repeated operations.","expected_revision":0}`)
+	require.Equal(t, http.StatusOK, guidanceResponse.Code, guidanceResponse.Body.String())
 	createConversationTestSession(t, srv, fixture, "source-session", "source-native")
 	source := domain.Message{
 		MessageID:   "secretary-source",
@@ -244,7 +248,8 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 		assert.Contains(t, promptText, expectedSource)
 		assert.Contains(t, promptText, "Read-only lookup is optional")
 		var input struct {
-			CurrentSummaries []struct {
+			OwnerInstructions *domain.SecretaryInstructionSnapshot `json:"owner_instructions"`
+			CurrentSummaries  []struct {
 				SummaryID        string   `json:"summary_id"`
 				Revision         int64    `json:"revision"`
 				SourceMessageIDs []string `json:"source_message_ids"`
@@ -260,6 +265,13 @@ func assertSecretaryAutomation(t *testing.T, store Store) {
 			json.Unmarshal([]byte(promptText[strings.LastIndex(promptText, "\n\n")+2:]), &input),
 		)
 		require.Len(t, input.ChangedMessages, 1)
+		require.NotNil(t, input.OwnerInstructions)
+		assert.Equal(
+			t,
+			"Keep decisions and condense repeated operations.",
+			input.OwnerInstructions.User.Instruction,
+		)
+		assert.Equal(t, principal.User.UserID, input.OwnerInstructions.User.OwnerUserID)
 		assert.Equal(t, expectedSource, input.ChangedMessages[0].Text)
 		if runCount == 0 {
 			assert.Empty(t, input.CurrentSummaries)

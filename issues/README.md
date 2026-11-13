@@ -100,7 +100,7 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 066 | resolved | [Secretary startup requeues previously processed sessions](066-secretary-startup-requeues-completed-sessions.md) | medium | storage / Secretary bootstrap |
 
-| 067 | partial | [Secretary summary selection, long-input previews and execution lifecycle](067-secretary-topic-capacity-and-execution-lifecycle.md) | high | Secretary / summary / lifecycle |
+| 067 | partial | [Secretary summary selection, source associations and execution lifecycle](067-secretary-topic-capacity-and-execution-lifecycle.md) | high | Secretary / summary / lifecycle |
 
 | 068 | open | [Legacy Paxd container fixture uses obsolete bootstrap and Hermes transport](068-legacy-paxd-container-integration-fixture.md) | medium | integration / Paxd harness |
 
@@ -133,6 +133,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 | 083 | resolved | [Native harness status omits the logged-in account](083-native-harness-account-identity.md) | medium | api / auth / node control |
 
 | 084 | partial | [Native harness plan usage is not visible to node owners](084-native-harness-plan-usage.md) | medium | api / node control |
+
+| 085 | partial | [Secretary owner guidance and manual completion](085-secretary-owner-guidance-and-manual-completion.md) | high | Secretary / user controls / summary publication |
 
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 

@@ -20,6 +20,17 @@ import (
 func TestSecretaryAutomationPostgresGivenOwnedAgentThenHTTPAndACPCommitFrozenVersions(
 	t *testing.T,
 ) {
+	assertSecretaryAutomation(t, secretaryAutomationPostgresStore(t))
+}
+
+func TestSecretaryControlPostgresGivenOwnerThenHTTPManualSummaryAndEditKeepExactProgress(
+	t *testing.T,
+) {
+	assertSecretaryControlPersistence(t, secretaryAutomationPostgresStore(t))
+}
+
+func secretaryAutomationPostgresStore(t *testing.T) *storage.PostgresStore {
+	t.Helper()
 	dsn := os.Getenv("PAX_MANAGER_SECRETARY_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("requires isolated PostgreSQL")
@@ -43,5 +54,5 @@ func TestSecretaryAutomationPostgresGivenOwnedAgentThenHTTPAndACPCommitFrozenVer
 		_, err = db.ExecContext(t.Context(), string(ddl))
 		require.NoError(t, err, name)
 	}
-	assertSecretaryAutomation(t, storage.NewPostgresStore(db, time.Now))
+	return storage.NewPostgresStore(db, time.Now)
 }

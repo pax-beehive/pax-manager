@@ -114,4 +114,9 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/user/:user_id/secretary/tasks", ListSecretaryTasks)
 	h.GET("/api/v1/user/:user_id/secretary/tasks/:task_id", GetSecretaryTask)
 	h.POST("/api/v1/user/:user_id/secretary/tasks/:task_id/actions", ControlSecretaryTask)
+	h.GET("/api/v1/user/:user_id/secretary/guidance", GetSecretaryGuidance)
+	h.PUT("/api/v1/user/:user_id/secretary/guidance", UpdateSecretaryGuidance)
+	h.POST("/api/v1/user/:user_id/secretary/operations/prepare", PrepareSecretaryOperation)
+	h.GET("/api/v1/user/:user_id/secretary/operations/:operation_id", GetSecretaryOperation)
+	h.POST("/api/v1/user/:user_id/secretary/operations/:operation_id/submit", SubmitSecretaryOperation)
 }

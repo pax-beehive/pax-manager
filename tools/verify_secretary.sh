@@ -55,13 +55,20 @@ export PAX_NOTIFICATIONS_TEST_DATABASE_URL="${PAX_MANAGER_SECRETARY_TEST_DATABAS
 export GOWORK=off
 export GOCACHE="${GOCACHE:-/tmp/pax-manager-go-cache}"
 secretary_test_pattern='^TestSecretary'
+secretary_test_args=(-count=1)
+secretary_worker_test_args=(-count=1)
+if [[ -n "${PAX_SECRETARY_COVERAGE_DIR:-}" ]]; then
+  mkdir -p "${PAX_SECRETARY_COVERAGE_DIR}"
+  secretary_test_args+=(-covermode=atomic -coverprofile="${PAX_SECRETARY_COVERAGE_DIR}/manager-storage-userapi.cover")
+  secretary_worker_test_args+=(-covermode=atomic -coverprofile="${PAX_SECRETARY_COVERAGE_DIR}/worker.cover")
+fi
 if [[ -n "${PAX_SECRETARY_TEST_PAXD_BINARY:-}" ]]; then
   [[ -x "${PAX_SECRETARY_TEST_PAXD_BINARY}" ]] || { printf 'Configured paxd test binary is not executable.\n' >&2; exit 1; }
   secretary_test_pattern='^(TestSecretary|TestPaxdSecretaryTools)'
   printf 'Cross-binary paxd MCP acceptance is required for this run.\n'
 fi
 printf 'Verifying Secretary settings, real ACP execution, immutable summaries and PG checkpoints...\n'
-if ! go test -json -tags=integration -count=1 -timeout=300s \
+if ! go test "${secretary_test_args[@]}" -json -tags=integration -timeout=300s \
   ./internal/manager ./internal/manager/storage ./internal/manager/userapi \
   -run "${secretary_test_pattern}" >"${secretary_logs}/go.json" 2>&1; then
   python3 - "${secretary_logs}/go.json" <<'PY'
@@ -86,7 +93,7 @@ else:
 PY
   exit 1
 fi
-if ! go test -json -count=1 ./internal/manager/secretary >"${secretary_logs}/worker.json" 2>&1; then
+if ! go test "${secretary_worker_test_args[@]}" -json ./internal/manager/secretary >"${secretary_logs}/worker.json" 2>&1; then
   tail -n 60 "${secretary_logs}/worker.json" >&2
   exit 1
 fi
@@ -125,6 +132,12 @@ required = {
     "TestSecretaryNotificationsGivenInternalExecutionThenSkipsOnlyNormalCompletionPush",
     "TestSecretaryNotificationsGivenInternalToolApprovalThenStillNotifiesActionableRequest",
     "TestSecretaryNotificationsGivenQueuedCompletionThenInternalMarkerFencesDelivery",
+    "TestSecretaryControlPostgresGivenOwnerThenHTTPManualSummaryAndEditKeepExactProgress",
+    "TestSecretaryOperationsGivenManualSubsetThenAcknowledgesExactMessagesAndPreservesEarlierHoles",
+    "TestSecretaryGuidanceGivenOperationSpanningBatchesThenDefaultsFreezeUntilOnlyThatScopeCompletes",
+    "TestSecretaryOperationProgressGivenCompletedHistoryThenExplicitGuidedWorkRemainsVisibleWithoutResettingCounts",
+    "TestSecretaryOperationsGivenManualReplacementForChangedSourceThenRetainsStaleHistoryWithoutAutomaticRepair",
+    "TestSecretaryOperationsGivenSelectedRepairThenOtherTopicInvalidationRemainsPending",
 }
 if os.environ.get("PAX_SECRETARY_TEST_PAXD_BINARY"):
     required.add("TestPaxdSecretaryToolsGivenRealStdioAndStoredNodeKeyThenReadsAndPublishesExactSources")

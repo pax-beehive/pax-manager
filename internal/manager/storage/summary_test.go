@@ -457,6 +457,9 @@ func summaryVersionRows(id, owner string, revision int64) scriptedRows {
 			"body",
 			"claims",
 			"created",
+			"author_kind",
+			"author_id",
+			"operation_id",
 		},
 		values: [][]driver.Value{
 			{
@@ -469,6 +472,9 @@ func summaryVersionRows(id, owner string, revision int64) scriptedRows {
 				"Summary body",
 				[]byte("[]"),
 				time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC),
+				"legacy_unknown",
+				"",
+				"",
 			},
 		},
 	}

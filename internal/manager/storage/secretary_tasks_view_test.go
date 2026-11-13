@@ -82,6 +82,18 @@ func TestSecretaryTaskMetadataGivenKnownFailureKindsThenUsesOnlyFixedSafeMessage
 	assert.Equal(t, 0, secretaryTaskBatchPriority("committed"))
 }
 
+func TestSecretaryTaskViewGivenExplicitReprocessingThenDoesNotReportCompletedFromOldWatermark(
+	t *testing.T,
+) {
+	now := time.Now()
+	record := secretaryTaskRecord{desired: 10, processed: 10, enabled: true, operationPending: true}
+	assert.Equal(t, "queued", secretaryTaskView(record, now).ExecutionState)
+	record.batchState = "unknown"
+	assert.Equal(t, "unknown", secretaryTaskView(record, now).ExecutionState)
+	record.operationPending = false
+	assert.Equal(t, "completed", secretaryTaskView(record, now).ExecutionState)
+}
+
 func TestSecretaryTaskQueryGivenMalformedBoundCursorThenRejectsIt(t *testing.T) {
 	owner := "owner"
 	_, _, err := secretaryTaskAfter(owner, domain.SecretaryTaskQuery{

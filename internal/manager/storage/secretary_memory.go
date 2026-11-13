@@ -11,6 +11,8 @@ import (
 var _ domain.SecretaryStore = (*MemoryStore)(nil)
 
 type memorySecretaryState struct {
+	guidance      map[string]domain.SecretaryGuidance
+	operations    map[string]*memorySecretaryOperation
 	runCommands   map[string]*memorySecretaryRunCommand
 	executions    map[string]*memorySecretaryExecutionBatch
 	settings      map[string]domain.SecretarySettings
@@ -35,6 +37,7 @@ type memorySecretaryJob struct {
 	work                           domain.SecretaryJob
 	desired, processed             int64
 	changes                        map[string]int64
+	processedChanges               map[string]int64
 	seen, checkpoint               map[string]string
 	outcomes                       map[string]domain.SecretaryMessageOutcome
 	updated, available, leaseUntil time.Time
@@ -184,6 +187,7 @@ func (s *MemoryStore) RetrySecretaryJobs(_ context.Context, owner string) error 
 			job.updated = s.now().Add(-30 * time.Second)
 			job.lastError = ""
 			if job.work.LeaseToken == "" || !job.leaseUntil.After(s.now()) {
+				s.retryMemoryOperationLocked(job.work.SourceID)
 				job.work.RetryEpoch++
 				job.work.RetryGeneration++
 				job.autoRetryKey, job.autoRetryCount = "", 0
@@ -236,9 +240,14 @@ func (s *MemoryStore) refreshSecretaryOwnerLocked(owner string) {
 		}
 		if job.work.OwnerUserID != agent.OwnerUserID {
 			job.work.OwnerUserID = agent.OwnerUserID
+			job.work.RetryEpoch++
+			job.work.RetryGeneration++
+			job.executionBlocked, job.paused = false, false
+			job.autoRetryKey, job.autoRetryCount = "", 0
 			job.work.LeaseToken = ""
 			job.leaseUntil = time.Time{}
 			job.checkpoint = map[string]string{}
+			job.processedChanges = map[string]int64{}
 			job.outcomes = map[string]domain.SecretaryMessageOutcome{}
 			job.seen = map[string]string{}
 		}
@@ -374,6 +383,9 @@ func (s *MemoryStore) FailSecretaryJob(
 			job.available = available
 		}
 		job.lastError = secretaryErrorText(failure)
+		if job.executionBlocked {
+			s.failMemoryOperationWorkLocked(work, "blocked", failure)
+		}
 	}
 	return nil
 }
@@ -414,7 +426,7 @@ func (s *MemoryStore) ClaimSecretaryJobs(
 		work, err := s.loadMemorySecretaryJobLocked(job)
 		if err != nil {
 			job.lastError = secretaryErrorText(err)
-			job.executionBlocked = secretaryInputBlocked(err)
+			job.executionBlocked = job.executionBlocked || secretaryInputBlocked(err)
 			job.work.LeaseToken = ""
 			job.leaseUntil = time.Time{}
 			job.available = s.now().Add(30 * time.Second)
@@ -439,6 +451,9 @@ func (s *MemoryStore) ClaimSecretaryJobs(
 		if err != nil {
 			return nil, err
 		}
+		if work.Instructions == nil {
+			work.Instructions = s.secretaryInstructionsLocked(work.OwnerUserID, work.SourceID)
+		}
 		secretaryPrepareJob(&work)
 		job.work = work
 		job.leaseUntil = s.now().Add(lease)
@@ -454,7 +469,9 @@ func (s *MemoryStore) memorySecretaryClaimableLocked(
 	state := s.secretaryLocked()
 	cfg := state.settings[job.work.OwnerUserID]
 	session, ok := s.sessions[sessionKey(job.work.SourceAgentID, job.work.SourceSessionID)]
-	if !ok || !cfg.Enabled || job.paused || job.executionBlocked || job.desired <= job.processed ||
+	if !ok || !cfg.Enabled || job.paused || job.executionBlocked ||
+		s.memoryOperationNeedsAttentionLocked(job.work.SourceID) ||
+		(job.desired <= job.processed && s.activeMemoryOperationLocked(job.work.SourceID) == nil) ||
 		!s.secretaryConnectionClaimableLocked(job, cfg.Revision) ||
 		job.available.After(s.now()) ||
 		job.leaseUntil.After(s.now()) ||

@@ -149,6 +149,9 @@ func (s *PostgresStore) RetrySecretaryJobs(ctx context.Context, owner string) er
 	if err = reconcileSecretaryWithPauseTx(ctx, tx, owner, true, true); err != nil {
 		return err
 	}
+	if err = retrySecretaryOwnerOperationsTx(ctx, tx, owner); err != nil {
+		return err
+	}
 	_, err = tx.ExecContext(
 		ctx,
 		`UPDATE secretary_jobs SET available_at=NOW(),attempts=0,last_error='',execution_blocked=FALSE,

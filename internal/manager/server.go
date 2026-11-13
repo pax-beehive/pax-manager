@@ -65,6 +65,7 @@ type Service struct {
 	workspaceSearch      *userapi.WorkspaceSearchService
 	secretary            *userapi.SecretaryService
 	secretaryTasks       *userapi.SecretaryTaskService
+	secretaryControl     *userapi.SecretaryControlService
 	secretaryStore       domain.SecretaryStore
 	secretaryTools       sync.Map
 	workspaceAccessMu    sync.Mutex

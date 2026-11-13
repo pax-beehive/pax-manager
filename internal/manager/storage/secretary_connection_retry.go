@@ -46,6 +46,7 @@ func (s *MemoryStore) failSecretaryConnectionLocked(
 	}
 	queued.work.LeaseToken, queued.leaseUntil = "", time.Time{}
 	queued.lastError = attempt.Error
+	s.failMemoryOperationWorkLocked(job, batch.state, failure)
 }
 
 func (s *MemoryStore) gateSecretaryConnectionLocked(
@@ -128,6 +129,9 @@ func writeSecretaryConnectionFailureTx(
 	}
 	if err != nil {
 		return err
+	}
+	if blocked {
+		return failSecretaryOperationWorkTx(ctx, tx, job, state, failure)
 	}
 	return nil
 }

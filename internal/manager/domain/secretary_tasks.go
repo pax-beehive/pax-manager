@@ -12,6 +12,7 @@ type SecretaryTaskQuery struct {
 
 type SecretaryTask struct {
 	TaskID             string     `json:"task_id"`
+	OperationID        string     `json:"operation_id,omitempty"`
 	SessionID          string     `json:"session_id"`
 	SourceAgentID      string     `json:"source_agent_id"`
 	Title              string     `json:"title"`

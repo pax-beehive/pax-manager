@@ -59,6 +59,9 @@ func loadSecretaryRollingBaseline(ctx context.Context, tx *sql.Tx, job *domain.S
 		if readErr != nil {
 			return readErr
 		}
+		if current.NodeStatus == "stale" {
+			continue
+		}
 		raw, _ := json.Marshal(current)
 		if size+len(raw) > secretaryNodeStateBytes {
 			job.SummariesHasMore = true

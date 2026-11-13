@@ -38,7 +38,11 @@ func (s *PostgresStore) ClaimSecretaryJobs(
  JOIN agents selected ON selected.agent_id=cfg.agent_id AND selected.owner_user_id=j.owner_user_id AND selected.deleted_at IS NULL
  JOIN agent_sessions s ON s.id=j.source_id AND s.archived_at IS NULL AND s.runtime_status='idle'
  LEFT JOIN nodes n ON n.node_id=a.node_id LEFT JOIN nodes sn ON sn.node_id=s.node_id LEFT JOIN nodes target ON target.node_id=selected.node_id
- WHERE j.desired_revision>j.processed_revision AND j.available_at<=NOW() AND NOT j.execution_blocked AND NOT j.paused
+ WHERE (j.desired_revision>j.processed_revision OR EXISTS(SELECT 1 FROM secretary_operations op
+ WHERE op.source_id=j.source_id AND op.owner_user_id=j.owner_user_id AND op.status IN ('queued','running')))
+ AND j.available_at<=NOW() AND NOT j.execution_blocked AND NOT j.paused
+ AND NOT EXISTS(SELECT 1 FROM secretary_operations op WHERE op.source_id=j.source_id
+ AND op.owner_user_id=j.owner_user_id AND op.kind='guided_summary' AND op.status='needs_attention')
  AND NOT EXISTS (SELECT 1 FROM secretary_batches b WHERE b.source_id=j.source_id
  AND b.owner_user_id=j.owner_user_id AND b.settings_revision=cfg.revision AND b.retry_epoch=j.retry_epoch
  AND ((b.state='pending' AND b.retry_after>NOW()) OR (b.state='blocked' AND b.connection_failures>8)))
@@ -78,7 +82,7 @@ func (s *PostgresStore) ClaimSecretaryJobs(
 		}
 		if err = loadSecretaryJob(ctx, tx, &job); err != nil {
 			if _, err = tx.ExecContext(ctx, `UPDATE secretary_jobs SET lease_token='',lease_until=NULL,last_error=$2,attempts=attempts+1,
- execution_blocked=$3,available_at=NOW()+INTERVAL '30 seconds' WHERE source_id=$1`,
+ execution_blocked=execution_blocked OR $3,available_at=NOW()+INTERVAL '30 seconds' WHERE source_id=$1`,
 				job.SourceID, secretaryErrorText(err), secretaryInputBlocked(err)); err != nil {
 				return nil, err
 			}
@@ -92,6 +96,17 @@ func (s *PostgresStore) ClaimSecretaryJobs(
 			continue
 		}
 
+		if job.Instructions == nil {
+			job.Instructions, err = loadSecretaryInstructionsTx(
+				ctx,
+				tx,
+				job.OwnerUserID,
+				job.SourceID,
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
 		secretaryPrepareJob(&job)
 		result = append(result, job)
 	}
@@ -143,6 +158,7 @@ func buildSecretaryChangesSQL() string {
  FROM secretary_message_state m JOIN secretary_jobs j USING(source_id)
  LEFT JOIN messages source ON source.message_id=m.message_id
  WHERE m.source_id=$1 AND m.change_revision>j.processed_revision
+ AND (m.processed_owner_user_id<>j.owner_user_id OR m.processed_change_revision<m.change_revision)
  AND (m.change_revision,m.message_id)>($2,$3)
  ORDER BY m.change_revision,m.message_id LIMIT $4`
 }
@@ -172,6 +188,9 @@ func loadSecretaryChanges(
 
 func loadSecretaryJob(ctx context.Context, tx *sql.Tx, job *domain.SecretaryJob) error {
 	if err := loadSecretaryRollingBaseline(ctx, tx, job); err != nil {
+		return err
+	}
+	if selected, err := loadSecretaryOperationWorkTx(ctx, tx, job); selected || err != nil {
 		return err
 	}
 	through := job.ThroughRevision
@@ -209,6 +228,22 @@ func loadSecretaryBatch(ctx context.Context, tx *sql.Tx, job *domain.SecretaryJo
 					change.id,
 					domain.SecretaryMaxSourceBytes,
 				)
+			}
+			if secretaryInputBlocked(readErr) {
+				acknowledged, ackErr := acknowledgeUnchangedLargeSecretaryMessageTx(
+					ctx,
+					tx,
+					job,
+					change,
+				)
+				if ackErr != nil {
+					return ackErr
+				}
+				if acknowledged {
+					after = change
+					scanned++
+					continue
+				}
 			}
 			consumed, consumeErr := batch.consume(change, doc, readErr)
 			if consumeErr != nil || !consumed || batch.full() {
@@ -292,7 +327,7 @@ func (s *PostgresStore) FailSecretaryJob(
 		}
 		retryKey = secretaryValidationRetryKey(job)
 	}
-	_, err := s.db.ExecContext(
+	result, err := s.db.ExecContext(
 		ctx,
 		`UPDATE secretary_jobs SET lease_token='',lease_until=NULL,attempts=attempts+1,
  retry_generation=retry_generation+CASE WHEN $4<>'' AND (auto_retry_key<>$4 OR auto_retry_count<$5) THEN 1 ELSE 0 END,
@@ -309,6 +344,12 @@ func (s *PostgresStore) FailSecretaryJob(
 		code,
 		secretaryKnownExecutionFailure(failure),
 	)
+	if err == nil && job.OperationID != "" {
+		var changed int64
+		if changed, err = result.RowsAffected(); err == nil && changed > 0 {
+			err = s.recordSecretaryOperationJobFailure(ctx, job, failure)
+		}
+	}
 	return err
 }
 

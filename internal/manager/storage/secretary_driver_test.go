@@ -122,11 +122,14 @@ func TestSecretaryDriverGivenClaimedSourceWhenLoadedThenReturnsBoundedCanonicalW
 					"owner_1",
 				)
 			}
-			queries = append(queries, changes, message)
+			queries = append(queries, summaryEmptyRows(), changes, message)
 			if mode != "noop" && mode != "deleted" {
 				queries = append(queries, summaryEmptyRows())
 			} else {
 				queries = append(queries, secretaryOpenBatchRows(false))
+			}
+			if mode == "new" || mode == "existing" {
+				queries = append(queries, secretaryGuidanceRows())
 			}
 			script := &scriptedPostgresScript{queries: queries}
 			store, cleanup := scriptedPostgresStore(t, script)
@@ -138,7 +141,7 @@ func TestSecretaryDriverGivenClaimedSourceWhenLoadedThenReturnsBoundedCanonicalW
 				assert.Empty(t, jobs)
 				return
 			}
-			require.Len(t, jobs, 1)
+			require.Len(t, jobs, 1, "claim writes: %v", script.execArgs)
 			assert.NotEmpty(t, jobs[0].LeaseToken)
 			assert.NotEmpty(t, jobs[0].RunID)
 			assert.EqualValues(t, 1, jobs[0].ThroughRevision)
@@ -262,6 +265,7 @@ func TestSecretaryDriverGivenSettingsCASAndStatusThenPersistsOnlyOwnerConfigurat
 		},
 		secretaryPendingExecutionRows("1", "2"),
 		{columns: []string{"enabled"}, values: [][]driver.Value{{true}}},
+		summaryEmptyRows(),
 	}
 	script := &scriptedPostgresScript{queries: queries}
 	store, cleanup := scriptedPostgresStore(t, script)

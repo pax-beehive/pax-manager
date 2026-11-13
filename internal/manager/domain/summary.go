@@ -57,6 +57,9 @@ type PublishSummaryRequest struct {
 }
 
 type SummaryVersion struct {
+	AuthorKind         string              `json:"author_kind,omitempty"`
+	AuthorID           string              `json:"author_id,omitempty"`
+	OperationID        string              `json:"operation_id,omitempty"`
 	NodeType           string              `json:"node_type,omitempty"`
 	NodeStatus         string              `json:"node_status,omitempty"`
 	OriginSourceID     string              `json:"origin_source_id,omitempty"`

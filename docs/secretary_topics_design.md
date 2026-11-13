@@ -139,6 +139,12 @@ an explicit middle-omitted marker. The message is labeled `view:head_tail`,
 `truncated:true`, and includes its original byte count and the available full
 view. Assistant messages keep their existing last-paragraph view.
 
+Manager code performs this projection before prompt serialization, including
+the inline omission marker. Secretary receives the already projected text;
+it does not decide where to cut it or calculate preview budgets. The model's
+only input-view decision is whether additional original context is useful.
+The existing v2 marker, slicing and frozen-policy compatibility stay unchanged.
+
 The agent uses the visible request and the corresponding assistant reply to
 decide whether the omitted paste matters. If the reply falls outside the batch,
 it can use the existing history tool and turn identity to inspect context.
@@ -167,6 +173,33 @@ explicit task retry can make that preparation eligible again. This does not
 restart unresolved native executions or weaken their terminal-proof rules.
 
 #### Summary selection policy (2026-11-11)
+
+Recurring activity is retained as a pattern, not an event log. A repeated
+procedure is not necessarily repeated information. Use `no_summary` only when
+a message adds no useful fact, state change or supported association; this
+advances processing without a new summary revision, claim or coverage entry.
+Retain representative sources sufficient to support the abstraction; do not
+invent counts or infer a workflow from the session title. Important failures,
+lasting fixes, workflow changes, new associations and unresolved risks still
+warrant supported updates. This policy is applied by the agent; Manager does
+not classify or discard messages by keywords or session identity.
+
+Stable artifact references, repository-qualified PRs, commit IDs and source
+links may connect a routine-looking event to work in another session. Preserve
+useful references rather than discarding them as operational detail. When useful,
+the agent searches with that identity and project/repository context, then reads
+authorized original messages. A search snippet, bare PR number or matching word
+does not establish the relationship. Do not assume that a merge commit and a
+different commit identify the same change; keep unverified connections uncertain.
+Manager does not perform these semantic associations or inject related sessions.
+
+The current schema can express a verified connection as concise text in the
+current session's summary, supported by selected messages from both sessions.
+Additional original messages require exact `related_sources` references and
+read receipts. This does not create a topic/relationship entity, revise the
+other session's summaries or advance its processing. Other summaries remain
+navigation/background rather than original evidence. Permissions and normal
+source/version validation still apply. This is not a graph or board update.
 
 Secretary writes selective memory for future follow-up. It keeps key current
 conclusions, decisions, constraints, material results, corrections and unresolved
@@ -436,3 +469,60 @@ Node 身份和来源目录使用有版本标记的幂等元数据迁移；已有
 测试优先 BDD/TDD，Go 单测优先 testify 风格；新增后端代码达到至少 80% 单测覆盖率。
 固定响应只能验证协议，另需真实长对话评估摘要划分与保留结论的质量；测试数量和覆盖率不能单独证明上线可靠性。
 未来 topic、关联和合并另有验收，不作为 summary 第一版的交付前提。
+
+## Owner guidance and human completion
+
+Owner controls extend the summary-only workflow without adding a parallel summary
+entity, an association graph, or another model pipeline.
+
+- `secretary_guidance` stores owner defaults (`scope=user`) and persistent
+  session preferences (`scope=session`, canonical Manager source ID). Each scope
+  has an independent optimistic revision. Empty text clears that scope. Guidance
+  is limited to 8192 UTF-8 bytes and 4096 Unicode characters per scope.
+- Fresh automatic batches freeze both applicable scopes. An explicit operation
+  freezes its scopes during preparation and adds one-operation instructions on
+  submission. The same snapshot follows all batches and retries. Precedence is
+  run, session, then user; source verification, permissions, output format and
+  bounded execution remain fixed. Source text is not configured guidance.
+- Saving preferences affects future work only. It does not reset checkpoints,
+  change settings revisions, supersede frozen work, or invoke a model.
+- `secretary_operations` records a reviewable draft and its exact complete-message
+  targets. Kinds are `guided_summary`, `human_summary`, and `human_edit`; scopes
+  are `pending`, `all`, or explicit `selected` message IDs. Preparation rejects
+  more than 4096 targets rather than silently truncating. Incomplete messages
+  and tool/reasoning-only content cannot be targets.
+- Submission requires the draft revision and an owner-scoped idempotency key.
+  The source versions and baseline summary revisions must still match. Confirmed
+  replacement fences earlier work by changing its execution epoch; it does not
+  assume that an unknown native execution was canceled. Late results cannot
+  publish. A changed payload with the same request ID is a conflict.
+- Human completion publishes an ordinary immutable summary version and marks
+  exactly the selected message change revisions processed, in one transaction.
+  Representative provenance is a separately selected subset (at most 512
+  references); it does not determine which messages are acknowledged. Gaps
+  remain pending. The contiguous source cursor cannot skip an earlier gap.
+- For selected current source changes, manual completion also acknowledges the
+  same-origin repair notifications. Earlier summaries remain stale and their
+  immutable contents remain available; they are not silently repaired or
+  deleted. A later source change resets that acknowledgement and queues new
+  work. Unselected messages and other origin sessions are unaffected.
+- Human edit creates the next revision of the same summary and inherits precise
+  source references on the server. It acknowledges no additional messages.
+  Authorship is recorded as `user`, `agent`, or `legacy_unknown`; historical
+  writes are not retroactively attributed to an agent.
+- Guided work reuses existing batches and attempts, including bounded retries,
+  saved output recovery and unknown-result handling. Explicit reprocessing can
+  remain queued even when all current messages were previously processed.
+  Message counts stay complete while that new operation runs. Terminal work
+  needing intervention remains visible; it is not silently retried forever.
+- Human writes work with Secretary disabled. Guided execution requires enabled
+  scheduling and a selected owned agent. Existing session pause controls remain
+  separate from manual completion. Access is checked again on reads and writes.
+
+The Console exposes default guidance in Secretary settings and session guidance,
+one-operation guidance, manual completion and immutable human edits in session
+controls. The current selection cap is explicit; advanced selected-ID input is
+the escape hatch for a source larger than one preparation window. Search and
+summary reads keep their existing PG source-of-truth and asynchronous ES
+projection behavior. This change does not deploy, bulk retry, or regenerate
+historical summaries automatically.

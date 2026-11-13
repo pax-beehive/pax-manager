@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS knowledge_node_invalidations (
 
 CREATE INDEX IF NOT EXISTS knowledge_node_invalidations_origin_idx
     ON knowledge_node_invalidations(origin_source_id,change_revision);
+ALTER TABLE knowledge_node_invalidations ADD COLUMN IF NOT EXISTS acknowledged_operation_id TEXT NOT NULL DEFAULT '';
 
 DO $$ BEGIN
 IF NOT EXISTS(SELECT 1 FROM knowledge_node_migrations WHERE version='identity-v1') THEN
@@ -93,6 +94,10 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS summary_versions_node ON summary_versions;
 CREATE TRIGGER summary_versions_node AFTER INSERT ON summary_versions
     FOR EACH ROW EXECUTE FUNCTION pax_summary_update_node();
+
+ALTER TABLE summary_versions ADD COLUMN IF NOT EXISTS author_kind TEXT NOT NULL DEFAULT 'legacy_unknown';
+ALTER TABLE summary_versions ADD COLUMN IF NOT EXISTS author_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE summary_versions ADD COLUMN IF NOT EXISTS operation_id TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS message_snapshots (
     message_id TEXT NOT NULL,
@@ -219,7 +224,7 @@ BEGIN
             FROM affected JOIN knowledge_nodes node ON node.id=affected.summary_id AND node.current_revision=affected.revision
             WHERE node.origin_source_id=target.origin_source_id AND node.owner_user_id=target.owner_user_id
             ON CONFLICT(node_id,message_id) DO UPDATE SET target_revision=EXCLUDED.target_revision,
-                change_revision=EXCLUDED.change_revision;
+                change_revision=EXCLUDED.change_revision,acknowledged_operation_id='';
             UPDATE knowledge_nodes SET status='stale' WHERE origin_source_id=target.origin_source_id
                 AND owner_user_id=target.owner_user_id AND EXISTS(
                     SELECT 1 FROM knowledge_node_invalidations invalidation WHERE invalidation.node_id=knowledge_nodes.id

@@ -20,7 +20,10 @@ const secretaryTaskSelectSQL = `SELECT j.source_id::text,j.source_session_id,j.s
  COALESCE(a.attempt_id,''),COALESCE(a.state,''),COALESCE(a.not_dispatched,FALSE),
  CASE WHEN j.execution_blocked AND starts_with(j.last_error,'` + secretaryInputLimitPrefix + `')
  AND COALESCE(b.state,'') NOT IN ('running','unknown','output_received') THEN j.last_error
- ELSE COALESCE(a.last_error,j.last_error) END,j.execution_blocked
+ ELSE COALESCE(a.last_error,j.last_error) END,j.execution_blocked,
+ COALESCE((SELECT op.operation_id FROM secretary_operations op WHERE op.owner_user_id=j.owner_user_id
+ AND op.source_id=j.source_id AND op.status IN ('queued','running','needs_attention')
+ ORDER BY op.updated_at DESC,op.operation_id DESC LIMIT 1),'')
  FROM secretary_jobs j JOIN secretary_settings cfg ON cfg.owner_user_id=j.owner_user_id
  JOIN agents source ON source.agent_id=j.source_agent_id AND source.owner_user_id=j.owner_user_id AND source.deleted_at IS NULL
  JOIN agent_sessions s ON s.id=j.source_id AND s.agent_id=j.source_agent_id AND s.session_id=j.source_session_id AND s.archived_at IS NULL
@@ -67,10 +70,12 @@ func scanSecretaryTask(row interface{ Scan(...any) error }) (secretaryTaskRecord
 		&record.notDispatched,
 		&record.failure,
 		&record.blocked,
+		&task.OperationID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return record, ErrNotFound
 	}
+	record.operationPending = task.OperationID != ""
 	task.CreatedAt, task.UpdatedAt, record.retryAfter = &created, &updated, retry.Time
 	return record, err
 }
@@ -138,7 +143,10 @@ func (s *PostgresStore) ListSecretaryTasks(
 	}
 	defer func() { _ = tx.Rollback() }()
 	rows, err := tx.QueryContext(ctx, secretaryTaskSelectSQL+`
- AND j.desired_revision>j.processed_revision AND j.source_id>$2 ORDER BY j.source_id LIMIT $3`, owner, after, limit+1)
+ AND (j.desired_revision>j.processed_revision OR EXISTS(SELECT 1 FROM secretary_operations op
+ WHERE op.owner_user_id=j.owner_user_id AND op.source_id=j.source_id
+ AND op.status IN ('queued','running','needs_attention')))
+ AND j.source_id>$2 ORDER BY j.source_id LIMIT $3`, owner, after, limit+1)
 	if err != nil {
 		return domain.SecretaryTaskPage{}, err
 	}
@@ -319,6 +327,9 @@ func (s *PostgresStore) ControlSecretaryTask(
  auto_retry_key='',auto_retry_count=0 WHERE source_id=$1`,
 			id,
 		)
+		if err == nil {
+			err = retrySecretaryOperationTx(ctx, tx, owner, id)
+		}
 	default:
 		return domain.SecretaryTask{}, ErrConflict
 	}

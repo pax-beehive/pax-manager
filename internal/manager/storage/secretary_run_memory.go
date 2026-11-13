@@ -136,6 +136,7 @@ func (s *MemoryStore) AdvanceSecretaryRuns(ctx context.Context, limit int) (bool
 	for _, id := range ids {
 		job := state.jobs[id]
 		if s.secretaryRunEligibleLocked(command.owner, id, job) {
+			s.retryMemoryOperationLocked(id)
 			job.available, job.updated, job.lastError = s.now(), s.now().Add(-30*time.Second), ""
 			job.executionBlocked, job.autoRetryKey, job.autoRetryCount = false, "", 0
 			job.work.ValidationFeedback = ""
@@ -153,7 +154,8 @@ func (s *MemoryStore) AdvanceSecretaryRuns(ctx context.Context, limit int) (bool
 
 func (s *MemoryStore) secretaryRunEligibleLocked(owner, id string, job *memorySecretaryJob) bool {
 	_, session, err := s.secretaryTaskSourceLocked(owner, id)
-	if err != nil || job.paused || job.desired <= job.processed ||
+	if err != nil || job.paused ||
+		(job.desired <= job.processed && !s.memoryOperationNeedsAttentionLocked(id)) ||
 		strings.HasPrefix(session.SessionID, domain.SecretaryInternalSessionPrefix) ||
 		job.work.LeaseToken != "" && job.leaseUntil.After(s.now()) {
 		return false
