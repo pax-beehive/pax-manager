@@ -18,6 +18,7 @@ import (
 const (
 	ProviderOpenAI     = "openai"
 	ProviderQwen       = "qwen"
+	ProviderSoniox     = "soniox"
 	ProviderVolcengine = "volcengine"
 	ProviderBytePlus   = "byteplus"
 
@@ -37,6 +38,7 @@ type Settings struct {
 	Languages []string
 	OpenAI    OpenAISettings
 	Qwen      QwenSettings
+	Soniox    SonioxSettings
 	SeedASR   SeedASRSettings
 }
 
@@ -55,6 +57,14 @@ type QwenSettings struct {
 	// Language pins recognition to one language code; empty auto-detects,
 	// which suits mixed Chinese and English dictation.
 	Language string
+}
+
+// SonioxSettings configures multilingual streaming dictation.
+type SonioxSettings struct {
+	APIKey    string
+	URL       string
+	Model     string
+	Languages []string
 }
 
 // SeedASRSettings configures the ByteDance Seed ASR streaming API, served by
@@ -115,6 +125,8 @@ func NewProvider(s Settings) (Provider, error) {
 		return newOpenAIProvider(s.OpenAI, s.Languages)
 	case ProviderQwen:
 		return newQwenProvider(s.Qwen)
+	case ProviderSoniox:
+		return newSonioxProvider(s.Soniox)
 	case ProviderVolcengine:
 		return newSeedASRProvider(ProviderVolcengine, s.SeedASR, defaultVolcengineURL)
 	case ProviderBytePlus:

@@ -75,6 +75,35 @@ Object storage credentials use the standard AWS SDK credential chain. Common cho
 EC2 instance role. pax-manager does not load Google Cloud service-account or ID-token
 credentials for artifact storage.
 
+### Streaming voice input
+
+Voice input is disabled unless `VOICE_PROVIDER` selects a configured provider.
+The Soniox provider streams 16 kHz PCM audio directly from Manager to Soniox and
+returns partial and finalized transcription to the existing browser dictation
+interface. Provider credentials remain on Manager and must not be committed.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `VOICE_PROVIDER` | empty | Speech provider: `openai`, `qwen`, `soniox`, or `volcengine`. An empty value disables voice input. |
+| `VOICE_LANGUAGES` | `zh-cn,en` | Comma-separated language hints. Soniox normalizes these to base language codes such as `zh,en` and allows mixed-language speech. |
+| `VOICE_ADMIN_ONLY` | `true` | Limit voice configuration and streaming to administrators. Keep enabled for production rollout. |
+| `VOICE_MAX_SESSION_SECONDS` | `300` | Maximum duration of a dictation session. |
+| `SONIOX_API_KEY` | empty | Required server-side API key when `VOICE_PROVIDER=soniox`. |
+| `VOICE_SONIOX_URL` | `wss://stt-rt.soniox.com/transcribe-websocket` | Optional Soniox WebSocket endpoint override. |
+| `VOICE_SONIOX_MODEL` | `stt-rt-v6` | Optional Soniox realtime model override. |
+
+Store `SONIOX_API_KEY` in the instance's private environment or secret store,
+then set `VOICE_PROVIDER=soniox` and restart Manager. The authenticated
+`GET /api/v1/user/self/voice/config` endpoint reports `provider: "soniox"` and
+`sample_rate: 16000` for administrators. Non-administrators receive
+`enabled: false` while the default administrator restriction is enabled.
+
+The gateway must proxy both the config route and the WebSocket upgrade at
+`/api/v1/user/self/voice/stream` with the same user authentication as other user
+APIs. Browser routes may be prefixed by `/api/pax`. Removing `VOICE_PROVIDER`
+and restarting Manager disables voice input without changing code or deleting
+the stored key.
+
 ### AWS S3
 
 For AWS S3, leave both endpoint variables empty:
