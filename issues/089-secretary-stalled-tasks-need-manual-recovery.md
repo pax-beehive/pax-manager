@@ -30,34 +30,51 @@ Three execution paths widened the problem:
 
 ## Current note
 
-The change is implemented and locally verified; production acceptance is a
-separate gate, so this stays partial.
+The change is implemented and verified locally and in CI; production acceptance
+is a separate gate, so this stays partial.
 
 - The conversation runner records when a session/prompt frame is handed to the
   transport. Every failure before that point is classified as not dispatched
   and uses the existing bounded connection retry. Fencing keeps its own
   meaning. An explicitly unknown outcome stays unknown. A failed write is
   treated as dispatched, because it may still have reached the transport.
+  session/new is bounded to 90 seconds for an internal execution.
 - The fence monitor cancels an execution only for a definitive fence. A failed
   lookup is reported once per execution and the execution continues;
   publication repeats every fence check.
 - A dispatched turn that does not finish cleanly is always asked to stop,
   including after a stream error and when it waits for an approval.
-- Stalled tasks restart automatically. A task qualifies when its job cannot be
-  claimed, its current batch is unknown, blocked, or pending behind a blocked
-  job, it has an attempt, it is enabled, not paused, not leased, and not
-  blocked by the deterministic input size limit. The restart is the same
-  transition as an explicit owner retry: a new retry epoch, with the old batch
-  and attempt fenced so a late result cannot commit. The wait is 15 minutes,
-  then 1 hour, then 4 hours, measured from the start of an unknown attempt,
-  otherwise from the last failure of the batch. At most three consecutive
-  restarts are made. Publishing or any explicit owner retry starts a new
-  budget.
+- Stalled tasks recover automatically. A task is stalled when its current batch
+  has an attempt and ordinary claims skip the source for a reason that does not
+  clear by itself: the job is blocked, the batch exhausted its connection
+  retries, or a guided operation needs attention. It must be enabled, not
+  paused, not leased, and not blocked by the deterministic input size limit.
+  - An unknown, interrupted, blocked or stuck pending batch is restarted. The
+    restart is the same transition as an explicit owner retry: a new retry
+    epoch, with the old batch and attempt fenced so a late result cannot
+    commit.
+  - Saved output behind a blocked job is released for publishing. Nothing is
+    discarded and no model call is made.
+  - The wait is 15 minutes, then 1 hour, then 4 hours, measured from the start
+    of an unknown or interrupted attempt, otherwise from the last failure.
+  - A batch that used up its dispatched attempts gets one restart. Every other
+    state gets three. Publishing, a settings change, an explicit owner retry,
+    or a source change that replaces the frozen batch starts a new budget.
 
-A restart may spend another model call on the owner's own agent. That is the
-reason for the small budget and the growing wait. A task that exhausts the
-budget still needs an owner action, and the task view reports its state as
-before.
+A restart spends model calls on the owner's own agent, which is the reason for
+the small budget and the growing wait. One stalled task costs at most five
+extra model calls, and usually one. A task that exhausts the budget still needs
+an owner action, and the task view reports its state as before.
+
+## Known behavior to keep in mind
+
+- Secretary runs unattended and does not wait for a tool approval. A turn that
+  asks for one is stopped, so that approval can no longer be granted, and the
+  attempt follows the bounded retry. An agent that always asks ends blocked
+  after the budget above instead of holding its slot indefinitely.
+- An attempt that is already older than its wait when it is first classified,
+  for example after a long outage, restarts at the next check without a further
+  wait for a terminal proof.
 
 ## Not covered
 
@@ -71,5 +88,5 @@ before.
   unresolved batch, so such a source needs the per-task retry or the automatic
   restart rather than the bulk command.
 - Existing production tasks are not rewritten by deployment. Tasks that are
-  already unknown or blocked become eligible under the same rules once their
-  wait has elapsed.
+  already stalled become eligible under the same rules once their wait has
+  elapsed.

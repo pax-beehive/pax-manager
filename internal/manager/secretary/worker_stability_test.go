@@ -112,8 +112,10 @@ func TestWorkerRunGivenStalledTasksThenChecksThemPeriodicallyAndSurfacesFailures
 		RetryInterval:       time.Millisecond,
 		AutoRestartInterval: time.Millisecond,
 		OnError: func(err error) {
-			assert.ErrorIs(t, err, store.err)
-			failures.Add(1)
+			// Shutdown can surface a bare cancellation; only scan failures count.
+			if errors.Is(err, store.err) {
+				failures.Add(1)
+			}
 		},
 	})
 	done := make(chan error, 1)

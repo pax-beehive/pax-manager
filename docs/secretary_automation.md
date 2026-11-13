@@ -286,6 +286,9 @@ checks. No native turn can exist yet, so these use the existing connection
 retry budget and never become an unknown outcome. Fencing keeps its own
 meaning, and an explicitly unknown outcome stays unknown. A failed write of the
 prompt frame counts as dispatched, because it may have reached the transport.
+session/new is bounded to 90 seconds for an internal execution, so an agent
+that never answers cannot hold the single worker for the whole execution
+deadline on every retry.
 
 **Fence monitor.** While an execution runs, the per-second check cancels it
 only for a definitive fence: disabled settings, a changed agent or revision, or
@@ -296,42 +299,68 @@ every fence check.
 **Native cancellation.** A dispatched turn that does not finish cleanly is
 always sent session/cancel: after a timeout, a stream error, an incomplete
 stream, or a pending approval. Otherwise the turn can keep the agent slot busy
-and make later attempts fail to connect.
+and make later attempts fail to connect. Secretary runs unattended, so it does
+not wait for an approval: the turn is stopped, and the approval can no longer
+be granted for that turn. The attempt then follows the ordinary bounded retry.
 
-**Automatic restart.** A stalled task restarts without an owner action. The
-restart is the same transition as the explicit task retry: a new retry epoch,
-a fresh batch and attempt budget, and the old batch and attempt fenced so a
-late result cannot commit.
+**Automatic recovery.** A stalled task recovers without an owner action. A task
+is stalled when ordinary claims can no longer reach it and all of these hold:
 
-A task qualifies when all of these hold:
-
-- its job cannot be claimed (`execution_blocked`), and its current batch has an
-  attempt and is `unknown`, `blocked`, or `pending` (a manual recheck that ends
-  in a retryable failure can leave a pending batch behind a blocked job);
+- its current batch has an attempt;
+- claims skip the source for a reason that does not clear by itself: the job is
+  `execution_blocked`, or the batch exhausted its connection retries, or a
+  guided operation needs attention. A new source message clears only the first
+  flag, so each reason counts on its own;
 - Secretary is enabled, the task is not paused, and no lease is active;
 - it is not blocked by the deterministic input size limit, which a restart
   cannot fix.
 
-| Restart | Wait | Measured from |
+What happens depends on the batch state:
+
+| Batch state | Recovery | Wait measured from |
 | --- | --- | --- |
-| 1 | 15 minutes | start of an unknown attempt, otherwise the last failure of the batch |
-| 2 | 1 hour | same |
-| 3 | 4 hours | same |
+| `unknown`, or `running` behind a blocked job | restart | start of the attempt |
+| `blocked`, or `pending` behind a blocked job | restart | last failure of the attempt |
+| `output_received` behind a blocked job | release the saved output for publishing | when the output was saved |
+
+A restart is the same transition as the explicit task retry: a new retry epoch,
+a fresh batch and attempt budget, and the old batch and attempt fenced so a
+late result cannot commit. Saved output is never discarded: it is only released
+so the worker publishes it, which needs no model call and counts no restart.
 
 An unknown attempt is measured from its start because later rechecks of the
 same attempt refresh every other timestamp. The first wait leaves time for a
 terminal proof to arrive and recover the original result without a model call.
-After three consecutive restarts the task waits for the owner, as before.
-Publishing, or any explicit owner retry, starts a new budget: the count applies
-only while the job is still in the epoch created by its last automatic restart
-and has not published since (`auto_restart_count`, `auto_restart_epoch`,
-`auto_restarted_at` on `secretary_jobs`).
 
-A restart may spend another model call on the owner's own agent, which is why
-the budget is small and the wait grows. The worker checks once a minute, in
-`Worker.RestartStalled`, and logs each restart with the task ID, previous
-state and count, never source content. Deployment rewrites no existing task;
-tasks that are already unknown or blocked become eligible under the same rules.
+| Consecutive restart | Wait |
+| --- | --- |
+| 1 | 15 minutes |
+| 2 | 1 hour |
+| 3 | 4 hours |
+
+The budget depends on what the stalled batch already cost:
+
+- A batch that used up its dispatched attempts (rejected or failed output) has
+  spent up to three model calls on the same input. It gets one restart.
+- Every other state gets three: an unknown outcome spent at most one call, and
+  exhausted connection retries spent none.
+
+So one stalled task costs at most five extra model calls on the owner's own
+agent, and usually one. After the budget is spent the task waits for the owner,
+as before. The count applies only while the job is still in the epoch created
+by its last automatic restart, has not published since, and its settings have
+not changed since (`auto_restart_count`, `auto_restart_epoch`,
+`auto_restarted_at` on `secretary_jobs`). Publishing, a settings change, an
+explicit owner retry, and a source change that replaces the frozen batch each
+start a new budget.
+
+The worker checks once a minute, in `Worker.RestartStalled`, and logs each
+recovery with the task ID, previous state and count, never source content.
+The check walks every candidate by key, so a task that cannot be recovered
+right now does not keep later tasks waiting. Deployment rewrites no existing
+task; tasks that are already stalled become eligible under the same rules. An
+attempt that is already older than its wait when it is first classified, for
+example after a long outage, restarts at the next check without a further wait.
 
 ## 一次 job 的持久生命周期
 

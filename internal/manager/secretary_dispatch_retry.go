@@ -2,9 +2,14 @@ package manager
 
 import (
 	"errors"
+	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
+
+// secretarySessionCreationTimeout bounds session/new for an internal execution.
+// Creating a session normally takes seconds, including adapter and MCP startup.
+var secretarySessionCreationTimeout = 90 * time.Second
 
 // secretaryNotDispatchedFailure classifies a failure that happened before any
 // session/prompt frame was written. No native turn can exist yet, so the

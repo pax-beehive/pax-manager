@@ -130,9 +130,12 @@ func (s *Service) promptOwnedSecretaryAgent(
 	runner.secretaryJob = &request.Job
 	conversation := conversationSession{managerID: sessionID, nativeID: session.NativeID}
 	if session.NativeID == "" || capability != "" {
-		// session/new precedes session/prompt, so no native turn exists yet.
+		// session/new precedes session/prompt, so no native turn exists yet. It
+		// is retried, so an agent that never answers must not hold the single
+		// worker for the whole execution deadline on every attempt.
+		createCtx, cancelCreate := context.WithTimeout(ctx, secretarySessionCreationTimeout)
 		conversation, err = s.createConversationSession(
-			ctx,
+			createCtx,
 			principal,
 			&runner,
 			conversationRequest{
@@ -140,6 +143,7 @@ func (s *Service) promptOwnedSecretaryAgent(
 				secretaryCapability: capability,
 			},
 		)
+		cancelCreate()
 		if err != nil {
 			return result, secretaryNotDispatchedFailure(err)
 		}

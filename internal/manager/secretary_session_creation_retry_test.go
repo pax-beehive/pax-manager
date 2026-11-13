@@ -121,6 +121,29 @@ func TestSecretaryAgentGivenAnySessionCreationFailureThenRetriesInsteadOfBecomin
 	assert.True(t, detail.Attempts[0].NotDispatched)
 }
 
+func TestSecretaryAgentGivenSessionCreationNeverAnswersThenGivesUpEarlyAndRetries(t *testing.T) {
+	previous := secretarySessionCreationTimeout
+	secretarySessionCreationTimeout = 50 * time.Millisecond
+	defer func() { secretarySessionCreationTimeout = previous }()
+	srv, fixture, job := secretarySlotRetryFixture(t)
+	ws := secretarySlotRetryTunnel(t, srv, fixture)
+	done := make(chan error, 1)
+	go func() {
+		_, err := srv.executeSecretaryAgent(t.Context(), secretarySlotRetryRequest(srv, job))
+		done <- err
+	}()
+	// The agent accepts the request and never answers it.
+	_, _ = readMockACPRequest(t, ws, "session/new")
+	select {
+	case failure := <-done:
+		require.ErrorIs(t, failure, domain.ErrSecretaryNotDispatched)
+		assert.ErrorIs(t, failure, context.DeadlineExceeded)
+		assert.NotErrorIs(t, failure, domain.ErrSecretaryExecutionUnknown)
+	case <-time.After(5 * time.Second):
+		t.Fatal("a silent session/new must not hold the worker for the whole execution deadline")
+	}
+}
+
 func TestSecretaryAgentGivenPromptFailsAfterDispatchThenStopsTheNativeTurn(t *testing.T) {
 	srv, fixture, job := secretarySlotRetryFixture(t)
 	ws := secretarySlotRetryTunnel(t, srv, fixture)

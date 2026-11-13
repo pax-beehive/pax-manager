@@ -24,7 +24,7 @@ const secretaryTaskSelectSQL = `SELECT j.source_id::text,j.source_session_id,j.s
  COALESCE((SELECT op.operation_id FROM secretary_operations op WHERE op.owner_user_id=j.owner_user_id
  AND op.source_id=j.source_id AND op.status IN ('queued','running','needs_attention')
  ORDER BY op.updated_at DESC,op.operation_id DESC LIMIT 1),''),
- a.created_at,a.updated_at,` + secretaryAutoRestartCountSQL + `
+ a.created_at,a.updated_at,` + secretaryAutoRestartCountSQL + `,` + secretaryOperationStalledSQL + `
  FROM secretary_jobs j JOIN secretary_settings cfg ON cfg.owner_user_id=j.owner_user_id
  JOIN agents source ON source.agent_id=j.source_agent_id AND source.owner_user_id=j.owner_user_id AND source.deleted_at IS NULL
  JOIN agent_sessions s ON s.id=j.source_id AND s.agent_id=j.source_agent_id AND s.session_id=j.source_session_id AND s.archived_at IS NULL
@@ -75,6 +75,7 @@ func scanSecretaryTask(row interface{ Scan(...any) error }) (secretaryTaskRecord
 		&attemptCreated,
 		&attemptUpdated,
 		&record.autoRestarts,
+		&record.operationStalled,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return record, ErrNotFound
