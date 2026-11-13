@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/config"
@@ -187,6 +188,45 @@ func TestLoad(t *testing.T) {
 	)
 }
 
+func TestLoadGivenSonioxVoiceConfigurationThenSettingsAreRead(t *testing.T) {
+	t.Run(
+		"Given no Soniox environment then credentials and overrides remain empty",
+		func(t *testing.T) {
+			clearConfigEnv(t)
+
+			cfg := config.Load()
+
+			assert.Empty(t, cfg.SonioxAPIKey)
+			assert.Empty(t, cfg.VoiceSonioxURL)
+			assert.Empty(t, cfg.VoiceSonioxModel)
+			assert.True(t, cfg.VoiceAdminOnly)
+			assert.Equal(t, 5*time.Minute, cfg.VoiceMaxSession)
+		},
+	)
+
+	t.Run(
+		"Given Soniox environment then values are trimmed and shared languages are preserved",
+		func(t *testing.T) {
+			clearConfigEnv(t)
+			t.Setenv("VOICE_PROVIDER", " soniox ")
+			t.Setenv("SONIOX_API_KEY", " soniox-test-key ")
+			t.Setenv("VOICE_SONIOX_URL", " wss://soniox.example/transcribe-websocket ")
+			t.Setenv("VOICE_SONIOX_MODEL", " stt-rt-test ")
+			t.Setenv("VOICE_LANGUAGES", " zh-cn, en ")
+
+			cfg := config.Load()
+
+			assert.Equal(t, "soniox", cfg.VoiceProvider)
+			assert.Equal(t, "soniox-test-key", cfg.SonioxAPIKey)
+			assert.Equal(t, "wss://soniox.example/transcribe-websocket", cfg.VoiceSonioxURL)
+			assert.Equal(t, "stt-rt-test", cfg.VoiceSonioxModel)
+			assert.Equal(t, []string{"zh-cn", "en"}, cfg.VoiceLanguages)
+			assert.True(t, cfg.VoiceAdminOnly)
+			assert.Equal(t, 5*time.Minute, cfg.VoiceMaxSession)
+		},
+	)
+}
+
 func TestParseEmailSet(t *testing.T) {
 	t.Run(
 		"Given a comma-separated admin list when parsing then it normalizes and keeps built-in admins",
@@ -269,6 +309,9 @@ func clearConfigEnv(t *testing.T) {
 		"VOICE_QWEN_URL",
 		"VOICE_QWEN_MODEL",
 		"VOICE_QWEN_LANGUAGE",
+		"SONIOX_API_KEY",
+		"VOICE_SONIOX_URL",
+		"VOICE_SONIOX_MODEL",
 		"VOICE_SEEDASR_URL",
 		"VOICE_SEEDASR_API_KEY",
 		"VOICE_SEEDASR_APP_KEY",

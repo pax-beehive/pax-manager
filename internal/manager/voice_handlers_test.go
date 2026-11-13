@@ -213,6 +213,59 @@ func TestConfigureVoiceGivenProviderSettingsThenOnlyValidConfigEnablesVoice(t *t
 	assert.Equal(t, 16000, srv.voice.SampleRate())
 }
 
+func TestVoiceSettingsGivenSonioxConfigurationThenMapsAllProviderSettings(t *testing.T) {
+	settings := voiceSettings(Config{
+		VoiceProvider:    "soniox",
+		VoiceLanguages:   []string{"zh-cn", "en"},
+		SonioxAPIKey:     "soniox-test-key",
+		VoiceSonioxURL:   "wss://soniox.example/transcribe-websocket",
+		VoiceSonioxModel: "stt-rt-test",
+	})
+
+	assert.Equal(t, "soniox", settings.Provider)
+	assert.Equal(t, voice.SonioxSettings{
+		APIKey:    "soniox-test-key",
+		URL:       "wss://soniox.example/transcribe-websocket",
+		Model:     "stt-rt-test",
+		Languages: []string{"zh-cn", "en"},
+	}, settings.Soniox)
+}
+
+func TestVoiceConfigGivenAdminOnlySonioxThenOnlyAdminsSeeConfiguredProvider(t *testing.T) {
+	srv := newVoiceTestServer(t, Config{
+		VoiceProvider:  "soniox",
+		SonioxAPIKey:   "soniox-test-key",
+		VoiceAdminOnly: true,
+	})
+	require.NotNil(t, srv.voice)
+
+	status, config := getVoiceConfig(t, srv, "admin@example.com")
+	assert.Equal(t, http.StatusOK, status)
+	assert.Equal(t, voiceConfigResponse{
+		Enabled:            true,
+		Provider:           "soniox",
+		SampleRate:         16000,
+		Encoding:           voice.Encoding,
+		MaxDurationSeconds: 300,
+	}, config)
+
+	status, config = getVoiceConfig(t, srv, "member@example.com")
+	assert.Equal(t, http.StatusOK, status)
+	assert.False(t, config.Enabled)
+}
+
+func TestVoiceConfigGivenSonioxWithoutCredentialsThenVoiceStaysDisabled(t *testing.T) {
+	srv := newVoiceTestServer(t, Config{
+		VoiceProvider:  "soniox",
+		VoiceAdminOnly: true,
+	})
+	assert.Nil(t, srv.voice)
+
+	status, config := getVoiceConfig(t, srv, "admin@example.com")
+	assert.Equal(t, http.StatusOK, status)
+	assert.False(t, config.Enabled)
+}
+
 func TestVoiceOpenAPIDocumentsVoiceEndpoints(t *testing.T) {
 	raw, err := openAPIDocument("https://manager.example")
 	require.NoError(t, err)

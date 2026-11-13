@@ -57,6 +57,12 @@ func voiceSettings(cfg Config) voice.Settings {
 			Model:    cfg.VoiceQwenModel,
 			Language: cfg.VoiceQwenLanguage,
 		},
+		Soniox: voice.SonioxSettings{
+			APIKey:    cfg.SonioxAPIKey,
+			URL:       cfg.VoiceSonioxURL,
+			Model:     cfg.VoiceSonioxModel,
+			Languages: cfg.VoiceLanguages,
+		},
 		SeedASR: voice.SeedASRSettings{
 			URL:        cfg.VoiceSeedASRURL,
 			APIKey:     cfg.VoiceSeedASRAPIKey,

@@ -78,6 +78,9 @@ type Config struct {
 	VoiceQwenURL                     string
 	VoiceQwenModel                   string
 	VoiceQwenLanguage                string
+	SonioxAPIKey                     string
+	VoiceSonioxURL                   string
+	VoiceSonioxModel                 string
 	VoiceSeedASRURL                  string
 	VoiceSeedASRAPIKey               string
 	VoiceSeedASRAppKey               string
@@ -173,6 +176,9 @@ func Load() Config {
 		VoiceQwenURL:           strings.TrimSpace(os.Getenv("VOICE_QWEN_URL")),
 		VoiceQwenModel:         strings.TrimSpace(os.Getenv("VOICE_QWEN_MODEL")),
 		VoiceQwenLanguage:      strings.TrimSpace(os.Getenv("VOICE_QWEN_LANGUAGE")),
+		SonioxAPIKey:           strings.TrimSpace(os.Getenv("SONIOX_API_KEY")),
+		VoiceSonioxURL:         strings.TrimSpace(os.Getenv("VOICE_SONIOX_URL")),
+		VoiceSonioxModel:       strings.TrimSpace(os.Getenv("VOICE_SONIOX_MODEL")),
 		VoiceSeedASRURL:        strings.TrimSpace(os.Getenv("VOICE_SEEDASR_URL")),
 		VoiceSeedASRAPIKey:     strings.TrimSpace(os.Getenv("VOICE_SEEDASR_API_KEY")),
 		VoiceSeedASRAppKey:     strings.TrimSpace(os.Getenv("VOICE_SEEDASR_APP_KEY")),
