@@ -103,7 +103,7 @@ func assertSecretaryValidationRetry(t *testing.T, store Store, code string, rele
 	releaseBackoff()
 	invalid := "not JSON"
 	if code == "evidence" {
-		invalid = `{"summaries":[{"action":"create","proposal_key":"database","body":"Unsupported","source_message_ids":["retry-source"],"claims":[{"text":"Unsupported","evidence":[{"message_id":"retry-source","quote":"A fabricated quote."}]}]}],"outcomes":[{"message_id":"retry-source","action":"summarized","summary_keys":["database"]}]}`
+		invalid = `{"summaries":[{"action":"create","proposal_key":"database","body":"Unsupported","source_message_ids":["unavailable-source"]}],"outcomes":[{"message_id":"retry-source","action":"summarized","summary_keys":["database"]}]}`
 	}
 	first, firstSession, failure := runner.run(invalid)
 	require.Error(t, failure)
@@ -123,7 +123,7 @@ func assertSecretaryValidationRetry(t *testing.T, store Store, code string, rele
 	assert.True(t, completed)
 	assert.Equal(t, invalid, cached, "the rejected completed response remains recoverable")
 	releaseBackoff()
-	valid := `{"summaries":[{"action":"create","proposal_key":"database","title":"Database decision","body":"Use PostgreSQL.","source_message_ids":["retry-source"],"claims":[{"text":"Use PostgreSQL.","evidence":[{"message_id":"retry-source","quote":"PostgreSQL"}]}]}],"outcomes":[{"message_id":"retry-source","action":"summarized","summary_keys":["database"]}]}`
+	valid := `{"summaries":[{"action":"create","proposal_key":"database","title":"Database decision","body":"Use PostgreSQL.","source_message_ids":["retry-source"]}],"outcomes":[{"message_id":"retry-source","action":"summarized","summary_keys":["database"]}]}`
 	second, secondSession, err := runner.run(valid)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, second.RetryGeneration)
@@ -147,8 +147,7 @@ func assertSecretaryValidationRetry(t *testing.T, store Store, code string, rele
 	require.Len(t, summary.Coverage, 1)
 	assert.Equal(t, "retry-source", summary.Coverage[0].MessageID)
 	assert.Equal(t, domain.SearchContentHash("Use PostgreSQL."), summary.Coverage[0].ContentHash)
-	require.Len(t, summary.Claims, 1)
-	assert.Equal(t, summary.Coverage[0], summary.Claims[0].Evidence[0].Message)
+	assert.Empty(t, summary.Claims)
 	frozen, err := store.(domain.SummaryStore).ReadMessageVersion(
 		t.Context(),
 		owner,

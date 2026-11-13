@@ -140,7 +140,7 @@ func (s *Service) promptOwnedSecretaryAgent(
 			},
 		)
 		if err != nil {
-			return result, err
+			return result, secretarySessionCreationFailure(err)
 		}
 	}
 	if request.BeforePrompt != nil {
@@ -205,6 +205,17 @@ func (s *Service) readSecretaryExecution(
 	if err := secretaryKnownExecutionFailure(ctx, s.store, messages, agentID, sessionID, turnID); err != nil {
 		return "", true, false, err
 	}
+	completionID, err := secretaryKnownExecutionCompletion(
+		ctx,
+		s.store,
+		messages,
+		agentID,
+		sessionID,
+		turnID,
+	)
+	if err != nil {
+		return "", false, false, err
+	}
 	started, completed := false, false
 	responseEnd := len(messages)
 	for index, message := range messages {
@@ -216,7 +227,8 @@ func (s *Service) readSecretaryExecution(
 			continue
 		}
 		started = true
-		if message.MessageType == "turn_done" && message.Status == "complete" {
+		if message.MessageType == "turn_done" && message.Status == "complete" ||
+			completionID != "" && message.MessageID == completionID {
 			completed = true
 			responseEnd = index
 			break

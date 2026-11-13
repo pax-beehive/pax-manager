@@ -9,7 +9,8 @@ import (
 )
 
 func validateSecretaryBatchIdentity(stored, current domain.SecretaryJob) error {
-	if stored.BatchID != current.BatchID || stored.OwnerUserID != current.OwnerUserID ||
+	if !domain.SecretaryOutputPolicySupported(stored.OutputPolicyVersion) ||
+		stored.BatchID != current.BatchID || stored.OwnerUserID != current.OwnerUserID ||
 		stored.SourceID != current.SourceID || stored.SourceAgentID != current.SourceAgentID ||
 		stored.SourceSessionID != current.SourceSessionID || stored.AgentID != current.AgentID ||
 		stored.SettingsRevision != current.SettingsRevision || stored.RetryEpoch != current.RetryEpoch ||

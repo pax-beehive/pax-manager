@@ -10,7 +10,7 @@ func RequestedSourceReads(
 	job domain.SecretaryJob,
 	output string,
 ) ([]domain.MessageVersionRef, error) {
-	generated, err := decodeGeneratedSummary(output)
+	generated, err := decodeGeneratedSummaryForPolicy(output, job.OutputPolicyVersion)
 	if err != nil {
 		return nil, err
 	}

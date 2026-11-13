@@ -25,7 +25,7 @@ func TestSecretaryRetainedQuoteGivenShorterVerifiedSubstringThenPersistsExactVer
 				`UPDATE message_parts SET text=$1 WHERE message_id='m1'`, body)
 			require.NoError(t, err)
 		}
-		firstJob := secretaryNodesReadyJob(t, f.store)
+		firstJob := secretaryLegacyNodesReadyJob(t, f.store)
 		firstPublication, err := secretary.BuildNodePublication(firstJob,
 			retainedQuoteNodeOutput(t, "", 0, longQuote, "m1"), domain.SecretaryToolReads{})
 		require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestSecretaryRetainedQuoteGivenShorterVerifiedSubstringThenPersistsExactVer
 		require.Equal(t, "last", oldEvidence.View)
 
 		f.addMessage(t)
-		next := secretaryNodesReadyJob(t, f.store)
+		next := secretaryLegacyNodesReadyJob(t, f.store)
 		require.Len(t, next.Messages, 1)
 		require.Equal(t, "m2", next.Messages[0].SourceID,
 			"the original message must only be available through its persisted baseline")

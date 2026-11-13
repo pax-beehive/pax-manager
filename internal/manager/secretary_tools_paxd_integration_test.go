@@ -99,6 +99,7 @@ func TestPaxdSecretaryToolsGivenRealStdioAndStoredNodeKeyThenReadsAndPublishesEx
 	executions := jobs.(domain.SecretaryExecutionStore)
 	job, err = executions.PrepareSecretaryBatch(t.Context(), job)
 	require.NoError(t, err)
+	assert.Equal(t, domain.SecretarySourceOnlyOutputPolicyVersion, job.OutputPolicyVersion)
 	attempt, err := executions.BeginSecretaryAttempt(t.Context(), job)
 	require.NoError(t, err)
 	job.Attempt, job.AttemptID, job.RunID = &attempt, attempt.ID, attempt.ID
@@ -269,11 +270,6 @@ func TestPaxdSecretaryToolsGivenRealStdioAndStoredNodeKeyThenReadsAndPublishesEx
 			"title": "Database plan", "body": "Database indexing is settled.",
 			"source_message_ids": []string{job.Messages[0].SourceID},
 			"related_sources":    []domain.MessageVersionRef{ref},
-			"claims": []map[string]any{{
-				"text": "Database indexing is settled.",
-				"kind": "decision", "basis": "agent_reported", "state": "active",
-				"evidence": []map[string]string{{"message_id": read.MessageID, "quote": read.Text}},
-			}},
 		}},
 		"outcomes": []domain.SecretaryMessageOutcome{{
 			MessageID: job.Messages[0].SourceID, Action: "summarized", SummaryKeys: []string{"database-plan"},
@@ -333,7 +329,7 @@ func TestPaxdSecretaryToolsGivenRealStdioAndStoredNodeKeyThenReadsAndPublishesEx
 		2,
 		"the source delta and selected related source are frozen together",
 	)
-	assert.Equal(t, read.Text, version.Claims[0].Evidence[0].Quote)
+	assert.Empty(t, version.Claims)
 	resolved, err := baseStore.(domain.SummaryStore).ReadMessageVersion(t.Context(), owner, ref)
 	require.NoError(t, err)
 	assert.Equal(t, relatedDocument.Body, resolved.Body)

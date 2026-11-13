@@ -1,5 +1,19 @@
 # 统一 Node 模型：第一版只实现 summary
 
+## Current generation amendment (2026-11-13)
+
+Fresh Secretary jobs use `summary-sources-v2`: the model generates title, body
+and selected source message IDs, without copying per-claim quotes. Manager binds
+the selected IDs to authorized exact source references and freezes originals.
+Source association is for traceability and does not prove semantic correctness.
+There is no additional quotation alignment or model-based verifier.
+
+Existing claims/evidence structures remain readable for immutable history and
+already frozen legacy batches. They are not required for new-policy revisions.
+The Node identity, summary version, coverage, snapshot, ownership, invalidation
+and processing-ledger model below remains in use. This amendment supersedes
+generation requirements for claims/quotes in the older sections of this document.
+
 状态：summary 第一版由本 PR 实现；文档记录本地验证范围，尚未部署核验。
 设计确认：2026-11-03；实现说明更新：2026-11-04。
 本文从 `work/secretary-output-recovery` 的原设计复制，描述新工作区

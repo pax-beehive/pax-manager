@@ -16,7 +16,7 @@ func BuildNodePublication(
 	if err := validateMessages(job); err != nil {
 		return publication, err
 	}
-	generated, err := decodeGeneratedNodeBatch(output)
+	generated, err := decodeGeneratedNodeBatchForPolicy(output, job.OutputPolicyVersion)
 	if err != nil {
 		return publication, err
 	}
@@ -115,31 +115,9 @@ func buildNodeSummary(
 		return item, err
 	}
 	request.Coverage = coverage
-	claimJob := job
-	claimJob.CurrentSummary = baseline
-	claimJob.ResetRequired = baseline == nil
-	request.Claims, err = bindRollingClaims(
-		summary.Claims,
-		claimJob,
-		summary.RelatedSources,
-		reads.Messages,
-	)
+	request.Claims, err = nodeClaims(job, summary, baseline, reads, coverage)
 	if err != nil {
 		return item, err
-	}
-	covered := map[string]bool{}
-	for _, ref := range coverage {
-		covered[ref.Identity()] = true
-	}
-	for _, claim := range request.Claims {
-		for _, evidence := range claim.Evidence {
-			if !covered[evidence.Message.Identity()] {
-				return item, generatedOutputError(
-					"evidence",
-					"claim evidence must belong to the selected summary coverage",
-				)
-			}
-		}
 	}
 	if len(coverage) == 0 {
 		if summary.Action == "create" || !invalidatedNode(job, request.SummaryID) {
@@ -159,6 +137,45 @@ func buildNodeSummary(
 	}
 	item.Request = request
 	return item, nil
+}
+
+func nodeClaims(
+	job domain.SecretaryJob,
+	summary generatedNodeSummary,
+	baseline *domain.SummaryVersion,
+	reads domain.SecretaryToolReads,
+	coverage []domain.MessageVersionRef,
+) ([]domain.SummaryClaim, error) {
+	if domain.SecretarySourceOnlyOutput(job.OutputPolicyVersion) {
+		return nil, nil
+	}
+	claimJob := job
+	claimJob.CurrentSummary = baseline
+	claimJob.ResetRequired = baseline == nil
+	claims, err := bindRollingClaims(
+		summary.Claims,
+		claimJob,
+		summary.RelatedSources,
+		reads.Messages,
+	)
+	if err != nil {
+		return nil, err
+	}
+	covered := map[string]bool{}
+	for _, ref := range coverage {
+		covered[ref.Identity()] = true
+	}
+	for _, claim := range claims {
+		for _, evidence := range claim.Evidence {
+			if !covered[evidence.Message.Identity()] {
+				return nil, generatedOutputError(
+					"evidence",
+					"claim evidence must belong to the selected summary coverage",
+				)
+			}
+		}
+	}
+	return claims, nil
 }
 
 func invalidatedNode(job domain.SecretaryJob, id string) bool {

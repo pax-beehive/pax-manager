@@ -35,14 +35,18 @@ type generatedSummary struct {
 	RelatedSources []domain.MessageVersionRef `json:"related_sources,omitempty"`
 }
 
-func decodeGeneratedSummary(output string) (generatedSummary, error) {
+func decodeGeneratedSummaryForPolicy(output, policy string) (generatedSummary, error) {
 	var generated generatedSummary
+	if !domain.SecretaryOutputPolicySupported(policy) {
+		return generated, generatedOutputError("schema", "secretary output policy is unsupported")
+	}
 	if len(output) > 1024*1024 {
 		return generated, generatedOutputError("schema", "secretary response exceeds 1 MiB")
 	}
 	decoder := json.NewDecoder(bytes.NewBufferString(output))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&generated); err != nil {
+	generated, err := decodeSummaryJSON(decoder, domain.SecretarySourceOnlyOutput(policy))
+	if err != nil {
 		return generated, generatedOutputError(
 			"schema",
 			"secretary response must match the summary JSON schema",
@@ -69,9 +73,28 @@ func decodeGeneratedSummary(output string) (generatedSummary, error) {
 	return generated, nil
 }
 
+func decodeSummaryJSON(decoder *json.Decoder, sourceOnly bool) (generatedSummary, error) {
+	var generated generatedSummary
+	if !sourceOnly {
+		err := decoder.Decode(&generated)
+		return generated, err
+	}
+	var projected struct {
+		generatedSummary
+		Claims json.RawMessage `json:"claims,omitempty"`
+	}
+	err := decoder.Decode(&projected)
+	return projected.generatedSummary, err
+}
+
 // RequestedRelatedSources selects additional sources without trusting their receipts.
 func RequestedRelatedSources(output string) ([]domain.MessageVersionRef, error) {
-	generated, err := decodeGeneratedSummary(output)
+	return RequestedRelatedSourcesForPolicy(output, "")
+}
+
+// RequestedRelatedSourcesForPolicy ignores claims only under the frozen source-only policy.
+func RequestedRelatedSourcesForPolicy(output, policy string) ([]domain.MessageVersionRef, error) {
+	generated, err := decodeGeneratedSummaryForPolicy(output, policy)
 	return generated.RelatedSources, err
 }
 
@@ -91,7 +114,7 @@ func BuildPublicationWithReads(
 	if _, err := currentPromptState(job); err != nil {
 		return domain.PublishSummaryRequest{}, err
 	}
-	generated, err := decodeGeneratedSummary(output)
+	generated, err := decodeGeneratedSummaryForPolicy(output, job.OutputPolicyVersion)
 	if err != nil {
 		return domain.PublishSummaryRequest{}, err
 	}
@@ -115,14 +138,16 @@ func BuildPublicationWithReads(
 			seen[ref.Identity()] = true
 		}
 	}
-	request.Claims, err = bindRollingClaims(
-		generated.Claims,
-		job,
-		generated.RelatedSources,
-		reads.Messages,
-	)
-	if err != nil {
-		return domain.PublishSummaryRequest{}, err
+	if !domain.SecretarySourceOnlyOutput(job.OutputPolicyVersion) {
+		request.Claims, err = bindRollingClaims(
+			generated.Claims,
+			job,
+			generated.RelatedSources,
+			reads.Messages,
+		)
+		if err != nil {
+			return domain.PublishSummaryRequest{}, err
+		}
 	}
 	state := summaryPromptState{Title: request.Title, Body: request.Body, Claims: request.Claims}
 	encoded, err := json.Marshal(state)
