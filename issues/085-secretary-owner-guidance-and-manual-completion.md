@@ -1,4 +1,4 @@
-# ISSUE-085 Secretary owner guidance and manual completion
+# ISSUE-085 Secretary owner guidance, manual completion and snapshot stability
 
 **Status:** partial
 **Severity:** high
@@ -33,3 +33,11 @@ visible message parts are structurally rewritten, even if their concatenated
 canonical text is unchanged. Such reshaping may request another stale-node
 repair; canonical-equivalent acknowledgement reuse is deferred. Metadata-only
 reconciliation and settings changes do not rewrite message parts.
+
+The first CI run exposed a timestamp representation mismatch in the frozen
+guidance contract: PostgreSQL returned Local(UTC), while the persisted JSON
+snapshot restored UTC. The instant, instructions and revisions were equal;
+strict object equality still failed. Guidance scans now normalize timestamps
+to UTC for reads, update responses and snapshot loading. Driver regressions
+exercise zero and nonzero offsets, timestamp precision and JSON round trips.
+The acceptance runner explicitly uses UTC to match CI on developer machines.

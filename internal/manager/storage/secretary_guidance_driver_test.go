@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -24,6 +25,81 @@ func secretaryGuidanceRows(values ...[]driver.Value) scriptedRows {
 			"updated_at",
 		},
 		values: values,
+	}
+}
+
+func TestSecretaryGuidanceDriverGivenDatabaseTimezoneThenStoredSnapshotKeepsTheSameCanonicalTimestamp(
+	t *testing.T,
+) {
+	for _, zone := range []*time.Location{time.UTC, time.FixedZone("local_utc", 0), time.FixedZone("local_west", -8*60*60)} {
+		t.Run(zone.String(), func(t *testing.T) {
+			at := time.Date(2026, 11, 13, 2, 55, 3, 980097000, zone)
+			for _, operation := range []string{"get", "update", "snapshot"} {
+				t.Run(operation, func(t *testing.T) {
+					rows := secretaryGuidanceRows(
+						[]driver.Value{
+							"owner",
+							domain.SecretaryGuidanceUser,
+							"",
+							int64(2),
+							"Keep decisions.",
+							at,
+						},
+					)
+					script := &scriptedPostgresScript{queries: []scriptedRows{rows}}
+					store, cleanup := scriptedPostgresStore(t, script)
+					defer cleanup()
+					var saved domain.SecretaryGuidance
+					switch operation {
+					case "get":
+						result, err := store.GetSecretaryGuidance(
+							t.Context(),
+							"owner",
+							domain.SecretaryGuidanceUser,
+							"",
+						)
+						require.NoError(t, err)
+						saved = result
+					case "update":
+						result, err := store.UpdateSecretaryGuidance(
+							t.Context(),
+							"owner",
+							domain.SecretaryGuidanceUser,
+							"",
+							domain.SecretaryGuidanceUpdate{
+								Instruction:      "Keep decisions.",
+								ExpectedRevision: 1,
+							},
+						)
+						require.NoError(t, err)
+						saved = result
+					case "snapshot":
+						tx, err := store.db.BeginTx(t.Context(), nil)
+						require.NoError(t, err)
+						defer func() { _ = tx.Rollback() }()
+						result, err := loadSecretaryInstructionsTx(t.Context(), tx, "owner", "1")
+						require.NoError(t, err)
+						saved = result.User
+					}
+					assert.True(
+						t,
+						saved.UpdatedAt.Equal(at),
+						"normalization must preserve the instant and precision",
+					)
+					assert.Same(t, time.UTC, saved.UpdatedAt.Location())
+					raw, err := json.Marshal(saved)
+					require.NoError(t, err)
+					var restored domain.SecretaryGuidance
+					require.NoError(t, json.Unmarshal(raw, &restored))
+					assert.Equal(
+						t,
+						saved,
+						restored,
+						"a frozen JSON snapshot must retain canonical time metadata",
+					)
+				})
+			}
+		})
 	}
 }
 
