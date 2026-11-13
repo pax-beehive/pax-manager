@@ -30,13 +30,15 @@ type harnessUsageResult struct {
 
 // Optional fields stay raw so one malformed value drops only that value.
 type harnessUsagePayload struct {
-	Harness    string          `json:"harness"`
-	State      string          `json:"state"`
-	ObservedAt json.RawMessage `json:"observed_at"`
-	Plan       json.RawMessage `json:"plan"`
-	Windows    json.RawMessage `json:"windows"`
-	ExtraUsage json.RawMessage `json:"extra_usage"`
-	ErrorCode  json.RawMessage `json:"error_code"`
+	Harness      string          `json:"harness"`
+	HarnessLabel json.RawMessage `json:"harness_label"`
+	State        string          `json:"state"`
+	ObservedAt   json.RawMessage `json:"observed_at"`
+	Plan         json.RawMessage `json:"plan"`
+	Items        json.RawMessage `json:"items"`
+	Windows      json.RawMessage `json:"windows"`
+	ExtraUsage   json.RawMessage `json:"extra_usage"`
+	ErrorCode    json.RawMessage `json:"error_code"`
 }
 
 type harnessUsageWindowPayload struct {
@@ -57,6 +59,7 @@ func (s *Service) GetNodeHarnessUsage(
 		return 0, nil, err
 	}
 	if !validHarnessAuthTarget(nodeID, harness, "") {
+		// Any PAX agent type id; agent types without an adapter report unsupported.
 		return 0, nil, apperr.Error{
 			Status:  http.StatusBadRequest,
 			Message: "invalid harness usage request",
@@ -65,52 +68,70 @@ func (s *Service) GetNodeHarnessUsage(
 	if _, err = s.harnessAuthRemote(ctx, principal, nodeID); err != nil {
 		return 0, nil, err
 	}
+	native := nativeHarness(harness)
 	queryCtx, cancel := context.WithTimeout(ctx, harnessUsageQueryTimeout)
 	defer cancel()
 	raw, err := s.queryNodeControl(queryCtx, nodeID, map[string]any{
 		"type":                 "harness_usage.status",
-		"harness_usage_status": map[string]any{"harness": harness},
+		"harness_usage_status": map[string]any{"harness": native},
 	})
 	if err != nil {
 		return 0, nil, err
 	}
-	view, err := decodeHarnessUsage(raw, harness)
+	view, err := decodeHarnessUsage(raw, native)
 	if err != nil {
 		return 0, nil, err
 	}
+	view.Harness = harness
 	return http.StatusOK, domain.HarnessUsageData{HarnessUsage: view}, nil
 }
 
-func decodeHarnessUsage(raw json.RawMessage, harness string) (domain.HarnessUsageView, error) {
+// decodeHarnessUsage validates a paxd view for the native harness name.
+func decodeHarnessUsage(raw json.RawMessage, native string) (domain.HarnessUsageView, error) {
 	var result harnessUsageResult
 	if json.Unmarshal(raw, &result) != nil {
 		return domain.HarnessUsageView{}, invalidHarnessUsageResponse()
 	}
 	if result.Error != nil {
 		if result.Error.Code == "invalid_argument" {
-			// The harness was validated above, so the node's paxd predates the query.
-			return domain.HarnessUsageView{
-				Harness:   harness,
-				State:     "unavailable",
-				ErrorCode: "daemon_unsupported",
-			}, nil
+			// The harness id was validated above, so the node's paxd predates the
+			// query (Claude Code and Codex) or has no adapter for this agent type.
+			view := domain.HarnessUsageView{
+				Harness:      native,
+				HarnessLabel: harnessFallbackLabel(native),
+				State:        "unsupported",
+			}
+			if nativeLoginHarness(native) {
+				view.State, view.ErrorCode = "unavailable", "daemon_unsupported"
+			}
+			return view, nil
 		}
 		return domain.HarnessUsageView{}, harnessUsageDaemonError(result.Error.Code)
 	}
 	payload := result.HarnessUsage
-	if payload == nil || payload.Harness != harness {
+	if payload == nil || payload.Harness != native {
 		return domain.HarnessUsageView{}, invalidHarnessUsageResponse()
 	}
 	view := domain.HarnessUsageView{
-		Harness:    harness,
-		State:      payload.State,
-		ObservedAt: harnessUsageTime(payload.ObservedAt),
-		Plan:       harnessAuthAccountField(harnessUsageString(payload.Plan), 128),
+		Harness:      native,
+		HarnessLabel: harnessAuthAccountField(harnessUsageString(payload.HarnessLabel), 64),
+		State:        payload.State,
+		ObservedAt:   harnessUsageTime(payload.ObservedAt),
+		Plan:         harnessAuthAccountField(harnessUsageString(payload.Plan), 128),
+	}
+	if view.HarnessLabel == "" {
+		view.HarnessLabel = harnessFallbackLabel(native)
 	}
 	switch payload.State {
 	case "available":
 		view.Windows = harnessUsageWindows(payload.Windows)
 		view.ExtraUsage = harnessUsageExtra(payload.ExtraUsage)
+		if len(payload.Items) > 0 && string(payload.Items) != "null" {
+			view.Items = harnessUsageItems(payload.Items)
+		} else {
+			// Older paxd sends only windows and extra_usage.
+			view.Items = legacyHarnessUsageItems(view.Windows, view.ExtraUsage)
+		}
 	case "unavailable":
 		view.ErrorCode = harnessUsageErrorCode(harnessUsageString(payload.ErrorCode))
 	case "unsupported":

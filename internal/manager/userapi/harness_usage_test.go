@@ -21,6 +21,8 @@ import (
 
 const harnessUsageWeekly = `{"id":"seven_day","window_minutes":10080,"used_percent":3}`
 
+func usagePercent(v float64) *float64 { return &v }
+
 func harnessUsageResult(view string) json.RawMessage {
 	return json.RawMessage(`{"type":"harness_usage.status","harness_usage":` + view + `}`)
 }
@@ -48,7 +50,7 @@ func readHarnessUsage(
 func TestHarnessUsageGivenAvailableUsageWhenQueryingThenReturnsSanitizedUncachedView(
 	t *testing.T,
 ) {
-	for _, harness := range []string{"claude", "codex"} {
+	for harness, label := range map[string]string{"claude": "Claude Code", "codex": "Codex"} {
 		t.Run(harness, func(t *testing.T) {
 			f := newHarnessAuthFixture(t)
 			f.client.result = harnessUsageResult(
@@ -63,10 +65,30 @@ func TestHarnessUsageGivenAvailableUsageWhenQueryingThenReturnsSanitizedUncached
 			view, err := readHarnessUsage(t, f, harness)
 			require.NoError(t, err)
 			assert.Equal(t, domain.HarnessUsageView{
-				Harness:    harness,
-				State:      "available",
-				ObservedAt: "2026-11-12T17:31:51Z",
-				Plan:       "max",
+				Harness:      harness,
+				HarnessLabel: label,
+				State:        "available",
+				ObservedAt:   "2026-11-12T17:31:51Z",
+				Plan:         "max",
+				// An older paxd sends no items; Manager derives them from windows.
+				Items: []domain.HarnessUsageItem{
+					{
+						ID:            "five_hour",
+						Label:         "5-hour",
+						Kind:          "percent",
+						UsedPercent:   usagePercent(12.5),
+						WindowMinutes: 300,
+						ResetsAt:      "2026-11-12T20:00:00Z",
+					},
+					{
+						ID:            "seven_day_fable",
+						Label:         "Weekly \u00b7 Fable",
+						Kind:          "percent",
+						UsedPercent:   usagePercent(0),
+						WindowMinutes: 10080,
+					},
+					{ID: "extra_usage", Label: "Extra usage", Kind: "status", Value: "off"},
+				},
 				Windows: []domain.HarnessUsageWindow{
 					{
 						ID:            "five_hour",
@@ -104,9 +126,20 @@ func TestHarnessUsageGivenAvailableUsageWhenQueryingThenReturnsSanitizedUncached
 	}
 }
 
-// Views paxd produced from real Claude Code and Codex CLIs must pass through
-// unchanged, so the console sees exactly what the device reported.
+// Views an older paxd produced from real Claude Code and Codex CLIs keep their
+// fields and gain derived items and a display label.
 func TestHarnessUsageGivenRealPaxdOutputWhenQueryingThenPassesThroughUnchanged(t *testing.T) {
+	derived := map[string]string{
+		"claude": `"harness_label":"Claude Code","items":[` +
+			`{"id":"seven_day","label":"Weekly","kind":"percent","used_percent":4,` +
+			`"window_minutes":10080,"resets_at":"2026-11-16T09:00:00Z"},` +
+			`{"id":"seven_day_fable","label":"Weekly \u00b7 Fable","kind":"percent",` +
+			`"used_percent":0,"window_minutes":10080,"resets_at":"2026-11-16T09:00:00Z"},` +
+			`{"id":"extra_usage","label":"Extra usage","kind":"status","value":"off"}],`,
+		"codex": `"harness_label":"Codex","items":[` +
+			`{"id":"primary","label":"Weekly","kind":"percent","used_percent":31,` +
+			`"window_minutes":10080,"resets_at":"2026-11-18T08:58:18Z"}],`,
+	}
 	for harness, view := range map[string]string{
 		"claude": `{"harness":"claude","state":"available",` +
 			`"observed_at":"2026-11-12T19:14:20Z","plan":"max","windows":[` +
@@ -127,7 +160,9 @@ func TestHarnessUsageGivenRealPaxdOutputWhenQueryingThenPassesThroughUnchanged(t
 			require.NoError(t, err)
 			raw, err := json.Marshal(domain.HarnessUsageData{HarnessUsage: got})
 			require.NoError(t, err)
-			assert.JSONEq(t, `{"harness_usage":`+view+`}`, string(raw))
+			want := strings.Replace(view, `"state":"available",`,
+				`"state":"available",`+derived[harness], 1)
+			assert.JSONEq(t, `{"harness_usage":`+want+`}`, string(raw))
 		})
 	}
 }
@@ -276,6 +311,7 @@ func TestHarnessUsageGivenEachStateWhenQueryingThenKeepsOnlyStateSpecificFields(
 			view, err := readHarnessUsage(t, f, "claude")
 			require.NoError(t, err)
 			tc.expected.Harness = "claude"
+			tc.expected.HarnessLabel = "Claude Code"
 			assert.Equal(t, tc.expected, view)
 		})
 	}
@@ -311,9 +347,10 @@ func TestHarnessUsageGivenDaemonOrTransportErrorWhenQueryingThenMapsWithoutLeaki
 	view, err := readHarnessUsage(t, f, "codex")
 	require.NoError(t, err)
 	assert.Equal(t, domain.HarnessUsageView{
-		Harness:   "codex",
-		State:     "unavailable",
-		ErrorCode: "daemon_unsupported",
+		Harness:      "codex",
+		HarnessLabel: "Codex",
+		State:        "unavailable",
+		ErrorCode:    "daemon_unsupported",
 	}, view)
 
 	for code, status := range map[string]int{
@@ -355,7 +392,7 @@ func TestHarnessUsageGivenInvalidOrUnauthorizedTargetWhenQueryingThenNeverContac
 ) {
 	f := newHarnessAuthFixture(t)
 	for _, target := range []struct{ node, harness string }{
-		{"", "claude"}, {" node", "claude"}, {"node", "pi"}, {"node", ""}, {"node", "Claude"},
+		{"", "claude"}, {" node", "claude"}, {"node", "pi agent"}, {"node", ""}, {"node", "Claude"}, {"node", "_x"},
 	} {
 		_, _, err := f.svc.GetNodeHarnessUsage(
 			t.Context(),
@@ -399,6 +436,34 @@ func TestHarnessUsageGivenInvalidOrUnauthorizedTargetWhenQueryingThenNeverContac
 			_, err := readHarnessUsage(t, f, "claude")
 			assertHarnessAuthError(t, err, http.StatusServiceUnavailable)
 			assert.Zero(t, f.client.calls)
+		})
+	}
+}
+
+// Items paxd produced from real Claude Code and Codex CLIs (usage v2) must pass
+// through unchanged, answered in the agent type id the caller used.
+func TestHarnessUsageGivenRealPaxdItemsWhenQueryingThenPassesThrough(t *testing.T) {
+	for requested, tc := range map[string]struct{ native, items string }{
+		"claude-code": {"claude", `[{"id":"seven_day","label":"Weekly","kind":"percent",` +
+			`"used_percent":7,"window_minutes":10080,"resets_at":"2026-11-16T09:00:00Z"},` +
+			`{"id":"seven_day_fable","label":"Weekly · Fable","kind":"percent",` +
+			`"used_percent":0,"window_minutes":10080,"resets_at":"2026-11-16T09:00:00Z"},` +
+			`{"id":"extra_usage","label":"Extra usage","kind":"status","value":"off"}]`},
+		"codex": {"codex", `[{"id":"primary","label":"Weekly","kind":"percent",` +
+			`"used_percent":32,"window_minutes":10080,"resets_at":"2026-11-18T08:58:18Z"},` +
+			`{"id":"credits","label":"Credits","kind":"status","value":"available"}]`},
+	} {
+		t.Run(requested, func(t *testing.T) {
+			f := newHarnessAuthFixture(t)
+			f.client.result = harnessUsageResult(`{"harness":"` + tc.native +
+				`","harness_label":"Label","state":"available",` +
+				`"observed_at":"2026-11-12T19:14:20Z","items":` + tc.items + `}`)
+			got, err := readHarnessUsage(t, f, requested)
+			require.NoError(t, err)
+			assert.Equal(t, requested, got.Harness)
+			raw, err := json.Marshal(got.Items)
+			require.NoError(t, err)
+			assert.JSONEq(t, tc.items, string(raw))
 		})
 	}
 }

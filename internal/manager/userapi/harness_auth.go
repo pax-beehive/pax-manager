@@ -48,6 +48,8 @@ func (s *Service) GetNodeHarnessAuthStatus(
 	if !validHarnessAuthTarget(nodeID, harness, sessionID) {
 		return 0, nil, invalidHarnessAuthRequest()
 	}
+	requested := harness
+	harness = nativeHarness(harness)
 	remoteID, err := s.harnessAuthRemote(ctx, principal, nodeID)
 	if err != nil {
 		return 0, nil, err
@@ -70,6 +72,7 @@ func (s *Service) GetNodeHarnessAuthStatus(
 		!node.reconcile(view, principal.User.UserID, remoteID) {
 		return 0, nil, unownedHarnessAuthAttempt()
 	}
+	view.Harness = requested
 	return http.StatusOK, domain.HarnessAuthData{HarnessAuth: view}, nil
 }
 
@@ -80,6 +83,8 @@ func (s *Service) LoginNodeHarness(
 	if err != nil {
 		return 0, nil, err
 	}
+	requested := req.Harness
+	req.Harness = nativeHarness(req.Harness)
 	if !validHarnessAuthLogin(req) {
 		return 0, nil, invalidHarnessAuthRequest()
 	}
@@ -107,6 +112,7 @@ func (s *Service) LoginNodeHarness(
 		return 0, nil, err
 	}
 	delete(node.pending, req.Harness)
+	view.Harness = requested
 	return http.StatusAccepted, domain.HarnessAuthData{HarnessAuth: view}, nil
 }
 
@@ -288,6 +294,12 @@ func (s *Service) queryHarnessAuth(
 	if json.Unmarshal(raw, &result) != nil {
 		return domain.HarnessAuthView{}, invalidHarnessAuthResponse()
 	}
+	// paxd versions before generic harness ids reject agent types they cannot
+	// sign in; report that the same way newer paxd does.
+	if result.Error != nil && result.Error.Code == "invalid_argument" &&
+		!nativeLoginHarness(harness) {
+		return domain.HarnessAuthView{Harness: harness, State: "unsupported"}, nil
+	}
 	return decodeHarnessAuthView(result, harness)
 }
 
@@ -314,7 +326,7 @@ func decodeHarnessAuthView(
 		if view.SessionID == "" {
 			return domain.HarnessAuthView{}, invalidHarnessAuthResponse()
 		}
-	case "logged_in", "logged_out":
+	case "logged_in", "logged_out", "unsupported":
 	default:
 		return domain.HarnessAuthView{}, invalidHarnessAuthResponse()
 	}
@@ -324,6 +336,9 @@ func decodeHarnessAuthView(
 	view.Account = sanitizeHarnessAuthAccount(view.Account)
 	if view.State != "logged_in" && view.State != "succeeded" {
 		view.Account = nil
+	}
+	if view.State == "unsupported" {
+		view = domain.HarnessAuthView{Harness: view.Harness, State: view.State}
 	}
 	return view, nil
 }
@@ -335,7 +350,7 @@ func activeHarnessAuthState(state string) bool {
 
 func validHarnessAuthTarget(nodeID, harness, sessionID string) bool {
 	return nodeID != "" && strings.TrimSpace(nodeID) == nodeID &&
-		(harness == "claude" || harness == "codex") && len(sessionID) <= 128 &&
+		validHarnessID(harness) && len(sessionID) <= 128 &&
 		!strings.ContainsAny(sessionID, "\r\n\x00")
 }
 
@@ -361,24 +376,31 @@ func validHarnessAuthStart(req domain.LoginNodeHarnessRequest) bool {
 	if req.SessionID != "" {
 		return false
 	}
-	if req.Harness == "claude" {
+	switch req.Harness {
+	case "claude":
 		return req.Code == "" &&
 			(req.Method == "" || req.Method == "subscription" || req.Method == "console")
+	case "codex":
+		if req.Method == "api-key" || req.Method == "access-token" {
+			return validHarnessAuthSecret(req.Code)
+		}
+		return req.Code == "" && (req.Method == "" || req.Method == "device")
 	}
-	if req.Method == "api-key" || req.Method == "access-token" {
-		return validHarnessAuthSecret(req.Code)
-	}
-	return req.Code == "" && (req.Method == "" || req.Method == "device")
+	// Other agent types are forwarded so paxd can report whether it supports them.
+	return req.Code == "" && req.Method == ""
 }
 
 func harnessAuthMethod(harness, method string) string {
 	if method != "" {
 		return method
 	}
-	if harness == "codex" {
+	switch harness {
+	case "codex":
 		return "device"
+	case "claude":
+		return "subscription"
 	}
-	return "subscription"
+	return ""
 }
 
 func validHarnessAuthSecret(code string) bool {

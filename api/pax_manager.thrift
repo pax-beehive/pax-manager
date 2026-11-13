@@ -1501,6 +1501,20 @@ struct HarnessUsageExtra {
   1: optional bool enabled
 }
 
+struct HarnessUsageItem {
+  1: optional string id
+  2: optional string label
+  3: optional string kind
+  4: optional string severity
+  5: optional double used_percent
+  6: optional i32 window_minutes
+  7: optional string resets_at
+  8: optional double used
+  9: optional double limit
+  10: optional string unit
+  11: optional string value
+}
+
 struct HarnessUsageView {
   1: optional string harness
   2: optional string state
@@ -1509,6 +1523,8 @@ struct HarnessUsageView {
   5: optional list<HarnessUsageWindow> windows
   6: optional HarnessUsageExtra extra_usage
   7: optional string error_code
+  8: optional string harness_label
+  9: optional list<HarnessUsageItem> items
 }
 
 struct HarnessUsageData {
@@ -2236,11 +2252,11 @@ service PaxManagerAPI {
     api.get = "/api/v1/user/:user_id/nodes/:node_id/harnesses/:harness/auth/status",
     openapi.tag = "user",
     openapi.summary = "Get node harness login status",
-    openapi.description = "Forwards an ephemeral harness_auth.status query after checking node and login ownership. Responses must not be cached. Login attempts require routing to the Manager instance holding the node control tunnel and attempt ownership.",
+    openapi.description = "Forwards an ephemeral harness_auth.status query after checking node and login ownership. Agent types without native login support report state unsupported. Responses must not be cached. Login attempts require routing to the Manager instance holding the node control tunnel and attempt ownership.",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier.",
-    openapi.path.harness = "claude or codex."
+    openapi.path.harness = "PAX agent type id, such as claude-code or codex; claude is accepted as an alias of claude-code."
   )
 
   HarnessAuthResponse LoginNodeHarness(
@@ -2254,7 +2270,7 @@ service PaxManagerAPI {
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier.",
-    openapi.path.harness = "claude or codex."
+    openapi.path.harness = "PAX agent type id, such as claude-code or codex; claude is accepted as an alias of claude-code."
   )
 
   HarnessUsageResponse GetNodeHarnessUsage(
@@ -2263,11 +2279,11 @@ service PaxManagerAPI {
     api.get = "/api/v1/user/:user_id/nodes/:node_id/harnesses/:harness/usage",
     openapi.tag = "user",
     openapi.summary = "Get node harness plan usage",
-    openapi.description = "Forwards a harness_usage.status query after checking node ownership. paxd reads subscription plan usage from the native CLI on demand, without reading credentials. paxd and the native CLI cache the result, so it may be up to about one minute old. state is available, unsupported (the sign-in method has no plan limits), or unavailable with error_code cli_unsupported, read_failed, timeout, or daemon_unsupported (the node paxd predates this query). Windows report used_percent from 0 to 100. Responses must not be cached.",
+    openapi.description = "Forwards a harness_usage.status query after checking node ownership. paxd reads subscription plan usage from the native CLI on demand, without reading credentials. paxd and the native CLI cache the result, so it may be up to about two minutes old. state is available, unsupported (the sign-in method has no plan limits), or unavailable with error_code cli_unsupported, read_failed, timeout, or daemon_unsupported (the node paxd predates this query). items is the generic list clients should render: each item has id, label, kind (percent with used_percent 0-100 and optional window_minutes and resets_at; amount with used, optional limit, unit, and resets_at; status with value) and optional severity. Agent types without a usage adapter report unsupported. windows and extra_usage are deprecated. Responses must not be cached.",
     openapi.security = "cloudflareAccess",
     openapi.path.user_id = "User identifier.",
     openapi.path.node_id = "Node identifier.",
-    openapi.path.harness = "claude or codex."
+    openapi.path.harness = "PAX agent type id, such as claude-code or codex; claude is accepted as an alias of claude-code."
   )
 
   NodeDaemonCommandResponse UpgradeNodePaxl(

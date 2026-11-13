@@ -1640,6 +1640,48 @@
         },
         "type": "object"
       },
+      "HarnessUsageItem": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "double",
+            "type": "number"
+          },
+          "resets_at": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "used": {
+            "format": "double",
+            "type": "number"
+          },
+          "used_percent": {
+            "format": "double",
+            "type": "number"
+          },
+          "value": {
+            "type": "string"
+          },
+          "window_minutes": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "HarnessUsageResponse": {
         "properties": {
           "code": {
@@ -1665,6 +1707,15 @@
           },
           "harness": {
             "type": "string"
+          },
+          "harness_label": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HarnessUsageItem"
+            },
+            "type": "array"
           },
           "observed_at": {
             "type": "string"
@@ -12523,7 +12574,7 @@
         "description": "Forwards ephemeral harness_auth.login start, submit, or cancel. Supports Claude subscription/console and Codex device/api-key/access-token. Secret code is never recorded in Manager command history; callers and proxies must not log bodies or cache responses. An accepted command does not mean login has completed.",
         "parameters": [
           {
-            "description": "claude or codex.",
+            "description": "PAX agent type id, such as claude-code or codex; claude is accepted as an alias of claude-code.",
             "in": "path",
             "name": "harness",
             "required": true,
@@ -12635,10 +12686,10 @@
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/harnesses/{harness}/auth/status": {
       "get": {
-        "description": "Forwards an ephemeral harness_auth.status query after checking node and login ownership. Responses must not be cached. Login attempts require routing to the Manager instance holding the node control tunnel and attempt ownership.",
+        "description": "Forwards an ephemeral harness_auth.status query after checking node and login ownership. Agent types without native login support report state unsupported. Responses must not be cached. Login attempts require routing to the Manager instance holding the node control tunnel and attempt ownership.",
         "parameters": [
           {
-            "description": "claude or codex.",
+            "description": "PAX agent type id, such as claude-code or codex; claude is accepted as an alias of claude-code.",
             "in": "path",
             "name": "harness",
             "required": true,
@@ -12750,7 +12801,7 @@
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/harnesses/{harness}/usage": {
       "get": {
-        "description": "Forwards a harness_usage.status query after checking node ownership. paxd reads subscription plan usage from the native CLI on demand, without reading credentials. paxd and the native CLI cache the result, so it may be up to about one minute old. state is available, unsupported (the sign-in method has no plan limits), or unavailable with error_code cli_unsupported, read_failed, timeout, or daemon_unsupported (the node paxd predates this query). Windows report used_percent from 0 to 100. Responses must not be cached.",
+        "description": "Forwards a harness_usage.status query after checking node ownership. paxd reads subscription plan usage from the native CLI on demand, without reading credentials. paxd and the native CLI cache the result, so it may be up to about two minutes old. state is available, unsupported (the sign-in method has no plan limits), or unavailable with error_code cli_unsupported, read_failed, timeout, or daemon_unsupported (the node paxd predates this query). items is the generic list clients should render: each item has id, label, kind (percent with used_percent 0-100 and optional window_minutes and resets_at; amount with used, optional limit, unit, and resets_at; status with value) and optional severity. Agent types without a usage adapter report unsupported. windows and extra_usage are deprecated. Responses must not be cached.",
         "requestBody": {
           "content": {
             "application/json": {

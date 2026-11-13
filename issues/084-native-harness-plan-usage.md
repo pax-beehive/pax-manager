@@ -36,6 +36,15 @@ The paxd reader (native CLI query, caching) and the Console display ship in
 companion paxd and pax-console pull requests. Mark this issue resolved once
 those are merged.
 
+Usage v2 (generic items and agent type ids): the usage view now carries
+`harness_label` and an `items` list (`percent`, `amount`, or `status` kinds)
+that clients render without per-harness code; `windows` and `extra_usage` are
+deprecated, and Manager derives items from them for older paxd. The usage and
+auth routes accept any PAX agent type id (for example `claude-code`, `codex`,
+`kimi`), keep `claude` as an alias of `claude-code`, and report agent types
+without native usage or login support as `unsupported`. Manager queries paxd
+with the native name (`claude` for Claude Code) so older paxd keeps working.
+
 ## Follow-up
 
 One subscription is often signed in on several nodes, and each node reports its
@@ -48,5 +57,7 @@ of scope here; the current API stays per node and per harness.
 ```
 api/pax_manager.thrift - GetNodeHarnessUsage and HarnessUsage* structs
 internal/manager/userapi/harness_usage.go - ownership, query, sanitization
+internal/manager/userapi/harness_usage_items.go - item sanitization and legacy items
+internal/manager/userapi/harness_ids.go - agent type ids and native name mapping
 internal/manager/node_harness_usage.go - HTTP binding with no-store
 ```

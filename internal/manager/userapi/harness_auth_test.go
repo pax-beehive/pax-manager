@@ -319,7 +319,7 @@ func TestHarnessAuthGivenInvalidOrUnauthorizedTargetWhenAccessingThenNeverContac
 ) {
 	f := newHarnessAuthFixture(t)
 	for _, target := range []struct{ node, harness, session string }{
-		{"", "claude", ""}, {"node", "pi", ""}, {"node", "claude", strings.Repeat("x", 129)},
+		{"", "claude", ""}, {"node", "Pi", ""}, {"node", "-pi", ""}, {"node", strings.Repeat("x", 33), ""}, {"node", "claude", strings.Repeat("x", 129)},
 	} {
 		_, _, err := f.svc.GetNodeHarnessAuthStatus(
 			t.Context(),
@@ -369,7 +369,9 @@ func TestHarnessAuthGivenInvalidInputWhenLoggingInThenRejectsWithoutDispatch(t *
 	}
 	for name, mutate := range map[string]func(*domain.LoginNodeHarnessRequest){
 		"node":           func(r *domain.LoginNodeHarnessRequest) { r.NodeID = "" },
-		"harness":        func(r *domain.LoginNodeHarnessRequest) { r.Harness = "pi" },
+		"harness":        func(r *domain.LoginNodeHarnessRequest) { r.Harness = "pi agent" },
+		"other method":   func(r *domain.LoginNodeHarnessRequest) { r.Harness = "kimi"; r.Method = "device" },
+		"other secret":   func(r *domain.LoginNodeHarnessRequest) { r.Harness = "kimi"; r.Code = "secret" },
 		"command":        func(r *domain.LoginNodeHarnessRequest) { r.CommandID = "" },
 		"long command":   func(r *domain.LoginNodeHarnessRequest) { r.CommandID = strings.Repeat("x", 129) },
 		"operation":      func(r *domain.LoginNodeHarnessRequest) { r.Operation = "other" },
