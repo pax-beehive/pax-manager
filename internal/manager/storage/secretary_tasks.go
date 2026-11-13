@@ -23,6 +23,11 @@ type secretaryTaskRecord struct {
 	enabled            bool
 	blocked            bool
 	operationPending   bool
+	// Current attempt timestamps and the consecutive automatic restart count,
+	// used only to decide automatic recovery.
+	attemptCreated time.Time
+	attemptUpdated time.Time
+	autoRestarts   int
 }
 
 func secretaryTaskQuery(owner, scope string, query domain.SecretaryTaskQuery) (string, int, error) {

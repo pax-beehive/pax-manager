@@ -23,7 +23,8 @@ const secretaryTaskSelectSQL = `SELECT j.source_id::text,j.source_session_id,j.s
  ELSE COALESCE(a.last_error,j.last_error) END,j.execution_blocked,
  COALESCE((SELECT op.operation_id FROM secretary_operations op WHERE op.owner_user_id=j.owner_user_id
  AND op.source_id=j.source_id AND op.status IN ('queued','running','needs_attention')
- ORDER BY op.updated_at DESC,op.operation_id DESC LIMIT 1),'')
+ ORDER BY op.updated_at DESC,op.operation_id DESC LIMIT 1),''),
+ a.created_at,a.updated_at,` + secretaryAutoRestartCountSQL + `
  FROM secretary_jobs j JOIN secretary_settings cfg ON cfg.owner_user_id=j.owner_user_id
  JOIN agents source ON source.agent_id=j.source_agent_id AND source.owner_user_id=j.owner_user_id AND source.deleted_at IS NULL
  JOIN agent_sessions s ON s.id=j.source_id AND s.agent_id=j.source_agent_id AND s.session_id=j.source_session_id AND s.archived_at IS NULL
@@ -40,7 +41,7 @@ const secretaryTaskSelectSQL = `SELECT j.source_id::text,j.source_session_id,j.s
 func scanSecretaryTask(row interface{ Scan(...any) error }) (secretaryTaskRecord, error) {
 	var record secretaryTaskRecord
 	var updated, created time.Time
-	var retry sql.NullTime
+	var retry, attemptCreated, attemptUpdated sql.NullTime
 	task := &record.task
 	err := row.Scan(
 		&task.TaskID,
@@ -71,12 +72,16 @@ func scanSecretaryTask(row interface{ Scan(...any) error }) (secretaryTaskRecord
 		&record.failure,
 		&record.blocked,
 		&task.OperationID,
+		&attemptCreated,
+		&attemptUpdated,
+		&record.autoRestarts,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return record, ErrNotFound
 	}
 	record.operationPending = task.OperationID != ""
 	task.CreatedAt, task.UpdatedAt, record.retryAfter = &created, &updated, retry.Time
+	record.attemptCreated, record.attemptUpdated = attemptCreated.Time, attemptUpdated.Time
 	return record, err
 }
 
@@ -319,14 +324,7 @@ func (s *PostgresStore) ControlSecretaryTask(
 		if !record.enabled {
 			return domain.SecretaryTask{}, ErrConflict
 		}
-		_, err = tx.ExecContext(
-			ctx,
-			`UPDATE secretary_jobs SET retry_epoch=retry_epoch+1,retry_generation=retry_generation+1,
- paused=FALSE,execution_blocked=FALSE,control_revision=control_revision+1,lease_token='',lease_until=NULL,
- available_at=NOW(),updated_at=NOW()-INTERVAL '30 seconds',attempts=0,last_error='',last_validation_failure='',
- auto_retry_key='',auto_retry_count=0 WHERE source_id=$1`,
-			id,
-		)
+		_, err = tx.ExecContext(ctx, secretaryRestartJobSQL+` WHERE source_id=$1`, id)
 		if err == nil {
 			err = retrySecretaryOperationTx(ctx, tx, owner, id)
 		}

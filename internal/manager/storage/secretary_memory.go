@@ -43,6 +43,10 @@ type memorySecretaryJob struct {
 	updated, available, leaseUntil time.Time
 	completed                      *time.Time
 	lastError                      string
+	// Automatic restart bookkeeping; see consecutiveAutoRestarts.
+	autoRestartCount int
+	autoRestartEpoch int64
+	autoRestartedAt  time.Time
 }
 
 func (s *MemoryStore) secretaryLocked() *memorySecretaryState {

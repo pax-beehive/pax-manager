@@ -77,6 +77,13 @@ unknown. Changed settings or source versions can return a conflict; inspect
 the current task instead of bypassing that guard. Do not reset all tasks or
 force a new epoch as a recovery shortcut.
 
+2026-11-13 follow-up: [issue 089](089-secretary-stalled-tasks-need-manual-recovery.md)
+covers attempts that never receive a terminal proof. A dispatched turn that does
+not finish cleanly is always sent session/cancel, and a task that stays unknown
+restarts automatically in a new retry epoch after a bounded wait. The proof
+rules above are unchanged: a timeout or an idle snapshot is still not treated as
+a known failure of the original attempt.
+
 ## Operational boundary
 
 On 2026-11-13, a bounded read-only audit found three other historical unknown

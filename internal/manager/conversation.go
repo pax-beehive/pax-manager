@@ -77,6 +77,10 @@ type conversationRunner struct {
 	secretaryJob        *domain.SecretaryJob
 	searchAccess        *domain.WorkspaceSearchAccess
 	searchAccessOwnerID string
+	// promptWritten reports whether a session/prompt frame was handed to the
+	// transport. Before that point no native turn can exist, so a failure is
+	// safe to retry; afterwards the native outcome may be unknown.
+	promptWritten bool
 }
 
 type conversationResponse struct {
@@ -974,6 +978,8 @@ func (r *conversationRunner) sendTurnPrompt(
 		r.managerSessionID,
 		method,
 	)
+	// Mark before writing: a failed write may still have reached the transport.
+	r.promptWritten = true
 	if err := r.sendRawForTurn(ctx, payload, turnID); err != nil {
 		cancel()
 		return 0, nil, func() {}, err

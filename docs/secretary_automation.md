@@ -271,6 +271,68 @@ the same literal containment rule used for supplied and explicitly read text;
 it does not allow paraphrases, joined excerpts, another node's evidence,
 uncovered sources, or reuse after a message changes or is removed.
 
+## Stall recovery amendment (2026-11-13)
+
+This section supersedes the statements in the lifecycle section below that an
+unknown outcome is never restarted automatically, and that only tunnel or slot
+errors are undispatched. Everything else there still applies. See
+[issue 089](../issues/089-secretary-stalled-tasks-need-manual-recovery.md).
+
+**Not dispatched.** The conversation runner records when a session/prompt frame
+is handed to the transport. Every failure before that point is recorded as
+`failed` with `not_dispatched=true`: owner and agent lookup, internal session
+registration, tool registration, runner claim, session/new, and the pre-prompt
+checks. No native turn can exist yet, so these use the existing connection
+retry budget and never become an unknown outcome. Fencing keeps its own
+meaning, and an explicitly unknown outcome stays unknown. A failed write of the
+prompt frame counts as dispatched, because it may have reached the transport.
+
+**Fence monitor.** While an execution runs, the per-second check cancels it
+only for a definitive fence: disabled settings, a changed agent or revision, or
+a lost lease. A failed lookup proves nothing about the execution; it is
+reported once per execution and the execution continues. Publication repeats
+every fence check.
+
+**Native cancellation.** A dispatched turn that does not finish cleanly is
+always sent session/cancel: after a timeout, a stream error, an incomplete
+stream, or a pending approval. Otherwise the turn can keep the agent slot busy
+and make later attempts fail to connect.
+
+**Automatic restart.** A stalled task restarts without an owner action. The
+restart is the same transition as the explicit task retry: a new retry epoch,
+a fresh batch and attempt budget, and the old batch and attempt fenced so a
+late result cannot commit.
+
+A task qualifies when all of these hold:
+
+- its job cannot be claimed (`execution_blocked`), and its current batch has an
+  attempt and is `unknown`, `blocked`, or `pending` (a manual recheck that ends
+  in a retryable failure can leave a pending batch behind a blocked job);
+- Secretary is enabled, the task is not paused, and no lease is active;
+- it is not blocked by the deterministic input size limit, which a restart
+  cannot fix.
+
+| Restart | Wait | Measured from |
+| --- | --- | --- |
+| 1 | 15 minutes | start of an unknown attempt, otherwise the last failure of the batch |
+| 2 | 1 hour | same |
+| 3 | 4 hours | same |
+
+An unknown attempt is measured from its start because later rechecks of the
+same attempt refresh every other timestamp. The first wait leaves time for a
+terminal proof to arrive and recover the original result without a model call.
+After three consecutive restarts the task waits for the owner, as before.
+Publishing, or any explicit owner retry, starts a new budget: the count applies
+only while the job is still in the epoch created by its last automatic restart
+and has not published since (`auto_restart_count`, `auto_restart_epoch`,
+`auto_restarted_at` on `secretary_jobs`).
+
+A restart may spend another model call on the owner's own agent, which is why
+the budget is small and the wait grows. The worker checks once a minute, in
+`Worker.RestartStalled`, and logs each restart with the task ID, previous
+state and count, never source content. Deployment rewrites no existing task;
+tasks that are already unknown or blocked become eligible under the same rules.
+
 ## 一次 job 的持久生命周期
 
 `secretary_jobs` 是来源队列，batch 是固定输入，attempt 是一次实际模型调用，三者不是同一个 ID。
@@ -396,6 +458,7 @@ PG 租约不是完整的多 Manager agent 连接路由；水平扩容仍需把�
 - `internal/manager/storage/secretary_lifecycle*.go`、`secretary_completed_sources.go`：固定批次、重启恢复、权限与完成门槛。
 - `internal/manager/secretary/nodes_{prompt,output,publication,worker}.go`：提示词、结构校验、绑定、worker。
 - `internal/manager/secretary_agent_nodes.go`、`secretary_tools*.go`：真实 ACP 执行和只读 capability bridge。
+- `internal/manager/storage/secretary_auto_restart.go`: bounded automatic restart of stalled tasks.
 - `api/pax_manager.thrift`：用户路由源文件；变更后用 `make generate` 更新生成物。
 
 相关本地验证已覆盖 memory 和每用例独立 schema 的真实 PostgreSQL、多输出原子性、manifest 幂等、

@@ -79,6 +79,7 @@ func (s *MemoryStore) memorySecretaryTaskLocked(owner, id string) (secretaryTask
 		blocked:          job.executionBlocked,
 		sourceRuntime:    session.RuntimeStatus,
 		operationPending: s.secretaryOperationPendingLocked(owner, id),
+		autoRestarts:     job.consecutiveAutoRestarts(),
 	}
 	record.task = domain.SecretaryTask{
 		TaskID:        id,
@@ -117,6 +118,7 @@ func (s *MemoryStore) memorySecretaryTaskLocked(owner, id string) (secretaryTask
 			updated = attempt.UpdatedAt
 		}
 		record.task.AttemptID, record.attemptState = attempt.ID, attempt.State
+		record.attemptCreated, record.attemptUpdated = attempt.CreatedAt, attempt.UpdatedAt
 		record.failure, record.notDispatched = attempt.Error, attempt.NotDispatched
 		record.task.ExecutionSessionID, record.task.ExecutionAgentID, record.task.ExecutionStatus =
 			s.memorySecretaryExecutionLinkLocked(owner, cfg.AgentID, attempt.ID)

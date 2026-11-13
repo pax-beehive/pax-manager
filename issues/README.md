@@ -142,6 +142,8 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | 088 | partial | [Secretary ignores a correlated native completion](088-secretary-native-completion-not-recognized.md) | high | Secretary / ACP recovery |
 
+| 089 | partial | [Stalled Secretary tasks wait indefinitely for manual recovery](089-secretary-stalled-tasks-need-manual-recovery.md) | high | Secretary / execution lifecycle |
+
 See [TEMPLATE.md](TEMPLATE.md) for the issue format.
 
 ## Launch readiness
