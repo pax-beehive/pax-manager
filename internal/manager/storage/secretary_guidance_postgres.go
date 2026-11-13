@@ -30,6 +30,9 @@ func scanSecretaryGuidance(
 	if errors.Is(err, sql.ErrNoRows) {
 		return result, nil
 	}
+	if err == nil {
+		result.UpdatedAt = result.UpdatedAt.UTC()
+	}
 	return result, err
 }
 

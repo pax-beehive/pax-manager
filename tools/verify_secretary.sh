@@ -53,6 +53,7 @@ export PAX_MANAGER_SECRETARY_TEST_DATABASE_URL="postgres://pax:pax@${secretary_a
 export PAX_MANAGER_SECRETARY_TEST_TEMPLATE_DATABASE=pax_secretary_fixture_template
 export PAX_NOTIFICATIONS_TEST_DATABASE_URL="${PAX_MANAGER_SECRETARY_TEST_DATABASE_URL}"
 export GOWORK=off
+export TZ=UTC
 export GOCACHE="${GOCACHE:-/tmp/pax-manager-go-cache}"
 secretary_test_pattern='^TestSecretary'
 secretary_test_args=(-count=1)
