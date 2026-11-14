@@ -60,6 +60,10 @@ const searchMessageVisibilityFromSQL = `
  LEFT JOIN agent_sessions s ON s.agent_id = m.agent_id AND s.session_id = m.session_id
  LEFT JOIN nodes sn ON sn.node_id = s.node_id`
 
+const searchMessageProjectionSQL = `to_jsonb(m) || jsonb_build_object('node_id',
+ CASE WHEN NULLIF(m.node_id,'') IS NOT NULL AND NULLIF(s.node_id,'') IS NOT NULL
+ AND m.node_id<>s.node_id THEN '' ELSE COALESCE(NULLIF(s.node_id,''),m.node_id,'') END)`
+
 const searchMessageSourceVisibilitySQL = `
  AND a.deleted_at IS NULL
  AND an.deleted_at IS NULL AND mn.deleted_at IS NULL AND sn.deleted_at IS NULL
@@ -99,7 +103,7 @@ func loadSearchMessage(
 func loadSearchMessageWithByteLimit(
 	ctx context.Context, tx *sql.Tx, messageID string, byteLimit int,
 ) (domain.SearchDocument, error) {
-	messageProjection := `to_jsonb(m)`
+	messageProjection := searchMessageProjectionSQL
 	partsProjection := `COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.part_index) FROM message_parts p WHERE p.message_id=m.message_id),'[]'::jsonb)`
 	args := []any{messageID}
 	if byteLimit > 0 {
@@ -162,7 +166,7 @@ func loadSearchSession(
 		SourceID:                sourceID,
 		CanonicalizationVersion: domain.SearchCanonicalizationVersion,
 	}
-	err := tx.QueryRowContext(ctx, `SELECT a.owner_user_id, s.agent_id, s.session_id,
+	err := tx.QueryRowContext(ctx, `SELECT a.owner_user_id, COALESCE(s.node_id,''), s.agent_id, s.session_id,
  COALESCE(s.conversation_id,''), COALESCE(s.custom_session_name,s.session_name,''), s.created_at,
  COALESCE(q.desired_revision,0)
  FROM agent_sessions s JOIN agents a ON a.agent_id=s.agent_id
@@ -173,7 +177,7 @@ func loadSearchSession(
  AND COALESCE(s.source,'') <> 'secretary_internal'
  AND NOT starts_with(s.session_id,'sess_secretary_')
  AND an.deleted_at IS NULL AND sn.deleted_at IS NULL`, sourceID).
-		Scan(&doc.OwnerUserID, &doc.AgentID, &doc.SessionID, &doc.ConversationID, &doc.Title, &doc.CreatedAt, &doc.Revision)
+		Scan(&doc.OwnerUserID, &doc.NodeID, &doc.AgentID, &doc.SessionID, &doc.ConversationID, &doc.Title, &doc.CreatedAt, &doc.Revision)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && strings.TrimSpace(doc.Title) == "") {
 		return domain.SearchDocument{}, ErrNotFound
 	}
@@ -254,8 +258,15 @@ func scanSearchIDs(rows *sql.Rows) ([]string, error) {
 	return ids, rows.Err()
 }
 
-// Backfill only inserts missing queue rows. Triggers capture concurrent changes.
+// Backfill upgrades legacy projections and inserts missing rows. Triggers capture changes.
 func (s *PostgresStore) BackfillSearch(ctx context.Context) error {
+	// External ES versions require a higher revision to project newly added fields.
+	if _, err := s.db.ExecContext(ctx, `UPDATE search_sync_state
+ SET desired_revision=GREATEST(desired_revision,indexed_revision)+1,
+ projection_version=2, available_at=LEAST(available_at,NOW())
+ WHERE projection_version<2`); err != nil {
+		return err
+	}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO search_sync_state(kind,source_id,is_backfill)
  SELECT 'message',message_id,TRUE FROM messages
  UNION ALL SELECT 'session',id::text,TRUE FROM agent_sessions

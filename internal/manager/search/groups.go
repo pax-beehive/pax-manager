@@ -84,6 +84,7 @@ func groupSourceFields() []string {
 		"kind",
 		"source_id",
 		"owner_user_id",
+		"node_id",
 		"agent_id",
 		"session_id",
 		"summary_revision",

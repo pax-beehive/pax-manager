@@ -18,6 +18,7 @@ type SearchDocument struct {
 	Kind                    string    `json:"kind"`
 	SourceID                string    `json:"source_id"`
 	OwnerUserID             string    `json:"owner_user_id,omitempty"`
+	NodeID                  string    `json:"node_id,omitempty"`
 	AgentID                 string    `json:"agent_id,omitempty"`
 	SessionID               string    `json:"session_id,omitempty"`
 	TurnID                  string    `json:"turn_id,omitempty"`
@@ -43,6 +44,7 @@ type SearchQuery struct {
 	OwnerUserID string   `json:"-"`
 	Cursor      string   `json:"cursor,omitempty"`
 	Kinds       []string `json:"kinds,omitempty"`
+	NodeIDs     []string `json:"node_ids,omitempty"`
 	AgentIDs    []string `json:"agent_ids,omitempty"`
 	SessionIDs  []string `json:"session_ids,omitempty"`
 	Limit       int      `json:"limit,omitempty"`
@@ -108,11 +110,22 @@ func CanonicalSearchMessage(message MessageWithParts) (SearchDocument, error) {
 		return SearchDocument{}, ErrNotFound
 	}
 	return SearchDocument{Kind: "message", SourceID: message.MessageID,
-		OwnerUserID: message.OwnerUserID, AgentID: message.AgentID, SessionID: message.SessionID,
+		OwnerUserID: message.OwnerUserID, NodeID: message.NodeID, AgentID: message.AgentID, SessionID: message.SessionID,
 		TurnID:         message.TurnID,
 		ConversationID: message.ConversationID, Role: message.Role, SessionSeq: message.SessionSeq,
 		Body: text, ContentHash: SearchContentHash(text), CanonicalizationVersion: SearchCanonicalizationVersion,
 		CreatedAt: message.CreatedAt}, nil
+}
+
+// SearchMessageNodeID preserves source attribution without relabeling agent history.
+func SearchMessageNodeID(messageNodeID, sessionNodeID string) string {
+	if messageNodeID != "" && sessionNodeID != "" && messageNodeID != sessionNodeID {
+		return ""
+	}
+	if sessionNodeID != "" {
+		return sessionNodeID
+	}
+	return messageNodeID
 }
 
 func searchVisibleMessage(message MessageWithParts) bool {

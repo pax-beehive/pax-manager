@@ -35,7 +35,7 @@ func TestWorkspaceAccessDefaultSearchesAllOwnSessionsWithoutExpansion(t *testing
 		)
 	}
 	result, err := callWorkspaceAccessTool(t, srv, caller, "search",
-		`{"query":"cicd","scope":{"agent_ids":["self"],"session_ids":["*"]}}`)
+		`{"query":"cicd","scope":{"node_ids":["self"],"agent_ids":["self"],"session_ids":["*"]}}`)
 	require.NoError(t, err)
 	page := result.(workspaceScopedSearchPage)
 	require.Len(t, page.Hits, 2)

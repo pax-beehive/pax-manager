@@ -21,6 +21,7 @@ type GroupedSearchBackend interface {
 type SearchGroupMetadata struct {
 	Key       string `json:"key"`
 	Title     string `json:"title"`
+	NodeID    string `json:"node_id,omitempty"`
 	AgentID   string `json:"agent_id,omitempty"`
 	SessionID string `json:"session_id,omitempty"`
 }

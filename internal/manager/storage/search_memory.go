@@ -43,7 +43,7 @@ func (s *MemoryStore) ReadSearchDocument(
 				return domain.SearchDocument{}, ErrNotFound
 			}
 			return domain.SearchDocument{Kind: "session", SourceID: sourceID, OwnerUserID: ownerID,
-				AgentID: agent.AgentID, SessionID: session.SessionID, ConversationID: session.ConversationID,
+				NodeID: session.NodeID, AgentID: agent.AgentID, SessionID: session.SessionID, ConversationID: session.ConversationID,
 				Title: title, ContentHash: domain.SearchContentHash(title), CreatedAt: session.CreatedAt,
 				CanonicalizationVersion: domain.SearchCanonicalizationVersion}, nil
 		}
@@ -54,7 +54,8 @@ func (s *MemoryStore) ReadSearchDocument(
 func (s *MemoryStore) readMemorySummarySearchDocumentLocked(
 	owner, id string,
 ) (domain.SearchDocument, error) {
-	result, err := s.getMemorySummaryLocked(owner, id, 0, map[domain.SummaryRef]bool{})
+	seen := map[domain.SummaryRef]bool{}
+	result, err := s.getMemorySummaryLocked(owner, id, 0, seen)
 	if err != nil {
 		return domain.SearchDocument{}, err
 	}
@@ -69,9 +70,13 @@ func (s *MemoryStore) readMemorySummarySearchDocumentLocked(
 		SummaryRevision:         result.Revision,
 		CreatedAt:               result.CreatedAt,
 	}
+	doc.NodeID = s.memorySummarySearchNodeLocked(seen)
 	if source := secretaryPrimarySource(result); source != "" {
 		if group, readErr := s.readSearchGroupSessionLocked(owner, source, doc); readErr == nil {
 			doc.AgentID, doc.SessionID = group.AgentID, group.SessionID
+			if doc.NodeID != group.NodeID {
+				doc.NodeID = ""
+			}
 		}
 	}
 	return doc, nil
@@ -118,7 +123,41 @@ func (s *MemoryStore) readSearchMessageLocked(
 		domain.MessageWithParts{Message: message, Parts: parts},
 	)
 	doc.OwnerUserID = ownerID
+	doc.NodeID = domain.SearchMessageNodeID(message.NodeID, session.NodeID)
 	return doc, err
+}
+
+func (s *MemoryStore) memorySummarySearchNodeLocked(seen map[domain.SummaryRef]bool) string {
+	var nodeID string
+	for ref := range seen {
+		version := s.secretaryLocked().summaries[ref.SummaryID][ref.Revision-1]
+		if len(version.Coverage)+len(version.SummarySources) == 0 {
+			return ""
+		}
+		if source := secretaryPrimarySource(version); source != "" {
+			group, err := s.readSearchGroupSessionLocked(
+				version.OwnerUserID,
+				source,
+				domain.SearchDocument{},
+			)
+			if err == nil {
+				if group.NodeID == "" || (nodeID != "" && nodeID != group.NodeID) {
+					return ""
+				}
+				nodeID = group.NodeID
+			}
+		}
+		for _, source := range version.Coverage {
+			message := s.messages[source.MessageID]
+			session := s.sessions[sessionKey(message.AgentID, message.SessionID)]
+			sourceNodeID := domain.SearchMessageNodeID(message.NodeID, session.NodeID)
+			if sourceNodeID == "" || (nodeID != "" && nodeID != sourceNodeID) {
+				return ""
+			}
+			nodeID = sourceNodeID
+		}
+	}
+	return nodeID
 }
 
 func (s *MemoryStore) searchNodesVisibleLocked(nodeIDs ...string) bool {

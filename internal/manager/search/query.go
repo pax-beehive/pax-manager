@@ -35,6 +35,7 @@ func normalizeQuery(q domain.SearchQuery) (domain.SearchQuery, error) {
 		len(terms) == 0 || len(terms) > domain.MaxSearchTerms ||
 		len(q.Cursor) > 16384 ||
 		len(q.Kinds) > 10 ||
+		len(q.NodeIDs) > 100 ||
 		len(q.AgentIDs) > 100 ||
 		len(q.SessionIDs) > 100 {
 		return q, fmt.Errorf("%w: owner and bounded nonempty query required", ErrInvalidQuery)
@@ -46,9 +47,11 @@ func normalizeQuery(q domain.SearchQuery) (domain.SearchQuery, error) {
 		return q, fmt.Errorf("%w: limit must be between 1 and 100", ErrInvalidQuery)
 	}
 	q.Kinds = append([]string(nil), q.Kinds...)
+	q.NodeIDs = append([]string(nil), q.NodeIDs...)
 	q.AgentIDs = append([]string(nil), q.AgentIDs...)
 	q.SessionIDs = append([]string(nil), q.SessionIDs...)
 	sort.Strings(q.Kinds)
+	sort.Strings(q.NodeIDs)
 	sort.Strings(q.AgentIDs)
 	sort.Strings(q.SessionIDs)
 	return q, nil
@@ -61,6 +64,11 @@ func queryFingerprint(q domain.SearchQuery) string {
 		agents, _ := json.Marshal(q.AgentIDs)
 		raw = append(raw, []byte("\x00agents:")...)
 		raw = append(raw, agents...)
+	}
+	if len(q.NodeIDs) > 0 {
+		nodes, _ := json.Marshal(q.NodeIDs)
+		raw = append(raw, []byte("\x00nodes:")...)
+		raw = append(raw, nodes...)
 	}
 	if q.GroupKey != "" {
 		raw = append(raw, []byte("\x00group:"+q.GroupKey)...)
@@ -134,6 +142,9 @@ func searchBody(q domain.SearchQuery, cur cursor) map[string]any {
 	}
 	if len(q.AgentIDs) > 0 {
 		filter = append(filter, map[string]any{"terms": map[string]any{"agent_id": q.AgentIDs}})
+	}
+	if len(q.NodeIDs) > 0 {
+		filter = append(filter, map[string]any{"terms": map[string]any{"node_id": q.NodeIDs}})
 	}
 	if len(q.SessionIDs) > 0 {
 		filter = append(filter, map[string]any{"terms": map[string]any{"session_id": q.SessionIDs}})
