@@ -7,6 +7,16 @@ import (
 )
 
 func registerIDLRoutes(h *hertzserver.Hertz) {
+	h.GET("/api/v1/user/self/hosting-admin", GetHostingAdmin)
+	h.PATCH("/api/v1/user/self/hosting-admin", UpdateHostingAdmin)
+	h.GET("/api/v1/starter", GetStarter)
+	h.POST("/api/v1/starter", EnsureStarter)
+	h.POST("/api/v1/starter/wake", WakeStarter)
+	h.POST("/api/v1/hosting/jobs/claim", ClaimHostingJob)
+	h.POST("/api/v1/hosting/jobs/heartbeat", HeartbeatHostingJob)
+	h.POST("/api/v1/hosting/jobs/complete", CompleteHostingJob)
+	h.POST("/api/v1/hosting/model/chat/completions", ProxyHostingModel)
+	h.POST("/api/v1/hosting/gateway/accounting", GatewayAccounting)
 	h.GET("/api/v1/node/identity", NodeAuth(), GetNodeIdentity)
 	h.GET("/api/v1/health", Health)
 	h.POST("/api/v1/node/register", RegisterNode)

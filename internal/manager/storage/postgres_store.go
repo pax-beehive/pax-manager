@@ -51,7 +51,14 @@ func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, string(initSQL))
+	if _, err = s.db.ExecContext(ctx, string(initSQL)); err != nil {
+		return err
+	}
+	hostingSQL, err := os.ReadFile("db/hosting.sql")
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, string(hostingSQL))
 	return err
 }
 

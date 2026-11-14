@@ -14,6 +14,8 @@ import (
 )
 
 type MemoryStore struct {
+	hostingMu                    sync.Mutex
+	hostingState                 json.RawMessage
 	shortPairingAttempts         map[string]domain.ShortPairingAttempt
 	shortPairingBudgets          map[string]shortPairingBudget
 	turnQueue                    map[string]domain.QueuedTurn

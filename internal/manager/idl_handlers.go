@@ -134,6 +134,16 @@ func CreateAgentRegistrationToken(c context.Context, ctx *app.RequestContext) {
 type generatedHandlerFunc func(context.Context, *app.RequestContext)
 
 var generatedHandlerBridge = map[string]generatedHandlerFunc{
+	"GetHostingAdmin":               GetHostingAdmin,
+	"UpdateHostingAdmin":            UpdateHostingAdmin,
+	"GetStarter":                    GetStarter,
+	"EnsureStarter":                 EnsureStarter,
+	"WakeStarter":                   WakeStarter,
+	"ClaimHostingJob":               ClaimHostingJob,
+	"HeartbeatHostingJob":           HeartbeatHostingJob,
+	"CompleteHostingJob":            CompleteHostingJob,
+	"ProxyHostingModel":             ProxyHostingModel,
+	"GatewayAccounting":             GatewayAccounting,
 	"ArchiveProject":                ArchiveProject,
 	"CreateNodeAgent":               CreateNodeAgent,
 	"CreateNodeAgentApproval":       CreateNodeAgentApproval,

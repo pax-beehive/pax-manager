@@ -15,6 +15,22 @@ import (
 const DefaultPaxdVerificationBaseURL = "https://paxworkspace.net"
 
 type Config struct {
+	HostingHostKey                   string
+	HostingTokenSecret               string
+	HostingPublicURL                 string
+	HostingCloudURL                  string
+	HostingGatewayURL                string
+	HostingGatewayKey                string
+	HostingModel                     string
+	HostingModelsFile                string
+	HostingRequestsPerMinute         int
+	HostingGlobalRequestsPerMinute   int
+	HostingGrantMicrousd             int
+	HostingGrantTokens               int
+	HostingGlobalMicrousd            int
+	HostingInputPrice                int
+	HostingOutputPrice               int
+	HostingMaxOutputTokens           int
 	Region                           string
 	RegionProvisioningSecret         string
 	Port                             string
@@ -57,18 +73,34 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		Region:                   os.Getenv("PAX_REGION"),
-		RegionProvisioningSecret: os.Getenv("REGION_PROVISIONING_SECRET"),
-		Port:                     envDefault("PORT", "9879"),
-		DatabaseURL:              os.Getenv("DATABASE_URL"),
-		RegistrationToken:        os.Getenv("REGISTRATION_TOKEN"),
-		RegistrationOwnerEmail:   os.Getenv("REGISTRATION_TOKEN_OWNER_EMAIL"),
-		LocalUserID:              envDefault("LOCAL_USER_ID", "local@example.local"),
-		AllowLocalUserHeader:     parseBool(os.Getenv("ALLOW_LOCAL_USER_HEADER")),
-		CloudflareAccessDisabled: parseBool(os.Getenv("CLOUDFLARE_ACCESS_DISABLED")),
-		CloudflareAccessIssuer:   os.Getenv("CLOUDFLARE_ACCESS_ISSUER"),
-		CloudflareAccessAud:      os.Getenv("CLOUDFLARE_ACCESS_AUD"),
-		CloudflareAccessJWKS:     os.Getenv("CLOUDFLARE_ACCESS_JWKS_URL"),
+		HostingHostKey:                 os.Getenv("HOSTING_HOST_KEY"),
+		HostingTokenSecret:             os.Getenv("HOSTING_TOKEN_SECRET"),
+		HostingPublicURL:               os.Getenv("HOSTING_PUBLIC_URL"),
+		HostingCloudURL:                os.Getenv("HOSTING_CLOUD_URL"),
+		HostingGatewayURL:              os.Getenv("HOSTING_GATEWAY_URL"),
+		HostingGatewayKey:              os.Getenv("HOSTING_GATEWAY_KEY"),
+		HostingModel:                   os.Getenv("HOSTING_MODEL"),
+		HostingModelsFile:              os.Getenv("HOSTING_MODELS_FILE"),
+		HostingRequestsPerMinute:       parseIntEnv("HOSTING_REQUESTS_PER_MINUTE", 20),
+		HostingGlobalRequestsPerMinute: parseIntEnv("HOSTING_GLOBAL_REQUESTS_PER_MINUTE", 200),
+		HostingGrantMicrousd:           hostingBudgetEnv("HOSTING_GRANT_MICROUSD", 5000000),
+		HostingGrantTokens:             hostingBudgetEnv("HOSTING_GRANT_TOKENS", 200000),
+		HostingGlobalMicrousd:          hostingBudgetEnv("HOSTING_GLOBAL_MICROUSD", 0),
+		HostingInputPrice:              parseIntEnv("HOSTING_INPUT_MICROUSD_PER_MILLION", 0),
+		HostingOutputPrice:             parseIntEnv("HOSTING_OUTPUT_MICROUSD_PER_MILLION", 0),
+		HostingMaxOutputTokens:         parseIntEnv("HOSTING_MAX_OUTPUT_TOKENS", 2048),
+		Region:                         os.Getenv("PAX_REGION"),
+		RegionProvisioningSecret:       os.Getenv("REGION_PROVISIONING_SECRET"),
+		Port:                           envDefault("PORT", "9879"),
+		DatabaseURL:                    os.Getenv("DATABASE_URL"),
+		RegistrationToken:              os.Getenv("REGISTRATION_TOKEN"),
+		RegistrationOwnerEmail:         os.Getenv("REGISTRATION_TOKEN_OWNER_EMAIL"),
+		LocalUserID:                    envDefault("LOCAL_USER_ID", "local@example.local"),
+		AllowLocalUserHeader:           parseBool(os.Getenv("ALLOW_LOCAL_USER_HEADER")),
+		CloudflareAccessDisabled:       parseBool(os.Getenv("CLOUDFLARE_ACCESS_DISABLED")),
+		CloudflareAccessIssuer:         os.Getenv("CLOUDFLARE_ACCESS_ISSUER"),
+		CloudflareAccessAud:            os.Getenv("CLOUDFLARE_ACCESS_AUD"),
+		CloudflareAccessJWKS:           os.Getenv("CLOUDFLARE_ACCESS_JWKS_URL"),
 		CloudflareAccessMigrationEnabled: parseBool(
 			os.Getenv("CLOUDFLARE_ACCESS_MIGRATION_ENABLED"),
 		),
@@ -116,6 +148,9 @@ func Load() Config {
 }
 
 func (c Config) Validate() error {
+	if err := c.validateHostingModels(); err != nil {
+		return err
+	}
 	if err := c.validateRegion(); err != nil {
 		return err
 	}

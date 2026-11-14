@@ -1346,6 +1346,66 @@ struct CancelNodeDaemonMaintenanceRequest {
 }
 
 service PaxManagerAPI {
+  HostingAdminResponse GetHostingAdmin(1: optional HostingAdminQuery request) (
+    api.get = "/api/v1/user/self/hosting-admin",
+    openapi.tag = "user",
+    openapi.summary = "Read administrator model gateway budgets, policies and bounded usage records",
+    openapi.description = "Requires the server-resolved administrator principal. This Manager deployment is the scope. Never returns provider credentials, prompts or raw usage bodies.",
+    openapi.security = "cloudflareAccess"
+  )
+  HostingAdminResponse UpdateHostingAdmin(1: required HostingAdminUpdate request) (
+    api.patch = "/api/v1/user/self/hosting-admin",
+    openapi.tag = "user",
+    openapi.summary = "Update durable administrator model gateway controls",
+    openapi.description = "Requires administrator access and the current control revision. Changes preserve spent and reserved funds. Stale writes return 409; provider identities and routes are server configuration only.",
+    openapi.security = "cloudflareAccess"
+  )
+  HostingStatusResponse GetStarter(1: optional EmptyRequest request) (
+    api.get = "/api/v1/starter",
+    openapi.tag = "user",
+    openapi.summary = "Read the authenticated owner Starter and quota",
+    openapi.description = "Reads personal monthly allowance and shared monthly platform-pool availability and reset times without exposing the operator budget amount.",
+    openapi.security = "cloudflareAccess"
+  )
+  HostingStatusResponse EnsureStarter(1: optional EmptyRequest request) (
+    api.post = "/api/v1/starter",
+    openapi.tag = "user",
+    openapi.summary = "Idempotently create one Starter and monthly model allowance without compute",
+    openapi.security = "cloudflareAccess"
+  )
+  HostingStatusResponse WakeStarter(1: optional EmptyRequest request) (
+    api.post = "/api/v1/starter/wake",
+    openapi.tag = "user",
+    openapi.summary = "Queue an owned Starter start after checking monthly user and platform budgets",
+    openapi.security = "cloudflareAccess"
+  )
+  HostingResponse ClaimHostingJob(1: optional HostingClaimRequest request) (
+    api.post = "/api/v1/hosting/jobs/claim",
+    openapi.tag = "hosting",
+    openapi.summary = "Trusted host claim with pinned affinity and execution lease"
+  )
+  HostingResponse HeartbeatHostingJob(1: optional HostingUpdateRequest request) (
+    api.post = "/api/v1/hosting/jobs/heartbeat",
+    openapi.tag = "hosting",
+    openapi.summary = "Renew a current host execution lease"
+  )
+  HostingResponse CompleteHostingJob(1: optional HostingUpdateRequest request) (
+    api.post = "/api/v1/hosting/jobs/complete",
+    openapi.tag = "hosting",
+    openapi.summary = "Report owned ready runtime or stop an execution lease"
+  )
+  HostingResponse ProxyHostingModel(1: optional HostingModelRequest request) (
+    api.post = "/api/v1/hosting/model/chat/completions",
+    openapi.tag = "hosting",
+    openapi.summary = "Retired Manager model endpoint",
+    openapi.description = "Returns 410. Hosted model traffic must use the independent Pax gateway."
+  )
+  HostingResponse GatewayAccounting(1: optional HostingGatewayAccountingRequest request) (
+    api.post = "/api/v1/hosting/gateway/accounting",
+    openapi.tag = "hosting",
+    openapi.summary = "Trusted model gateway authorization and durable accounting",
+    openapi.description = "Requires the separate gateway service bearer key. Handles authorization, live effective model policies, reservation, moderation metadata, generation admission, cancellation and usage settlement with fixed failure codes. Never accepts model prompts."
+  )
   NodeIdentityResponse GetNodeIdentity(1: optional EmptyRequest request) (
     api.get = "/api/v1/node/identity",
     openapi.tag = "node",
@@ -2250,4 +2310,188 @@ service PaxManagerAPI {
     openapi.path.user_id = "User identifier.",
     openapi.path.grant_id = "Approval grant identifier."
   )
+}
+
+
+struct HostingQuota {
+  1: optional i64 granted_microusd
+  2: optional i64 spent_microusd
+  3: optional i64 reserved_microusd
+  4: optional i64 remaining_microusd
+  5: optional i64 granted_tokens
+  6: optional i64 spent_tokens
+  7: optional i64 reserved_tokens
+  8: optional i64 remaining_tokens
+  9: optional string period_start
+  10: optional string resets_at
+}
+struct HostingExample {
+  1: optional string id
+  2: optional string title
+  3: optional string prompt
+}
+struct HostingStarter {
+  1: optional string environment_id
+  2: optional string owner_user_id
+  3: optional string name
+  4: optional string plan
+  5: optional string state
+  6: optional string node_id
+  7: optional string agent_id
+  8: optional HostingQuota quota
+  9: optional list<HostingExample> examples
+  10: optional string error_code
+  11: optional bool access_paused
+}
+struct HostingStatusData {
+  1: optional bool enabled
+  2: optional HostingStarter starter
+  3: optional bool pool_available
+  4: optional string pool_period_start
+  5: optional string pool_resets_at
+}
+struct HostingStatusResponse {
+  1: optional HostingStatusData data
+  2: optional i32 code
+  3: optional string message
+}
+struct HostingAdminQuery {
+  1: optional i32 limit (api.query = "limit")
+  2: optional string user_query (api.query = "user_query")
+  3: optional string users_after (api.query = "users_after")
+  4: optional string requests_before (api.query = "requests_before")
+  5: optional string request_status (api.query = "request_status")
+}
+struct HostingAdminUpdate {
+  1: required i64 revision
+  2: required string action
+  3: optional string target_id
+  4: optional i64 monthly_microusd
+  5: optional i64 monthly_tokens
+  6: optional bool access_paused
+  7: optional bool enabled
+  8: optional string moderation
+  9: optional i64 max_output_tokens
+  10: optional i64 input_microusd_per_million
+  11: optional i64 output_microusd_per_million
+  12: optional string expected_model_base
+}
+struct HostingAdminPool {
+  1: optional i64 monthly_limit_microusd
+  2: optional i64 spent_microusd
+  3: optional i64 reserved_microusd
+  4: optional i64 remaining_microusd
+  5: optional string period_start
+  6: optional string resets_at
+  7: optional bool available
+}
+struct HostingAdminDefaults {
+  1: optional i64 monthly_microusd
+  2: optional i64 monthly_tokens
+}
+struct HostingAdminUser {
+  1: optional string user_id
+  2: optional string environment_id
+  3: optional string name
+  4: optional string email
+  5: optional bool access_paused
+  6: optional HostingQuota quota
+  7: optional i64 monthly_microusd
+  8: optional i64 monthly_tokens
+}
+struct HostingAdminModelPolicy {
+  1: optional string id
+  2: optional string provider
+  3: optional string upstream_model
+  4: optional string moderation
+  5: optional string policy_version
+  6: optional i64 max_output_tokens
+  7: optional i64 input_microusd_per_million
+  8: optional i64 output_microusd_per_million
+  9: optional bool enabled
+}
+struct HostingAdminRequestRecord {
+  1: optional string id
+  2: optional string request_id
+  3: optional string environment_id
+  4: optional string user_id
+  5: optional string model
+  6: optional string provider
+  7: optional string upstream_model
+  8: optional string status
+  9: optional string moderation_verdict
+  10: optional i64 spent_microusd
+  11: optional i64 reserved_microusd
+  12: optional i64 tokens
+  13: optional i64 input_tokens
+  14: optional i64 output_tokens
+  15: optional string created_at
+  16: optional bool generation_started
+  17: optional string upstream_request_id
+  18: optional string error_code
+}
+struct HostingAdminAudit {
+  1: optional string actor_user_id
+  2: optional string action
+  3: optional string target_id
+  4: optional i64 revision
+  5: optional string created_at
+}
+struct HostingAdminData {
+  1: optional i64 revision
+  2: optional bool enabled
+  3: optional HostingAdminPool pool
+  4: optional HostingAdminDefaults defaults
+  5: optional list<HostingAdminUser> users
+  6: optional string users_next
+  7: optional list<HostingAdminRequestRecord> requests
+  8: optional string requests_next
+  9: optional list<HostingAdminModelPolicy> models
+  10: optional map<string,string> model_warnings
+  11: optional list<HostingAdminAudit> audit
+  12: optional map<string,string> model_bases
+}
+struct HostingAdminResponse {
+  1: optional HostingAdminData data
+  2: optional i32 code
+  3: optional string message
+}
+struct HostingResponse {
+  1: optional JSON data
+  2: optional i32 code
+  3: optional string message
+}
+struct HostingClaimRequest {
+  1: optional string host_id
+  2: optional i32 capacity
+}
+struct HostingUpdateRequest {
+  1: optional string host_id
+  2: optional string job_id
+  3: optional i64 generation
+  4: optional string lease_token
+  5: optional string state
+  6: optional string node_id
+  7: optional string agent_id
+  8: optional string error_code
+}
+struct HostingModelRequest {
+  1: optional string model
+  2: optional JSON messages
+  3: optional i64 max_tokens
+  4: optional bool stream
+}
+
+struct HostingGatewayAccountingRequest {
+  1: optional string action
+  2: optional string token
+  3: optional string request_id
+  4: optional string reservation_id
+  5: optional i64 tokens
+  6: optional string model
+  7: optional i64 max_output_tokens
+  8: optional JSON moderation
+  9: optional JSON usage
+  10: optional bool known
+  11: optional JSON policy
 }

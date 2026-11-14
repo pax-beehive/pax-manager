@@ -19,12 +19,14 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	managerconfig "github.com/pax-beehive/pax-manager/internal/manager/config"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
+	"github.com/pax-beehive/pax-manager/internal/manager/hosting"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 	"github.com/pax-beehive/pax-manager/internal/manager/paxd"
 	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
 )
 
 type Service struct {
+	hosting            *hosting.Service
 	shortPairingStore  domain.ShortPairingStore
 	queueContext       context.Context
 	queueCancel        context.CancelFunc
@@ -145,6 +147,7 @@ func newServer(cfg Config, store Store) *Service {
 	})
 	s.regionalUsers, _ = transportBaseStore.(regionalUserStore)
 	s.auth = authService
+	s.configureHosting(transportBaseStore)
 	s.paxd = paxd.NewService(store, func() time.Time { return s.clock() }, authService, secrets)
 	s.userapi = userapi.NewService(
 		store,

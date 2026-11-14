@@ -22,6 +22,28 @@ func Register(r *server.Hertz) {
 		{
 			_v1 := _api.Group("/v1", _v1Mw()...)
 			_v1.GET("/health", append(_healthMw(), handler.Health)...)
+			_v1.GET("/starter", append(_getstarterMw(), handler.GetStarter)...)
+			_v1.POST("/starter", append(_ensurestarterMw(), handler.EnsureStarter)...)
+			{
+				_hosting := _v1.Group("/hosting", _hostingMw()...)
+				{
+					_gateway := _hosting.Group("/gateway", _gatewayMw()...)
+					_gateway.POST("/accounting", append(_gatewayaccountingMw(), handler.GatewayAccounting)...)
+				}
+				{
+					_jobs := _hosting.Group("/jobs", _jobsMw()...)
+					_jobs.POST("/claim", append(_claimhostingjobMw(), handler.ClaimHostingJob)...)
+					_jobs.POST("/complete", append(_completehostingjobMw(), handler.CompleteHostingJob)...)
+					_jobs.POST("/heartbeat", append(_heartbeathostingjobMw(), handler.HeartbeatHostingJob)...)
+				}
+				{
+					_model := _hosting.Group("/model", _modelMw()...)
+					{
+						_chat := _model.Group("/chat", _chatMw()...)
+						_chat.POST("/completions", append(_proxyhostingmodelMw(), handler.ProxyHostingModel)...)
+					}
+				}
+			}
 			{
 				_node := _v1.Group("/node", _nodeMw()...)
 				_node.GET("/identity", append(_getnodeidentityMw(), handler.GetNodeIdentity)...)
@@ -69,7 +91,16 @@ func Register(r *server.Hertz) {
 				}
 			}
 			{
+				_starter := _v1.Group("/starter", _starterMw()...)
+				_starter.POST("/wake", append(_wakestarterMw(), handler.WakeStarter)...)
+			}
+			{
 				_user := _v1.Group("/user", _userMw()...)
+				{
+					_self := _user.Group("/self", _selfMw()...)
+					_self.GET("/hosting-admin", append(_gethostingadminMw(), handler.GetHostingAdmin)...)
+					_self.PATCH("/hosting-admin", append(_updatehostingadminMw(), handler.UpdateHostingAdmin)...)
+				}
 				{
 					_user_id := _user.Group("/:user_id", _user_idMw()...)
 					_user_id.GET("/api-keys", append(_listuserapikeysMw(), handler.ListUserAPIKeys)...)
