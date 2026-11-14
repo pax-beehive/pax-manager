@@ -27,13 +27,16 @@ func Run(ctx context.Context) error {
 		return fmt.Errorf("open store: %w", err)
 	}
 	defer closeStore()
-	stopJournalGC, err := startTransportJournalGC(ctx, store, cfg)
+
+	srv := newServer(cfg, store)
+	// Overrides load in the background; a failed load never blocks startup.
+	stopRuntimeConfig := srv.runtimeConfig.Start(ctx)
+	defer stopRuntimeConfig()
+	stopJournalGC, err := startTransportJournalGC(ctx, store, cfg, srv.runtimeConfig)
 	if err != nil {
 		return fmt.Errorf("start transport journal cleanup: %w", err)
 	}
 	defer stopJournalGC()
-
-	srv := newServer(cfg, store)
 	stopNotifications, err := srv.startNotificationWorker(ctx)
 	if err != nil {
 		return err

@@ -22,7 +22,14 @@ type WorkerConfig struct {
 	AutoRestartInterval time.Duration
 	OnError             func(error)
 	OnRestart           func(domain.SecretaryTaskRestart)
+	// OwnerAllowed reports whether the job owner may use Secretary. Jobs of
+	// other owners are left leased (not failed) and retried after the lease.
+	OwnerAllowed func(ctx context.Context, ownerUserID string) bool
 }
+
+// maxSkippedClaims bounds how many claims one pass spends on gated owners,
+// so they cannot starve allowed owners behind them in the queue.
+const maxSkippedClaims = 32
 
 type Worker struct {
 	store    domain.SecretaryStore
@@ -118,12 +125,7 @@ func (w *Worker) ProcessOnce(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	jobs, err := w.store.ClaimSecretaryJobs(
-		ctx,
-		w.cfg.BatchSize,
-		w.cfg.LeaseDuration,
-		w.cfg.SettleDuration,
-	)
+	jobs, err := w.claimAllowed(ctx)
 	if err != nil {
 		return err
 	}
@@ -141,6 +143,31 @@ func (w *Worker) ProcessOnce(ctx context.Context) error {
 		cancel()
 	}
 	return errors.Join(failures...)
+}
+
+func (w *Worker) claimAllowed(ctx context.Context) ([]domain.SecretaryJob, error) {
+	for skipped := 0; ; {
+		jobs, err := w.store.ClaimSecretaryJobs(
+			ctx,
+			w.cfg.BatchSize,
+			w.cfg.LeaseDuration,
+			w.cfg.SettleDuration,
+		)
+		if err != nil || len(jobs) == 0 || w.cfg.OwnerAllowed == nil {
+			return jobs, err
+		}
+		allowed := jobs[:0]
+		for _, job := range jobs {
+			if w.cfg.OwnerAllowed(ctx, job.OwnerUserID) {
+				allowed = append(allowed, job)
+			} else {
+				skipped++
+			}
+		}
+		if len(allowed) > 0 || skipped >= maxSkippedClaims || ctx.Err() != nil {
+			return allowed, nil
+		}
+	}
 }
 
 func (w *Worker) processJob(ctx context.Context, job domain.SecretaryJob) error {

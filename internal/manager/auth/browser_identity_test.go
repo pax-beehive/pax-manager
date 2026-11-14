@@ -144,3 +144,48 @@ func TestForeignAdminCanReadAnalyticsButCannotUseRegionalResources(t *testing.T)
 		}
 	}
 }
+
+func TestForeignIdentityGivenRuntimeConfigAdminRoutesThenOnlyAdminsPass(t *testing.T) {
+	secret := strings.Repeat("s", 40)
+	store := storage.NewMemoryStore(time.Now)
+	for _, email := range []string{"admin@example.com", "member@example.com"} {
+		_, err := store.EnsureRegionalUser(t.Context(), "usr_local_"+email[:5], email, "user")
+		require.NoError(t, err)
+	}
+	svc := auth.NewService(
+		store,
+		store,
+		auth.NewStaticAdminPolicy(map[string]bool{"admin@example.com": true}),
+		auth.Secrets{},
+		auth.Config{RequireProvisionedUser: true, Region: "hk", BrowserIdentitySecret: secret},
+	)
+	targets := []struct{ method, path string }{
+		{"GET", "/api/v1/admin/configx"},
+		{"GET", "/api/v1/admin/config"},
+		{"PUT", "/api/v1/admin/config/search.url"},
+		{"DELETE", "/api/v1/admin/config/search.url"},
+		{"POST", "/api/v1/admin/config/test"},
+		{"GET", "/api/v1/admin/config/audit"},
+		{"POST", "/api/v1/admin/config/audit/7/revert"},
+	}
+	for _, target := range targets {
+		for _, email := range []string{"admin@example.com", "member@example.com"} {
+			proof := browserIdentity{
+				UserID: "usr_canonical", IdentityKey: email, HomeRegion: "us", Region: "hk",
+				Subject: "user_123", Method: target.method, Path: target.path,
+				Timestamp: time.Now().Unix(),
+			}
+			_, err := svc.Principal(
+				t.Context(),
+				auth.NewRequestMetadata(map[string]string{
+					"X-Pax-Identity-Assertion": browserProof(t, proof, secret),
+				}).WithTarget(target.method, target.path),
+			)
+			if email == "admin@example.com" && target.path != "/api/v1/admin/configx" {
+				require.NoError(t, err, target.path)
+			} else {
+				require.ErrorIs(t, err, domain.ErrUnauthorized, target.path)
+			}
+		}
+	}
+}

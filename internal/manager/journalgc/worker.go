@@ -19,6 +19,8 @@ type Options struct {
 	KeepTail  int64
 	Now       func() time.Time
 	Report    func(int64, error)
+	// Disabled is checked on every tick so cleanup can be paused live.
+	Disabled func() bool
 }
 
 func (o Options) defaults() (Options, error) {
@@ -70,6 +72,9 @@ func Start(ctx context.Context, store Store, options Options) (func(), error) {
 			case <-ticker.C:
 				if ctx.Err() != nil {
 					return
+				}
+				if options.Disabled != nil && options.Disabled() {
+					continue
 				}
 				batchCtx, stop := context.WithTimeout(ctx, options.Timeout)
 				deleted, err := store.PruneCompletedTransportFrames(

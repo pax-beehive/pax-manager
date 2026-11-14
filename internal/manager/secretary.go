@@ -7,6 +7,7 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
+	"github.com/pax-beehive/pax-manager/internal/manager/runtimeconfig"
 	"github.com/pax-beehive/pax-manager/internal/manager/secretary"
 	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
 )
@@ -40,6 +41,9 @@ func (s *Service) startSecretaryWorker(ctx context.Context) func() {
 				slog.String("previous_state", task.PreviousState),
 				slog.Int("restarts", task.Restarts),
 				slog.Bool("resumed", task.Resumed))
+		},
+		OwnerAllowed: func(ctx context.Context, owner string) bool {
+			return s.featureForOwner(ctx, owner, runtimeconfig.FeatureSecretary)
 		},
 	})
 	workerCtx, cancel := context.WithCancel(ctx)

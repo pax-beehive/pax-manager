@@ -60,6 +60,7 @@ type teamAgentListResponse struct {
 func TestTeamInviteAgentSharingAndCapsulePermissionsIntegration(t *testing.T) {
 	fixture := newIntegrationFixture(t)
 	fixture.waitForHealth(t)
+	openFeatures(t, fixture, "feature.collaboration", "feature.knowledge_capsules")
 
 	ownerHeaders := fixture.userHeaders()
 	operatorHeaders := map[string]string{"X-User-Email": "operator-" + fixture.email}

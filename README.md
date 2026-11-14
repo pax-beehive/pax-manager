@@ -75,6 +75,16 @@ Object storage credentials use the standard AWS SDK credential chain. Common cho
 EC2 instance role. pax-manager does not load Google Cloud service-account or ID-token
 credentials for artifact storage.
 
+### Runtime configuration
+
+Non-secret search and voice settings, the journal-cleanup switch, and feature
+gates can be overridden at runtime from the admin API (`/api/v1/admin/config`)
+without a restart. Overrides take precedence over the environment variables
+below, which remain the fallback. API keys stay environment-only and are never
+stored in the database. See
+[Runtime configuration](docs/runtime_config.md) for the registry, the
+environment-only variables, and the feature gate rollout.
+
 ### Streaming voice input
 
 Voice input is disabled unless `VOICE_PROVIDER` selects a configured provider.
@@ -86,7 +96,7 @@ interface. Provider credentials remain on Manager and must not be committed.
 | --- | --- | --- |
 | `VOICE_PROVIDER` | empty | Speech provider: `openai`, `qwen`, `soniox`, or `volcengine`. An empty value disables voice input. |
 | `VOICE_LANGUAGES` | `zh-cn,en` | Comma-separated language hints. Soniox normalizes these to base language codes such as `zh,en` and allows mixed-language speech. |
-| `VOICE_ADMIN_ONLY` | `true` | Limit voice configuration and streaming to administrators. Keep enabled for production rollout. |
+| `VOICE_ADMIN_ONLY` | `true` | Default for the `feature.voice_input` gate: `true` means admin-only, `false` means all users. A runtime override of the gate takes precedence. |
 | `VOICE_MAX_SESSION_SECONDS` | `300` | Maximum duration of a dictation session. |
 | `SONIOX_API_KEY` | empty | Required server-side API key when `VOICE_PROVIDER=soniox`. |
 | `VOICE_SONIOX_URL` | `wss://stt-rt.soniox.com/transcribe-websocket` | Optional Soniox WebSocket endpoint override. |

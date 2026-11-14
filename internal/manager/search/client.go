@@ -257,3 +257,23 @@ func (c *Client) Index(ctx context.Context, doc domain.SearchDocument) error {
 	}
 	return err
 }
+
+// Ping checks connectivity and credentials against the configured index. A
+// missing index is reported separately because the worker creates it.
+func (c *Client) Ping(ctx context.Context) (indexExists bool, err error) {
+	_, err = c.request(ctx, http.MethodGet, "/"+c.index+"/_mapping", nil)
+	var backendErr *backendError
+	if errors.As(err, &backendErr) && backendErr.status == http.StatusNotFound {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// StatusCode returns the backend HTTP status of err, or zero.
+func StatusCode(err error) int {
+	var backendErr *backendError
+	if errors.As(err, &backendErr) {
+		return backendErr.status
+	}
+	return 0
+}
