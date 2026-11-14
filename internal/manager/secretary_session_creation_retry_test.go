@@ -3,7 +3,6 @@ package manager
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -90,34 +89,86 @@ func TestSecretaryAgentGivenCancellationAfterPromptDispatchThenDoesNotMarkUndisp
 	}
 }
 
-func TestSecretarySessionCreationFailureGivenStructuredRetryableSlotErrorThenClassifiesOnlyThatPhase(
+func TestSecretaryAgentGivenAnySessionCreationFailureThenRetriesInsteadOfBecomingUnknown(
 	t *testing.T,
 ) {
-	slotFailure := conversationACPError{
-		message: "no ready ACP slot", kind: "slot_unavailable", retryable: true,
+	srv, fixture, job := secretarySlotRetryFixture(t)
+	ws := secretarySlotRetryTunnel(t, srv, fixture)
+	done := make(chan error, 1)
+	go func() {
+		_, err := srv.executeSecretaryAgent(t.Context(), secretarySlotRetryRequest(srv, job))
+		done <- err
+	}()
+	frame, request := readMockACPRequest(t, ws, "session/new")
+	writeMockACPError(t, ws, frame.QueueID, 1, request.ID, -32603,
+		"adapter failed to start", "", false)
+	var failure error
+	select {
+	case failure = <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Secretary did not finish the rejected session creation")
 	}
-	for name, failure := range map[string]error{
-		"direct":  slotFailure,
-		"wrapped": errors.Join(assert.AnError, slotFailure),
-	} {
-		t.Run(name, func(t *testing.T) {
-			actual := secretarySessionCreationFailure(failure)
-			assert.ErrorIs(t, actual, domain.ErrSecretaryNotDispatched)
-			assert.ErrorIs(t, actual, failure)
-		})
+	// session/new precedes session/prompt: no native turn can exist.
+	require.ErrorIs(t, failure, domain.ErrSecretaryNotDispatched)
+	assert.NotErrorIs(t, failure, domain.ErrSecretaryExecutionUnknown)
+	executions := srv.secretaryStore.(domain.SecretaryExecutionStore)
+	require.NoError(t, executions.FailSecretaryAttempt(t.Context(), job, job.AttemptID, failure))
+	detail, err := srv.secretaryStore.(domain.SecretaryTaskStore).GetSecretaryTask(
+		t.Context(), job.OwnerUserID, job.SourceID, domain.SecretaryTaskQuery{})
+	require.NoError(t, err)
+	assert.Equal(t, "waiting_retry", detail.Task.ExecutionState)
+	require.Len(t, detail.Attempts, 1)
+	assert.True(t, detail.Attempts[0].NotDispatched)
+}
+
+func TestSecretaryAgentGivenSessionCreationNeverAnswersThenGivesUpEarlyAndRetries(t *testing.T) {
+	previous := secretarySessionCreationTimeout
+	secretarySessionCreationTimeout = 50 * time.Millisecond
+	defer func() { secretarySessionCreationTimeout = previous }()
+	srv, fixture, job := secretarySlotRetryFixture(t)
+	ws := secretarySlotRetryTunnel(t, srv, fixture)
+	done := make(chan error, 1)
+	go func() {
+		_, err := srv.executeSecretaryAgent(t.Context(), secretarySlotRetryRequest(srv, job))
+		done <- err
+	}()
+	// The agent accepts the request and never answers it.
+	_, _ = readMockACPRequest(t, ws, "session/new")
+	select {
+	case failure := <-done:
+		require.ErrorIs(t, failure, domain.ErrSecretaryNotDispatched)
+		assert.ErrorIs(t, failure, context.DeadlineExceeded)
+		assert.NotErrorIs(t, failure, domain.ErrSecretaryExecutionUnknown)
+	case <-time.After(5 * time.Second):
+		t.Fatal("a silent session/new must not hold the worker for the whole execution deadline")
 	}
-	for name, failure := range map[string]error{
-		"nil":                 nil,
-		"message only":        errors.New("no ready ACP slot"),
-		"not retryable":       conversationACPError{kind: "slot_unavailable"},
-		"different kind":      conversationACPError{kind: "slot_busy", retryable: true},
-		"cancellation":        context.Canceled,
-		"deadline":            context.DeadlineExceeded,
-		"uncertain execution": errors.Join(slotFailure, domain.ErrSecretaryExecutionUnknown),
-	} {
-		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, failure, secretarySessionCreationFailure(failure))
-		})
+}
+
+func TestSecretaryAgentGivenPromptFailsAfterDispatchThenStopsTheNativeTurn(t *testing.T) {
+	srv, fixture, job := secretarySlotRetryFixture(t)
+	ws := secretarySlotRetryTunnel(t, srv, fixture)
+	done := make(chan error, 1)
+	go func() {
+		_, err := srv.executeSecretaryAgent(t.Context(), secretarySlotRetryRequest(srv, job))
+		done <- err
+	}()
+	frame, request := readMockACPRequest(t, ws, "session/new")
+	writeMockACPResponse(t, ws, frame.QueueID, 1, request.ID,
+		json.RawMessage(`{"sessionId":"slot-retry-native"}`))
+	frame, request = readMockACPRequest(t, ws, "session/prompt")
+	writeMockACPError(t, ws, frame.QueueID, 2, request.ID, -32603,
+		"model connection failed", "", false)
+	// The context is still live: the turn must be stopped for any unfinished
+	// dispatched prompt, not only after a timeout.
+	_, cancelRequest := readMockACPRequest(t, ws, "session/cancel")
+	assert.Equal(t, "session/cancel", cancelRequest.Method)
+	select {
+	case failure := <-done:
+		require.Error(t, failure)
+		assert.NotErrorIs(t, failure, domain.ErrSecretaryNotDispatched,
+			"a dispatched prompt must never be replayed as undispatched")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Secretary did not finish the failed prompt")
 	}
 }
 

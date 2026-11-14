@@ -14,21 +14,33 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/secretary"
 )
 
-func TestSecretaryDispatchGivenUnavailableTunnelBeforeRPCThenMarksSafeToRetry(t *testing.T) {
-	for _, failure := range []error{
-		apperr.Error{Status: http.StatusNotFound, Message: "agent tunnel not connected"},
-		apperr.Error{Status: http.StatusConflict, Message: "agent tunnel already in use"},
+func TestSecretaryDispatchGivenAnyFailureBeforePromptThenMarksSafeToRetry(t *testing.T) {
+	for name, failure := range map[string]error{
+		"tunnel offline": apperr.Error{Status: http.StatusNotFound, Message: "agent tunnel not connected"},
+		"tunnel busy":    apperr.Error{Status: http.StatusConflict, Message: "agent tunnel already in use"},
+		"storage":        errors.New("storage unavailable"),
+		"canceled":       context.Canceled,
+		"deadline":       context.DeadlineExceeded,
+		"missing agent":  domain.ErrNotFound,
 	} {
-		err := secretaryTunnelClaimFailure(failure)
-		assert.ErrorIs(t, err, domain.ErrSecretaryNotDispatched)
-		assert.ErrorIs(t, err, failure)
+		t.Run(name, func(t *testing.T) {
+			err := secretaryNotDispatchedFailure(failure)
+			assert.ErrorIs(t, err, domain.ErrSecretaryNotDispatched)
+			assert.ErrorIs(t, err, failure)
+		})
 	}
-	for _, failure := range []error{nil, context.Canceled, context.DeadlineExceeded,
-		errors.New("agent tunnel not connected"), domain.ErrNotFound,
-		apperr.Error{Status: http.StatusUnauthorized, Message: "agent tunnel not connected"},
-	} {
-		assert.Equal(t, failure, secretaryTunnelClaimFailure(failure))
-	}
+}
+
+func TestSecretaryDispatchGivenFencedOrUnknownFailureThenKeepsItsOriginalMeaning(t *testing.T) {
+	require.NoError(t, secretaryNotDispatchedFailure(nil))
+	fenced := errors.Join(domain.ErrSecretaryFenced, errors.New("settings changed"))
+	assert.Equal(t, fenced, secretaryNotDispatchedFailure(fenced))
+	already := errors.Join(domain.ErrSecretaryNotDispatched, errors.New("offline"))
+	assert.Equal(t, already, secretaryNotDispatchedFailure(already))
+	// Storage and the worker treat an explicit unknown outcome as unknown even
+	// when it is also marked undispatched.
+	unknown := secretaryNotDispatchedFailure(domain.ErrSecretaryExecutionUnknown)
+	assert.ErrorIs(t, unknown, domain.ErrSecretaryExecutionUnknown)
 }
 
 func TestSecretaryAgentGivenNoLiveTunnelThenFailsBeforeCreatingNativeSession(t *testing.T) {

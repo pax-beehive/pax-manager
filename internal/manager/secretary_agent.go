@@ -21,7 +21,7 @@ func (s *Service) executeSecretaryAgent(
 	request secretary.ExecutionRequest,
 ) (secretary.ExecutionResult, error) {
 	if err := ctx.Err(); err != nil {
-		return secretary.ExecutionResult{}, err
+		return secretary.ExecutionResult{}, secretaryNotDispatchedFailure(err)
 	}
 	if request.OwnerID == "" || request.AgentID == "" || request.RunID == "" ||
 		strings.TrimSpace(request.Prompt) == "" {
@@ -41,15 +41,15 @@ func (s *Service) executeSecretaryAgent(
 	}
 	user, err := s.store.GetUser(ctx, request.OwnerID)
 	if err != nil {
-		return secretary.ExecutionResult{}, err
+		return secretary.ExecutionResult{}, secretaryNotDispatchedFailure(err)
 	}
 	principal := domain.UserPrincipal{User: user}
 	agent, err := s.store.GetAgent(ctx, principal, request.AgentID)
 	if err != nil {
-		return secretary.ExecutionResult{}, err
+		return secretary.ExecutionResult{}, secretaryNotDispatchedFailure(err)
 	}
 	if agent.OwnerUserID != request.OwnerID {
-		return secretary.ExecutionResult{}, domain.ErrNotFound
+		return secretary.ExecutionResult{}, secretaryNotDispatchedFailure(domain.ErrNotFound)
 	}
 	return s.executeOwnedSecretaryAgent(ctx, principal, agent, request)
 }
@@ -65,7 +65,7 @@ func (s *Service) executeOwnedSecretaryAgent(
 	result := secretary.ExecutionResult{SessionID: sessionID}
 	session, err := s.store.GetSession(ctx, principal, sessionID)
 	if err != nil && !errors.Is(err, domain.ErrNotFound) {
-		return result, err
+		return result, secretaryNotDispatchedFailure(err)
 	}
 	if err == nil {
 		if session.AgentID != agent.AgentID || session.ArchivedAt != nil ||
@@ -104,7 +104,7 @@ func (s *Service) promptOwnedSecretaryAgent(
 	result := secretary.ExecutionResult{SessionID: sessionID}
 	if request.BeforePrompt != nil {
 		if err := request.BeforePrompt(ctx, agent.AgentID, sessionID); err != nil {
-			return result, err
+			return result, secretaryNotDispatchedFailure(err)
 		}
 	}
 	capability := ""
@@ -113,7 +113,7 @@ func (s *Service) promptOwnedSecretaryAgent(
 		var cleanup func()
 		capability, cleanup, err = s.registerSecretaryTools(ctx, request.Job, agent, sessionID)
 		if err != nil {
-			return result, err
+			return result, secretaryNotDispatchedFailure(err)
 		}
 		defer cleanup()
 	}
@@ -124,14 +124,18 @@ func (s *Service) promptOwnedSecretaryAgent(
 		session.NativeID,
 	)
 	if err != nil {
-		return result, secretaryTunnelClaimFailure(err)
+		return result, secretaryNotDispatchedFailure(err)
 	}
 	defer release()
 	runner.secretaryJob = &request.Job
 	conversation := conversationSession{managerID: sessionID, nativeID: session.NativeID}
 	if session.NativeID == "" || capability != "" {
+		// session/new precedes session/prompt, so no native turn exists yet. It
+		// is retried, so an agent that never answers must not hold the single
+		// worker for the whole execution deadline on every attempt.
+		createCtx, cancelCreate := context.WithTimeout(ctx, secretarySessionCreationTimeout)
 		conversation, err = s.createConversationSession(
-			ctx,
+			createCtx,
 			principal,
 			&runner,
 			conversationRequest{
@@ -139,13 +143,14 @@ func (s *Service) promptOwnedSecretaryAgent(
 				secretaryCapability: capability,
 			},
 		)
+		cancelCreate()
 		if err != nil {
-			return result, secretarySessionCreationFailure(err)
+			return result, secretaryNotDispatchedFailure(err)
 		}
 	}
 	if request.BeforePrompt != nil {
 		if err = request.BeforePrompt(ctx, agent.AgentID, sessionID); err != nil {
-			return result, err
+			return result, secretaryNotDispatchedFailure(err)
 		}
 	}
 	sub := runner.agentConn.subscribeSSE(sessionID)
@@ -161,10 +166,16 @@ func (s *Service) promptOwnedSecretaryAgent(
 		turnID,
 		[]map[string]any{{"type": "text", "text": request.Prompt}},
 	)
-	if ctx.Err() != nil {
+	if runner.promptWritten && (err != nil || !completed) {
+		// A dispatched turn that did not finish cleanly may still be running or
+		// waiting for approval. Left alone it keeps the agent slot busy and
+		// makes every later attempt fail, so always ask the agent to stop it.
 		cancelSecretaryTurn(ctx, &runner, sessionID)
 	}
 	if err != nil {
+		if !runner.promptWritten {
+			return result, secretaryNotDispatchedFailure(err)
+		}
 		return result, err
 	}
 	if !completed {

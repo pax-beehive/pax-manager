@@ -14,6 +14,16 @@ The Node identity, summary version, coverage, snapshot, ownership, invalidation
 and processing-ledger model below remains in use. This amendment supersedes
 generation requirements for claims/quotes in the older sections of this document.
 
+## Stall recovery amendment (2026-11-13)
+
+Section 9 below says an unknown native execution is never resent automatically,
+and that only an unconnected or busy tunnel is undispatched. Both statements
+are superseded by the stall recovery amendment in the
+[runtime notes](secretary_automation.md): every failure before the prompt frame
+is written is undispatched, and a task that stays unknown or blocked restarts
+automatically within a small budget. The batch, attempt and fencing model in
+this document is unchanged.
+
 状态：summary 第一版由本 PR 实现；文档记录本地验证范围，尚未部署核验。
 设计确认：2026-11-03；实现说明更新：2026-11-04。
 本文从 `work/secretary-output-recovery` 的原设计复制，描述新工作区

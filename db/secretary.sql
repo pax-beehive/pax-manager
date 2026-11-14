@@ -38,6 +38,13 @@ ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS retry_epoch BIGINT NOT NULL 
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS execution_blocked BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS paused BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS control_revision BIGINT NOT NULL DEFAULT 0;
+-- Automatic restarts of stalled work. The count only applies while the job is
+-- still in the epoch that restart created and has not published since.
+ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS auto_restart_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS auto_restart_epoch BIGINT NOT NULL DEFAULT -1;
+ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS auto_restarted_at TIMESTAMPTZ;
+-- The attempt whose saved output was last released automatically for publishing.
+ALTER TABLE secretary_jobs ADD COLUMN IF NOT EXISTS auto_resumed_attempt_id TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS secretary_batches (
     batch_id TEXT PRIMARY KEY,

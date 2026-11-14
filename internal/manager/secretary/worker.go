@@ -3,6 +3,7 @@ package secretary
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
@@ -16,7 +17,11 @@ type WorkerConfig struct {
 	ActiveCheckInterval time.Duration
 	PollInterval        time.Duration
 	RetryInterval       time.Duration
+	// AutoRestartInterval is how often stalled tasks are checked for a bounded
+	// automatic restart.
+	AutoRestartInterval time.Duration
 	OnError             func(error)
+	OnRestart           func(domain.SecretaryTaskRestart)
 }
 
 type Worker struct {
@@ -47,11 +52,15 @@ func NewWorker(store domain.SecretaryStore, executor Executor, cfg WorkerConfig)
 	if cfg.RetryInterval <= 0 {
 		cfg.RetryInterval = 10 * time.Second
 	}
+	if cfg.AutoRestartInterval <= 0 {
+		cfg.AutoRestartInterval = time.Minute
+	}
 	return &Worker{store: store, executor: executor, cfg: cfg}
 }
 
 func (w *Worker) Run(ctx context.Context) error {
 	initialized := false
+	var restartChecked time.Time
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -63,6 +72,10 @@ func (w *Worker) Run(ctx context.Context) error {
 		}
 		if err == nil {
 			err = w.ProcessOnce(ctx)
+		}
+		if initialized && time.Since(restartChecked) >= w.cfg.AutoRestartInterval {
+			restartChecked = time.Now()
+			err = errors.Join(err, w.RestartStalled(ctx))
 		}
 		delay := w.cfg.PollInterval
 		if err != nil {
@@ -79,6 +92,26 @@ func (w *Worker) Run(ctx context.Context) error {
 		case <-timer.C:
 		}
 	}
+}
+
+// RestartStalled gives tasks that can no longer progress on their own a bounded
+// automatic restart. It is the same transition as an explicit owner retry: the
+// previous attempt stays fenced in its old epoch, so a late result cannot commit.
+func (w *Worker) RestartStalled(ctx context.Context) error {
+	restarts, ok := w.store.(domain.SecretaryAutoRestartStore)
+	if !ok {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	restarted, err := restarts.RestartStalledSecretaryTasks(ctx, 0)
+	if w.cfg.OnRestart != nil {
+		for _, task := range restarted {
+			w.cfg.OnRestart(task)
+		}
+	}
+	return err
 }
 
 func (w *Worker) ProcessOnce(ctx context.Context) error {
@@ -196,15 +229,27 @@ func (w *Worker) monitorJob(
 	defer close(done)
 	ticker := time.NewTicker(w.cfg.ActiveCheckInterval)
 	defer ticker.Stop()
+	reported := false
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := w.ensureActive(ctx, job); err != nil {
+			err := w.ensureActive(ctx, job)
+			if err == nil || ctx.Err() != nil {
+				continue
+			}
+			if errors.Is(err, domain.ErrSecretaryFenced) {
 				errorsOut <- err
 				cancel()
 				return
+			}
+			// A failed check proves nothing about the execution. Canceling here
+			// would turn one storage hiccup into an unknown outcome, so keep
+			// running; publication repeats every fence check anyway.
+			if !reported && w.cfg.OnError != nil {
+				w.cfg.OnError(fmt.Errorf("check secretary execution fence: %w", err))
+				reported = true
 			}
 		}
 	}

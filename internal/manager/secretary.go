@@ -34,6 +34,13 @@ func (s *Service) startSecretaryWorker(ctx context.Context) func() {
 		OnError: func(err error) {
 			logging.Warn(ctx, "Secretary background task failed", slog.String("error", err.Error()))
 		},
+		OnRestart: func(task domain.SecretaryTaskRestart) {
+			logging.Info(ctx, "Secretary task recovered automatically",
+				slog.String("task_id", task.TaskID),
+				slog.String("previous_state", task.PreviousState),
+				slog.Int("restarts", task.Restarts),
+				slog.Bool("resumed", task.Resumed))
+		},
 	})
 	workerCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})

@@ -23,3 +23,8 @@ timeouts, cancellation and post-prompt failures retain their previous semantics.
 A real ACP regression verifies no prepared prompt record, waiting_retry,
 connection count/deadline and no immediate claim. A dispatched prompt cancellation
 remains uncertain. Historical unknown rows are not automatically rewritten.
+
+2026-11-13 follow-up: [issue 089](089-secretary-stalled-tasks-need-manual-recovery.md)
+generalizes this. Every failure before the session/prompt frame is written is
+classified as not dispatched, so the structured slot error is no longer a
+special case. A dispatched prompt still remains uncertain.
