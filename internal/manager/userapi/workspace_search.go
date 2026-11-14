@@ -121,6 +121,12 @@ func (s *WorkspaceSearchService) Search(
 		query.Limit = 20
 	}
 	page, err := s.backend.Search(ctx, query)
+	if errors.Is(err, domain.ErrSearchUnavailable) {
+		return WorkspaceSearchPage{}, searchHTTPError(
+			http.StatusServiceUnavailable,
+			"search is unavailable",
+		)
+	}
 	if errors.Is(err, searchbackend.ErrInvalidQuery) {
 		return WorkspaceSearchPage{}, searchHTTPError(
 			http.StatusBadRequest,

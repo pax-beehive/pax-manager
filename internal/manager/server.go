@@ -22,8 +22,8 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 	"github.com/pax-beehive/pax-manager/internal/manager/notifications"
 	"github.com/pax-beehive/pax-manager/internal/manager/paxd"
+	"github.com/pax-beehive/pax-manager/internal/manager/runtimeconfig"
 	"github.com/pax-beehive/pax-manager/internal/manager/userapi"
-	"github.com/pax-beehive/pax-manager/internal/manager/voice"
 )
 
 type Service struct {
@@ -75,7 +75,8 @@ type Service struct {
 	paxdArtifacts        paxdArtifactBackend
 	backgroundRunner     func(context.Context, func(context.Context))
 	e2eeEventWakes       *e2eeWakeRegistry
-	voice                voice.Provider
+	voice                voiceRuntime
+	runtimeConfig        *runtimeconfig.Store
 }
 
 type Server = Service
@@ -178,6 +179,7 @@ func newServer(cfg Config, store Store) *Service {
 		secrets,
 	)
 	s.userapi.SetNodeControlClient(s.nodeControls)
+	s.runtimeConfig = newRuntimeConfigStore(cfg, transportBaseStore)
 	s.configureWorkspaceSearch(transportBaseStore)
 	s.configureSecretary(transportBaseStore)
 	s.userapi.SetHistoryReconciler(func(
@@ -270,11 +272,18 @@ func (s *Service) routes() http.Handler {
 }
 
 func (s *Service) registerRoutes(h *hertzserver.Hertz) {
-	h.Use(injectService(s), s.protect())
+	h.Use(injectService(s), s.protect(), s.featureGate())
 
 	registerIDLRoutes(h)
 	h.GET(routeCustomerAnalytics, s.handleCustomerAnalytics)
 	h.POST(routeCustomerVisit, s.handleCustomerVisit)
+	h.GET(routeAdminConfig, s.handleAdminConfigList)
+	h.GET(routeAdminConfigAudit, s.handleAdminConfigAudit)
+	h.POST(routeAdminConfigTest, s.handleAdminConfigTest)
+	h.POST(routeAdminConfigRevert, s.handleAdminConfigRevert)
+	h.PUT(routeAdminConfigKey, s.handleAdminConfigPut)
+	h.DELETE(routeAdminConfigKey, s.handleAdminConfigDelete)
+	h.GET(routeUserFeatures, s.handleUserFeatures)
 	h.GET(routeLegacyHealth, Health)
 	h.POST(routeLegacyAgentRegister, RegisterAgent)
 	h.POST(routeLegacyAgentStatus, AgentAuth(), ReportAgentStatus)
@@ -534,8 +543,12 @@ func Echo(c context.Context, ctx *app.RequestContext) {
 }
 
 func (s *Service) handleHealth(_ context.Context, ctx *app.RequestContext) {
+	configStatus := "ok"
+	if s.runtimeConfig.Health().Degraded {
+		configStatus = "degraded"
+	}
 	writeData(ctx, http.StatusOK, map[string]any{
-		"status": "ok", "region": s.cfg.Region,
+		"status": "ok", "region": s.cfg.Region, "config": configStatus,
 		"region_directory_capabilities": []string{
 			"provision-v1",
 			"browser-v1",

@@ -54,6 +54,7 @@ type knowledgeInjectionListResponse struct {
 func TestKnowledgeCapsuleLifecycleAndTenantBoundaryIntegration(t *testing.T) {
 	fixture := newIntegrationFixture(t)
 	fixture.waitForHealth(t)
+	openFeatures(t, fixture, "feature.knowledge_capsules")
 
 	ownerHeaders := fixture.userHeaders()
 	ownerNode := createBoundaryNode(t, fixture, ownerHeaders, "knowledge-capsule-node")

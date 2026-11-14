@@ -102,10 +102,29 @@ func foreignAdminTarget(meta RequestMetadata) bool {
 	if meta.method == "GET" && meta.path == "/api/v1/user/self/customer-analytics" {
 		return true
 	}
+	if runtimeConfigAdminTarget(meta) {
+		return true
+	}
 	const prefix = "/api/v1/user/self/paxl/device-logins/"
 	return meta.method == "POST" && strings.HasPrefix(meta.path, prefix) &&
 		strings.HasSuffix(
 			meta.path,
 			"/approve",
 		) && strings.Count(strings.TrimPrefix(meta.path, prefix), "/") == 1
+}
+
+// runtimeConfigAdminTarget allows the runtime config admin API across
+// regions. Handlers still require IsAdmin; this only permits a foreign
+// administrator identity to reach them.
+func runtimeConfigAdminTarget(meta RequestMetadata) bool {
+	const root = "/api/v1/admin/config"
+	if meta.path != root && !strings.HasPrefix(meta.path, root+"/") {
+		return false
+	}
+	switch meta.method {
+	case "GET", "PUT", "DELETE", "POST":
+		return true
+	default:
+		return false
+	}
 }

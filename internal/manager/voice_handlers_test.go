@@ -129,7 +129,7 @@ func TestVoiceConfigGivenNoProviderThenVoiceIsDisabled(t *testing.T) {
 
 func TestVoiceConfigGivenAdminOnlyProviderThenOnlyAdminsSeeIt(t *testing.T) {
 	srv := newVoiceTestServer(t, Config{VoiceAdminOnly: true, VoiceMaxSession: 2 * time.Minute})
-	srv.voice = &testVoiceProvider{opened: make(chan voice.Options, 1)}
+	pinVoiceProvider(srv, &testVoiceProvider{opened: make(chan voice.Options, 1)})
 
 	_, config := getVoiceConfig(t, srv, "admin@example.com")
 	assert.Equal(t, voiceConfigResponse{
@@ -147,7 +147,7 @@ func TestVoiceConfigGivenAdminOnlyProviderThenOnlyAdminsSeeIt(t *testing.T) {
 func TestVoiceStreamGivenConfiguredProviderThenDictationRoundTrips(t *testing.T) {
 	srv := newVoiceTestServer(t, Config{})
 	provider := &testVoiceProvider{opened: make(chan voice.Options, 1)}
-	srv.voice = provider
+	pinVoiceProvider(srv, provider)
 	conn, _, err := dialVoiceStream(t, srv, "member@example.com")
 	require.NoError(t, err)
 
@@ -180,7 +180,7 @@ func TestVoiceStreamGivenUnavailableVoiceThenUpgradeIsRefused(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
 	srv = newVoiceTestServer(t, Config{VoiceAdminOnly: true})
-	srv.voice = &testVoiceProvider{opened: make(chan voice.Options, 1)}
+	pinVoiceProvider(srv, &testVoiceProvider{opened: make(chan voice.Options, 1)})
 	_, resp, err = dialVoiceStream(t, srv, "member@example.com")
 	require.ErrorIs(t, err, websocket.ErrBadHandshake)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
@@ -188,39 +188,40 @@ func TestVoiceStreamGivenUnavailableVoiceThenUpgradeIsRefused(t *testing.T) {
 
 func TestConfigureVoiceGivenProviderSettingsThenOnlyValidConfigEnablesVoice(t *testing.T) {
 	srv := newVoiceTestServer(t, Config{VoiceProvider: voice.ProviderOpenAI})
-	assert.Nil(t, srv.voice, "a provider without credentials stays disabled")
+	assert.Nil(t, srv.voiceProvider(), "a provider without credentials stays disabled")
 
 	srv = newVoiceTestServer(t, Config{
 		VoiceProvider: voice.ProviderOpenAI,
 		OpenAIAPIKey:  "sk-test",
 	})
-	require.NotNil(t, srv.voice)
-	assert.Equal(t, voice.ProviderOpenAI, srv.voice.Name())
+	require.NotNil(t, srv.voiceProvider())
+	assert.Equal(t, voice.ProviderOpenAI, srv.voiceProvider().Name())
 
 	srv = newVoiceTestServer(t, Config{
 		VoiceProvider:      voice.ProviderVolcengine,
 		VoiceSeedASRAPIKey: "seed-key",
 	})
-	require.NotNil(t, srv.voice)
-	assert.Equal(t, 16000, srv.voice.SampleRate())
+	require.NotNil(t, srv.voiceProvider())
+	assert.Equal(t, 16000, srv.voiceProvider().SampleRate())
 
 	srv = newVoiceTestServer(t, Config{
 		VoiceProvider:   voice.ProviderQwen,
 		DashScopeAPIKey: "sk-dashscope",
 	})
-	require.NotNil(t, srv.voice)
-	assert.Equal(t, voice.ProviderQwen, srv.voice.Name())
-	assert.Equal(t, 16000, srv.voice.SampleRate())
+	require.NotNil(t, srv.voiceProvider())
+	assert.Equal(t, voice.ProviderQwen, srv.voiceProvider().Name())
+	assert.Equal(t, 16000, srv.voiceProvider().SampleRate())
 }
 
 func TestVoiceSettingsGivenSonioxConfigurationThenMapsAllProviderSettings(t *testing.T) {
-	settings := voiceSettings(Config{
+	cfg := Config{
 		VoiceProvider:    "soniox",
 		VoiceLanguages:   []string{"zh-cn", "en"},
 		SonioxAPIKey:     "soniox-test-key",
 		VoiceSonioxURL:   "wss://soniox.example/transcribe-websocket",
 		VoiceSonioxModel: "stt-rt-test",
-	})
+	}
+	settings := voiceSettings(cfg, newRuntimeConfigStore(cfg, nil).Voice())
 
 	assert.Equal(t, "soniox", settings.Provider)
 	assert.Equal(t, voice.SonioxSettings{
@@ -237,7 +238,7 @@ func TestVoiceConfigGivenAdminOnlySonioxThenOnlyAdminsSeeConfiguredProvider(t *t
 		SonioxAPIKey:   "soniox-test-key",
 		VoiceAdminOnly: true,
 	})
-	require.NotNil(t, srv.voice)
+	require.NotNil(t, srv.voiceProvider())
 
 	status, config := getVoiceConfig(t, srv, "admin@example.com")
 	assert.Equal(t, http.StatusOK, status)
@@ -259,7 +260,7 @@ func TestVoiceConfigGivenSonioxWithoutCredentialsThenVoiceStaysDisabled(t *testi
 		VoiceProvider:  "soniox",
 		VoiceAdminOnly: true,
 	})
-	assert.Nil(t, srv.voice)
+	assert.Nil(t, srv.voiceProvider())
 
 	status, config := getVoiceConfig(t, srv, "admin@example.com")
 	assert.Equal(t, http.StatusOK, status)
@@ -284,4 +285,12 @@ func principalUserID(t *testing.T, srv *Server, email string) string {
 	principal, err := srv.auth.Principal(t.Context(), httpRequestMetadata(r))
 	require.NoError(t, err)
 	return principal.User.UserID
+}
+
+// pinVoiceProvider makes every configuration resolve to provider.
+func pinVoiceProvider(srv *Server, provider voice.Provider) {
+	srv.voice.mu.Lock()
+	defer srv.voice.mu.Unlock()
+	srv.voice.build = func(voice.Settings) (voice.Provider, error) { return provider, nil }
+	srv.voice.built = false
 }

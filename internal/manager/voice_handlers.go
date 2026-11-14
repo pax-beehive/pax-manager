@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
+	"github.com/pax-beehive/pax-manager/internal/manager/runtimeconfig"
 	"github.com/pax-beehive/pax-manager/internal/manager/voice"
 )
 
@@ -25,42 +27,74 @@ type voiceConfigResponse struct {
 	MaxDurationSeconds int    `json:"max_duration_seconds,omitempty"`
 }
 
-// configureVoice selects this instance's speech recognition provider. A bad
-// configuration disables voice input instead of failing startup.
+// voiceRuntime rebuilds the provider only when the effective voice settings
+// change, so a configuration update applies to the next dictation session.
+type voiceRuntime struct {
+	mu          sync.Mutex
+	fingerprint string
+	built       bool
+	provider    voice.Provider
+	// build defaults to voice.NewProvider; tests replace it.
+	build func(voice.Settings) (voice.Provider, error)
+}
+
+// configureVoice validates the startup settings. A bad configuration
+// disables voice input instead of failing startup.
 func (s *Service) configureVoice() {
-	provider, err := voice.NewProvider(voiceSettings(s.cfg))
+	_ = s.voiceProvider()
+}
+
+// voiceProvider returns the provider for the current snapshot, or nil.
+func (s *Service) voiceProvider() voice.Provider {
+	current := s.runtimeConfig.Voice()
+	settings := voiceSettings(s.cfg, current)
+	key := current.Fingerprint()
+	v := &s.voice
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.built && v.fingerprint == key {
+		return v.provider
+	}
+	build := v.build
+	if build == nil {
+		build = voice.NewProvider
+	}
+	provider, err := build(settings)
 	if err != nil {
 		logging.Warn(
 			context.Background(),
 			"voice input disabled",
-			slog.String("provider", s.cfg.VoiceProvider),
+			slog.String("provider", settings.Provider),
 			logging.Err(err),
 		)
-		return
+		provider = nil
 	}
-	s.voice = provider
+	v.fingerprint, v.built, v.provider = key, true, provider
+	return provider
 }
 
-func voiceSettings(cfg Config) voice.Settings {
+// voiceSettings combines live settings with environment-only settings
+// (languages and the SeedASR providers).
+func voiceSettings(cfg Config, live runtimeconfig.VoiceConfig) voice.Settings {
 	return voice.Settings{
-		Provider:  cfg.VoiceProvider,
+		Provider:  live.Provider,
 		Languages: cfg.VoiceLanguages,
 		OpenAI: voice.OpenAISettings{
-			APIKey: cfg.OpenAIAPIKey,
-			URL:    cfg.VoiceOpenAIURL,
-			Model:  cfg.VoiceOpenAIModel,
-			Delay:  cfg.VoiceOpenAIDelay,
+			APIKey: live.OpenAI.APIKey,
+			URL:    live.OpenAI.URL,
+			Model:  live.OpenAI.Model,
+			Delay:  live.OpenAI.Delay,
 		},
 		Qwen: voice.QwenSettings{
-			APIKey:   cfg.DashScopeAPIKey,
-			URL:      cfg.VoiceQwenURL,
-			Model:    cfg.VoiceQwenModel,
-			Language: cfg.VoiceQwenLanguage,
+			APIKey:   live.Qwen.APIKey,
+			URL:      live.Qwen.URL,
+			Model:    live.Qwen.Model,
+			Language: live.Qwen.Language,
 		},
 		Soniox: voice.SonioxSettings{
-			APIKey:    cfg.SonioxAPIKey,
-			URL:       cfg.VoiceSonioxURL,
-			Model:     cfg.VoiceSonioxModel,
+			APIKey:    live.Soniox.APIKey,
+			URL:       live.Soniox.URL,
+			Model:     live.Soniox.Model,
 			Languages: cfg.VoiceLanguages,
 		},
 		SeedASR: voice.SeedASRSettings{
@@ -80,14 +114,15 @@ func (s *Service) handleGetVoiceConfig(c context.Context, ctx *app.RequestContex
 		return
 	}
 	ctx.Header("Cache-Control", "no-store")
-	if !s.voiceAllowed(principal) {
+	provider := s.voiceProvider()
+	if !s.voiceAllowed(provider, principal) {
 		writeData(ctx, http.StatusOK, voiceConfigResponse{})
 		return
 	}
 	writeData(ctx, http.StatusOK, voiceConfigResponse{
 		Enabled:            true,
-		Provider:           s.voice.Name(),
-		SampleRate:         s.voice.SampleRate(),
+		Provider:           provider.Name(),
+		SampleRate:         provider.SampleRate(),
 		Encoding:           voice.Encoding,
 		MaxDurationSeconds: int(s.voiceMaxSession() / time.Second),
 	})
@@ -102,15 +137,15 @@ func (s *Service) handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 		writeHTTPEndpointError(w, err)
 		return
 	}
+	provider := s.voiceProvider()
 	switch {
-	case s.voice == nil:
+	case provider == nil:
 		writeHTTPError(w, http.StatusServiceUnavailable, "voice input is not configured")
 		return
-	case !s.voiceAllowed(principal):
+	case !s.voiceAllowed(provider, principal):
 		writeHTTPError(w, http.StatusForbidden, "voice input is limited to administrators")
 		return
 	}
-	provider := s.voice
 	conn, err := upgrader.Upgrade(w, r, websocketResponseHeader(ctx))
 	if err != nil {
 		logging.Warn(ctx, "voice stream upgrade failed", logging.Err(err))
@@ -140,8 +175,11 @@ func (s *Service) handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 	logging.Info(ctx, "voice stream closed", elapsed)
 }
 
-func (s *Service) voiceAllowed(principal UserPrincipal) bool {
-	return s.voice != nil && (!s.cfg.VoiceAdminOnly || principal.IsAdmin)
+// voiceAllowed follows feature.voice_input, which defaults to
+// VOICE_ADMIN_ONLY when no override exists.
+func (s *Service) voiceAllowed(provider voice.Provider, principal UserPrincipal) bool {
+	return provider != nil &&
+		s.runtimeConfig.Feature(principal, runtimeconfig.FeatureVoiceInput)
 }
 
 func (s *Service) voiceMaxSession() time.Duration {

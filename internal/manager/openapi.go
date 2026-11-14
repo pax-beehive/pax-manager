@@ -69,6 +69,7 @@ func openAPIDocument(serverURL string) ([]byte, error) {
 	addArtifactFetchPaths(doc)
 	addPaxdArtifactPaths(doc)
 	addVoicePaths(doc)
+	addRuntimeConfigPaths(doc)
 	return json.MarshalIndent(doc, "", "  ")
 }
 

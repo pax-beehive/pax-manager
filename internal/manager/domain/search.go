@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -56,6 +57,9 @@ type SearchWork struct {
 	Document   SearchDocument
 	LeaseToken string
 }
+
+// ErrSearchUnavailable means workspace search is not configured.
+var ErrSearchUnavailable = errors.New("search is unavailable")
 
 type SearchBackend interface {
 	EnsureIndex(context.Context) error

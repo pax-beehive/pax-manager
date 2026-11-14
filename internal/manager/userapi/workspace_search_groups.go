@@ -60,6 +60,12 @@ func (s *WorkspaceSearchService) searchGroups(
 		request := query
 		request.Limit = min(query.Limit-len(result.Groups), query.Limit+100-scanned)
 		page, err := backend.SearchGroups(ctx, request)
+		if errors.Is(err, domain.ErrSearchUnavailable) {
+			return WorkspaceSearchPage{}, searchHTTPError(
+				http.StatusServiceUnavailable,
+				"Grouped search is unavailable",
+			)
+		}
 		if errors.Is(err, searchbackend.ErrInvalidQuery) {
 			return WorkspaceSearchPage{}, searchHTTPError(
 				http.StatusBadRequest,

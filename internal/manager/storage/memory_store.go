@@ -19,6 +19,7 @@ type MemoryStore struct {
 	notificationDeliveries       map[string]notificationDeliveryRow
 	notificationReceivers        map[string]notifications.RegistrationRecord
 	secretaryState               *memorySecretaryState
+	runtimeConfig                *MemoryRuntimeConfig
 	shortPairingAttempts         map[string]domain.ShortPairingAttempt
 	shortPairingBudgets          map[string]shortPairingBudget
 	turnQueue                    map[string]domain.QueuedTurn

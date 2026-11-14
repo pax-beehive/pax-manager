@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -22,23 +23,10 @@ func (s *Service) configureWorkspaceSearch(store Store) {
 			panic(err)
 		}
 	}
-	if s.cfg.SearchURL != "" {
-		index := s.cfg.SearchIndex
-		if index == "" {
-			index = "pax-search-v1"
-		}
-		client, err := search.NewClient(
-			search.Config{URL: s.cfg.SearchURL, Index: index, APIKey: s.cfg.SearchAPIKey},
-		)
-		if err != nil {
-			logging.Error(
-				context.Background(),
-				"workspace search configuration failed",
-				slog.String("error", err.Error()),
-			)
-		} else {
-			s.searchBackend = client
-		}
+	// The backend reads search settings on every call, so admin changes
+	// apply without a restart. Unconfigured search reports unavailable.
+	if s.searchBackend == nil {
+		s.searchBackend = newRuntimeSearchBackend(s)
 	}
 	s.workspaceSearch = userapi.NewWorkspaceSearchService(
 		s.auth,
@@ -58,6 +46,9 @@ func (s *Service) startWorkspaceSearchWorker(ctx context.Context, store Store) f
 		queue,
 		s.searchBackend,
 		search.WorkerConfig{OnError: func(err error) {
+			if errors.Is(err, domain.ErrSearchUnavailable) {
+				return
+			}
 			logging.Warn(
 				ctx,
 				"workspace search synchronization failed",

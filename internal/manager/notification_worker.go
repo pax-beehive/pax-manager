@@ -5,6 +5,7 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
 	"github.com/pax-beehive/pax-manager/internal/manager/notifications"
+	"github.com/pax-beehive/pax-manager/internal/manager/runtimeconfig"
 )
 
 func (s *Service) startNotificationWorker(parent context.Context) (func(), error) {
@@ -30,6 +31,9 @@ func (s *Service) startNotificationWorker(parent context.Context) (func(), error
 		KeyID:   s.cfg.NotificationKeyID,
 		Now:     s.clock,
 		OnError: func() { logging.Warn(ctx, "notification worker storage operation failed") },
+		UserAllowed: func(ctx context.Context, userID string) bool {
+			return s.featureForOwner(ctx, userID, runtimeconfig.FeatureNotifications)
+		},
 	}
 	go func() { defer close(done); worker.Run(ctx) }()
 	return func() { cancel(); <-done }, nil

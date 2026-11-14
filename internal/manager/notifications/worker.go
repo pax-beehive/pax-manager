@@ -52,6 +52,9 @@ type Worker struct {
 	KeyID   string
 	Now     func() time.Time
 	OnError func()
+	// UserAllowed reports whether the recipient may receive notifications.
+	// Deliveries to other users are suppressed instead of sent.
+	UserAllowed func(ctx context.Context, userID string) bool
 }
 
 func (w Worker) Run(ctx context.Context) {
@@ -94,6 +97,9 @@ func (w Worker) Drain(ctx context.Context) error {
 }
 
 func (w Worker) attempt(ctx context.Context, job LeasedDelivery) (AttemptResult, error) {
+	if w.UserAllowed != nil && !w.UserAllowed(ctx, job.UserID) {
+		return AttemptResult{Suppressed: true, ErrorCategory: "feature_disabled"}, nil
+	}
 	receiver, err := w.Store.LoadNotificationReceiver(ctx, job.UserID, job.ReceiverID)
 	if err != nil {
 		return AttemptResult{}, err
