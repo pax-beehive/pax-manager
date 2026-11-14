@@ -412,6 +412,8 @@ func TestFeatureGateGivenAdminStageThenMembersGet404AndAdminsPass(t *testing.T) 
 		{http.MethodGet, "/api/v1/user/self/envelopes", "collaboration"},
 		{http.MethodGet, "/api/v1/user/self/team-invites", "collaboration"},
 		{http.MethodGet, "/api/v1/user/self/knowledge-capsules", "knowledge_capsules"},
+		{http.MethodPost, "/api/v1/user/self/nodes/node_1/daemon/browser", "browser_control"},
+		{http.MethodPost, "/api/v1/user/self/nodes/node_1/daemon/mobile", "android_control"},
 	}
 	for _, route := range routes {
 		w := callAPI(t, srv, route.method, route.path, "member@example.com", `{}`)
@@ -472,6 +474,8 @@ func TestFeatureGateGivenRegisteredRoutesThenEveryGatedSurfaceIsCovered(t *testi
 		"/envelopes":            runtimeconfig.FeatureCollaboration,
 		"/knowledge-capsules":   runtimeconfig.FeatureKnowledgeCapsules,
 		"/knowledge-injections": runtimeconfig.FeatureKnowledgeCapsules,
+		"/daemon/browser":       runtimeconfig.FeatureBrowserControl,
+		"/daemon/mobile":        runtimeconfig.FeatureAndroidControl,
 	}
 	var gated int
 	for _, route := range engine.Routes() {

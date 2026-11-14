@@ -63,13 +63,13 @@ Value: `{"stage": "off" | "admin" | "beta" | "ga", "beta_emails": [...]}`.
 | feature.notifications | admin | Push notifications |
 | feature.collaboration | admin | Teams, invites, friends, envelopes, team memex |
 | feature.knowledge_capsules | admin | Knowledge capsules and injections |
-| feature.browser_control | admin | Reported to Console only; not gated server-side yet |
-| feature.android_control | admin | Reported to Console only; not gated server-side yet |
+| feature.browser_control | admin | Watching and taking over a device's browser, and its site approvals |
+| feature.android_control | admin | Watching and taking over a device's Android phones |
 | feature.voice_input | from `VOICE_ADMIN_ONLY` | `true` (default) means admin, `false` means ga |
 
-Deploying this change makes Secretary, Notifications, Collaboration, and
-Knowledge capsules unavailable to ordinary users until an administrator moves
-the gate to `beta` or `ga`.
+Secretary, Notifications, Collaboration, Knowledge capsules, Browser control
+and Android control are unavailable to ordinary users until an administrator
+moves the gate to `beta` or `ga`.
 
 ### Server-side gates
 
@@ -85,6 +85,8 @@ the gate to `beta` or `ga`.
 - `/api/v1/user/:user_id/knowledge-capsules/...`,
   `/api/v1/user/:user_id/sessions/:session_id/knowledge-capsules`,
   `/api/v1/user/:user_id/sessions/:session_id/knowledge-injections`
+- `POST /api/v1/user/:user_id/nodes/:node_id/daemon/browser`
+- `POST /api/v1/user/:user_id/nodes/:node_id/daemon/mobile`
 
 Listing and revoking push receivers stay open so users can always remove a
 device. Unauthenticated requests are not gated and keep their 401.

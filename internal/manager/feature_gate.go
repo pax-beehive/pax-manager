@@ -53,6 +53,16 @@ var featureRoutes = []featureRoute{
 		Feature: runtimeconfig.FeatureKnowledgeCapsules,
 		Path:    "/api/v1/user/:user_id/sessions/:session_id/knowledge-injections",
 	},
+	// Watching and taking over a device's browser, and its site approvals.
+	{
+		Feature: runtimeconfig.FeatureBrowserControl,
+		Path:    "/api/v1/user/:user_id/nodes/:node_id/daemon/browser",
+	},
+	// Watching and taking over a device's Android phones.
+	{
+		Feature: runtimeconfig.FeatureAndroidControl,
+		Path:    "/api/v1/user/:user_id/nodes/:node_id/daemon/mobile",
+	},
 }
 
 func (r featureRoute) matches(method, template string) bool {
