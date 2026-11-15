@@ -109,6 +109,7 @@ func TestPostgresStoreUpsertAgentSessions(t *testing.T) {
 			assert.Equal(t, 1, script.execCount)
 			require.Len(t, script.execTexts, 1)
 			assert.NotContains(t, script.execTexts[0], "custom_session_name")
+			assert.Contains(t, script.queryTexts[0], "FOR NO KEY UPDATE")
 			assert.True(t, script.committed)
 			assert.False(t, script.rolled)
 		},
@@ -135,6 +136,28 @@ func TestPostgresStoreUpsertAgentSessions(t *testing.T) {
 			require.ErrorIs(t, err, ErrNotFound)
 			assert.Equal(t, 0, script.execCount)
 			assert.False(t, script.committed)
+			assert.True(t, script.rolled)
+		},
+	)
+
+	t.Run(
+		"Given no matching agent row then it returns not found before session writes",
+		func(t *testing.T) {
+			script := &scriptedPostgresScript{
+				queries: []scriptedRows{{columns: []string{"exists"}}},
+			}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+
+			err := store.UpsertAgentSessions(
+				context.Background(),
+				Node{NodeID: "node"},
+				"missing",
+				nil,
+			)
+
+			require.ErrorIs(t, err, ErrNotFound)
+			assert.Empty(t, script.execTexts)
 			assert.True(t, script.rolled)
 		},
 	)

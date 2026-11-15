@@ -243,11 +243,11 @@ func (s *PostgresStore) ApplyBatch(ctx context.Context, batch reliablemq.StoreBa
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := s.lockReliableBatchQueuesTx(ctx, tx, batch); err != nil {
+		return err
+	}
 	inboundQueues := make(map[reliableInboundQueueKey]bool)
 	for _, frame := range batch.Frames {
-		if err := reliablemq.ValidateFrame(frame); err != nil {
-			return err
-		}
 		frame, err = normalizeReliableFrameForPostgres(frame)
 		if err != nil {
 			return err
@@ -292,6 +292,30 @@ func (s *PostgresStore) ApplyBatch(ctx context.Context, batch reliablemq.StoreBa
 	return tx.Commit()
 }
 
+func (s *PostgresStore) lockReliableBatchQueuesTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	batch reliablemq.StoreBatch,
+) error {
+	queues := make(map[reliableInboundQueueKey]bool)
+	for _, frame := range batch.Frames {
+		if err := reliablemq.ValidateFrame(frame); err != nil {
+			return err
+		}
+		queues[reliableInboundQueueKey{queueID: frame.Key.QueueID, stream: frame.Key.Stream}] = true
+	}
+	for _, patch := range batch.Patches {
+		queues[reliableInboundQueueKey{queueID: patch.Key.QueueID, stream: patch.Key.Stream}] = true
+	}
+	// Every checkpoint lock precedes journal locks, including across batch queues.
+	for _, key := range sortedReliableQueueKeys(queues) {
+		if _, err := s.loadInboundQueueStateForUpdateTx(ctx, tx, key.queueID, key.stream); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func trackReliableInboundACKQueue(
 	queues map[reliableInboundQueueKey]bool,
 	frame reliablemq.Frame,
@@ -311,17 +335,7 @@ func (s *PostgresStore) advanceBatchInboundACKsTx(
 	tx *sql.Tx,
 	queues map[reliableInboundQueueKey]bool,
 ) error {
-	queueKeys := make([]reliableInboundQueueKey, 0, len(queues))
-	for key := range queues {
-		queueKeys = append(queueKeys, key)
-	}
-	sort.Slice(queueKeys, func(i, j int) bool {
-		if queueKeys[i].queueID != queueKeys[j].queueID {
-			return queueKeys[i].queueID < queueKeys[j].queueID
-		}
-		return queueKeys[i].stream < queueKeys[j].stream
-	})
-	for _, key := range queueKeys {
+	for _, key := range sortedReliableQueueKeys(queues) {
 		state, err := s.loadInboundQueueStateForUpdateTx(
 			ctx,
 			tx,
@@ -342,6 +356,20 @@ func (s *PostgresStore) advanceBatchInboundACKsTx(
 		}
 	}
 	return nil
+}
+
+func sortedReliableQueueKeys(queues map[reliableInboundQueueKey]bool) []reliableInboundQueueKey {
+	queueKeys := make([]reliableInboundQueueKey, 0, len(queues))
+	for key := range queues {
+		queueKeys = append(queueKeys, key)
+	}
+	sort.Slice(queueKeys, func(i, j int) bool {
+		if queueKeys[i].queueID != queueKeys[j].queueID {
+			return queueKeys[i].queueID < queueKeys[j].queueID
+		}
+		return queueKeys[i].stream < queueKeys[j].stream
+	})
+	return queueKeys
 }
 
 func (s *PostgresStore) MarkSent(ctx context.Context, key reliablemq.FrameKey) error {
@@ -388,6 +416,11 @@ func (s *PostgresStore) MarkApplied(ctx context.Context, key reliablemq.FrameKey
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if key.Direction == reliablemq.DirectionInbound {
+		if _, err := s.loadInboundQueueStateForUpdateTx(ctx, tx, key.QueueID, key.Stream); err != nil {
+			return err
+		}
+	}
 	if err := s.updateReliableFrameStatusTx(ctx, tx, key, reliablemq.StatusApplied, ""); err != nil {
 		return err
 	}
@@ -409,6 +442,11 @@ func (s *PostgresStore) MarkRejected(
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if key.Direction == reliablemq.DirectionInbound {
+		if _, err := s.loadInboundQueueStateForUpdateTx(ctx, tx, key.QueueID, key.Stream); err != nil {
+			return err
+		}
+	}
 	if err := s.updateReliableFrameStatusTx(ctx, tx, key, reliablemq.StatusRejected, errorMessage); err != nil {
 		return err
 	}
@@ -992,6 +1030,12 @@ func (s *PostgresStore) listReliableFrames(
 		statusSQL = " AND status IN (" + strings.Join(placeholders, ",") + ")"
 	}
 	args = append(args, limit)
+	if direction == reliablemq.DirectionInbound {
+		statusSQL += ` AND seq > COALESCE((
+			SELECT inbound_applied_through FROM transport_queue_state
+			WHERE queue_id = $1 AND stream = $2
+		), 0)`
+	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+reliableFrameReturningSQL+`
 		FROM transport_journal

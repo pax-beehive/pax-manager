@@ -304,21 +304,43 @@ func projectACPUserPromptForSession(
 func projectACPUserPromptForSessionTurn(
 	ctx context.Context,
 	agent *ACPTunnelAgent,
+	managerSessionID, turnID string,
+	payload []byte,
+) error {
+	return writeAndProjectACPUserFrame(
+		ctx,
+		agent,
+		managerSessionID,
+		turnID,
+		payload,
+		func() error { return nil },
+	)
+}
+
+func writeAndProjectACPUserFrame(
+	ctx context.Context,
+	agent *ACPTunnelAgent,
 	managerSessionID string,
 	turnID string,
 	payload []byte,
+	write func() error,
 ) error {
 	if agent == nil || agent.store == nil {
-		return nil
+		return write()
 	}
 	var rpc acpHistoryRPC
 	if err := json.Unmarshal(payload, &rpc); err != nil {
-		return nil
+		return write()
 	}
 	if rpc.Method == "" && len(rpc.Result) == 0 && len(rpc.Error) == 0 {
-		return nil
+		return write()
 	}
+	// The worker can respond as soon as the producer accepts a frame.
+	// Reset grouping before acceptance so a fast response keeps one text block.
 	if err := agent.flushHistoryTextBoundary(ctx); err != nil {
+		return err
+	}
+	if err := write(); err != nil {
 		return err
 	}
 	if rpc.Method != "session/prompt" {
@@ -742,7 +764,7 @@ func acpHistoryContentHash(content string) string {
 
 // canonicalACPHistorySessionIDCached resolves the session ID via the agent's
 // alias cache when the text sink is agent-backed (the live pipeline), avoiding a
-// per-frame ListAgentSessions read. Non-agent sinks (immediate projection used
+// per-frame session lookup. Non-agent sinks (immediate projection used
 // by tests and repair paths) fall back to the direct store lookup.
 func canonicalACPHistorySessionIDCached(
 	ctx context.Context,
@@ -771,20 +793,11 @@ func canonicalACPHistorySessionID(
 	if sessionID == "" {
 		return ""
 	}
-	sessions, err := store.ListAgentSessions(
-		ctx,
-		domain.UserPrincipal{User: domain.User{UserID: ownerUserID}},
-		agentID,
-	)
+	aliases, err := resolveStoreSessionAliases(ctx, store, ownerUserID, agentID, sessionID)
 	if err != nil {
 		return sessionID
 	}
-	for _, session := range sessions {
-		if session.SessionID == sessionID || session.NativeID == sessionID {
-			return session.SessionID
-		}
-	}
-	return sessionID
+	return aliases.SessionID
 }
 
 func acpHistoryLogicalKey(

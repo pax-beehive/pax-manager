@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
 	"testing"
@@ -13,6 +14,112 @@ import (
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 )
+
+func TestPostgresTransportBatchLocksEveryQueueBeforeJournalWrites(t *testing.T) {
+	// Given a mixed batch with repeated queue keys in different input orders.
+	stateRows := scriptedRows{
+		columns: []string{"inbound_acked_through", "inbound_applied_through"},
+		values:  [][]driver.Value{{int64(0), int64(0)}},
+	}
+	script := &scriptedPostgresScript{queries: []scriptedRows{stateRows, stateRows, stateRows}}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+	key := func(queue string, stream reliablemq.Stream) reliablemq.FrameKey {
+		return reliablemq.FrameKey{
+			QueueID:   queue,
+			Stream:    stream,
+			Seq:       1,
+			Direction: reliablemq.DirectionOutbound,
+		}
+	}
+	batch := reliablemq.StoreBatch{
+		Frames: []reliablemq.Frame{{
+			Key: key("z", reliablemq.StreamACP), Kind: reliablemq.FrameKindData,
+			Payload: json.RawMessage(`{}`), Status: reliablemq.StatusPending,
+		}},
+		Patches: []reliablemq.StorePatch{
+			{Key: key("a", reliablemq.StreamControl), Status: reliablemq.StatusSent},
+			{Key: key("a", reliablemq.StreamACP), Status: reliablemq.StatusSent},
+			{Key: key("z", reliablemq.StreamACP), Status: reliablemq.StatusSent},
+		},
+	}
+
+	// When the batch acquires its transport locks.
+	err := store.ApplyBatch(context.Background(), batch)
+
+	// Then all unique queue checkpoints are locked in stable queue/stream order.
+	require.NoError(t, err)
+	require.Len(t, script.queryArgs, 3)
+	assert.Equal(t, "a", script.queryArgs[0][0].Value)
+	assert.Equal(t, "acp", script.queryArgs[0][1].Value)
+	assert.Equal(t, "a", script.queryArgs[1][0].Value)
+	assert.Equal(t, "control", script.queryArgs[1][1].Value)
+	assert.Equal(t, "z", script.queryArgs[2][0].Value)
+	for _, query := range script.queryTexts {
+		assert.Contains(t, query, "FOR UPDATE")
+	}
+	for _, query := range script.execTexts[:3] {
+		assert.Contains(t, query, "INSERT INTO transport_queue_state")
+	}
+	assert.True(t, script.committed)
+}
+
+func TestPostgresTransportUpdatesStopWhenQueueGuardFails(t *testing.T) {
+	for _, mode := range []string{"apply", "reject", "batch"} {
+		t.Run(mode, func(t *testing.T) {
+			// Given a queue checkpoint that cannot be locked.
+			script := &scriptedPostgresScript{queries: []scriptedRows{{
+				columns: []string{"inbound_acked_through", "inbound_applied_through"},
+			}}}
+			store, cleanup := scriptedPostgresStore(t, script)
+			defer cleanup()
+			key := reliablemq.FrameKey{
+				QueueID: "q", Stream: reliablemq.StreamACP, Seq: 1, Direction: reliablemq.DirectionInbound,
+			}
+
+			// When a delivery outcome or batch tries to mutate the journal.
+			var err error
+			switch mode {
+			case "apply":
+				err = store.MarkApplied(context.Background(), key)
+			case "reject":
+				err = store.MarkRejected(context.Background(), key, "rejected")
+			default:
+				err = store.ApplyBatch(
+					context.Background(),
+					reliablemq.StoreBatch{Patches: []reliablemq.StorePatch{{
+						Key: key, Status: reliablemq.StatusApplied,
+					}}},
+				)
+			}
+
+			// Then the transaction exits before updating journal rows.
+			assert.ErrorIs(t, err, sql.ErrNoRows)
+			assert.Len(t, script.execTexts, 1)
+			assert.False(t, script.committed)
+			assert.True(t, script.rolled)
+		})
+	}
+}
+
+func TestPostgresTransportBatchRejectsInvalidFramesBeforeLockingQueues(t *testing.T) {
+	// Given a batch containing an invalid frame.
+	script := &scriptedPostgresScript{}
+	store, cleanup := scriptedPostgresStore(t, script)
+	defer cleanup()
+
+	// When the batch prepares its queue guards.
+	err := store.ApplyBatch(
+		context.Background(),
+		reliablemq.StoreBatch{Frames: []reliablemq.Frame{{}}},
+	)
+
+	// Then it rejects the batch without writing checkpoint or journal rows.
+	assert.ErrorIs(t, err, reliablemq.ErrInvalidFrame)
+	assert.Empty(t, script.execTexts)
+	assert.Empty(t, script.queryTexts)
+	assert.True(t, script.rolled)
+}
 
 func TestMemoryTransportJournalDecisionTables(t *testing.T) {
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)

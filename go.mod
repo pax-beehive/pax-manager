@@ -14,7 +14,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/mattn/go-sqlite3 v1.14.22
-	github.com/pax-beehive/paxkit v0.0.0-20260917160049-a9ad0b4721af
+	github.com/pax-beehive/paxkit v0.0.0-20261115205641-27bf3c835b5f
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.21.0
 	gorm.io/driver/postgres v1.6.0

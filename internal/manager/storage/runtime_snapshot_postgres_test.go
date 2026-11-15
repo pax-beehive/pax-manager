@@ -159,6 +159,10 @@ func TestPostgresRuntimeSnapshotReconciliation(t *testing.T) {
 			assert.Contains(t, script.execTexts[1], "runtime_authority = 'snapshot'")
 			assert.Contains(t, strings.Join(script.queryTexts, "\n"), "FOR UPDATE")
 			assert.Contains(t, script.queryTexts[1], "FOR NO KEY UPDATE")
+			assert.Contains(t, script.queryTexts[0], "FOR SHARE")
+			assert.Contains(t, script.queryTexts[4], "runtime_status IN")
+			assert.Contains(t, script.queryTexts[4], "jsonb_array_elements_text($2::jsonb)")
+			assert.Contains(t, script.queryTexts[4], "ORDER BY session_id")
 		},
 	)
 

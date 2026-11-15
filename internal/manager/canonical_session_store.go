@@ -13,9 +13,17 @@ type canonicalSessionStore struct {
 }
 
 var _ domain.SecretaryExecutionRecoveryWakeStore = canonicalSessionStore{}
+var _ domain.SessionAliasStore = canonicalSessionStore{}
 
 func newCanonicalSessionStore(store domain.Store) domain.Store {
 	return canonicalSessionStore{Store: store}
+}
+
+func (s canonicalSessionStore) ResolveSessionAliases(
+	ctx context.Context,
+	ownerUserID, agentID, sessionID string,
+) (domain.SessionAliases, error) {
+	return resolveStoreSessionAliases(ctx, s.Store, ownerUserID, agentID, sessionID)
 }
 
 func (s canonicalSessionStore) WakeSecretaryExecutionRecovery(
@@ -128,20 +136,11 @@ func (s canonicalSessionStore) canonicalSessionID(
 	agentID string,
 	sessionID string,
 ) (string, error) {
-	sessions, err := s.ListAgentSessions(
-		ctx,
-		domain.UserPrincipal{User: domain.User{UserID: ownerUserID}},
-		agentID,
-	)
+	aliases, err := s.ResolveSessionAliases(ctx, ownerUserID, agentID, sessionID)
 	if err != nil {
 		return sessionID, nil
 	}
-	for _, session := range sessions {
-		if session.SessionID == sessionID || session.NativeID == sessionID {
-			return session.SessionID, nil
-		}
-	}
-	return sessionID, nil
+	return aliases.SessionID, nil
 }
 
 func (s canonicalSessionStore) RegisterNodeSession(

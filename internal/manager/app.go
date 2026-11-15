@@ -103,6 +103,7 @@ func openStore(ctx context.Context, databaseURL string) (Store, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	configurePostgresPool(db)
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		return nil, nil, err
@@ -115,6 +116,12 @@ func openStore(ctx context.Context, databaseURL string) (Store, func(), error) {
 	}
 
 	return store, func() { _ = db.Close() }, nil
+}
+
+func configurePostgresPool(db *sql.DB) {
+	// Bound contention and leave database capacity for operational connections.
+	db.SetMaxOpenConns(16)
+	db.SetMaxIdleConns(4)
 }
 
 func loadConfig() Config {

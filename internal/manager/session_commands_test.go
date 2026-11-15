@@ -112,3 +112,57 @@ func TestParseSessionACPCommandsRejectsMalformedUpdates(t *testing.T) {
 		assert.False(t, ok, raw)
 	}
 }
+
+func TestSessionCommandsGivenHiddenInternalSessionThenNativeUpdateResolvesWithoutListing(
+	t *testing.T,
+) {
+	srv, _ := testServer(t, "owner@example.com")
+	fixture := testNodeAgent(t, srv, "owner@example.com")
+	principal := testUserPrincipal(t, srv, fixture.userEmail)
+	session, err := srv.store.CreateNodeAgentSession(
+		t.Context(),
+		principal,
+		domain.CreateSessionRequest{
+			NodeID: fixture.nodeID, AgentID: fixture.agentID,
+			SessionID: "sess_secretary_commands", NativeID: "native_secretary_commands",
+			Source: domain.SecretaryInternalSource,
+		},
+	)
+	require.NoError(t, err)
+	listed, err := srv.store.ListAgentSessions(t.Context(), principal, fixture.agentID)
+	require.NoError(t, err)
+	assert.Empty(t, listed, "internal work must remain hidden from the user list")
+	agent := &ACPTunnelAgent{
+		agentID: fixture.agentID, nodeID: fixture.nodeID, ownerUserID: principal.User.UserID, store: srv.store,
+	}
+	frame := newACPFrameContext(agent, acpAgentToUser, websocket.TextMessage, []byte(
+		`{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"native_secretary_commands","update":{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"status","description":"Status"}]}}}`,
+	))
+	pipeline := newACPFramePipeline(
+		acpSessionIDMiddleware{store: srv.store},
+		sessionCommandsObservationMiddleware{service: srv},
+	)
+	called := false
+	err = pipeline.Handle(t.Context(), frame, func(context.Context, *acpFrameContext) error {
+		called = true
+		return nil
+	})
+	require.NoError(t, err)
+	assert.True(t, called)
+	assert.Equal(t, session.SessionID, frame.managerSessionID)
+	stored, err := srv.store.GetSession(t.Context(), principal, session.SessionID)
+	require.NoError(t, err)
+	assert.Contains(t, string(stored.Metadata), `"acp_commands"`)
+	assert.Equal(t, session.SessionID, canonicalACPHistorySessionID(
+		t.Context(), srv.store, principal.User.UserID, fixture.agentID, session.NativeID,
+	))
+	nativeID, err := agent.nativeSessionID(t.Context(), session.SessionID)
+	require.NoError(t, err)
+	assert.Equal(t, session.NativeID, nativeID)
+	assert.Equal(t, session.SessionID, srv.virtualACPSessionID(
+		t.Context(), principal.User.UserID, fixture.agentID, session.NativeID,
+	))
+	assert.Equal(t, session.NativeID, srv.nativeACPSessionID(
+		t.Context(), principal.User.UserID, fixture.agentID, session.SessionID,
+	))
+}

@@ -63,12 +63,13 @@ func (s *PostgresStore) ReplaceAgentActiveTurns(
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// Fence replacement must wait, while snapshots for other agents may proceed.
 	var currentFence string
 	err = tx.QueryRowContext(ctx, `
 		SELECT connection_fence
 		FROM node_runtime_fences
 		WHERE node_id = $1
-		FOR UPDATE
+		FOR SHARE
 	`, node.NodeID).Scan(&currentFence)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && currentFence != snapshot.ConnectionFence {
 		return domain.ReplaceAgentActiveTurnsResult{Status: domain.RuntimeSnapshotFenced}, nil
@@ -233,14 +234,19 @@ func loadPostgresRuntimeSessions(
 	ctx context.Context,
 	tx *sql.Tx,
 	agentID string,
+	currentSessionIDs []string,
 ) (map[string]postgresRuntimeSession, error) {
+	currentJSON, _ := json.Marshal(currentSessionIDs)
 	rows, err := tx.QueryContext(ctx, `
 		SELECT session_id, COALESCE(native_id, ''), runtime_status,
 			COALESCE(runtime_turn_instance_id, '')
 		FROM agent_sessions
 		WHERE agent_id = $1
+			AND (runtime_status IN ('running', 'waiting_approval', 'unknown')
+				OR session_id IN (SELECT jsonb_array_elements_text($2::jsonb)))
+		ORDER BY session_id
 		FOR UPDATE
-	`, agentID)
+	`, agentID, currentJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +293,11 @@ func (s *PostgresStore) applyPostgresRuntimeSessions(
 		resolved[turn.NativeSessionID] = sessionID
 	}
 
-	previous, err := loadPostgresRuntimeSessions(ctx, tx, snapshot.AgentID)
+	currentSessionIDs := make([]string, 0, len(resolved))
+	for _, sessionID := range resolved {
+		currentSessionIDs = append(currentSessionIDs, sessionID)
+	}
+	previous, err := loadPostgresRuntimeSessions(ctx, tx, snapshot.AgentID, currentSessionIDs)
 	if err != nil {
 		return nil, err
 	}

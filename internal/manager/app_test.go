@@ -2,8 +2,20 @@ package manager
 
 import (
 	"context"
+	"database/sql"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestGivenDatabasePoolThenConcurrentConnectionsAreBounded(t *testing.T) {
+	db, err := sql.Open("pgx", "postgres://unused:unused@localhost/unused?sslmode=disable")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	configurePostgresPool(db)
+	assert.Equal(t, 16, db.Stats().MaxOpenConnections)
+}
 
 type fakeRunServer struct {
 	runStarted chan struct{}
