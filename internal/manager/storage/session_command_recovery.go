@@ -45,19 +45,10 @@ func (s *MemoryStore) LatestDeferredSessionCommands(
 	var selected TransportFrame
 	for _, frame := range s.transportJournal {
 		if frame.AgentID != agentID || frame.QueueID != queueID || frame.Stream != "acp" ||
-			frame.Direction != "inbound" || frame.Seq >= beforeSeq || frame.Seq <= selected.Seq ||
-			frame.Metadata[domain.DeferredSessionCommandsMetadataKey] != "true" {
+			frame.Direction != "inbound" || frame.Seq >= beforeSeq || frame.Seq <= selected.Seq {
 			continue
 		}
-		var payload commandRecoveryPayload
-		if json.Unmarshal(frame.PayloadJSON, &payload) != nil ||
-			payload.Method != "session/update" || len(payload.ID) != 0 ||
-			payload.Params.Update.Kind != "available_commands_update" ||
-			firstNonEmpty(
-				frame.Metadata["native_session_id"],
-				payload.Params.SessionID,
-				payload.Params.LegacySessionID,
-			) != nativeSessionID {
+		if !isDeferredSessionCommandFrame(frame, nativeSessionID) {
 			continue
 		}
 		selected = frame
@@ -73,6 +64,21 @@ func (s *MemoryStore) LatestDeferredSessionCommands(
 		Params:     append(json.RawMessage(nil), payload.Params...),
 		ObservedAt: selected.CreatedAt,
 	}, nil
+}
+
+func isDeferredSessionCommandFrame(frame TransportFrame, nativeSessionID string) bool {
+	if frame.Metadata[domain.DeferredSessionCommandsMetadataKey] != "true" {
+		return false
+	}
+	var payload commandRecoveryPayload
+	return json.Unmarshal(frame.PayloadJSON, &payload) == nil &&
+		payload.Method == "session/update" && len(payload.ID) == 0 &&
+		payload.Params.Update.Kind == "available_commands_update" &&
+		firstNonEmpty(
+			frame.Metadata["native_session_id"],
+			payload.Params.SessionID,
+			payload.Params.LegacySessionID,
+		) == nativeSessionID
 }
 
 func (s *MemoryStore) RecoverSessionCreation(
