@@ -32,6 +32,14 @@ type acpHistoryGroups struct {
 	groups map[string]string
 }
 
+func (p *acpPendingSessionNews) peek(requestID string) (string, bool) {
+	if requestID == "" {
+		return "", false
+	}
+	managerSessionID, ok := p.requests[requestID]
+	return managerSessionID, ok
+}
+
 func (h *acpHistoryGroups) groupID(
 	seq int64,
 	sessionID string,

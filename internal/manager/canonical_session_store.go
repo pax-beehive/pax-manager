@@ -14,9 +14,40 @@ type canonicalSessionStore struct {
 
 var _ domain.SecretaryExecutionRecoveryWakeStore = canonicalSessionStore{}
 var _ domain.SessionAliasStore = canonicalSessionStore{}
+var _ domain.SessionCommandJournalStore = canonicalSessionStore{}
 
 func newCanonicalSessionStore(store domain.Store) domain.Store {
 	return canonicalSessionStore{Store: store}
+}
+
+func (s canonicalSessionStore) LatestDeferredSessionCommands(
+	ctx context.Context,
+	ownerUserID, agentID, queueID, nativeSessionID string,
+	beforeSeq int64,
+) (domain.SessionCommandUpdate, error) {
+	reader, ok := s.Store.(domain.SessionCommandJournalStore)
+	if !ok {
+		return domain.SessionCommandUpdate{}, domain.ErrNotFound
+	}
+	return reader.LatestDeferredSessionCommands(
+		ctx,
+		ownerUserID,
+		agentID,
+		queueID,
+		nativeSessionID,
+		beforeSeq,
+	)
+}
+
+func (s canonicalSessionStore) RecoverSessionCreation(
+	ctx context.Context,
+	ownerUserID, agentID, queueID, requestID string,
+) (string, error) {
+	reader, ok := s.Store.(domain.SessionCommandJournalStore)
+	if !ok {
+		return "", domain.ErrNotFound
+	}
+	return reader.RecoverSessionCreation(ctx, ownerUserID, agentID, queueID, requestID)
 }
 
 func (s canonicalSessionStore) ResolveSessionAliases(

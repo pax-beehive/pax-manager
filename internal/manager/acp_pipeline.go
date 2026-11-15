@@ -27,6 +27,7 @@ type acpFrameContext struct {
 	payload           []byte
 	frame             acpJSONRPCMessage
 	transportMetadata map[string]string
+	transportSeq      int64
 	managerSessionID  string
 	nativeSessionID   string
 	requestKind       string
@@ -108,7 +109,7 @@ func (m acpSessionLifecycleMiddleware) HandleACPFrame(
 	ctx context.Context,
 	frame *acpFrameContext,
 	next acpFrameHandler,
-) error {
+) (err error) {
 	if frame.agent == nil {
 		return next(ctx, frame)
 	}
@@ -126,13 +127,21 @@ func (m acpSessionLifecycleMiddleware) HandleACPFrame(
 		frame.agent.trackSessionNew(requestID, managerSessionID)
 		return next(ctx, frame)
 	}
-	if frame.direction != acpAgentToUser || requestID == "" {
+	if frame.direction != acpAgentToUser || requestID == "" || !isACPJSONRPCResponse(frame.frame) {
 		return next(ctx, frame)
 	}
-	managerSessionID, ok := frame.agent.takeSessionNew(requestID)
+	managerSessionID, ok, err := recoverSessionNewCorrelation(ctx, m.store, frame, requestID)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return next(ctx, frame)
 	}
+	defer func() {
+		if err == nil {
+			frame.agent.takeSessionNew(requestID)
+		}
+	}()
 	frame.managerSessionID = managerSessionID
 	frame.requestKind = "session/new"
 	if len(frame.frame.Error) > 0 {
@@ -148,6 +157,9 @@ func (m acpSessionLifecycleMiddleware) HandleACPFrame(
 	if err := m.bindNativeSessionID(ctx, frame.agent, managerSessionID, nativeSessionID); err != nil {
 		return err
 	}
+	if err := hydrateDeferredSessionCommands(ctx, m.store, frame, managerSessionID, nativeSessionID); err != nil {
+		return err
+	}
 	payload, changed, err := rewriteACPFrameSessionID(frame.payload, managerSessionID)
 	if err != nil {
 		return err
@@ -157,6 +169,28 @@ func (m acpSessionLifecycleMiddleware) HandleACPFrame(
 		_ = json.Unmarshal(payload, &frame.frame)
 	}
 	return next(ctx, frame)
+}
+
+func recoverSessionNewCorrelation(
+	ctx context.Context,
+	store domain.Store,
+	frame *acpFrameContext,
+	requestID string,
+) (string, bool, error) {
+	if managerID, ok := frame.agent.peekSessionNew(requestID); ok {
+		return managerID, true, nil
+	}
+	reader, supported := store.(domain.SessionCommandJournalStore)
+	if !supported || frame.transportSeq <= 0 {
+		return "", false, nil
+	}
+	managerID, err := reader.RecoverSessionCreation(
+		ctx, frame.agent.ownerUserID, frame.agent.agentID, frame.agent.queueID(), requestID,
+	)
+	if errors.Is(err, domain.ErrNotFound) {
+		return "", false, nil
+	}
+	return managerID, managerID != "", err
 }
 
 func (m acpSessionLifecycleMiddleware) bindNativeSessionID(

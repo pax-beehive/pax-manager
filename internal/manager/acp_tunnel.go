@@ -835,6 +835,13 @@ func (a *ACPTunnelAgent) takeSessionNew(requestID string) (string, bool) {
 	return state.pendingSessionNew.take(requestID)
 }
 
+func (a *ACPTunnelAgent) peekSessionNew(requestID string) (string, bool) {
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.pendingSessionNew.peek(requestID)
+}
+
 // Tunnel reliability is a small durable outbox/inbox layered over WebSocket:
 // outbound user->manager->paxd frames are journaled as pending, sent with a
 // monotonically increasing per-agent stream seq, and advanced to acked when
@@ -2013,6 +2020,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 		return err
 	}
 	frame := newACPFrameContext(a, acpAgentToUser, websocket.TextMessage, []byte(payload))
+	frame.transportSeq = reliableFrame.Key.Seq
 	frame.transportMetadata = make(map[string]string, len(reliableFrame.Metadata))
 	for key, value := range reliableFrame.Metadata {
 		frame.transportMetadata[key] = value
