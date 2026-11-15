@@ -1,10 +1,10 @@
 # [ISSUE-090] Internal session alias failures stall tunnel replay and saturate storage
 
-**Status:** partial
+**Status:** resolved
 **Severity:** high
 **Component:** ACP transport / session snapshots / storage
 **Found:** 2026-11-15
-**Resolved:** -
+**Resolved:** 2026-11-15
 
 ## Summary
 
@@ -47,9 +47,13 @@ Review drafts: [Manager #255](https://github.com/pax-beehive/pax-manager/pull/25
 and [Paxkit #11](https://github.com/pax-beehive/paxkit/pull/11). See the
 [handoff](../docs/handoff_20261115_210700.md) for build and rollback details.
 
-## Current note
+## Notification ordering follow-up
 
 Longer rollout observation found a new native-only command update preceding its
 session/new reply. Strict retry blocks the later reply needed to bind that
-session. A durable command-catalog deferral and post-binding hydration follow-up
-is in progress. The initial replay CPU loop and storage deadlocks remain fixed.
+session. The follow-up deployed from `11190d3` durably defers catalogs, recovers creation
+correlation after restart, and hydrates after binding. The actual stuck queue
+advanced from applied sequence 28 to 30; its catalog matched the original payload
+in the canonical session. Unit, PostgreSQL, race, and the new real HTTP/ACP
+early-notification regression passed. The initial replay CPU loop and storage
+deadlocks remain fixed.
