@@ -5,7 +5,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 Issue 067 also tracks the per-source task controls; rollout remains pending.
 See [task-control handoff](../docs/handoff_20261104_230000.md).
 
-Issue 090 also records final paxkit dependency alignment and tidy verification.
+Issue 090 records final paxkit dependency alignment to
+`v0.0.0-20261116222722-f08901d65244` and tidy verification.
 
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |

@@ -73,6 +73,7 @@ existing output durability limitations, and preserved Mac permission history.
 ## Final shared dependency
 
 Manager now pins the final shared replay dependency
-`github.com/pax-beehive/paxkit v0.0.0-20261116221549-4d630f079c06`.
+`github.com/pax-beehive/paxkit v0.0.0-20261116222722-f08901d65244`,
+including the follow-up ACK/Close race fix.
 Dependency checksums were refreshed with Go 1.25.8; a second
 `go mod tidy -diff` reports no changes.
