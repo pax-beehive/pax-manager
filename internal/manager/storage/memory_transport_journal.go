@@ -542,12 +542,18 @@ func (s *MemoryStore) listReliableFrames(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	frames := make([]reliablemq.Frame, 0)
+	appliedThrough := s.transportQueueState[transportQueueStateKey{
+		QueueID: queueID, Stream: string(stream),
+	}].InboundAppliedThrough
 	for key, frame := range s.transportJournal {
 		if key.QueueID != queueID || key.Stream != string(stream) ||
 			key.Direction != string(direction) {
 			continue
 		}
 		if len(statusSet) > 0 && !statusSet[frame.Status] {
+			continue
+		}
+		if direction == reliablemq.DirectionInbound && frame.Seq <= appliedThrough {
 			continue
 		}
 		frames = append(frames, reliableFromTransportFrame(frame))

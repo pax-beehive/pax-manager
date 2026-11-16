@@ -835,6 +835,13 @@ func (a *ACPTunnelAgent) takeSessionNew(requestID string) (string, bool) {
 	return state.pendingSessionNew.take(requestID)
 }
 
+func (a *ACPTunnelAgent) peekSessionNew(requestID string) (string, bool) {
+	state := a.liveState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	return state.pendingSessionNew.peek(requestID)
+}
+
 // Tunnel reliability is a small durable outbox/inbox layered over WebSocket:
 // outbound user->manager->paxd frames are journaled as pending, sent with a
 // monotonically increasing per-agent stream seq, and advanced to acked when
@@ -905,24 +912,27 @@ func (a *ACPTunnelAgent) nativeSessionID(
 	if a.store == nil {
 		return "", errors.New("session store is required for worker response")
 	}
-	principal := domain.UserPrincipal{User: domain.User{UserID: a.ownerUserID}}
-	sessions, err := a.store.ListAgentSessions(ctx, principal, a.agentID)
+	aliases, err := resolveStoreSessionAliases(
+		ctx,
+		a.store,
+		a.ownerUserID,
+		a.agentID,
+		managerSessionID,
+	)
 	if err != nil {
 		return "", err
 	}
-	for _, session := range sessions {
-		if session.SessionID != managerSessionID {
-			continue
-		}
-		if strings.TrimSpace(session.NativeID) == "" {
-			return "", fmt.Errorf(
-				"manager session %q has no native ACP session id",
-				managerSessionID,
-			)
-		}
-		return session.NativeID, nil
+	if aliases.SessionID != managerSessionID {
+		return "", fmt.Errorf(
+			"manager session %q not found for agent %q",
+			managerSessionID,
+			a.agentID,
+		)
 	}
-	return "", fmt.Errorf("manager session %q not found for agent %q", managerSessionID, a.agentID)
+	if strings.TrimSpace(aliases.NativeID) == "" {
+		return "", fmt.Errorf("manager session %q has no native ACP session id", managerSessionID)
+	}
+	return aliases.NativeID, nil
 }
 
 func (a *ACPTunnelAgent) writeToAgentWithMetadata(
@@ -1334,17 +1344,11 @@ func (s *Server) virtualACPSessionID(
 	if sessionID == "" {
 		return ""
 	}
-	principal := UserPrincipal{User: User{UserID: ownerUserID}}
-	sessions, err := s.store.ListAgentSessions(ctx, principal, agentID)
+	aliases, err := resolveStoreSessionAliases(ctx, s.store, ownerUserID, agentID, sessionID)
 	if err != nil {
 		return sessionID
 	}
-	for _, session := range sessions {
-		if session.NativeID == sessionID || session.SessionID == sessionID {
-			return session.SessionID
-		}
-	}
-	return sessionID
+	return aliases.SessionID
 }
 
 func (s *Server) nativeACPSessionID(
@@ -1356,20 +1360,11 @@ func (s *Server) nativeACPSessionID(
 	if sessionID == "" {
 		return ""
 	}
-	principal := UserPrincipal{User: User{UserID: ownerUserID}}
-	sessions, err := s.store.ListAgentSessions(ctx, principal, agentID)
+	aliases, err := resolveStoreSessionAliases(ctx, s.store, ownerUserID, agentID, sessionID)
 	if err != nil {
 		return sessionID
 	}
-	for _, session := range sessions {
-		if session.SessionID == sessionID {
-			return firstNonEmpty(session.NativeID, session.SessionID)
-		}
-		if session.NativeID == sessionID {
-			return session.NativeID
-		}
-	}
-	return sessionID
+	return firstNonEmpty(aliases.NativeID, aliases.SessionID)
 }
 
 func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
@@ -1870,16 +1865,25 @@ func relayUserFramesToAgent(
 						)
 					}
 				}
-				if err := write(ctx, frame.messageType, frame.payload); err != nil {
-					cancelResponseContext()
-					return err
-				}
-				return projectACPUserPromptForSessionTurn(
+				accepted := false
+				defer func() {
+					if !accepted {
+						cancelResponseContext()
+					}
+				}()
+				return writeAndProjectACPUserFrame(
 					ctx,
 					agentConn,
 					frame.managerSessionID,
 					frame.businessTurnID,
 					frame.payload,
+					func() error {
+						if err := write(ctx, frame.messageType, frame.payload); err != nil {
+							return err
+						}
+						accepted = true
+						return nil
+					},
 				)
 			},
 		); err != nil {
@@ -2016,6 +2020,7 @@ func (a *ACPTunnelAgent) dispatchReliableACPFrame(
 		return err
 	}
 	frame := newACPFrameContext(a, acpAgentToUser, websocket.TextMessage, []byte(payload))
+	frame.transportSeq = reliableFrame.Key.Seq
 	frame.transportMetadata = make(map[string]string, len(reliableFrame.Metadata))
 	for key, value := range reliableFrame.Metadata {
 		frame.transportMetadata[key] = value

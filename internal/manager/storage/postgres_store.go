@@ -1327,10 +1327,16 @@ func (s *PostgresStore) UpsertAgentSessions(
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// Match the snapshot guard before acquiring any session row locks.
 	var exists bool
 	if err := tx.QueryRowContext(ctx, `
-		SELECT EXISTS(SELECT 1 FROM agents WHERE agent_id = $1 AND node_id = $2 AND deleted_at IS NULL)
+		SELECT true FROM agents
+		WHERE agent_id = $1 AND node_id = $2 AND deleted_at IS NULL
+		FOR NO KEY UPDATE
 	`, agentID, node.NodeID).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
 		return err
 	}
 	if !exists {

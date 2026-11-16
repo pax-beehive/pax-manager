@@ -5,8 +5,12 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 Issue 067 also tracks the per-source task controls; rollout remains pending.
 See [task-control handoff](../docs/handoff_20261104_230000.md).
 
+Issue 090 records final paxkit dependency alignment to
+`v0.0.0-20261116222722-f08901d65244` and tidy verification.
+
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| 090 | resolved | [Internal alias failures stall replay and saturate storage](090-tunnel-replay-and-session-lock-contention.md) | high | ACP / snapshots / storage |
 | 073 | resolved | [Stable historical text waits forever and inflates the visible queue](073-secretary-stable-history-and-pending-count.md) | high | Secretary / storage / status |
 | 060 | resolved | [Backend failures discard refreshed browser session cookies](060-refreshed-session-cookie-loss.md) | high | auth / Worker / regional gateway |
 | 061 | resolved | [Secretary results cannot be browsed by ordinary owners](061-summary-results-not-browsable.md) | medium | userapi / storage / Console |

@@ -15,11 +15,7 @@ type acpSessionAliases struct {
 }
 
 // resolveSessionAliases returns the manager/native aliases for any session ID
-// (either form), consulting a per-agent cache before falling back to a single
-// ListAgentSessions read. The mapping is stable for a session's lifetime, so
-// caching it removes the per-frame session query that otherwise runs twice for
-// every inbound frame (session-id middleware + history canonicalization) — a
-// dominant cost under high-volume terminal output.
+// (either form), consulting a per-agent cache before an authorized lookup.
 func (a *ACPTunnelAgent) resolveSessionAliases(
 	ctx context.Context,
 	store domain.Store,
@@ -39,28 +35,16 @@ func (a *ACPTunnelAgent) resolveSessionAliases(
 	if store == nil {
 		return acpSessionAliases{}, false
 	}
-	sessions, err := store.ListAgentSessions(
-		ctx,
-		domain.UserPrincipal{User: domain.User{UserID: a.ownerUserID}},
-		a.agentID,
-	)
+	session, err := resolveStoreSessionAliases(ctx, store, a.ownerUserID, a.agentID, sessionID)
 	if err != nil {
 		return acpSessionAliases{}, false
 	}
-	for _, session := range sessions {
-		if session.SessionID == sessionID || session.NativeID == sessionID {
-			aliases := acpSessionAliases{
-				managerID: session.SessionID,
-				nativeID:  firstNonEmpty(session.NativeID, session.SessionID),
-			}
-			a.cacheSessionAliases(aliases)
-			return aliases, true
-		}
+	aliases := acpSessionAliases{
+		managerID: session.SessionID,
+		nativeID:  firstNonEmpty(session.NativeID, session.SessionID),
 	}
-	// Only positive mappings are cached: a frame that arrives before its session
-	// row is durable must be re-resolved on the next frame, never pinned as
-	// "unknown".
-	return acpSessionAliases{}, false
+	a.cacheSessionAliases(aliases)
+	return aliases, true
 }
 
 // canonicalSessionID resolves any session ID to its public manager ID via the
