@@ -57,3 +57,15 @@ advanced from applied sequence 28 to 30; its catalog matched the original payloa
 in the canonical session. Unit, PostgreSQL, race, and the new real HTTP/ACP
 early-notification regression passed. The initial replay CPU loop and storage
 deadlocks remain fixed.
+
+## Paxd follow-up
+
+The installed clients also need the shared dependency update and client-specific
+worker/reconnect fixes. [Paxd #122](https://github.com/pax-beehive/paxd/pull/122)
+and [paxkit #12](https://github.com/pax-beehive/paxkit/pull/12) contain that work.
+The actual compiled daemon passed a forced-reconnect test against real Manager
+and PostgreSQL, including command catalog binding, responses, a subsequent
+prompt, persistent SQLite ID binding, and one invocation per request. This
+acceptance does not mean installed clients have been upgraded. See the
+[client handoff](../docs/handoff_20261116_001400.md) for coverage, artifacts,
+existing output durability limitations, and preserved Mac permission history.
