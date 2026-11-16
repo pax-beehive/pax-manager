@@ -69,3 +69,10 @@ prompt, persistent SQLite ID binding, and one invocation per request. This
 acceptance does not mean installed clients have been upgraded. See the
 [client handoff](../docs/handoff_20261116_001400.md) for coverage, artifacts,
 existing output durability limitations, and preserved Mac permission history.
+
+## Final shared dependency
+
+Manager now pins the final shared replay dependency
+`github.com/pax-beehive/paxkit v0.0.0-20261116221549-4d630f079c06`.
+Dependency checksums were refreshed with Go 1.25.8; a second
+`go mod tidy -diff` reports no changes.

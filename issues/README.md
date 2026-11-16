@@ -5,6 +5,8 @@ Pax-manager issues discovered during round-trip API flow review (2026-06-13).
 Issue 067 also tracks the per-source task controls; rollout remains pending.
 See [task-control handoff](../docs/handoff_20261104_230000.md).
 
+Issue 090 also records final paxkit dependency alignment and tidy verification.
+
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
 | 090 | resolved | [Internal alias failures stall replay and saturate storage](090-tunnel-replay-and-session-lock-contention.md) | high | ACP / snapshots / storage |
