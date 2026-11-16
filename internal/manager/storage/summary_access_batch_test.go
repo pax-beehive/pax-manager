@@ -30,7 +30,7 @@ func TestSummaryAccessGivenTwentySummariesWithSixtyFourLeavesThenUsesEightyOneQu
 		messages.values = nil
 		for message := range 64 {
 			messageID := fmt.Sprintf("message_%d_%d", summary, message)
-			access.values = append(access.values, []driver.Value{"owner_1", messageID})
+			access.values = append(access.values, []driver.Value{"owner_1", messageID, false})
 			messages.values = append(
 				messages.values,
 				summaryMessageRows(messageID, "body", "owner_1").values...)
@@ -56,13 +56,13 @@ func TestSummaryAccessGivenManyLeafMessagesThenUsesOneCanonicalVisibilityQuery(t
 	messages := summaryMessageRows("message_1", "visible body", "owner_1")
 	for i := 2; i <= 64; i++ {
 		id := fmt.Sprintf("message_%d", i)
-		access.values = append(access.values, []driver.Value{"owner_1", id})
+		access.values = append(access.values, []driver.Value{"owner_1", id, false})
 		messages.values = append(
 			messages.values,
 			summaryMessageRows(id, "visible body", "owner_1").values...)
 	}
 	// The same leaf can be reached through multiple pinned child summaries.
-	access.values = append(access.values, []driver.Value{"owner_1", "message_1"})
+	access.values = append(access.values, []driver.Value{"owner_1", "message_1", false})
 	script := &scriptedPostgresScript{queries: []scriptedRows{
 		summaryVersionRows("summary_1", "owner_1", 1), summarySourceRows(), access, messages,
 	}}

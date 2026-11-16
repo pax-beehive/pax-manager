@@ -75,15 +75,17 @@ WHERE summary_id=$1 AND owner_user_id=$2 AND revision=$3`, doc.SourceID, owner, 
 		if source == "" {
 			doc.AgentID, doc.SessionID = "", ""
 			return domain.SearchGroupMetadata{
-				Key:   domain.SearchDocumentGroupKey(doc),
-				Title: searchGroupTitle(summary.Title, summary.SummaryID),
+				Key:    domain.SearchDocumentGroupKey(doc),
+				Title:  searchGroupTitle(summary.Title, summary.SummaryID),
+				NodeID: doc.NodeID,
 			}, nil
 		}
 	}
 	if source == "" && (doc.AgentID == "" || doc.SessionID == "") {
 		return domain.SearchGroupMetadata{
-			Key:   domain.SearchDocumentGroupKey(doc),
-			Title: searchGroupTitle(doc.Title, doc.SourceID),
+			Key:    domain.SearchDocumentGroupKey(doc),
+			Title:  searchGroupTitle(doc.Title, doc.SourceID),
+			NodeID: doc.NodeID,
 		}, nil
 	}
 	return readSessionSearchGroupTx(ctx, tx, owner, source, doc.AgentID, doc.SessionID)
@@ -101,14 +103,14 @@ func readSessionSearchGroupTx(
 		predicate = "s.id=$2::bigint"
 		args = []any{owner, source}
 	}
-	err := tx.QueryRowContext(ctx, `SELECT s.agent_id,s.session_id,
+	err := tx.QueryRowContext(ctx, `SELECT s.agent_id,s.session_id,COALESCE(s.node_id,''),
 COALESCE(s.custom_session_name,s.session_name,'') FROM agent_sessions s
 JOIN agents a ON a.agent_id=s.agent_id
 LEFT JOIN nodes an ON an.node_id=a.node_id LEFT JOIN nodes sn ON sn.node_id=s.node_id
 WHERE a.owner_user_id=$1 AND `+predicate+`
 AND a.deleted_at IS NULL AND an.deleted_at IS NULL AND sn.deleted_at IS NULL AND s.archived_at IS NULL
 AND COALESCE(s.source,'')<>'secretary_internal' AND NOT starts_with(s.session_id,'sess_secretary_')`, args...).
-		Scan(&group.AgentID, &group.SessionID, &group.Title)
+		Scan(&group.AgentID, &group.SessionID, &group.NodeID, &group.Title)
 	if errors.Is(err, sql.ErrNoRows) {
 		return group, ErrNotFound
 	}

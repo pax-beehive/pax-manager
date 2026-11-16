@@ -1,8 +1,8 @@
 # Turn-scoped workspace search authorization
 
-Ordinary agents can search all of their own sessions during a Manager-owned
+Ordinary agents can search their owner's agents and sessions on the calling node during a Manager-owned
 turn without an expansion approval. Every search must explicitly declare its
-agent and session range. Wider access requires a turn-scoped approval record.
+node, agent and session range. Cross-node access requires a turn-scoped approval record.
 This path does not add per-search access audit records. Existing approval and
 tool telemetry remains.
 
@@ -11,21 +11,26 @@ tool telemetry remains.
 ```json
 {
   "query": "cicd",
-  "scope": {"agent_ids": ["self"], "session_ids": ["*"]}
+  "scope": {"node_ids": ["self"], "agent_ids": ["*"], "session_ids": ["*"]}
 }
 ```
 
-`self` resolves to the calling agent; `session_ids: ["*"]` includes all of that
-agent's sessions. A concrete session list narrows that declared range. Both
-scope dimensions are mandatory. The response includes the actual resolved
-`scope`, including the real calling agent ID.
+`node_ids: ["self"]` resolves to the calling node. `agent_ids: ["self"]` still
+selects only the calling agent; `agent_ids: ["*"]` includes all owner-visible
+agents within the selected nodes. Concrete agent and session lists narrow that
+range. New MCP schemas require all three dimensions. The response includes the
+actual resolved `scope`.
 
-`agent_ids: ["*"]` means all owner-visible agents, not just the current agent,
-and requires expansion approval. Concrete IDs may select other owned agents.
+`node_ids: ["*"]` means all of the owner's nodes and requires expansion approval.
+Concrete node IDs may select other owned nodes with approval. Legacy HTTP
+requests without `node_ids` retain their all-node meaning and require approval;
+Manager never rewrites them to the calling node. Legacy grants without this
+dimension likewise mean all nodes. Updated helpers must explicitly send
+`node_ids: ["self"]` to use the default range.
 Unauthorized scopes return HTTP 403 with a `workspace_request_access` hint;
 missing scope returns HTTP 400. Manager never silently narrows a wider request
-to the current agent or to an approved subset. Session IDs inconsistent with the
-declared agent range are explicitly rejected.
+to the current node or to an approved subset. Session IDs inconsistent with the
+declared node or agent range are explicitly rejected.
 
 ## Preauthorization and automatic approval
 
@@ -37,6 +42,7 @@ An authenticated user can attach `search_access` to a conversation prompt:
   "input": "Find my CI/CD deployment decisions",
   "search_access": {
     "queries": ["*"],
+    "node_ids": ["*"],
     "agent_ids": ["*"],
     "session_ids": ["*"]
   }
@@ -51,7 +57,7 @@ is cleared after acceptance, while a failed send retains it for retry.
 
 PAX auto approve approves an explicit `workspace_request_access` immediately.
 It does not create a workspace-wide grant at turn start: the default range is
-still this agent's sessions, and wider direct searches are rejected until an
+still the calling node's sessions, and wider direct searches are rejected until an
 expansion request is approved or the user explicitly preauthorizes the scope.
 Automatic approval requires both `approval_mode: auto_approve_all` and the explicit
 `permission_choice_id: pax:auto_approve`. The implicit automatic tool approval
@@ -60,10 +66,11 @@ automatic mode without that explicit choice requires preauthorization, an owner
 decision, or selecting PAX auto approve again.
 
 Expansion scopes contain at most 50 entries per dimension. A sole `*` allows
-any query, owner-visible agent, or session in the selected agents. Other queries are complete literal-query allowlist
+any query, owner-visible node, agent, or session within the other dimensions. Other queries are complete literal-query allowlist
 entries, compared case-insensitively after whitespace normalization. Merely
 including an allowed word in a larger query does not authorize that larger query.
-Other agent/session values are exact IDs; `self` selects the current agent.
+Other node/agent/session values are exact IDs; `self` selects the calling node
+in `node_ids` and the calling agent in `agent_ids`.
 Missing expansion-request dimensions default to `*`;
 empty lists and `*` mixed with other entries are rejected. Query entries have a
 256-Unicode-character limit, session IDs 4,096, and queries at most 16 terms.
@@ -74,13 +81,13 @@ continues to use the existing literal matching contract.
 
 Ordinary injected conversation MCP servers expose `workspace_request_access`,
 `workspace_access_status`, `workspace_cancel_access`, and `workspace_search`.
-An expansion request accepts optional `queries`, `agent_ids`, `session_ids`,
+An expansion request accepts optional `queries`, `node_ids`, `agent_ids`, `session_ids`,
 `reason`, and `timeout_seconds`. The timeout is an integer from 0 through 86400;
 omitting it uses 600 seconds. Zero means no time deadline while pending, not
 permission to survive the end of the turn.
 
 ```json
-{"queries":["ci cd"],"agent_ids":["*"],"session_ids":["*"],"timeout_seconds":0}
+{"queries":["ci cd"],"node_ids":["*"],"agent_ids":["*"],"session_ids":["*"],"timeout_seconds":0}
 ```
 
 The response contains `status`, `approval_id`, `turn_id`, `scope`, and `expires_at`.
@@ -128,7 +135,7 @@ Content-Type: application/json
 {
   "session_id": "sess_example",
   "tool": "search",
-  "arguments_json": "{\"query\":\"cicd\",\"scope\":{\"agent_ids\":[\"self\"],\"session_ids\":[\"*\"]},\"limit\":10}"
+  "arguments_json": "{\"query\":\"cicd\",\"scope\":{\"node_ids\":[\"self\"],\"agent_ids\":[\"*\"],\"session_ids\":[\"*\"]},\"limit\":10}"
 }
 ```
 
@@ -159,9 +166,12 @@ the pending request deadline. This does not permit access after the turn ends. R
 the old authorization. An SSE disconnect or a pending native tool approval alone
 does not terminate the turn or revoke its authorization.
 
-ES filters both `agent_id` and `session_id`; Manager applies the explicitly
-authorized range and rechecks current source visibility and agent attribution
-in PostgreSQL. Agent ranges also bind pagination cursors. Summaries without
+ES filters `node_id`, `agent_id` and `session_id`; Manager applies the explicitly
+authorized range and rechecks current source visibility and attribution
+in PostgreSQL. All ranges bind pagination cursors. Node attribution follows the
+source session or message, never the agent's current node. Summaries must have
+unanimous source attribution; mixed-node, conflicting or unknown sources are
+excluded from narrow node scopes. Summaries without
 a single indexed session are excluded by explicit session filters. Owner
 isolation always applies, including when a session scope is `*`.
 Team visibility of an agent does not authorize a collaborator to search its
@@ -174,6 +184,14 @@ then the updated paxd and Console. EnsureSchema adds the queue JSONB column to
 existing databases. The gateway's machine route allowlist must include
 `/api/v1/node/agents/:agent_id/workspace/tools` or remote calls will be rejected.
 Older Managers reject the new endpoint and do not provide data access.
+
+The node-scope upgrade adds an ES keyword mapping and a PostgreSQL projection
+version marker. Backfill bumps the desired revision once for legacy index rows
+so existing documents are reindexed with `node_id`. Stop all old index workers
+before starting the first upgraded worker and its backfill; old binaries cannot
+populate this field. A mixed-version rollout requires forcing another revision
+after retiring old workers. Narrow node searches may return fewer results until indexing finishes.
+Fresh source checks prevent stale index attribution from widening access.
 
 Encrypted sessions do not support these grants: their turn context is not owned
 by Manager. The UI disables preauthorization on that transport.

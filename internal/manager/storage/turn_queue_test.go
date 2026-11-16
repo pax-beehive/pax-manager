@@ -30,6 +30,7 @@ func exerciseTurnQueue(t *testing.T, store domain.TurnQueueStore, agentID, nodeI
 		Input:     "first",
 		SearchAccess: &domain.WorkspaceSearchAccess{
 			Queries:    []string{"cicd"},
+			NodeIDs:    []string{nodeID},
 			AgentIDs:   []string{agentID},
 			SessionIDs: []string{"*"},
 		},
@@ -43,6 +44,7 @@ func exerciseTurnQueue(t *testing.T, store domain.TurnQueueStore, agentID, nodeI
 	q.CommandID = "cmd-edit"
 	q.SearchAccess = &domain.WorkspaceSearchAccess{
 		Queries:    []string{"*"},
+		NodeIDs:    []string{"*"},
 		AgentIDs:   []string{"*"},
 		SessionIDs: []string{"queue-session"},
 	}
@@ -53,7 +55,7 @@ func exerciseTurnQueue(t *testing.T, store domain.TurnQueueStore, agentID, nodeI
 	q.SearchAccess = &domain.WorkspaceSearchAccess{
 		Queries: []string{
 			"cicd",
-		}, AgentIDs: []string{agentID}, SessionIDs: []string{"queue-session"},
+		}, NodeIDs: []string{"self"}, AgentIDs: []string{agentID}, SessionIDs: []string{"queue-session"},
 	}
 	patched, _, err := store.PutQueuedTurn(ctx, q, true)
 	require.NoError(t, err)

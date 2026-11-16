@@ -25,6 +25,7 @@ type workspaceToolRequest struct {
 
 type workspaceAccessRequest struct {
 	Queries        []string `json:"queries,omitempty"`
+	NodeIDs        []string `json:"node_ids,omitempty"`
 	AgentIDs       []string `json:"agent_ids,omitempty"`
 	SessionIDs     []string `json:"session_ids,omitempty"`
 	Reason         string   `json:"reason,omitempty"`
@@ -89,6 +90,7 @@ func (s *Service) prepareTurnSearchAccess(
 	}
 	if normalized != nil {
 		normalized.AgentIDs = domain.ResolveWorkspaceSearchAgents(normalized.AgentIDs, agentID)
+		normalized.NodeIDs = domain.ResolveWorkspaceSearchNodes(normalized.NodeIDs, nodeID)
 	}
 	if err = s.registerWorkspaceAccessTurn(agentID, sessionID, turnID); err != nil {
 		return err
@@ -252,7 +254,7 @@ func (s *Service) requestWorkspaceAccess(
 		)
 	}
 	scope, err := domain.NormalizeWorkspaceSearchAccess(&domain.WorkspaceSearchAccess{
-		Queries: request.Queries, AgentIDs: request.AgentIDs, SessionIDs: request.SessionIDs,
+		Queries: request.Queries, NodeIDs: request.NodeIDs, AgentIDs: request.AgentIDs, SessionIDs: request.SessionIDs,
 	})
 	if err != nil || len(request.Reason) > 4096 {
 		return workspaceAccessStatus{}, workspaceAccessError(
@@ -261,6 +263,7 @@ func (s *Service) requestWorkspaceAccess(
 		)
 	}
 	scope.AgentIDs = domain.ResolveWorkspaceSearchAgents(scope.AgentIDs, agent.AgentID)
+	scope.NodeIDs = domain.ResolveWorkspaceSearchNodes(scope.NodeIDs, agent.NodeID)
 	source := ""
 	if workspaceAccessAutoApproved(session) {
 		source = "pax_auto_approve"
@@ -425,7 +428,11 @@ func (s *Service) searchWorkspaceWithAccess(
 	if err := decodeSecretaryToolJSON(arguments, &request); err != nil {
 		return nil, err
 	}
-	declared, err := domain.NormalizeWorkspaceSearchScope(request.Scope, agent.AgentID)
+	declared, err := domain.NormalizeWorkspaceSearchScope(
+		request.Scope,
+		agent.AgentID,
+		agent.NodeID,
+	)
 	if err != nil {
 		return nil, workspaceAccessError(http.StatusBadRequest, err.Error())
 	}
@@ -434,6 +441,7 @@ func (s *Service) searchWorkspaceWithAccess(
 	}
 	query := domain.SearchQuery{Query: request.Query, Kinds: request.Kinds, Cursor: request.Cursor,
 		Limit: request.Limit, GroupBy: request.GroupBy, GroupKey: request.GroupKey,
+		NodeIDs: workspaceScopeFilter(declared.NodeIDs),
 		AgentIDs: workspaceScopeFilter(
 			declared.AgentIDs,
 		), SessionIDs: workspaceScopeFilter(declared.SessionIDs)}
@@ -479,6 +487,9 @@ func (s *Service) validateWorkspaceSearchScope(
 	ctx context.Context, caller domain.Agent, scope domain.WorkspaceSearchScope,
 ) error {
 	principal := domain.UserPrincipal{User: domain.User{UserID: caller.OwnerUserID}}
+	if err := s.validateWorkspaceSearchNodes(ctx, principal, caller.NodeID, scope.NodeIDs); err != nil {
+		return err
+	}
 	known := map[string]bool{caller.AgentID: true}
 	checkAgent := func(agentID string) bool {
 		if known[agentID] {
@@ -491,7 +502,6 @@ func (s *Service) validateWorkspaceSearchScope(
 		known[agentID] = true
 		return true
 	}
-	allAgents := len(scope.AgentIDs) == 1 && scope.AgentIDs[0] == "*"
 	for _, agentID := range scope.AgentIDs {
 		if agentID != "*" && !checkAgent(agentID) {
 			return workspaceScopeDenied()
@@ -502,26 +512,42 @@ func (s *Service) validateWorkspaceSearchScope(
 		if err != nil || !checkAgent(session.AgentID) {
 			return workspaceScopeDenied()
 		}
-		if !allAgents && !workspaceAgentInScope(scope.AgentIDs, session.AgentID) {
+		if !workspaceValueInScope(scope.AgentIDs, session.AgentID) ||
+			!workspaceValueInScope(scope.NodeIDs, session.NodeID) {
 			return workspaceScopeDenied()
 		}
 	}
 	return nil
 }
 
-func workspaceAgentInScope(agents []string, agentID string) bool {
-	for _, candidate := range agents {
-		if candidate == agentID {
+func workspaceValueInScope(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == "*" || candidate == value {
 			return true
 		}
 	}
 	return false
 }
 
+func (s *Service) validateWorkspaceSearchNodes(
+	ctx context.Context, principal domain.UserPrincipal, callerNodeID string, nodeIDs []string,
+) error {
+	for _, nodeID := range workspaceScopeFilter(nodeIDs) {
+		if nodeID == callerNodeID {
+			continue
+		}
+		node, err := s.store.GetNode(ctx, principal, nodeID)
+		if err != nil || node.OwnerUserID != principal.User.UserID {
+			return workspaceScopeDenied()
+		}
+	}
+	return nil
+}
+
 func workspaceScopeDenied() error {
 	return workspaceAccessError(
 		http.StatusForbidden,
-		"requested scope is not accessible or exceeds the declared agent range; default access covers this agent's sessions; use workspace_request_access for a wider authorized scope",
+		"requested scope is not accessible or contradicts the declared node/agent range; default access covers this node's sessions; declare node_ids [self] or use workspace_request_access for a wider scope",
 	)
 }
 
@@ -531,14 +557,20 @@ func (s *Service) authorizeWorkspaceSearchScope(
 	sessionID, turnID, query string,
 	requested domain.WorkspaceSearchScope,
 ) (string, error) {
-	if len(requested.AgentIDs) == 1 && requested.AgentIDs[0] == agent.AgentID {
+	if len(requested.NodeIDs) == 1 && requested.NodeIDs[0] == agent.NodeID {
 		return "", nil
 	}
 	approvals, err := s.workspaceTurnApprovals(ctx, agent, sessionID, turnID)
 	if err != nil {
 		return "", err
 	}
-	approval, err := s.workspaceSearchApproval(approvals, query, requested, agent.AgentID)
+	approval, err := s.workspaceSearchApproval(
+		approvals,
+		query,
+		requested,
+		agent.AgentID,
+		agent.NodeID,
+	)
 	return approval.ApprovalID, err
 }
 
@@ -546,7 +578,7 @@ func (s *Service) workspaceSearchApproval(
 	approvals []domain.AgentApproval,
 	query string,
 	requested domain.WorkspaceSearchScope,
-	agentID string,
+	agentID, nodeID string,
 ) (domain.AgentApproval, error) {
 	for _, approval := range approvals {
 		if s.workspaceApprovalStatus(approval) != "approved" {
@@ -563,13 +595,14 @@ func (s *Service) workspaceSearchApproval(
 			continue
 		}
 		scope.AgentIDs = domain.ResolveWorkspaceSearchAgents(scope.AgentIDs, agentID)
+		scope.NodeIDs = domain.ResolveWorkspaceSearchNodes(scope.NodeIDs, nodeID)
 		if scope.Covers(requested) {
 			return approval, nil
 		}
 	}
 	return domain.AgentApproval{}, workspaceAccessError(
 		http.StatusForbidden,
-		"search scope or query exceeds current access; default access covers only this agent's sessions; use workspace_request_access to request a wider scope for this turn",
+		"search scope or query exceeds current access; default access covers this node's sessions using node_ids [self]; use workspace_request_access for a wider scope for this turn",
 	)
 }
 

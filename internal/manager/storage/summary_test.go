@@ -257,7 +257,7 @@ func TestSummaryGivenTruncatedDependencySetThenRejectsBeforeReadingAnyLeaf(t *te
 	for i := range 4096 {
 		access.values = append(
 			access.values,
-			[]driver.Value{"owner_1", fmt.Sprintf("message_%d", i)},
+			[]driver.Value{"owner_1", fmt.Sprintf("message_%d", i), false},
 		)
 	}
 	script := &scriptedPostgresScript{queries: []scriptedRows{
@@ -509,7 +509,7 @@ func summarySourceRows() scriptedRows {
 
 func summaryAccessRows(owner, message string) scriptedRows {
 	return scriptedRows{
-		columns: []string{"owner", "message"},
-		values:  [][]driver.Value{{owner, message}},
+		columns: []string{"owner", "message", "missing_source"},
+		values:  [][]driver.Value{{owner, message, false}},
 	}
 }

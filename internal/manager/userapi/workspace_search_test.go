@@ -200,7 +200,11 @@ func TestWorkspaceSearchGivenUntrustedIndexWhenSearchingThenRevalidatesOwnerAndT
 	assert.Equal(t, "owner", backend.query.OwnerUserID)
 	assert.Equal(t, 20, backend.query.Limit)
 	assert.Equal(t, "m1", page.Hits[0].Ref.ID)
-	assert.Equal(t, "next", page.NextCursor)
+	assert.Empty(
+		t,
+		page.NextCursor,
+		"an unverified boundary must not expose its cursor sort values",
+	)
 	assert.Contains(t, page.Hits[0].Snippet, "paragraph")
 	store.summary = domain.SummaryVersion{
 		SummaryID:   "s1",

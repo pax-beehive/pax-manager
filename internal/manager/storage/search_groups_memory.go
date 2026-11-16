@@ -40,15 +40,17 @@ func (s *MemoryStore) ReadSearchGroup(
 		if source == "" {
 			doc.AgentID, doc.SessionID = "", ""
 			return domain.SearchGroupMetadata{
-				Key:   domain.SearchDocumentGroupKey(doc),
-				Title: searchGroupTitle(summary.Title, summary.SummaryID),
+				Key:    domain.SearchDocumentGroupKey(doc),
+				Title:  searchGroupTitle(summary.Title, summary.SummaryID),
+				NodeID: doc.NodeID,
 			}, nil
 		}
 	}
 	if source == "" && (doc.AgentID == "" || doc.SessionID == "") {
 		return domain.SearchGroupMetadata{
-			Key:   domain.SearchDocumentGroupKey(doc),
-			Title: searchGroupTitle(doc.Title, doc.SourceID),
+			Key:    domain.SearchDocumentGroupKey(doc),
+			Title:  searchGroupTitle(doc.Title, doc.SourceID),
+			NodeID: doc.NodeID,
 		}, nil
 	}
 	return s.readSearchGroupSessionLocked(owner, source, doc)
@@ -86,6 +88,7 @@ func (s *MemoryStore) readSearchGroupSessionLocked(
 				session.SessionID,
 			),
 			AgentID:   session.AgentID,
+			NodeID:    session.NodeID,
 			SessionID: session.SessionID,
 		}, nil
 	}

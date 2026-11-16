@@ -7,6 +7,7 @@ See [task-control handoff](../docs/handoff_20261104_230000.md).
 
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| 083 | resolved | [Default workspace search scope stops at one agent](083-workspace-search-node-scope.md) | medium | auth / search / storage / MCP |
 | 073 | resolved | [Stable historical text waits forever and inflates the visible queue](073-secretary-stable-history-and-pending-count.md) | high | Secretary / storage / status |
 | 060 | resolved | [Backend failures discard refreshed browser session cookies](060-refreshed-session-cookie-loss.md) | high | auth / Worker / regional gateway |
 | 061 | resolved | [Secretary results cannot be browsed by ordinary owners](061-summary-results-not-browsable.md) | medium | userapi / storage / Console |

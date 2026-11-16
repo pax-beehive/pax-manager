@@ -133,7 +133,7 @@ func (c *Client) request(ctx context.Context, method, path string, body any) ([]
 
 func (c *Client) EnsureIndex(ctx context.Context) error {
 	properties := map[string]any{}
-	for _, name := range []string{"group_key", "doc_id", "kind", "source_id", "owner_user_id", "agent_id", "session_id", "conversation_id", "role", "content_hash", "canonicalization_version"} {
+	for _, name := range []string{"group_key", "doc_id", "kind", "source_id", "owner_user_id", "node_id", "agent_id", "session_id", "conversation_id", "role", "content_hash", "canonicalization_version"} {
 		properties[name] = map[string]string{"type": "keyword"}
 	}
 	properties["body"] = map[string]string{"type": "wildcard"}
@@ -156,7 +156,10 @@ func (c *Client) EnsureIndex(ctx context.Context) error {
 	if errors.As(err, &backendErr) && backendErr.status == 400 &&
 		backendErr.kind == "resource_already_exists_exception" {
 		_, err = c.request(ctx, http.MethodPut, "/"+c.index+"/_mapping", map[string]any{
-			"properties": map[string]any{"group_key": map[string]string{"type": "keyword"}},
+			"properties": map[string]any{
+				"group_key": map[string]string{"type": "keyword"},
+				"node_id":   map[string]string{"type": "keyword"},
+			},
 		})
 		return err
 	}
@@ -169,6 +172,7 @@ type record struct {
 	Kind                    string    `json:"kind"`
 	SourceID                string    `json:"source_id"`
 	OwnerUserID             string    `json:"owner_user_id"`
+	NodeID                  string    `json:"node_id,omitempty"`
 	AgentID                 string    `json:"agent_id,omitempty"`
 	SessionID               string    `json:"session_id,omitempty"`
 	ConversationID          string    `json:"conversation_id,omitempty"`
@@ -191,6 +195,7 @@ func toRecord(d domain.SearchDocument) record {
 		Kind:                    d.Kind,
 		SourceID:                d.SourceID,
 		OwnerUserID:             d.OwnerUserID,
+		NodeID:                  d.NodeID,
 		AgentID:                 d.AgentID,
 		SessionID:               d.SessionID,
 		ConversationID:          d.ConversationID,
@@ -222,6 +227,7 @@ func (r record) document() domain.SearchDocument {
 		Kind:                    r.Kind,
 		SourceID:                r.SourceID,
 		OwnerUserID:             r.OwnerUserID,
+		NodeID:                  r.NodeID,
 		AgentID:                 r.AgentID,
 		SessionID:               r.SessionID,
 		ConversationID:          r.ConversationID,

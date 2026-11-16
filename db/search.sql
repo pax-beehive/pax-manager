@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS search_sync_state (
 );
 -- A constant default classifies legacy work without rewriting existing rows.
 ALTER TABLE search_sync_state ADD COLUMN IF NOT EXISTS is_backfill BOOLEAN NOT NULL DEFAULT TRUE;
+-- Legacy rows need a new external revision before node-scoped search can find them.
+ALTER TABLE search_sync_state ADD COLUMN IF NOT EXISTS projection_version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE search_sync_state ALTER COLUMN projection_version SET DEFAULT 2;
 CREATE INDEX IF NOT EXISTS idx_search_sync_pending_priority ON search_sync_state(
     is_backfill,
     (CASE WHEN is_backfill THEN CASE kind WHEN 'session' THEN 0 WHEN 'summary' THEN 1 ELSE 2 END ELSE 0 END),

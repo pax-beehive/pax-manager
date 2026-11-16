@@ -34,7 +34,7 @@ const searchMessageBatchAccessSQL = `WITH targets AS MATERIALIZED (
  ELSE jsonb_build_array(display.parent_message_id) END) item(value)
  WHERE jsonb_typeof(item.value)='string'
 )
-SELECT to_jsonb(m),a.owner_user_id,
+SELECT ` + searchMessageProjectionSQL + `,a.owner_user_id,
  COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.part_index)
  FROM message_parts p WHERE p.message_id=m.message_id),'[]'::jsonb),0` +
 	searchMessageVisibilityFromSQL + `
@@ -51,8 +51,15 @@ SELECT to_jsonb(m),a.owner_user_id,
 func validateSearchMessageAccess(
 	ctx context.Context, tx *sql.Tx, owner string, ids []string,
 ) error {
+	_, err := validateSearchMessageAccessWithNode(ctx, tx, owner, ids)
+	return err
+}
+
+func validateSearchMessageAccessWithNode(
+	ctx context.Context, tx *sql.Tx, owner string, ids []string,
+) (string, error) {
 	if len(ids) == 0 {
-		return nil
+		return "", nil
 	}
 	expected := make(map[string]bool, len(ids))
 	unique := make([]string, 0, len(ids))
@@ -65,25 +72,34 @@ func validateSearchMessageAccess(
 	encoded, _ := json.Marshal(unique)
 	rows, err := tx.QueryContext(ctx, searchMessageBatchAccessSQL, string(encoded))
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = rows.Close() }()
 	visible := make(map[string]bool, len(expected))
+	var nodeID string
+	unknown := false
 	for rows.Next() {
 		doc, readErr := scanCanonicalSearchMessage(rows, 0)
 		if readErr != nil {
-			return readErr
+			return "", readErr
 		}
 		if doc.OwnerUserID != owner || !expected[doc.SourceID] {
-			return ErrNotFound
+			return "", ErrNotFound
 		}
+		if doc.NodeID == "" || (nodeID != "" && nodeID != doc.NodeID) {
+			unknown = true
+		}
+		nodeID = doc.NodeID
 		visible[doc.SourceID] = true
 	}
 	if err = rows.Err(); err != nil {
-		return err
+		return "", err
 	}
 	if len(visible) != len(expected) {
-		return domain.ErrNotFound
+		return "", domain.ErrNotFound
 	}
-	return rows.Close()
+	if unknown {
+		nodeID = ""
+	}
+	return nodeID, rows.Close()
 }

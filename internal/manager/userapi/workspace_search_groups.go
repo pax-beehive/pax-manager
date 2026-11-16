@@ -116,7 +116,7 @@ func (s *WorkspaceSearchService) currentSearchGroup(
 	}
 	seen := map[string]bool{}
 	for _, hit := range candidate.Matches {
-		current, err := s.currentDocument(ctx, owner, hit.Kind, hit.SourceID)
+		current, err := s.currentSearchDocument(ctx, owner, query, hit)
 		if errors.Is(err, domain.ErrNotFound) {
 			continue
 		}
@@ -138,7 +138,8 @@ func (s *WorkspaceSearchService) currentSearchGroup(
 			if readErr != nil {
 				return group, readErr
 			}
-			if metadata.Key != candidate.Key {
+			if metadata.Key != candidate.Key ||
+				(len(query.NodeIDs) > 0 && !searchFilterContains(query.NodeIDs, metadata.NodeID)) {
 				continue
 			}
 			group.SearchGroupMetadata = metadata
@@ -157,11 +158,17 @@ func (s *WorkspaceSearchService) currentSearchGroup(
 		}
 		group.Matches = append(
 			group.Matches,
-			WorkspaceSearchHit{Ref: documentRef(current), Title: current.Title,
+			WorkspaceSearchHit{
+				Ref:    documentRef(current),
+				Title:  current.Title,
+				NodeID: current.NodeID,
 				Snippet: searchSnippet(
 					text,
 					query.Query,
-				), AgentID: current.AgentID, SessionID: current.SessionID},
+				),
+				AgentID:   current.AgentID,
+				SessionID: current.SessionID,
+			},
 		)
 	}
 	return group, nil

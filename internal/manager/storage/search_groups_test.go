@@ -30,8 +30,8 @@ func TestSearchGroupsGivenSecretaryPrimaryThenResolvesExplicitSourceInsteadOfCov
 		script.queries = append(
 			script.queries,
 			scriptedRows{
-				columns: []string{"agent", "session", "title"},
-				values:  [][]driver.Value{{"agent", "session", "Custom current title"}},
+				columns: []string{"agent", "session", "node", "title"},
+				values:  [][]driver.Value{{"agent", "session", "node", "Custom current title"}},
 			},
 		)
 		store, cleanup := scriptedPostgresStore(t, script)
@@ -51,8 +51,8 @@ func TestSearchGroupsGivenSecretaryPrimaryThenResolvesExplicitSourceInsteadOfCov
 
 func TestSearchGroupsGivenSessionOrUnavailableMetadataThenUsesFallbackAndFailsClosed(t *testing.T) {
 	for _, rows := range [][]scriptedRows{
-		{{columns: []string{"agent", "session", "title"}, values: [][]driver.Value{{"agent", "session", ""}}}},
-		{{columns: []string{"agent", "session", "title"}}}, nil,
+		{{columns: []string{"agent", "session", "node", "title"}, values: [][]driver.Value{{"agent", "session", "node", ""}}}},
+		{{columns: []string{"agent", "session", "node", "title"}}}, nil,
 	} {
 		script := &scriptedPostgresScript{queries: rows}
 		store, cleanup := scriptedPostgresStore(t, script)
