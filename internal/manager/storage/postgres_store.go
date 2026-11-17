@@ -48,7 +48,7 @@ func isUniqueViolation(err error) bool {
 }
 
 func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
-	for _, path := range []string{"db/init.sql", "db/summaries.sql", "db/search.sql", "db/secretary.sql", RuntimeConfigSchemaPath} {
+	for _, path := range []string{"db/init.sql", "db/summaries.sql", "db/search.sql", "db/secretary.sql", RuntimeConfigSchemaPath, "db/hosting.sql"} {
 		ddl, err := os.ReadFile(path)
 		if err != nil {
 			return err
