@@ -28,6 +28,22 @@ type Config struct {
 	SearchIndex                      string
 	SearchAPIKey                     string
 	SearchReadReceiptSecret          string
+	HostingHostKey                   string
+	HostingTokenSecret               string
+	HostingPublicURL                 string
+	HostingCloudURL                  string
+	HostingGatewayURL                string
+	HostingGatewayKey                string
+	HostingModel                     string
+	HostingModelsFile                string
+	HostingRequestsPerMinute         int
+	HostingGlobalRequestsPerMinute   int
+	HostingGrantMicrousd             int
+	HostingGrantTokens               int
+	HostingGlobalMicrousd            int
+	HostingInputPrice                int
+	HostingOutputPrice               int
+	HostingMaxOutputTokens           int
 	Region                           string
 	RegionProvisioningSecret         string
 	Port                             string
@@ -90,11 +106,27 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		SearchURL:                  strings.TrimSpace(os.Getenv("SEARCH_URL")),
-		SearchIndex:                envDefault("SEARCH_INDEX", "pax-search-v1"),
-		SearchAPIKey:               strings.TrimSpace(os.Getenv("SEARCH_API_KEY")),
-		SearchReadReceiptSecret:    os.Getenv("SEARCH_READ_RECEIPT_SECRET"),
-		TransportJournalGCDisabled: parseBool(os.Getenv("TRANSPORT_JOURNAL_GC_DISABLED")),
+		HostingHostKey:                 os.Getenv("HOSTING_HOST_KEY"),
+		HostingTokenSecret:             os.Getenv("HOSTING_TOKEN_SECRET"),
+		HostingPublicURL:               os.Getenv("HOSTING_PUBLIC_URL"),
+		HostingCloudURL:                os.Getenv("HOSTING_CLOUD_URL"),
+		HostingGatewayURL:              os.Getenv("HOSTING_GATEWAY_URL"),
+		HostingGatewayKey:              os.Getenv("HOSTING_GATEWAY_KEY"),
+		HostingModel:                   os.Getenv("HOSTING_MODEL"),
+		HostingModelsFile:              os.Getenv("HOSTING_MODELS_FILE"),
+		HostingRequestsPerMinute:       parseIntEnv("HOSTING_REQUESTS_PER_MINUTE", 20),
+		HostingGlobalRequestsPerMinute: parseIntEnv("HOSTING_GLOBAL_REQUESTS_PER_MINUTE", 200),
+		HostingGrantMicrousd:           hostingBudgetEnv("HOSTING_GRANT_MICROUSD", 5000000),
+		HostingGrantTokens:             hostingBudgetEnv("HOSTING_GRANT_TOKENS", 200000),
+		HostingGlobalMicrousd:          hostingBudgetEnv("HOSTING_GLOBAL_MICROUSD", 0),
+		HostingInputPrice:              parseIntEnv("HOSTING_INPUT_MICROUSD_PER_MILLION", 0),
+		HostingOutputPrice:             parseIntEnv("HOSTING_OUTPUT_MICROUSD_PER_MILLION", 0),
+		HostingMaxOutputTokens:         parseIntEnv("HOSTING_MAX_OUTPUT_TOKENS", 2048),
+		SearchURL:                      strings.TrimSpace(os.Getenv("SEARCH_URL")),
+		SearchIndex:                    envDefault("SEARCH_INDEX", "pax-search-v1"),
+		SearchAPIKey:                   strings.TrimSpace(os.Getenv("SEARCH_API_KEY")),
+		SearchReadReceiptSecret:        os.Getenv("SEARCH_READ_RECEIPT_SECRET"),
+		TransportJournalGCDisabled:     parseBool(os.Getenv("TRANSPORT_JOURNAL_GC_DISABLED")),
 		TransportJournalRetention: time.Duration(parseIntEnv(
 			"TRANSPORT_JOURNAL_RETENTION_HOURS", 72,
 		)) * time.Hour,
@@ -189,6 +221,9 @@ func Load() Config {
 
 func (c Config) Validate() error {
 	if err := c.ValidateSearch(); err != nil {
+		return err
+	}
+	if err := c.validateHostingModels(); err != nil {
 		return err
 	}
 	if err := c.validateRegion(); err != nil {

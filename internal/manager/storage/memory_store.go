@@ -20,6 +20,8 @@ type MemoryStore struct {
 	notificationReceivers        map[string]notifications.RegistrationRecord
 	secretaryState               *memorySecretaryState
 	runtimeConfig                *MemoryRuntimeConfig
+	hostingMu                    sync.Mutex
+	hostingState                 json.RawMessage
 	shortPairingAttempts         map[string]domain.ShortPairingAttempt
 	shortPairingBudgets          map[string]shortPairingBudget
 	turnQueue                    map[string]domain.QueuedTurn

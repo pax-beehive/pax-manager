@@ -1789,6 +1789,589 @@
         },
         "type": "object"
       },
+      "HostingAdminAudit": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor_user_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "target_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingAdminData": {
+        "properties": {
+          "audit": {
+            "items": {
+              "$ref": "#/components/schemas/HostingAdminAudit"
+            },
+            "type": "array"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/HostingAdminDefaults"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "model_bases": {
+            "$ref": "#/components/schemas/map\u003cstring,string\u003e"
+          },
+          "model_warnings": {
+            "$ref": "#/components/schemas/map\u003cstring,string\u003e"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/HostingAdminModelPolicy"
+            },
+            "type": "array"
+          },
+          "pool": {
+            "$ref": "#/components/schemas/HostingAdminPool"
+          },
+          "requests": {
+            "items": {
+              "$ref": "#/components/schemas/HostingAdminRequestRecord"
+            },
+            "type": "array"
+          },
+          "requests_next": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/HostingAdminUser"
+            },
+            "type": "array"
+          },
+          "users_next": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingAdminDefaults": {
+        "properties": {
+          "monthly_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "monthly_tokens": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HostingAdminModelPolicy": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "input_microusd_per_million": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_output_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "moderation": {
+            "type": "string"
+          },
+          "output_microusd_per_million": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "policy_version": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "upstream_model": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingAdminPool": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "monthly_limit_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "period_start": {
+            "type": "string"
+          },
+          "remaining_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reserved_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resets_at": {
+            "type": "string"
+          },
+          "spent_microusd": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HostingAdminQuery": {
+        "properties": {
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "request_status": {
+            "type": "string"
+          },
+          "requests_before": {
+            "type": "string"
+          },
+          "user_query": {
+            "type": "string"
+          },
+          "users_after": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingAdminRequestRecord": {
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "environment_id": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "generation_started": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "input_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "moderation_verdict": {
+            "type": "string"
+          },
+          "output_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "reserved_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "spent_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "upstream_model": {
+            "type": "string"
+          },
+          "upstream_request_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingAdminResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HostingAdminData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingAdminUpdate": {
+        "properties": {
+          "access_paused": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expected_model_base": {
+            "type": "string"
+          },
+          "input_microusd_per_million": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_output_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "moderation": {
+            "type": "string"
+          },
+          "monthly_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "monthly_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "output_microusd_per_million": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "target_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "action"
+        ],
+        "type": "object"
+      },
+      "HostingAdminUser": {
+        "properties": {
+          "access_paused": {
+            "type": "boolean"
+          },
+          "email": {
+            "type": "string"
+          },
+          "environment_id": {
+            "type": "string"
+          },
+          "monthly_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "monthly_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quota": {
+            "$ref": "#/components/schemas/HostingQuota"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingClaimRequest": {
+        "properties": {
+          "capacity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "host_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingExample": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingGatewayAccountingRequest": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "known": {
+            "type": "boolean"
+          },
+          "max_output_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "moderation": {
+            "type": "object"
+          },
+          "policy": {
+            "type": "object"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "reservation_id": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          },
+          "tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "usage": {
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "HostingModelRequest": {
+        "properties": {
+          "max_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "messages": {
+            "type": "object"
+          },
+          "model": {
+            "type": "string"
+          },
+          "stream": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "HostingQuota": {
+        "properties": {
+          "granted_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "granted_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "period_start": {
+            "type": "string"
+          },
+          "remaining_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "remaining_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reserved_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reserved_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resets_at": {
+            "type": "string"
+          },
+          "spent_microusd": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "spent_tokens": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HostingResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingStarter": {
+        "properties": {
+          "access_paused": {
+            "type": "boolean"
+          },
+          "agent_id": {
+            "type": "string"
+          },
+          "environment_id": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/HostingExample"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "owner_user_id": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string"
+          },
+          "quota": {
+            "$ref": "#/components/schemas/HostingQuota"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingStatusData": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "pool_available": {
+            "type": "boolean"
+          },
+          "pool_period_start": {
+            "type": "string"
+          },
+          "pool_resets_at": {
+            "type": "string"
+          },
+          "starter": {
+            "$ref": "#/components/schemas/HostingStarter"
+          }
+        },
+        "type": "object"
+      },
+      "HostingStatusResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HostingStatusData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingUpdateRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "host_id": {
+            "type": "string"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "lease_token": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ListAgentMessagesRequest": {
         "properties": {
           "agent_id": {
@@ -4906,6 +5489,411 @@
         ]
       }
     },
+    "/api/v1/hosting/gateway/accounting": {
+      "post": {
+        "description": "Requires the separate gateway service bearer key. Handles authorization, live effective model policies, reservation, moderation metadata, generation admission, cancellation and usage settlement with fixed failure codes. Never accepts model prompts.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingGatewayAccountingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Trusted model gateway authorization and durable accounting",
+        "tags": [
+          "hosting"
+        ]
+      }
+    },
+    "/api/v1/hosting/jobs/claim": {
+      "post": {
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Trusted host claim with pinned affinity and execution lease",
+        "tags": [
+          "hosting"
+        ]
+      }
+    },
+    "/api/v1/hosting/jobs/complete": {
+      "post": {
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Report owned ready runtime or stop an execution lease",
+        "tags": [
+          "hosting"
+        ]
+      }
+    },
+    "/api/v1/hosting/jobs/heartbeat": {
+      "post": {
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Renew a current host execution lease",
+        "tags": [
+          "hosting"
+        ]
+      }
+    },
+    "/api/v1/hosting/model/chat/completions": {
+      "post": {
+        "description": "Returns 410. Hosted model traffic must use the independent Pax gateway.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Retired Manager model endpoint",
+        "tags": [
+          "hosting"
+        ]
+      }
+    },
     "/api/v1/node/agents/register": {
       "post": {
         "description": "Creates a node agent using either X-Pax-Key for an existing node or X-Registration-Token for first bootstrap.",
@@ -6759,6 +7747,432 @@
         "summary": "Report node status",
         "tags": [
           "node"
+        ]
+      }
+    },
+    "/api/v1/starter": {
+      "get": {
+        "description": "Reads personal monthly allowance and shared monthly platform-pool availability and reset times without exposing the operator budget amount.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingStatusResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Read the authenticated owner Starter and quota",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingStatusResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Idempotently create one Starter and monthly model allowance without compute",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/starter/wake": {
+      "post": {
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingStatusResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Queue an owned Starter start after checking monthly user and platform budgets",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/self/hosting-admin": {
+      "get": {
+        "description": "Requires the server-resolved administrator principal. This Manager deployment is the scope. Never returns provider credentials, prompts or raw usage bodies.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingAdminQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingAdminResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Read administrator model gateway budgets, policies and bounded usage records",
+        "tags": [
+          "user"
+        ]
+      },
+      "patch": {
+        "description": "Requires administrator access and the current control revision. Changes preserve spent and reserved funds. Stale writes return 409; provider identities and routes are server configuration only.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingAdminUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingAdminResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update durable administrator model gateway controls",
+        "tags": [
+          "user"
         ]
       }
     },

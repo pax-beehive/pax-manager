@@ -1006,3 +1006,83 @@ func _submitsecretaryoperationMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _getstarterMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _ensurestarterMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _hostingMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _gatewayMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _gatewayaccountingMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _jobsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _claimhostingjobMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _completehostingjobMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _heartbeathostingjobMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _modelMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _chatMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _proxyhostingmodelMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _starterMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _wakestarterMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _gethostingadminMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updatehostingadminMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
