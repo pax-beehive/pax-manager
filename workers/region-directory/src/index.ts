@@ -10,6 +10,7 @@ import { attachWorkosIdentity } from "./origin-assertion";
 import { releaseHealth } from "./release-health";
 import { approvePaxlLogin } from "./paxl-login";
 import { customerAnalytics, customerAnalyticsPath } from "./customer-analytics";
+import { runtimeConfig, runtimeConfigPath } from "./runtime-config";
 import {
   notificationSubscriptions,
   notificationSubscriptionsPath,
@@ -196,7 +197,8 @@ export function createWorker(
       const login = url.pathname === "/api/v1/region/paxl-login/approve";
       const probe = /^\/api\/v1\/region\/probe\/(us|hk)$/.exec(url.pathname);
       const path = browserPath(url.pathname);
-      if (!bootstrap && !probe && !path && !login)
+      const adminConfig = runtimeConfigPath(url.pathname);
+      if (!bootstrap && !probe && !path && !login && !adminConfig)
         return json({ error: "not_found" }, 404);
       if (
         ((bootstrap || login) && request.method !== "POST") ||
@@ -229,6 +231,7 @@ export function createWorker(
         return customerAnalytics(request, env);
       if (path === notificationSubscriptionsPath)
         return notificationSubscriptions(request, env);
+      if (adminConfig) return runtimeConfig(request, env, adminConfig);
       if (!bootstrap) {
         try {
           if (probe) return await probeOrigin(request, env, probe[1] as Region);
