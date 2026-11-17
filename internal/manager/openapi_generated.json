@@ -2196,6 +2196,79 @@
         },
         "type": "object"
       },
+      "HostingModelCatalogData": {
+        "properties": {
+          "fetched_at": {
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/HostingModelCatalogModel"
+            },
+            "type": "array"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingModelCatalogModel": {
+        "properties": {
+          "context_length": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "input_microusd_per_million": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "max_output_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "output_microusd_per_million": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "pricing_is_conservative": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "HostingModelCatalogQuery": {
+        "properties": {
+          "provider": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "HostingModelCatalogResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HostingModelCatalogData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "HostingModelRequest": {
         "properties": {
           "max_tokens": {
@@ -8177,6 +8250,92 @@
           }
         ],
         "summary": "Update durable administrator model gateway controls",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/self/hosting-admin/catalog": {
+      "get": {
+        "description": "Requires the current server-resolved administrator principal before cache access. Accepts only provider=openrouter. Fetches a fixed public endpoint without user or provider credentials, with bounded bodies, deadlines and a five-minute shared cache. Imported metadata never activates a model or changes budgets.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingModelCatalogQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingModelCatalogResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Read the public OpenRouter text model catalog as an administrator",
         "tags": [
           "user"
         ]

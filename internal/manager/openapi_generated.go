@@ -19,6 +19,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.POST("/api/v1/user/:user_id/search/read", ReadWorkspaceSearchSource)
 	h.POST("/api/v1/user/:user_id/search/summaries", PublishWorkspaceSummary)
 	h.GET("/api/v1/user/self/hosting-admin", GetHostingAdmin)
+	h.GET("/api/v1/user/self/hosting-admin/catalog", GetHostingModelCatalog)
 	h.PATCH("/api/v1/user/self/hosting-admin", UpdateHostingAdmin)
 	h.GET("/api/v1/starter", GetStarter)
 	h.POST("/api/v1/starter", EnsureStarter)

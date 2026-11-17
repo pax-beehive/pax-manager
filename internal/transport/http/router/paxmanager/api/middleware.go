@@ -1086,3 +1086,13 @@ func _updatehostingadminMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _hosting_adminMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _gethostingmodelcatalogMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

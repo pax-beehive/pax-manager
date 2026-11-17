@@ -1802,6 +1802,13 @@ service PaxManagerAPI {
     openapi.description = "Requires the server-resolved administrator principal. This Manager deployment is the scope. Never returns provider credentials, prompts or raw usage bodies.",
     openapi.security = "cloudflareAccess"
   )
+  HostingModelCatalogResponse GetHostingModelCatalog(1: required HostingModelCatalogQuery request) (
+    api.get = "/api/v1/user/self/hosting-admin/catalog",
+    openapi.tag = "user",
+    openapi.summary = "Read the public OpenRouter text model catalog as an administrator",
+    openapi.description = "Requires the current server-resolved administrator principal before cache access. Accepts only provider=openrouter. Fetches a fixed public endpoint without user or provider credentials, with bounded bodies, deadlines and a five-minute shared cache. Imported metadata never activates a model or changes budgets.",
+    openapi.security = "cloudflareAccess"
+  )
   HostingAdminResponse UpdateHostingAdmin(1: required HostingAdminUpdate request) (
     api.patch = "/api/v1/user/self/hosting-admin",
     openapi.tag = "user",
@@ -3126,6 +3133,28 @@ struct HostingAdminQuery {
   3: optional string users_after (api.query = "users_after")
   4: optional string requests_before (api.query = "requests_before")
   5: optional string request_status (api.query = "request_status")
+}
+struct HostingModelCatalogQuery {
+  1: required string provider (api.query = "provider")
+}
+struct HostingModelCatalogModel {
+  1: optional string id
+  2: optional string name
+  3: optional i64 context_length
+  4: optional i64 max_output_tokens
+  5: optional i64 input_microusd_per_million
+  6: optional i64 output_microusd_per_million
+  7: optional bool pricing_is_conservative
+}
+struct HostingModelCatalogData {
+  1: optional string source
+  2: optional string fetched_at
+  3: optional list<HostingModelCatalogModel> models
+}
+struct HostingModelCatalogResponse {
+  1: optional HostingModelCatalogData data
+  2: optional i32 code
+  3: optional string message
 }
 struct HostingAdminUpdate {
   1: required i64 revision

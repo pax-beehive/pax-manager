@@ -142,6 +142,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"ListDeveloperSummaries":        ListDeveloperSummaries,
 	"ReadDeveloperSummary":          ReadDeveloperSummary,
 	"GetHostingAdmin":               GetHostingAdmin,
+	"GetHostingModelCatalog":        GetHostingModelCatalog,
 	"UpdateHostingAdmin":            UpdateHostingAdmin,
 	"GetStarter":                    GetStarter,
 	"EnsureStarter":                 EnsureStarter,
