@@ -165,6 +165,14 @@ Admin routes require `IsAdmin` (403 `not_admin` otherwise) and are in the
 call them through the regional browser identity. A non-admin foreign identity
 is rejected with 401.
 
+Browsers reach these routes through the region directory Worker
+(`workers/region-directory/src/runtime-config.ts`) at
+`/api/pax/api/v1/admin/config...?region=us|hk`. The Worker requires the
+`region` selector, forwards one request to that region's Manager with a signed
+origin assertion for the exact method and path, strips `region` from the
+forwarded query, and passes the Manager status and body through. It never
+authorizes on its own. The direct regional gateway does not route these paths.
+
 | method | path | notes |
 | --- | --- | --- |
 | GET | /api/v1/admin/config | region, revision, health, entries (`secret` is always false) |
