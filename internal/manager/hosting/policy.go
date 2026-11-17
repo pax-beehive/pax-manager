@@ -124,14 +124,14 @@ func (s *Service) admissionPolicy(
 	maximum int64,
 	claimed *ModelPolicy,
 ) (*ModelPolicy, error) {
-	if len(s.Config.Models) == 0 {
+	approved, exists := s.effectiveModelPolicy(state, model)
+	if !exists && s.legacyPolicyAllowed(state, model) {
 		if model != s.Config.Model || maximum != s.Config.MaxOutputTokens ||
 			!validLegacyPolicy(claimed, model, maximum) {
 			return nil, ErrConflict
 		}
 		return nil, nil
 	}
-	approved, exists := s.effectiveModelPolicy(state, model)
 	if !exists || !approved.Enabled || claimed == nil || approved != *claimed ||
 		approved.MaxOutputTokens != maximum {
 		return nil, ErrConflict
@@ -153,7 +153,8 @@ func validLegacyPolicy(claimed *ModelPolicy, model string, maximum int64) bool {
 
 func (s *Service) currentReservationPolicy(state *State, reservation *Reservation) bool {
 	if reservation.Policy == nil {
-		return len(s.Config.Models) == 0 && reservation.Model == s.Config.Model
+		return s.legacyPolicyAllowed(state, reservation.Model) &&
+			reservation.Model == s.Config.Model
 	}
 	current, exists := s.effectiveModelPolicy(state, reservation.Policy.ID)
 	return exists && current.Enabled && current == *reservation.Policy
@@ -208,10 +209,10 @@ func (s *Service) selectReservationPolicy(
 	if selection != nil {
 		return s.admissionPolicy(state, selection.model, selection.maximum, selection.policy)
 	}
-	if len(s.Config.Models) == 0 {
+	policy, exists := s.effectiveModelPolicy(state, s.Config.Model)
+	if !exists && s.legacyPolicyAllowed(state, s.Config.Model) {
 		return nil, nil
 	}
-	policy, exists := s.effectiveModelPolicy(state, s.Config.Model)
 	if !exists || !policy.Enabled {
 		return nil, ErrConflict
 	}

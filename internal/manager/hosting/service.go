@@ -197,7 +197,7 @@ func (s *Service) Claim(ctx context.Context, request *Claim) (*Job, error) {
 				CloudURL:             strings.TrimRight(s.Config.CloudURL, "/"),
 				ModelBaseURL:         strings.TrimRight(s.Config.GatewayURL, "/"),
 				ModelID:              s.Config.Model,
-				ModelMaxOutputTokens: s.Config.MaxOutputTokens,
+				ModelMaxOutputTokens: s.defaultModelOutputLimit(state),
 				Active:               true,
 			}
 			job.ModelToken = sign(s.Config.TokenSecret, job.EnvironmentID, job.Generation)

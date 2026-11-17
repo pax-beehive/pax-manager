@@ -12,7 +12,7 @@ import (
 
 const maxAdminAudit = 1000
 
-// AdminControls contains only operator overrides, never provider credentials.
+// AdminControls contains operator policies and model identities, never credentials.
 type AdminControls struct {
 	Revision        int64                         `json:"revision"`
 	PoolMicrousd    *int64                        `json:"pool_microusd,omitempty"`
@@ -20,6 +20,7 @@ type AdminControls struct {
 	DefaultTokens   *int64                        `json:"default_tokens,omitempty"`
 	Users           map[string]AdminUserOverride  `json:"users,omitempty"`
 	Models          map[string]AdminModelOverride `json:"models,omitempty"`
+	CreatedModels   map[string]ModelPolicy        `json:"created_models,omitempty"`
 	Audit           []AdminAudit                  `json:"audit,omitempty"`
 }
 
@@ -42,6 +43,9 @@ func (a *AdminControls) initialize() {
 	}
 	if a.Models == nil {
 		a.Models = map[string]AdminModelOverride{}
+	}
+	if a.CreatedModels == nil {
+		a.CreatedModels = map[string]ModelPolicy{}
 	}
 }
 
@@ -66,6 +70,8 @@ type AdminUpdate struct {
 	InputPrice        *int64  `json:"input_microusd_per_million,omitempty"`
 	OutputPrice       *int64  `json:"output_microusd_per_million,omitempty"`
 	ExpectedModelBase string  `json:"expected_model_base,omitempty"`
+	Provider          string  `json:"provider,omitempty"`
+	UpstreamModel     string  `json:"upstream_model,omitempty"`
 }
 
 type AdminSnapshot struct {
@@ -169,9 +175,13 @@ func (s *Service) userGrant(state *State, owner string) (int64, int64) {
 }
 
 func (s *Service) effectiveModelPolicy(state *State, id string) (ModelPolicy, bool) {
-	base, exists := s.Config.configuredModelPolicy(id)
+	base, exists := s.baseModelPolicy(state, id)
 	if !exists {
 		return ModelPolicy{}, false
+	}
+	if s.modelIDConflict(state, id) {
+		base.Enabled = false
+		return base, true
 	}
 	if override, ok := state.Admin.Models[id]; ok {
 		if override.Base != base {
@@ -200,8 +210,9 @@ func (s *Service) RuntimePolicies(ctx context.Context, token string) ([]ModelPol
 }
 
 func (s *Service) runtimePolicies(state *State) []ModelPolicy {
-	policies := make([]ModelPolicy, 0, len(s.Config.Models))
-	for _, base := range s.Config.Models {
+	bases := s.modelBases(state)
+	policies := make([]ModelPolicy, 0, len(bases))
+	for _, base := range bases {
 		policy, _ := s.effectiveModelPolicy(state, base.ID)
 		policies = append(policies, policy)
 	}
@@ -244,16 +255,24 @@ func (s *Service) adminSnapshot(state *State, query AdminQuery) *AdminSnapshot {
 		Models: s.runtimePolicies(state), Users: []AdminUser{}, Requests: []AdminRequest{},
 		Audit: []AdminAudit{}, ModelBases: map[string]string{},
 	}
-	for _, base := range s.Config.Models {
+	for _, base := range s.modelBases(state) {
 		snapshot.ModelBases[base.ID] = modelBaseHash(base)
+		if s.modelIDConflict(state, base.ID) {
+			if snapshot.ModelWarnings == nil {
+				snapshot.ModelWarnings = map[string]string{}
+			}
+			snapshot.ModelWarnings[base.ID] = "model_id_conflict"
+		}
 	}
 	for id, override := range state.Admin.Models {
-		base, exists := s.Config.configuredModelPolicy(id)
+		base, exists := s.baseModelPolicy(state, id)
 		if !exists || override.Base != base {
 			if snapshot.ModelWarnings == nil {
 				snapshot.ModelWarnings = map[string]string{}
 			}
-			snapshot.ModelWarnings[id] = "base_policy_changed"
+			if snapshot.ModelWarnings[id] == "" {
+				snapshot.ModelWarnings[id] = "base_policy_changed"
+			}
 		}
 	}
 	if query.Limit == 0 {
@@ -419,6 +438,16 @@ func modelBaseHash(base ModelPolicy) string {
 }
 
 func validAdminAction(update *AdminUpdate) bool {
+	if update.Action == "model_create" {
+		return validAdminModelCreate(update)
+	}
+	if update.Provider != "" || update.UpstreamModel != "" {
+		return false
+	}
+	return validAdminEditAction(update)
+}
+
+func validAdminEditAction(update *AdminUpdate) bool {
 	grant := update.MonthlyMicrousd != nil || update.MonthlyTokens != nil
 	model := hasAdminModelFields(update)
 	switch update.Action {
@@ -464,6 +493,8 @@ func (s *Service) applyAdminUpdate(state *State, update *AdminUpdate) error {
 		return s.applyAdminUser(state, update)
 	case "model":
 		return s.applyAdminModel(state, update)
+	case "model_create":
+		return s.applyAdminModelCreate(state, update)
 	}
 	return nil
 }
@@ -493,9 +524,12 @@ func (s *Service) applyAdminUser(state *State, update *AdminUpdate) error {
 }
 
 func (s *Service) applyAdminModel(state *State, update *AdminUpdate) error {
-	base, exists := s.Config.configuredModelPolicy(update.TargetID)
+	base, exists := s.baseModelPolicy(state, update.TargetID)
 	if !exists {
 		return ErrNotFound
+	}
+	if s.modelIDConflict(state, update.TargetID) {
+		return ErrAdminModelConflict
 	}
 	if update.ExpectedModelBase != modelBaseHash(base) {
 		return ErrAdminRevision

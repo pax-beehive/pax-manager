@@ -2079,11 +2079,17 @@
             "format": "int64",
             "type": "integer"
           },
+          "provider": {
+            "type": "string"
+          },
           "revision": {
             "format": "int64",
             "type": "integer"
           },
           "target_id": {
+            "type": "string"
+          },
+          "upstream_model": {
             "type": "string"
           }
         },
@@ -8092,7 +8098,7 @@
         ]
       },
       "patch": {
-        "description": "Requires administrator access and the current control revision. Changes preserve spent and reserved funds. Stale writes return 409; provider identities and routes are server configuration only.",
+        "description": "Requires administrator access and the current control revision. Changes preserve spent and reserved funds. Stale writes return 409. model_create registers a disabled provider/model identity; existing identities stay immutable. Provider credentials and routes remain deployment configuration.",
         "requestBody": {
           "content": {
             "application/json": {

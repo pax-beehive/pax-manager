@@ -151,6 +151,8 @@ func hostingAdminError(ctx *app.RequestContext, err error) {
 	switch {
 	case errors.Is(err, hosting.ErrAdminRevision):
 		writeError(ctx, http.StatusConflict, "hosting_admin_revision_conflict")
+	case errors.Is(err, hosting.ErrAdminModelConflict):
+		writeError(ctx, http.StatusConflict, "hosting_model_conflict")
 	case errors.Is(err, hosting.ErrAdminUpdate):
 		writeError(ctx, http.StatusBadRequest, "invalid_hosting_admin_update")
 	default:

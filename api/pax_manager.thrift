@@ -1806,7 +1806,7 @@ service PaxManagerAPI {
     api.patch = "/api/v1/user/self/hosting-admin",
     openapi.tag = "user",
     openapi.summary = "Update durable administrator model gateway controls",
-    openapi.description = "Requires administrator access and the current control revision. Changes preserve spent and reserved funds. Stale writes return 409; provider identities and routes are server configuration only.",
+    openapi.description = "Requires administrator access and the current control revision. Changes preserve spent and reserved funds. Stale writes return 409. model_create registers a disabled provider/model identity; existing identities stay immutable. Provider credentials and routes remain deployment configuration.",
     openapi.security = "cloudflareAccess"
   )
   HostingStatusResponse GetStarter(1: optional EmptyRequest request) (
@@ -3140,6 +3140,8 @@ struct HostingAdminUpdate {
   10: optional i64 input_microusd_per_million
   11: optional i64 output_microusd_per_million
   12: optional string expected_model_base
+  13: optional string provider
+  14: optional string upstream_model
 }
 struct HostingAdminPool {
   1: optional i64 monthly_limit_microusd

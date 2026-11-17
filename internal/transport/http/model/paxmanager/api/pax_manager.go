@@ -87270,6 +87270,8 @@ type HostingAdminUpdate struct {
 	InputMicrousdPerMillion  *int64  `thrift:"input_microusd_per_million,10,optional" form:"input_microusd_per_million" json:"input_microusd_per_million,omitempty" query:"input_microusd_per_million"`
 	OutputMicrousdPerMillion *int64  `thrift:"output_microusd_per_million,11,optional" form:"output_microusd_per_million" json:"output_microusd_per_million,omitempty" query:"output_microusd_per_million"`
 	ExpectedModelBase        *string `thrift:"expected_model_base,12,optional" form:"expected_model_base" json:"expected_model_base,omitempty" query:"expected_model_base"`
+	Provider                 *string `thrift:"provider,13,optional" form:"provider" json:"provider,omitempty" query:"provider"`
+	UpstreamModel            *string `thrift:"upstream_model,14,optional" form:"upstream_model" json:"upstream_model,omitempty" query:"upstream_model"`
 }
 
 func NewHostingAdminUpdate() *HostingAdminUpdate {
@@ -87377,6 +87379,24 @@ func (p *HostingAdminUpdate) GetExpectedModelBase() (v string) {
 	return *p.ExpectedModelBase
 }
 
+var HostingAdminUpdate_Provider_DEFAULT string
+
+func (p *HostingAdminUpdate) GetProvider() (v string) {
+	if !p.IsSetProvider() {
+		return HostingAdminUpdate_Provider_DEFAULT
+	}
+	return *p.Provider
+}
+
+var HostingAdminUpdate_UpstreamModel_DEFAULT string
+
+func (p *HostingAdminUpdate) GetUpstreamModel() (v string) {
+	if !p.IsSetUpstreamModel() {
+		return HostingAdminUpdate_UpstreamModel_DEFAULT
+	}
+	return *p.UpstreamModel
+}
+
 var fieldIDToName_HostingAdminUpdate = map[int16]string{
 	1:  "revision",
 	2:  "action",
@@ -87390,6 +87410,8 @@ var fieldIDToName_HostingAdminUpdate = map[int16]string{
 	10: "input_microusd_per_million",
 	11: "output_microusd_per_million",
 	12: "expected_model_base",
+	13: "provider",
+	14: "upstream_model",
 }
 
 func (p *HostingAdminUpdate) IsSetTargetID() bool {
@@ -87430,6 +87452,14 @@ func (p *HostingAdminUpdate) IsSetOutputMicrousdPerMillion() bool {
 
 func (p *HostingAdminUpdate) IsSetExpectedModelBase() bool {
 	return p.ExpectedModelBase != nil
+}
+
+func (p *HostingAdminUpdate) IsSetProvider() bool {
+	return p.Provider != nil
+}
+
+func (p *HostingAdminUpdate) IsSetUpstreamModel() bool {
+	return p.UpstreamModel != nil
 }
 
 func (p *HostingAdminUpdate) Read(iprot thrift.TProtocol) (err error) {
@@ -87546,6 +87576,22 @@ func (p *HostingAdminUpdate) Read(iprot thrift.TProtocol) (err error) {
 		case 12:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField12(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 13:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField13(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 14:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField14(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -87723,6 +87769,28 @@ func (p *HostingAdminUpdate) ReadField12(iprot thrift.TProtocol) error {
 	p.ExpectedModelBase = _field
 	return nil
 }
+func (p *HostingAdminUpdate) ReadField13(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Provider = _field
+	return nil
+}
+func (p *HostingAdminUpdate) ReadField14(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UpstreamModel = _field
+	return nil
+}
 
 func (p *HostingAdminUpdate) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -87776,6 +87844,14 @@ func (p *HostingAdminUpdate) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField12(oprot); err != nil {
 			fieldId = 12
+			goto WriteFieldError
+		}
+		if err = p.writeField13(oprot); err != nil {
+			fieldId = 13
+			goto WriteFieldError
+		}
+		if err = p.writeField14(oprot); err != nil {
+			fieldId = 14
 			goto WriteFieldError
 		}
 	}
@@ -88018,6 +88094,44 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 12 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 12 end error: ", p), err)
+}
+
+func (p *HostingAdminUpdate) writeField13(oprot thrift.TProtocol) (err error) {
+	if p.IsSetProvider() {
+		if err = oprot.WriteFieldBegin("provider", thrift.STRING, 13); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Provider); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 13 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 13 end error: ", p), err)
+}
+
+func (p *HostingAdminUpdate) writeField14(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUpstreamModel() {
+		if err = oprot.WriteFieldBegin("upstream_model", thrift.STRING, 14); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.UpstreamModel); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 14 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 14 end error: ", p), err)
 }
 
 func (p *HostingAdminUpdate) String() string {

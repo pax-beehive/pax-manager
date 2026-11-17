@@ -17,16 +17,17 @@ import (
 )
 
 var (
-	ErrDisabled       = errors.New("starter_disabled")
-	ErrBudget         = errors.New("starter_quota_exhausted")
-	ErrPlatformBudget = errors.New("starter_platform_budget_exhausted")
-	ErrConflict       = errors.New("starter_lease_conflict")
-	ErrUnauthorized   = errors.New("starter_unauthorized")
-	ErrNotFound       = errors.New("starter_not_found")
-	ErrRateLimited    = errors.New("starter_rate_limited")
-	ErrAccessPaused   = errors.New("starter_access_paused")
-	ErrAdminRevision  = errors.New("hosting_admin_revision_conflict")
-	ErrAdminUpdate    = errors.New("invalid_hosting_admin_update")
+	ErrDisabled           = errors.New("starter_disabled")
+	ErrBudget             = errors.New("starter_quota_exhausted")
+	ErrPlatformBudget     = errors.New("starter_platform_budget_exhausted")
+	ErrConflict           = errors.New("starter_lease_conflict")
+	ErrUnauthorized       = errors.New("starter_unauthorized")
+	ErrNotFound           = errors.New("starter_not_found")
+	ErrRateLimited        = errors.New("starter_rate_limited")
+	ErrAccessPaused       = errors.New("starter_access_paused")
+	ErrAdminRevision      = errors.New("hosting_admin_revision_conflict")
+	ErrAdminUpdate        = errors.New("invalid_hosting_admin_update")
+	ErrAdminModelConflict = errors.New("hosting_model_conflict")
 )
 
 type Config struct {
