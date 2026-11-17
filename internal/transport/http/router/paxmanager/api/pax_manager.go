@@ -111,6 +111,10 @@ func Register(r *server.Hertz) {
 					_self.PATCH("/hosting-admin", append(_updatehostingadminMw(), handler.UpdateHostingAdmin)...)
 					_self.GET("/notification-subscriptions", append(_listnotificationsubscriptionsMw(), handler.ListNotificationSubscriptions)...)
 					{
+						_hosting_admin := _self.Group("/hosting-admin", _hosting_adminMw()...)
+						_hosting_admin.GET("/catalog", append(_gethostingmodelcatalogMw(), handler.GetHostingModelCatalog)...)
+					}
+					{
 						_notifications := _self.Group("/notifications", _notificationsMw()...)
 						_notifications.GET("/config", append(_getnotificationconfigurationMw(), handler.GetNotificationConfiguration)...)
 						_notifications.GET("/receivers", append(_listnotificationreceiversMw(), handler.ListNotificationReceivers)...)

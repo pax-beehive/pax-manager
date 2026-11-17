@@ -21,6 +21,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/hosting"
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
+	"github.com/pax-beehive/pax-manager/internal/manager/modelcatalog"
 	"github.com/pax-beehive/pax-manager/internal/manager/notifications"
 	"github.com/pax-beehive/pax-manager/internal/manager/paxd"
 	"github.com/pax-beehive/pax-manager/internal/manager/runtimeconfig"
@@ -29,6 +30,7 @@ import (
 
 type Service struct {
 	hosting               *hosting.Service
+	modelCatalog          *modelcatalog.Service
 	notificationRegistry  notifications.Registry
 	notificationOutbox    notifications.Outbox
 	notificationSender    notifications.Sender
@@ -126,6 +128,7 @@ func newServer(cfg Config, store Store) *Service {
 		panic(err)
 	}
 	s := &Service{
+		modelCatalog:       modelcatalog.New(modelcatalog.Options{}),
 		cfg:                cfg,
 		shortPairingStore:  shortPairingStore,
 		store:              store,

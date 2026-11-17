@@ -233,6 +233,15 @@ IDs, unknown modes, negative prices and malformed files fail configuration.
 The file is loaded at startup; deploy matching versions on Manager and gateway.
 Change the policy version when changing a route or its safety/cost policy.
 
+Administrators can also register persistent models through
+`PATCH /api/v1/user/self/hosting-admin` with `action: model_create`. Registration
+accepts an alias, one of `openrouter`, `openai`, or `anthropic`, an upstream
+model identity, and explicit moderation, cap and prices. New models are always
+disabled and stored in the existing hosting-state document. Existing model
+controls can enable or adjust their policy later. Registration does not add
+credentials, change the platform budget, or establish a provider connection.
+See `docs/handoff_20261116_182600.md` for the request and deployment contract.
+
 With a registry, its default model and cap replace the legacy single-model
 settings. All models consume the same existing user/global grants and the same
 request-rate limits. Zero-price models still consume token allowance. Exhausted
@@ -253,9 +262,10 @@ price snapshot even after an operator update.
 Only an explicit approved `off` snapshot may record `skipped_by_policy`; it must
 have the exact version and no invented checker model/categories/result ID.
 Unreviewed input is never recorded as `allowed`. A checker outage never changes
-an `openai` policy into `off`. Without `HOSTING_MODELS_FILE`, legacy operation
-retains required OpenAI moderation and the original single-model rates; a claimed
-zero-price legacy gateway policy cannot change those authoritative rates.
+an `openai` policy into `off`. Without `HOSTING_MODELS_FILE`, implicit legacy
+requests retain required OpenAI moderation and the original single-model rates;
+a claimed zero-price legacy policy cannot change those authoritative rates.
+A registered identity uses its approved persisted policy before legacy fallback.
 
 The gateway exposes approved enabled models in `/v1/models`. The current hosted
 Pi image initially advertises the configured default only; populating every
