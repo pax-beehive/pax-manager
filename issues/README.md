@@ -10,6 +10,7 @@ Issue 090 records final paxkit dependency alignment to
 
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| 093 | resolved | [Hosting service and owner routes missing from browser Worker](093-hosting-service-browser-ingress.md) | high | auth / Worker / hosting |
 | 092 | resolved | [Zero monthly token caps reject funded model requests](092-zero-monthly-token-limit.md) | medium | hosting / configuration / model accounting |
 | 090 | resolved | [Internal alias failures stall replay and saturate storage](090-tunnel-replay-and-session-lock-contention.md) | high | ACP / snapshots / storage |
 | 073 | resolved | [Stable historical text waits forever and inflates the visible queue](073-secretary-stable-history-and-pending-count.md) | high | Secretary / storage / status |

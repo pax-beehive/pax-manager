@@ -2,12 +2,14 @@ import { addOriginAssertion } from "./origin-assertion";
 import type { Env } from "./index";
 import type { Region } from "./directory";
 import { managerURL } from "./provision";
-export function browserPath(path: string): string | null {
+import { allowedStarterRoute } from "./starter-routes";
+export function browserPath(path: string, method = ""): string | null {
   const target = path.startsWith("/api/pax/")
     ? path.slice("/api/pax".length)
     : path;
   if (/%|\\|\/\//.test(target)) return null;
   if (
+    allowedStarterRoute(method, target) ||
     /^\/api\/v1\/user\/(self|usr_[A-Za-z0-9_-]{1,124})\//.test(target) ||
     target === "/api/v1/health" ||
     target === "/api/v1/public/paxd/download" ||

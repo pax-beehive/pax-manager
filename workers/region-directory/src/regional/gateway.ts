@@ -150,7 +150,7 @@ export function createGateway(
             (request.method === "GET" && nativePath === "public/paxd/download")
             ? `/api/v1/${nativePath}`
             : null
-          : browserPath(url.pathname);
+          : browserPath(url.pathname, request.method);
         if (!bootstrap && !logout && !login && !path) {
           if (
             url.pathname.startsWith("/api/v1/") ||
