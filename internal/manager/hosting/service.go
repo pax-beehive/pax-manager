@@ -130,7 +130,7 @@ func (s *Service) Wake(ctx context.Context, owner string) (*Status, error) {
 			return ErrPlatformBudget
 		}
 		zeroPriceAvailable := s.hasZeroPriceModel(state)
-		if record.Starter.Quota.RemainingTokens <= 0 ||
+		if (record.Starter.Quota.GrantedTokens != 0 && record.Starter.Quota.RemainingTokens <= 0) ||
 			(record.Starter.Quota.RemainingMicrousd <= 0 && !zeroPriceAvailable) {
 			return ErrBudget
 		}
@@ -387,7 +387,7 @@ func (s *Service) reserve(
 			poolCommitted(state)+cost > s.poolLimit(state) {
 			return ErrPlatformBudget
 		}
-		if q.RemainingMicrousd < cost || q.RemainingTokens < tokens {
+		if q.RemainingMicrousd < cost || (q.GrantedTokens != 0 && q.RemainingTokens < tokens) {
 			return ErrBudget
 		}
 		for _, reservation := range state.Requests {

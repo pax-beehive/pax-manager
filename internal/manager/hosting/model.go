@@ -50,19 +50,16 @@ func (c *Config) Enabled() bool {
 			return false
 		}
 	}
-	bounds := [][2]int64{
-		{c.GrantMicrousd, 1_000_000_000_000_000},
-		{c.GrantTokens, 1_000_000_000},
-
-		{c.MaxOutputTokens, 8192},
+	bounds := []struct{ value, min, max int64 }{
+		{c.GrantMicrousd, 1, 1_000_000_000_000_000},
+		{c.GrantTokens, 0, 1_000_000_000},
+		{c.GlobalMicrousd, 0, 1_000_000_000_000_000},
+		{c.MaxOutputTokens, 1, 8192},
 	}
 	for _, bound := range bounds {
-		if bound[0] <= 0 || bound[0] > bound[1] {
+		if bound.value < bound.min || bound.value > bound.max {
 			return false
 		}
-	}
-	if c.GlobalMicrousd < 0 || c.GlobalMicrousd > 1_000_000_000_000_000 {
-		return false
 	}
 	if !c.validModelConfiguration() || c.RequestsPerMinute <= 0 || c.RequestsPerMinute > 100000 ||
 		c.GlobalRequestsPerMinute <= 0 || c.GlobalRequestsPerMinute > 1000000 {
@@ -96,7 +93,7 @@ type Quota struct {
 	SpentMicrousd     int64     `json:"spent_microusd"`
 	ReservedMicrousd  int64     `json:"reserved_microusd"`
 	RemainingMicrousd int64     `json:"remaining_microusd"`
-	GrantedTokens     int64     `json:"granted_tokens"`
+	GrantedTokens     int64     `json:"granted_tokens"` // Zero means no monthly token limit.
 	SpentTokens       int64     `json:"spent_tokens"`
 	ReservedTokens    int64     `json:"reserved_tokens"`
 	RemainingTokens   int64     `json:"remaining_tokens"`
