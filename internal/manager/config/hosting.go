@@ -23,13 +23,13 @@ func (c Config) validateHostingModels() error {
 	return c.validateHostingBudget()
 }
 
-func hostingBudgetEnv(name string, fallback int) int {
+func hostingBudgetEnv(name string, fallback, minimum int) int {
 	raw := strings.TrimSpace(os.Getenv(name))
 	if raw == "" {
 		return fallback
 	}
 	value, err := strconv.Atoi(raw)
-	if err != nil {
+	if err != nil || value < minimum {
 		return -1
 	}
 	return value
@@ -41,7 +41,7 @@ func (c Config) validateHostingBudget() error {
 		return nil
 	}
 	if c.HostingGrantMicrousd <= 0 || int64(c.HostingGrantMicrousd) > 1_000_000_000_000_000 ||
-		c.HostingGrantTokens <= 0 || c.HostingGrantTokens > 1_000_000_000 {
+		c.HostingGrantTokens < 0 || c.HostingGrantTokens > 1_000_000_000 {
 		return errors.New("invalid hosting monthly grant")
 	}
 	if c.HostingGlobalMicrousd < 0 || int64(c.HostingGlobalMicrousd) > 1_000_000_000_000_000 {

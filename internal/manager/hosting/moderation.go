@@ -103,7 +103,7 @@ func (s *Service) BeginGeneration(ctx context.Context, id string) error {
 		}
 		quota := record.Starter.Quota
 		if quota.SpentMicrousd+quota.ReservedMicrousd > quota.GrantedMicrousd ||
-			quota.SpentTokens+quota.ReservedTokens > quota.GrantedTokens {
+			(quota.GrantedTokens != 0 && quota.SpentTokens+quota.ReservedTokens > quota.GrantedTokens) {
 			return ErrBudget
 		}
 		if record.Generation != r.Generation || record.Job == nil || !record.Job.Active ||

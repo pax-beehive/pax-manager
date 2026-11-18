@@ -39,13 +39,18 @@ func TestHostingMonthlyGrantDefaultsAndExplicitPoolPause(t *testing.T) {
 	}
 	cfg := config.Load()
 	require.Equal(t, 5_000_000, cfg.HostingGrantMicrousd)
-	require.Equal(t, 200_000, cfg.HostingGrantTokens)
+	require.Zero(t, cfg.HostingGrantTokens)
 	require.Zero(t, cfg.HostingGlobalMicrousd)
 
 	t.Setenv("HOSTING_GLOBAL_MICROUSD", "0")
 	cfg = config.Load()
 	cfg.ObjectStorageBucket = "artifacts"
 	require.Zero(t, cfg.HostingGlobalMicrousd)
+	require.NoError(t, cfg.Validate())
+	t.Setenv("HOSTING_GRANT_TOKENS", "0")
+	cfg = config.Load()
+	cfg.ObjectStorageBucket = "artifacts"
+	require.Zero(t, cfg.HostingGrantTokens)
 	require.NoError(t, cfg.Validate())
 
 	t.Setenv("HOSTING_GRANT_MICROUSD", "7000000")
@@ -70,7 +75,7 @@ func TestHostingMalformedBudgetsRejectStartupInsteadOfRestoringDefaults(t *testi
 		{"HOSTING_GRANT_MICROUSD", "-1"},
 		{"HOSTING_GRANT_MICROUSD", "PRIVATE_INVALID_VALUE"},
 		{"HOSTING_GRANT_MICROUSD", "1000000000000001"},
-		{"HOSTING_GRANT_TOKENS", "0"},
+		{"HOSTING_GRANT_TOKENS", "-1"},
 		{"HOSTING_GRANT_TOKENS", "PRIVATE_INVALID_VALUE"},
 		{"HOSTING_GRANT_TOKENS", "1000000001"},
 	} {

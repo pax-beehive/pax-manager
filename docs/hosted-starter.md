@@ -27,7 +27,7 @@ HOSTING_GATEWAY_URL=https://model-us.example.com/v1
 HOSTING_GATEWAY_KEY=REPLACE_WITH_SEPARATE_RANDOM_32_PLUS_CHARACTER_GATEWAY_SECRET
 HOSTING_MODEL=REPLACE_WITH_FIXED_TEXT_CHAT_MODEL
 HOSTING_GRANT_MICROUSD=5000000
-HOSTING_GRANT_TOKENS=200000
+HOSTING_GRANT_TOKENS=0
 HOSTING_GLOBAL_MICROUSD=0
 HOSTING_INPUT_MICROUSD_PER_MILLION=REPLACE_WITH_REVIEWED_RATE
 HOSTING_OUTPUT_MICROUSD_PER_MILLION=REPLACE_WITH_REVIEWED_RATE
@@ -37,8 +37,14 @@ HOSTING_GLOBAL_REQUESTS_PER_MINUTE=200
 ```
 
 Amounts use integer microusd (1,000,000 = USD 1). The default user allowance is
-USD5 per UTC calendar month and 200,000 total input/output tokens, shared across
-all models and harnesses. Both limits remain configurable. Unused allowance
+USD5 per UTC calendar month with no monthly token limit, shared across all models
+and harnesses. `HOSTING_GRANT_TOKENS=0` disables only the monthly token cap;
+a positive value enables an additional total input/output token cap. The same
+zero semantics apply to administrator default and per-user token overrides.
+Actual spent/reserved token counts are recorded in either mode. API quotas with
+`granted_tokens=0` are unlimited; `remaining_tokens=0` is then a sentinel rather
+than exhaustion. Monetary limits and per-request output caps still apply.
+Unused monetary allowance
 expires instead of accumulating, and skipped months do not accumulate grants.
 Existing records without period metadata retain their current balances until
 the next month; a restart or configuration edit does not grant more current-month
@@ -244,9 +250,10 @@ See `docs/handoff_20261116_182600.md` for the request and deployment contract.
 
 With a registry, its default model and cap replace the legacy single-model
 settings. All models consume the same existing user/global grants and the same
-request-rate limits. Zero-price models still consume token allowance. Exhausted
-money credits do not prevent wake when an enabled zero-price policy exists and
-tokens remain; this does not silently select that model or bypass an overdrawn
+request-rate limits. Zero-price models still record token usage and consume any
+positive monthly token allowance. Exhausted money credits do not prevent wake
+when an enabled zero-price policy exists and token admission permits it; this
+does not silently select that model or bypass an overdrawn
 platform money cap. Choose an enabled default for working new host sessions.
 Disabling the default is permitted as a kill switch; it does not disable other
 models, audit persistence or settlement of already-started calls.
