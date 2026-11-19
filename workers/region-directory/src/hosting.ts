@@ -7,8 +7,10 @@ export interface HostingEnv {
   US_ACCESS_CLIENT_SECRET?: string;
 }
 
+const enrollPath = "/api/v1/hosting/jobs/enroll";
 const paths = new Set([
   "/api/v1/hosting/gateway/accounting",
+  enrollPath,
   "/api/v1/hosting/jobs/claim",
   "/api/v1/hosting/jobs/heartbeat",
   "/api/v1/hosting/jobs/complete",
@@ -132,6 +134,13 @@ export function createHostingWorker(
         request.headers.get("Authorization") ?? "",
       );
       if (!bearer) return json("unauthorized", 401);
+      const nodeKey =
+        url.pathname === enrollPath ? request.headers.get("X-Pax-Key") : null;
+      if (
+        url.pathname === enrollPath &&
+        (!nodeKey || !/^[\x21-\x2b\x2d-\x7e]{1,4096}$/.test(nodeKey))
+      )
+        return json("unauthorized", 401);
       if (
         request.headers
           .get("Content-Type")
@@ -167,6 +176,7 @@ export function createHostingWorker(
           "CF-Access-Client-Id": config.clientID,
           "CF-Access-Client-Secret": config.clientSecret,
         });
+        if (nodeKey) headers.set("X-Pax-Key", nodeKey);
         const response = await (options.fetch ?? fetch)(
           config.managerOrigin + url.pathname,
           {
