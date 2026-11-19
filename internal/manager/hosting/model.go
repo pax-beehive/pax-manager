@@ -17,17 +17,20 @@ import (
 )
 
 var (
-	ErrDisabled           = errors.New("starter_disabled")
-	ErrBudget             = errors.New("starter_quota_exhausted")
-	ErrPlatformBudget     = errors.New("starter_platform_budget_exhausted")
-	ErrConflict           = errors.New("starter_lease_conflict")
-	ErrUnauthorized       = errors.New("starter_unauthorized")
-	ErrNotFound           = errors.New("starter_not_found")
-	ErrRateLimited        = errors.New("starter_rate_limited")
-	ErrAccessPaused       = errors.New("starter_access_paused")
-	ErrAdminRevision      = errors.New("hosting_admin_revision_conflict")
-	ErrAdminUpdate        = errors.New("invalid_hosting_admin_update")
-	ErrAdminModelConflict = errors.New("hosting_model_conflict")
+	ErrDisabled            = errors.New("starter_disabled")
+	ErrBudget              = errors.New("starter_quota_exhausted")
+	ErrPlatformBudget      = errors.New("starter_platform_budget_exhausted")
+	ErrConflict            = errors.New("starter_lease_conflict")
+	ErrUnauthorized        = errors.New("starter_unauthorized")
+	ErrNotFound            = errors.New("starter_not_found")
+	ErrRateLimited         = errors.New("starter_rate_limited")
+	ErrAccessPaused        = errors.New("starter_access_paused")
+	ErrAdminRevision       = errors.New("hosting_admin_revision_conflict")
+	ErrAdminUpdate         = errors.New("invalid_hosting_admin_update")
+	ErrAdminModelConflict  = errors.New("hosting_model_conflict")
+	ErrReasoningEffort     = errors.New("invalid_reasoning_effort")
+	ErrInvalidModelRequest = errors.New("invalid_model_request")
+	ErrModelDisabled       = errors.New("model_disabled")
 )
 
 type Config struct {
@@ -162,6 +165,16 @@ type Reservation struct {
 	CreatedAt                                               time.Time
 	Generation                                              int64
 	GenerationStarted                                       bool
+	AtomicAdmission                                         bool      `json:"atomic_admission,omitempty"`
+	Protocol                                                string    `json:"protocol,omitempty"`
+	ReasoningEffort                                         string    `json:"reasoning_effort,omitempty"`
+	MaxOutputTokens                                         int64     `json:"max_output_tokens,omitempty"`
+	Outcome                                                 string    `json:"outcome,omitempty"`
+	UsageKnown                                              bool      `json:"usage_known"`
+	ReconciliationRequired                                  bool      `json:"reconciliation_required,omitempty"`
+	FinishedAt                                              time.Time `json:"finished_at,omitempty"`
+	QuotaPeriodStart                                        time.Time `json:"quota_period_start,omitempty"`
+	PoolPeriodStart                                         time.Time `json:"pool_period_start,omitempty"`
 	Moderation                                              *ModerationDecision
 	Policy                                                  *ModelPolicy `json:"policy,omitempty"`
 	ErrorCode                                               string       `json:"error_code,omitempty"`

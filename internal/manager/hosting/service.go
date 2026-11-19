@@ -623,7 +623,7 @@ func (s *Service) Settle(
 func ValidSettlementErrorCode(code string) bool {
 	switch code {
 	case "", "model_upstream_unavailable", "model_upstream_failed", "invalid_model_response",
-		"model_stream_failed", "usage_unavailable":
+		"model_stream_failed", "usage_unavailable", "request_cancelled":
 		return true
 	default:
 		return false
@@ -646,6 +646,9 @@ func (s *Service) SettleWithError(
 		r := state.Requests[id]
 		if r == nil {
 			return ErrNotFound
+		}
+		if r.AtomicAdmission {
+			return ErrConflict
 		}
 		if r.Moderation != nil && !r.GenerationStarted {
 			return ErrConflict
@@ -697,6 +700,10 @@ func (s *Service) reconcile(state *State) {
 		for _, record := range state.Environments {
 			if record.Starter.EnvironmentID != r.EnvironmentID {
 				continue
+			}
+			if r.AtomicAdmission {
+				conserveAtomicReservation(state, record, r)
+				break
 			}
 			if r.Moderation != nil && !r.GenerationStarted {
 				releasePreGeneration(state, record, r, "moderation_interrupted")

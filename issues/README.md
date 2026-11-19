@@ -10,6 +10,7 @@ Issue 090 records final paxkit dependency alignment to
 
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| 094 | resolved | [Gateway admission repeats policy and budget checks before generation](094-atomic-hosting-admission.md) | medium | hosting / gateway accounting |
 | 093 | resolved | [Hosting service and owner routes missing from browser Worker](093-hosting-service-browser-ingress.md) | high | auth / Worker / hosting |
 | 092 | resolved | [Zero monthly token caps reject funded model requests](092-zero-monthly-token-limit.md) | medium | hosting / configuration / model accounting |
 | 090 | resolved | [Internal alias failures stall replay and saturate storage](090-tunnel-replay-and-session-lock-contention.md) | high | ACP / snapshots / storage |

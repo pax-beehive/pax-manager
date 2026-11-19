@@ -2178,6 +2178,10 @@
           "action": {
             "type": "string"
           },
+          "input_tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
           "known": {
             "type": "boolean"
           },
@@ -2191,14 +2195,26 @@
           "moderation": {
             "type": "object"
           },
+          "outcome": {
+            "type": "string"
+          },
           "policy": {
             "type": "object"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "reasoning_effort": {
+            "type": "string"
           },
           "request_id": {
             "type": "string"
           },
           "reservation_id": {
             "type": "string"
+          },
+          "started": {
+            "type": "boolean"
           },
           "token": {
             "type": "string"

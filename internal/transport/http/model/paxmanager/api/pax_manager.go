@@ -95857,6 +95857,11 @@ type HostingGatewayAccountingRequest struct {
 	Usage           JSON    `thrift:"usage,9,optional" form:"usage" json:"usage,omitempty" query:"usage"`
 	Known           *bool   `thrift:"known,10,optional" form:"known" json:"known,omitempty" query:"known"`
 	Policy          JSON    `thrift:"policy,11,optional" form:"policy" json:"policy,omitempty" query:"policy"`
+	InputTokens     *int64  `thrift:"input_tokens,12,optional" form:"input_tokens" json:"input_tokens,omitempty" query:"input_tokens"`
+	Protocol        *string `thrift:"protocol,13,optional" form:"protocol" json:"protocol,omitempty" query:"protocol"`
+	ReasoningEffort *string `thrift:"reasoning_effort,14,optional" form:"reasoning_effort" json:"reasoning_effort,omitempty" query:"reasoning_effort"`
+	Started         *bool   `thrift:"started,15,optional" form:"started" json:"started,omitempty" query:"started"`
+	Outcome         *string `thrift:"outcome,16,optional" form:"outcome" json:"outcome,omitempty" query:"outcome"`
 }
 
 func NewHostingGatewayAccountingRequest() *HostingGatewayAccountingRequest {
@@ -95965,6 +95970,51 @@ func (p *HostingGatewayAccountingRequest) GetPolicy() (v JSON) {
 	return p.Policy
 }
 
+var HostingGatewayAccountingRequest_InputTokens_DEFAULT int64
+
+func (p *HostingGatewayAccountingRequest) GetInputTokens() (v int64) {
+	if !p.IsSetInputTokens() {
+		return HostingGatewayAccountingRequest_InputTokens_DEFAULT
+	}
+	return *p.InputTokens
+}
+
+var HostingGatewayAccountingRequest_Protocol_DEFAULT string
+
+func (p *HostingGatewayAccountingRequest) GetProtocol() (v string) {
+	if !p.IsSetProtocol() {
+		return HostingGatewayAccountingRequest_Protocol_DEFAULT
+	}
+	return *p.Protocol
+}
+
+var HostingGatewayAccountingRequest_ReasoningEffort_DEFAULT string
+
+func (p *HostingGatewayAccountingRequest) GetReasoningEffort() (v string) {
+	if !p.IsSetReasoningEffort() {
+		return HostingGatewayAccountingRequest_ReasoningEffort_DEFAULT
+	}
+	return *p.ReasoningEffort
+}
+
+var HostingGatewayAccountingRequest_Started_DEFAULT bool
+
+func (p *HostingGatewayAccountingRequest) GetStarted() (v bool) {
+	if !p.IsSetStarted() {
+		return HostingGatewayAccountingRequest_Started_DEFAULT
+	}
+	return *p.Started
+}
+
+var HostingGatewayAccountingRequest_Outcome_DEFAULT string
+
+func (p *HostingGatewayAccountingRequest) GetOutcome() (v string) {
+	if !p.IsSetOutcome() {
+		return HostingGatewayAccountingRequest_Outcome_DEFAULT
+	}
+	return *p.Outcome
+}
+
 var fieldIDToName_HostingGatewayAccountingRequest = map[int16]string{
 	1:  "action",
 	2:  "token",
@@ -95977,6 +96027,11 @@ var fieldIDToName_HostingGatewayAccountingRequest = map[int16]string{
 	9:  "usage",
 	10: "known",
 	11: "policy",
+	12: "input_tokens",
+	13: "protocol",
+	14: "reasoning_effort",
+	15: "started",
+	16: "outcome",
 }
 
 func (p *HostingGatewayAccountingRequest) IsSetAction() bool {
@@ -96021,6 +96076,26 @@ func (p *HostingGatewayAccountingRequest) IsSetKnown() bool {
 
 func (p *HostingGatewayAccountingRequest) IsSetPolicy() bool {
 	return p.Policy != nil
+}
+
+func (p *HostingGatewayAccountingRequest) IsSetInputTokens() bool {
+	return p.InputTokens != nil
+}
+
+func (p *HostingGatewayAccountingRequest) IsSetProtocol() bool {
+	return p.Protocol != nil
+}
+
+func (p *HostingGatewayAccountingRequest) IsSetReasoningEffort() bool {
+	return p.ReasoningEffort != nil
+}
+
+func (p *HostingGatewayAccountingRequest) IsSetStarted() bool {
+	return p.Started != nil
+}
+
+func (p *HostingGatewayAccountingRequest) IsSetOutcome() bool {
+	return p.Outcome != nil
 }
 
 func (p *HostingGatewayAccountingRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -96125,6 +96200,46 @@ func (p *HostingGatewayAccountingRequest) Read(iprot thrift.TProtocol) (err erro
 		case 11:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField11(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 12:
+			if fieldTypeId == thrift.I64 {
+				if err = p.ReadField12(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 13:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField13(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 14:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField14(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 15:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField15(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 16:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField16(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -96280,6 +96395,61 @@ func (p *HostingGatewayAccountingRequest) ReadField11(iprot thrift.TProtocol) er
 	p.Policy = _field
 	return nil
 }
+func (p *HostingGatewayAccountingRequest) ReadField12(iprot thrift.TProtocol) error {
+
+	var _field *int64
+	if v, err := iprot.ReadI64(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.InputTokens = _field
+	return nil
+}
+func (p *HostingGatewayAccountingRequest) ReadField13(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Protocol = _field
+	return nil
+}
+func (p *HostingGatewayAccountingRequest) ReadField14(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ReasoningEffort = _field
+	return nil
+}
+func (p *HostingGatewayAccountingRequest) ReadField15(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Started = _field
+	return nil
+}
+func (p *HostingGatewayAccountingRequest) ReadField16(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Outcome = _field
+	return nil
+}
 
 func (p *HostingGatewayAccountingRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -96329,6 +96499,26 @@ func (p *HostingGatewayAccountingRequest) Write(oprot thrift.TProtocol) (err err
 		}
 		if err = p.writeField11(oprot); err != nil {
 			fieldId = 11
+			goto WriteFieldError
+		}
+		if err = p.writeField12(oprot); err != nil {
+			fieldId = 12
+			goto WriteFieldError
+		}
+		if err = p.writeField13(oprot); err != nil {
+			fieldId = 13
+			goto WriteFieldError
+		}
+		if err = p.writeField14(oprot); err != nil {
+			fieldId = 14
+			goto WriteFieldError
+		}
+		if err = p.writeField15(oprot); err != nil {
+			fieldId = 15
+			goto WriteFieldError
+		}
+		if err = p.writeField16(oprot); err != nil {
+			fieldId = 16
 			goto WriteFieldError
 		}
 	}
@@ -96556,6 +96746,101 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 11 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 11 end error: ", p), err)
+}
+
+func (p *HostingGatewayAccountingRequest) writeField12(oprot thrift.TProtocol) (err error) {
+	if p.IsSetInputTokens() {
+		if err = oprot.WriteFieldBegin("input_tokens", thrift.I64, 12); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI64(*p.InputTokens); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 12 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 12 end error: ", p), err)
+}
+
+func (p *HostingGatewayAccountingRequest) writeField13(oprot thrift.TProtocol) (err error) {
+	if p.IsSetProtocol() {
+		if err = oprot.WriteFieldBegin("protocol", thrift.STRING, 13); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Protocol); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 13 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 13 end error: ", p), err)
+}
+
+func (p *HostingGatewayAccountingRequest) writeField14(oprot thrift.TProtocol) (err error) {
+	if p.IsSetReasoningEffort() {
+		if err = oprot.WriteFieldBegin("reasoning_effort", thrift.STRING, 14); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ReasoningEffort); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 14 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 14 end error: ", p), err)
+}
+
+func (p *HostingGatewayAccountingRequest) writeField15(oprot thrift.TProtocol) (err error) {
+	if p.IsSetStarted() {
+		if err = oprot.WriteFieldBegin("started", thrift.BOOL, 15); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.Started); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 15 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 15 end error: ", p), err)
+}
+
+func (p *HostingGatewayAccountingRequest) writeField16(oprot thrift.TProtocol) (err error) {
+	if p.IsSetOutcome() {
+		if err = oprot.WriteFieldBegin("outcome", thrift.STRING, 16); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.Outcome); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 16 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 16 end error: ", p), err)
 }
 
 func (p *HostingGatewayAccountingRequest) String() string {

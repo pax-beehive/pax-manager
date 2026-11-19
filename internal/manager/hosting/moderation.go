@@ -59,7 +59,8 @@ func (s *Service) RecordModeration(
 			return ErrNotFound
 		}
 		record := environmentFor(state, r.EnvironmentID)
-		if record == nil || r.Status != "reserved" || r.Moderation == nil || r.GenerationStarted ||
+		if r.AtomicAdmission || record == nil || r.Status != "reserved" || r.Moderation == nil ||
+			r.GenerationStarted ||
 			r.Moderation.Verdict != "pending" {
 			return ErrConflict
 		}
@@ -85,7 +86,8 @@ func (s *Service) BeginGeneration(ctx context.Context, id string) error {
 			return ErrNotFound
 		}
 		record := environmentFor(state, r.EnvironmentID)
-		if record == nil || r.Status != "reserved" || r.GenerationStarted || r.Moderation == nil ||
+		if r.AtomicAdmission || record == nil || r.Status != "reserved" || r.GenerationStarted ||
+			r.Moderation == nil ||
 			!reservationModerationPermits(r) {
 			return ErrConflict
 		}
@@ -120,6 +122,9 @@ func (s *Service) CancelBeforeGeneration(ctx context.Context, id string) error {
 		r := state.Requests[id]
 		if r == nil {
 			return ErrNotFound
+		}
+		if r.AtomicAdmission {
+			return ErrConflict
 		}
 		if r.Status != "reserved" {
 			return nil

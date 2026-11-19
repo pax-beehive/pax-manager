@@ -116,24 +116,29 @@ type AdminUser struct {
 }
 
 type AdminRequest struct {
-	ID                string    `json:"id"`
-	RequestID         string    `json:"request_id"`
-	EnvironmentID     string    `json:"environment_id"`
-	UserID            string    `json:"user_id"`
-	Model             string    `json:"model"`
-	Provider          string    `json:"provider"`
-	UpstreamModel     string    `json:"upstream_model"`
-	Status            string    `json:"status"`
-	ModerationVerdict string    `json:"moderation_verdict"`
-	SpentMicrousd     int64     `json:"spent_microusd"`
-	ReservedMicrousd  int64     `json:"reserved_microusd"`
-	Tokens            int64     `json:"tokens"`
-	InputTokens       int64     `json:"input_tokens"`
-	OutputTokens      int64     `json:"output_tokens"`
-	CreatedAt         time.Time `json:"created_at"`
-	GenerationStarted bool      `json:"generation_started"`
-	UpstreamRequestID string    `json:"upstream_request_id"`
-	ErrorCode         string    `json:"error_code"`
+	ID                     string    `json:"id"`
+	RequestID              string    `json:"request_id"`
+	EnvironmentID          string    `json:"environment_id"`
+	UserID                 string    `json:"user_id"`
+	Model                  string    `json:"model"`
+	Provider               string    `json:"provider"`
+	UpstreamModel          string    `json:"upstream_model"`
+	Status                 string    `json:"status"`
+	ModerationVerdict      string    `json:"moderation_verdict"`
+	SpentMicrousd          int64     `json:"spent_microusd"`
+	ReservedMicrousd       int64     `json:"reserved_microusd"`
+	Tokens                 int64     `json:"tokens"`
+	InputTokens            int64     `json:"input_tokens"`
+	OutputTokens           int64     `json:"output_tokens"`
+	CreatedAt              time.Time `json:"created_at"`
+	GenerationStarted      bool      `json:"generation_started"`
+	UpstreamRequestID      string    `json:"upstream_request_id"`
+	ErrorCode              string    `json:"error_code"`
+	AtomicAdmission        bool      `json:"atomic_admission"`
+	Protocol               string    `json:"protocol"`
+	Outcome                string    `json:"outcome"`
+	UsageKnown             bool      `json:"usage_known"`
+	ReconciliationRequired bool      `json:"reconciliation_required"`
 }
 
 type AdminAudit struct {
@@ -349,6 +354,8 @@ func safeAdminRequest(state *State, request *Reservation) AdminRequest {
 		Tokens: request.ActualTokens, InputTokens: request.InputTokens, OutputTokens: request.OutputTokens,
 		CreatedAt: request.CreatedAt, GenerationStarted: request.GenerationStarted,
 		UpstreamRequestID: request.UpstreamRequestID, ErrorCode: request.ErrorCode,
+		AtomicAdmission: request.AtomicAdmission, Protocol: request.Protocol, Outcome: request.Outcome,
+		UsageKnown: request.UsageKnown, ReconciliationRequired: request.ReconciliationRequired,
 	}
 	if request.Status == "reserved" {
 		view.ReservedMicrousd, view.Tokens = request.Microusd, request.Tokens

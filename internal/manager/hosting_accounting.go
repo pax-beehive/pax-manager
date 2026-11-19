@@ -32,10 +32,15 @@ type hostingAccountingRequest struct {
 	Tokens          int64                       `json:"tokens"`
 	Model           string                      `json:"model"`
 	MaxOutputTokens int64                       `json:"max_output_tokens"`
+	InputTokens     int64                       `json:"input_tokens"`
+	Protocol        string                      `json:"protocol"`
+	ReasoningEffort json.RawMessage             `json:"reasoning_effort"`
 	Moderation      *hosting.ModerationDecision `json:"moderation"`
 	Usage           *hostingAccountingUsage     `json:"usage"`
 	Known           bool                        `json:"known"`
 	Policy          *hosting.ModelPolicy        `json:"policy"`
+	Started         bool                        `json:"started"`
+	Outcome         string                      `json:"outcome"`
 }
 
 // GatewayAccounting accepts only the independent gateway's service credential.
@@ -47,10 +52,6 @@ func GatewayAccounting(c context.Context, ctx *app.RequestContext) {
 		return
 	}
 	ctx.Header("Cache-Control", "no-store")
-	if !s.hosting.Enabled() {
-		hostingError(ctx, hosting.ErrDisabled)
-		return
-	}
 	if len(ctx.Request.Body()) > hostingAccountingMaxBody {
 		writeError(ctx, http.StatusRequestEntityTooLarge, "gateway_accounting_request_too_large")
 		return
@@ -67,6 +68,10 @@ func GatewayAccounting(c context.Context, ctx *app.RequestContext) {
 		writeError(ctx, http.StatusBadRequest, "invalid_gateway_accounting_request")
 		return
 	}
+	if request.Action != "finish" && !s.hosting.Enabled() {
+		hostingError(ctx, hosting.ErrDisabled)
+		return
+	}
 	data, err := s.applyGatewayAccounting(c, &request)
 	if err != nil {
 		hostingError(ctx, err)
@@ -80,6 +85,10 @@ func (s *Service) applyGatewayAccounting(
 	request *hostingAccountingRequest,
 ) (any, error) {
 	switch request.Action {
+	case "prepare":
+		return s.prepareGatewayRequest(c, request)
+	case "finish":
+		return map[string]bool{"ok": true}, s.finishGatewayRequest(c, request)
 	case "authorize":
 		return map[string]bool{"ok": true}, s.hosting.Authorize(c, request.Token)
 	case "models":
@@ -124,6 +133,53 @@ func (s *Service) applyGatewayAccounting(
 	default:
 		return nil, hosting.ErrConflict
 	}
+}
+
+func (s *Service) prepareGatewayRequest(
+	c context.Context,
+	request *hostingAccountingRequest,
+) (*hosting.PreparedRequest, error) {
+	var effort *string
+	if len(request.ReasoningEffort) > 0 {
+		var value string
+		if json.Unmarshal(request.ReasoningEffort, &value) != nil || value == "" {
+			return nil, hosting.ErrReasoningEffort
+		}
+		effort = &value
+	}
+	return s.hosting.Prepare(c, &hosting.PrepareRequest{
+		Token: request.Token, RequestID: request.RequestID, Model: request.Model,
+		InputTokens: request.InputTokens, MaxOutputTokens: request.MaxOutputTokens,
+		Protocol: request.Protocol, ReasoningEffort: effort,
+	})
+}
+
+func (s *Service) finishGatewayRequest(c context.Context, request *hostingAccountingRequest) error {
+	if request.Moderation != nil && !validHostingModerationMetadata(request.Moderation) {
+		return hosting.ErrConflict
+	}
+	finish := &hosting.FinishRequest{
+		ReservationID: request.ReservationID, Moderation: request.Moderation,
+		Known: request.Known, Started: request.Started, Outcome: request.Outcome,
+	}
+	if request.Usage == nil {
+		if request.Known {
+			return hosting.ErrConflict
+		}
+	} else {
+		usage := request.Usage
+		if len(usage.RawUsage) > 4096 {
+			return hosting.ErrConflict
+		}
+		raw, err := boundedHostingUsage(usage.RawUsage)
+		if err != nil {
+			return hosting.ErrConflict
+		}
+		finish.InputTokens, finish.OutputTokens = usage.InputTokens, usage.OutputTokens
+		finish.RawUsage, finish.UpstreamID = raw, usage.UpstreamRequestID
+		finish.ErrorCode = usage.ErrorCode
+	}
+	return s.hosting.Finish(c, finish)
 }
 
 var hostingModerationMetadataModel = regexp.MustCompile(`^omni-moderation-[a-z0-9-]{1,64}$`)
