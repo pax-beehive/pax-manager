@@ -429,6 +429,13 @@ func TestPoolWakeCanUseExplicitZeroPriceModelAfterUserMoneyExhaustion(t *testing
 			if scenario == "zero_disabled" {
 				s.Config.Models[1].Enabled = false
 			}
+			status, err := s.Status(t.Context(), owner, false)
+			require.NoError(t, err)
+			require.Equal(
+				t,
+				scenario != "zero_disabled" && scenario != "tokens_exhausted",
+				status.UserBudgetAvailable,
+			)
 			_, err = s.Wake(t.Context(), owner)
 			if scenario == "global_exhausted" || scenario == "global_over_cap" {
 				require.ErrorIs(t, err, hosting.ErrPlatformBudget)

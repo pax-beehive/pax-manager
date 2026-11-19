@@ -77,9 +77,12 @@ authentication, without requiring browser cookies or a Cloudflare browser login:
 
 ```text
 /api/v1/hosting/jobs/claim
+/api/v1/hosting/jobs/enroll
 /api/v1/hosting/jobs/heartbeat
 /api/v1/hosting/jobs/complete
 ```
+
+The enrollment route must also forward the Node's `X-Pax-Key` header to Manager.
 
 The independent gateway additionally calls exactly
 `POST /api/v1/hosting/gateway/accounting` with the separate
@@ -104,7 +107,7 @@ responses containing Starter/credentials are no-store.
 | --- | --- |
 | GET /api/v1/starter | Read authenticated owner's Starter or null, without granting |
 | POST /api/v1/starter | Idempotently ensure owner's Starter and grant, without compute |
-| POST /api/v1/starter/wake | Ensure and queue an owned environment after checking budget |
+| POST /api/v1/starter/wake | Queue an owned environment after checking budget, with `{node_id,agent_id}` required for a trusted-enrolled Node |
 
 The owner always comes from existing authentication. Request bodies cannot choose
 another user or promote a plan. `pool_available` reports whether the monthly
@@ -113,8 +116,11 @@ the operator's balance. `pool_period_start` and `pool_resets_at` are UTC RFC3339
 timestamps for the current platform budget period. Availability
 can be false even while the user's monthly allowance remains positive. An enabled
 response contains `starter` with stable
-environment ID, owner, name, plan, state, quota and examples. `node_id`/`agent_id`
-are present after a verified ready report. Quota contains integer
+environment ID, owner, name, plan, state, quota and examples. For a trusted-enrolled
+Node, top-level `data.enrolled_node` is true, `starter.node_id` is present from
+enrollment, and `starter.agent_id` records the Pi Agent selected at wake. Wait for
+`starter.state=ready` with the selected IDs before opening the session. Legacy
+Starter allocations report both IDs at ready. Quota contains integer
 `granted/spent/reserved/remaining_microusd` and the corresponding `_tokens` fields,
 plus UTC RFC3339 `period_start` and `resets_at`. Spent/reserved quota counters
 describe the current displayed period. Global lifetime counters never reset;
@@ -126,14 +132,32 @@ detector, paid entitlement API or user-controlled Delegate promotion.
 
 ## Trusted host protocol
 
+To attach a registered Node to its owner's Starter, POST
+`/api/v1/hosting/jobs/enroll` with the host-only authorization bearer, the Node's
+existing `X-Pax-Key`, and `{host_id,node_id}`. Manager reads the owner from the
+authenticated Node and pins the Starter to the named host. An enrollment receipt
+includes `data.starter.environment_id` and `data.starter.owner_user_id`. An
+identical retry is idempotent. The same owner can enroll a new Node once the
+original Node is removed from Manager and the execution lease has ended. This
+keeps the Starter environment, quota and usage. A host-only change conflicts
+with an existing binding. Enrollment leaves the Starter sleeping until its
+signed-in owner wakes it with a Pi Agent on that Node.
+
 POST `/api/v1/hosting/jobs/claim` with a host-only bearer key and
-`{host_id,capacity}`. `data.job` is null or:
+`{host_id,capacity,owner_user_id,environment_id}` for an enrolled environment, or
+`{host_id,capacity}` for the original full provisioning queue. A scoped claim
+matches only the enrolled owner, environment and pinned host and may return
+`data.job=null`. The two scope fields must be sent together. The original queue
+does not claim enrolled environments. Otherwise `data.job` contains:
 
 ```text
 job_id, environment_id, owner_user_id, generation, lease_token,
 lease_expires_at, plan, cloud_url, registration_token (initial allocation only),
 model_base_url, model_token, model_id, model_max_output_tokens, active
 ```
+
+An enrolled job also carries the exact `node_id` and `agent_id` selected at wake.
+It has no registration token and its ready report must match both IDs.
 
 Environment IDs are stable lowercase slugs. The first host is pinned; neither a
 timeout nor another host's free capacity authorizes moving the user's disk. Claim

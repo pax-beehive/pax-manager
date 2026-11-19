@@ -1829,11 +1829,17 @@ service PaxManagerAPI {
     openapi.summary = "Idempotently create one Starter and monthly model allowance without compute",
     openapi.security = "cloudflareAccess"
   )
-  HostingStatusResponse WakeStarter(1: optional EmptyRequest request) (
+  HostingStatusResponse WakeStarter(1: optional HostingWakeRequest request) (
     api.post = "/api/v1/starter/wake",
     openapi.tag = "user",
     openapi.summary = "Queue an owned Starter start after checking monthly user and platform budgets",
     openapi.security = "cloudflareAccess"
+  )
+  HostingStatusResponse EnrollHostingNode(1: optional HostingEnrollmentRequest request) (
+    api.post = "/api/v1/hosting/jobs/enroll",
+    openapi.tag = "hosting",
+    openapi.summary = "Pin an existing node to a trusted Starter host",
+    openapi.description = "Requires both the host bearer key and the node X-Pax-Key. The owner is derived from the authenticated node."
   )
   HostingResponse ClaimHostingJob(1: optional HostingClaimRequest request) (
     api.post = "/api/v1/hosting/jobs/claim",
@@ -3121,6 +3127,8 @@ struct HostingStatusData {
   3: optional bool pool_available
   4: optional string pool_period_start
   5: optional string pool_resets_at
+  6: optional bool enrolled_node
+  7: optional bool user_budget_available
 }
 struct HostingStatusResponse {
   1: optional HostingStatusData data
@@ -3260,6 +3268,16 @@ struct HostingResponse {
 struct HostingClaimRequest {
   1: optional string host_id
   2: optional i32 capacity
+  3: optional string owner_user_id
+  4: optional string environment_id
+}
+struct HostingWakeRequest {
+  1: optional string node_id
+  2: optional string agent_id
+}
+struct HostingEnrollmentRequest {
+  1: optional string host_id
+  2: optional string node_id
 }
 struct HostingUpdateRequest {
   1: optional string host_id

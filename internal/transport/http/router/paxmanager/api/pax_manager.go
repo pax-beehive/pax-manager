@@ -34,6 +34,7 @@ func Register(r *server.Hertz) {
 					_jobs := _hosting.Group("/jobs", _jobsMw()...)
 					_jobs.POST("/claim", append(_claimhostingjobMw(), handler.ClaimHostingJob)...)
 					_jobs.POST("/complete", append(_completehostingjobMw(), handler.CompleteHostingJob)...)
+					_jobs.POST("/enroll", append(_enrollhostingnodeMw(), handler.EnrollHostingNode)...)
 					_jobs.POST("/heartbeat", append(_heartbeathostingjobMw(), handler.HeartbeatHostingJob)...)
 				}
 				{

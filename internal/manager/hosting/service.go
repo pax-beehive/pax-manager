@@ -11,10 +11,11 @@ import (
 
 type BindingCheck func(context.Context, string, string, string) error
 type Service struct {
-	Config          Config
-	Store           Store
-	Now             func() time.Time
-	ValidateBinding BindingCheck
+	Config              Config
+	Store               Store
+	Now                 func() time.Time
+	ValidateBinding     BindingCheck
+	PreviousNodeRemoved func(ctx context.Context, owner, nodeID string) (bool, error)
 }
 
 func New(config *Config, store Store, now func() time.Time, binding BindingCheck) *Service {
@@ -77,33 +78,135 @@ func (s *Service) Status(ctx context.Context, owner string, ensure bool) (*Statu
 		result.PoolPeriodStart, result.PoolResetsAt = state.PoolPeriodStart, state.PoolResetsAt
 		record := state.Environments[owner]
 		if record == nil && ensure {
-			money, tokens := s.userGrant(state, owner)
-			id := "starter-" + hash(owner)[:24]
-			record = &EnvironmentRecord{
-				Starter: Starter{
-					EnvironmentID: id,
-					OwnerUserID:   owner,
-					Name:          "Starter",
-					Plan:          "free",
-					State:         "sleeping",
-					Examples:      examples(),
-					Quota: Quota{
-						GrantedMicrousd: money,
-						GrantedTokens:   tokens,
-					},
-				},
-			}
+			record = s.newStarter(state, owner)
 			state.Environments[owner] = record
 		}
 		if record != nil {
 			s.expire(record)
 			s.refreshQuota(state, record)
+			result.EnrolledNode = record.EnrolledNode
+			result.UserBudgetAvailable = s.userBudgetAvailable(state, record.Starter.Quota)
 			copy := record.Starter
 			result.Starter = &copy
 		}
 		return nil
 	})
 	return result, err
+}
+
+func (s *Service) newStarter(state *State, owner string) *EnvironmentRecord {
+	money, tokens := s.userGrant(state, owner)
+	return &EnvironmentRecord{Starter: Starter{
+		EnvironmentID: "starter-" + hash(owner)[:24],
+		OwnerUserID:   owner,
+		Name:          "Starter",
+		Plan:          "free",
+		State:         "sleeping",
+		Examples:      examples(),
+		Quota:         Quota{GrantedMicrousd: money, GrantedTokens: tokens},
+	}}
+}
+
+type enrollmentPin struct {
+	nodeID     string
+	hostID     string
+	generation int64
+}
+
+func pinFor(record *EnvironmentRecord) enrollmentPin {
+	return enrollmentPin{record.Starter.NodeID, record.HostID, record.Generation}
+}
+
+func (pin enrollmentPin) matches(nodeID, hostID string) bool {
+	return pin.nodeID == nodeID && pin.hostID == hostID
+}
+
+func canChangeEnrollment(record *EnvironmentRecord) bool {
+	return record.Starter.State == "sleeping" && (record.Job == nil || !record.Job.Active)
+}
+
+func bindEnrollment(record *EnvironmentRecord, nodeID, hostID string) {
+	record.HostID = hostID
+	record.EnrolledNode = true
+	record.Starter.NodeID = nodeID
+	record.Starter.AgentID = ""
+	record.Starter.ErrorCode = ""
+}
+
+// EnrollNode pins a node whose key was authenticated by the host endpoint.
+func (s *Service) EnrollNode(ctx context.Context, owner, nodeID, hostID string) (*Status, error) {
+	if !s.Enabled() {
+		return nil, ErrDisabled
+	}
+	if owner == "" || nodeID == "" || !hostPattern.MatchString(hostID) {
+		return nil, ErrConflict
+	}
+	var previous enrollmentPin
+	err := s.Store.WithHostingState(ctx, func(state *State) error {
+		record := state.Environments[owner]
+		if record == nil {
+			record = s.newStarter(state, owner)
+			state.Environments[owner] = record
+		}
+		pin := pinFor(record)
+		if record.EnrolledNode && pin.matches(nodeID, hostID) {
+			return nil
+		}
+		s.expire(record)
+		if !canChangeEnrollment(record) {
+			return ErrConflict
+		}
+		if (pin.hostID != "" && pin.hostID != hostID) ||
+			(pin.nodeID != "" && pin.nodeID != nodeID) {
+			if pin.nodeID == "" || pin.nodeID == nodeID || s.PreviousNodeRemoved == nil {
+				return ErrConflict
+			}
+			previous = pin
+			return nil
+		}
+		bindEnrollment(record, nodeID, hostID)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if previous.nodeID != "" {
+		if err := s.replaceRemovedEnrollment(ctx, owner, nodeID, hostID, previous); err != nil {
+			return nil, err
+		}
+	}
+	return s.Status(ctx, owner, false)
+}
+
+func (s *Service) replaceRemovedEnrollment(
+	ctx context.Context,
+	owner, nodeID, hostID string,
+	previous enrollmentPin,
+) error {
+	// Resolve the old Node outside the hosting transaction, then verify the pin
+	// and lease state again under the hosting lock before changing either ID.
+	removed, err := s.PreviousNodeRemoved(ctx, owner, previous.nodeID)
+	if err != nil {
+		return err
+	}
+	if !removed {
+		return ErrConflict
+	}
+	return s.Store.WithHostingState(ctx, func(state *State) error {
+		record := state.Environments[owner]
+		if record == nil {
+			return ErrConflict
+		}
+		pin := pinFor(record)
+		if record.EnrolledNode && pin.matches(nodeID, hostID) {
+			return nil
+		}
+		if pin != previous || !canChangeEnrollment(record) {
+			return ErrConflict
+		}
+		bindEnrollment(record, nodeID, hostID)
+		return nil
+	})
 }
 
 func (s *Service) expire(record *EnvironmentRecord) {
@@ -118,8 +221,33 @@ func (s *Service) Wake(ctx context.Context, owner string) (*Status, error) {
 	if _, err := s.Status(ctx, owner, true); err != nil {
 		return nil, err
 	}
+	return s.wake(ctx, owner, nil)
+}
+
+func (s *Service) WakeForAgent(
+	ctx context.Context,
+	owner string,
+	target *WakeTarget,
+) (*Status, error) {
+	if !s.Enabled() {
+		return nil, ErrDisabled
+	}
+	if target == nil || target.NodeID == "" || target.AgentID == "" || s.ValidateBinding == nil ||
+		s.ValidateBinding(ctx, owner, target.NodeID, target.AgentID) != nil {
+		return nil, ErrUnauthorized
+	}
+	return s.wake(ctx, owner, target)
+}
+
+func (s *Service) wake(ctx context.Context, owner string, target *WakeTarget) (*Status, error) {
 	err := s.Store.WithHostingState(ctx, func(state *State) error {
 		record := state.Environments[owner]
+		if record == nil {
+			return ErrNotFound
+		}
+		if err := validateWakeTarget(record, target); err != nil {
+			return err
+		}
 		s.refreshPool(state)
 		s.expire(record)
 		s.refreshQuota(state, record)
@@ -129,14 +257,18 @@ func (s *Service) Wake(ctx context.Context, owner string) (*Status, error) {
 		if !s.poolAvailable(state) {
 			return ErrPlatformBudget
 		}
-		zeroPriceAvailable := s.hasZeroPriceModel(state)
-		if (record.Starter.Quota.GrantedTokens != 0 && record.Starter.Quota.RemainingTokens <= 0) ||
-			(record.Starter.Quota.RemainingMicrousd <= 0 && !zeroPriceAvailable) {
+		if !s.userBudgetAvailable(state, record.Starter.Quota) {
 			return ErrBudget
 		}
 		if record.Starter.State == "ready" || record.Starter.State == "starting" ||
 			record.Starter.State == "queued" {
+			if target != nil && record.Starter.AgentID != target.AgentID {
+				return ErrConflict
+			}
 			return nil
+		}
+		if target != nil {
+			record.Starter.AgentID = target.AgentID
 		}
 		record.Generation++
 		record.Starter.State = "queued"
@@ -150,6 +282,22 @@ func (s *Service) Wake(ctx context.Context, owner string) (*Status, error) {
 	return s.Status(ctx, owner, false)
 }
 
+func (s *Service) userBudgetAvailable(state *State, quota Quota) bool {
+	return (quota.GrantedTokens == 0 || quota.RemainingTokens > 0) &&
+		(quota.RemainingMicrousd > 0 || s.hasZeroPriceModel(state))
+}
+
+func validateWakeTarget(record *EnvironmentRecord, target *WakeTarget) error {
+	if target == nil && !record.EnrolledNode {
+		return nil
+	}
+	if target == nil || !record.EnrolledNode || record.HostID == "" ||
+		record.Starter.NodeID != target.NodeID {
+		return ErrConflict
+	}
+	return nil
+}
+
 var hostPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`)
 
 func (s *Service) Claim(ctx context.Context, request *Claim) (*Job, error) {
@@ -159,8 +307,22 @@ func (s *Service) Claim(ctx context.Context, request *Claim) (*Job, error) {
 	if !hostPattern.MatchString(request.HostID) || request.Capacity < 0 || request.Capacity > 100 {
 		return nil, ErrConflict
 	}
+	scoped := request.OwnerUserID != nil || request.EnvironmentID != nil
+	if scoped && (request.OwnerUserID == nil || request.EnvironmentID == nil ||
+		*request.OwnerUserID == "" || *request.EnvironmentID == "") {
+		return nil, ErrConflict
+	}
 	var result *Job
 	err := s.Store.WithHostingState(ctx, func(state *State) error {
+		if scoped {
+			owner := *request.OwnerUserID
+			record := state.Environments[owner]
+			if record != nil && record.EnrolledNode &&
+				record.Starter.EnvironmentID == *request.EnvironmentID {
+				result = s.claimRecord(state, record, request)
+			}
+			return nil
+		}
 		owners := make([]string, 0, len(state.Environments))
 		for owner := range state.Environments {
 			owners = append(owners, owner)
@@ -168,54 +330,65 @@ func (s *Service) Claim(ctx context.Context, request *Claim) (*Job, error) {
 		sort.Strings(owners)
 		for _, owner := range owners {
 			record := state.Environments[owner]
-			s.expire(record)
-			if record.Starter.AccessPaused {
+			if record.EnrolledNode {
 				continue
 			}
-			if record.HostID != "" && record.HostID != request.HostID {
-				continue
+			result = s.claimRecord(state, record, request)
+			if result != nil {
+				break
 			}
-			// A lost claim response can be recovered by the same trusted host.
-			if record.Job != nil && record.Job.Active && record.Starter.State == "starting" {
-				copy := *record.Job
-				result = &copy
-				return nil
-			}
-			if record.Starter.State != "queued" || request.Capacity == 0 {
-				continue
-			}
-			record.HostID = request.HostID
-			record.Starter.State = "starting"
-			job := &Job{
-				JobID:                secret("hjob_"),
-				EnvironmentID:        record.Starter.EnvironmentID,
-				OwnerUserID:          owner,
-				Generation:           record.Generation,
-				LeaseToken:           secret("lease_"),
-				LeaseExpiresAt:       s.Now().Add(s.Config.LeaseTTL),
-				Plan:                 "free",
-				CloudURL:             strings.TrimRight(s.Config.CloudURL, "/"),
-				ModelBaseURL:         strings.TrimRight(s.Config.GatewayURL, "/"),
-				ModelID:              s.Config.Model,
-				ModelMaxOutputTokens: s.defaultModelOutputLimit(state),
-				Active:               true,
-			}
-			job.ModelToken = sign(s.Config.TokenSecret, job.EnvironmentID, job.Generation)
-			if record.Starter.NodeID == "" {
-				job.RegistrationToken = secret("reg_")
-				state.Registrations[hash(job.RegistrationToken)] = Registration{
-					OwnerUserID: owner,
-					ExpiresAt:   s.Now().Add(24 * time.Hour),
-				}
-			}
-			record.Job = job
-			copy := *job
-			result = &copy
-			return nil
 		}
 		return nil
 	})
 	return result, err
+}
+
+func (s *Service) claimRecord(state *State, record *EnvironmentRecord, request *Claim) *Job {
+	s.expire(record)
+	if record.Starter.AccessPaused || (record.HostID != "" && record.HostID != request.HostID) {
+		return nil
+	}
+	if record.EnrolledNode && (record.HostID == "" || record.Starter.AgentID == "") {
+		return nil
+	}
+	// A lost claim response can be recovered by the same trusted host.
+	if record.Job != nil && record.Job.Active && record.Starter.State == "starting" {
+		copy := *record.Job
+		return &copy
+	}
+	if record.Starter.State != "queued" || request.Capacity == 0 {
+		return nil
+	}
+	record.HostID = request.HostID
+	record.Starter.State = "starting"
+	job := &Job{
+		JobID:                secret("hjob_"),
+		EnvironmentID:        record.Starter.EnvironmentID,
+		OwnerUserID:          record.Starter.OwnerUserID,
+		Generation:           record.Generation,
+		LeaseToken:           secret("lease_"),
+		LeaseExpiresAt:       s.Now().Add(s.Config.LeaseTTL),
+		Plan:                 "free",
+		CloudURL:             strings.TrimRight(s.Config.CloudURL, "/"),
+		ModelBaseURL:         strings.TrimRight(s.Config.GatewayURL, "/"),
+		ModelID:              s.Config.Model,
+		ModelMaxOutputTokens: s.defaultModelOutputLimit(state),
+		Active:               true,
+	}
+	job.ModelToken = sign(s.Config.TokenSecret, job.EnvironmentID, job.Generation)
+	if record.EnrolledNode {
+		job.NodeID, job.AgentID = record.Starter.NodeID, record.Starter.AgentID
+	}
+	if record.Starter.NodeID == "" {
+		job.RegistrationToken = secret("reg_")
+		state.Registrations[hash(job.RegistrationToken)] = Registration{
+			OwnerUserID: job.OwnerUserID,
+			ExpiresAt:   s.Now().Add(24 * time.Hour),
+		}
+	}
+	record.Job = job
+	copy := *job
+	return &copy
 }
 
 func (s *Service) Update(ctx context.Context, request *Update, complete bool) (time.Time, error) {
@@ -241,6 +414,10 @@ func (s *Service) Update(ctx context.Context, request *Update, complete bool) (t
 			}
 			if !s.leaseMatches(record, request) {
 				return ErrConflict
+			}
+			if record.EnrolledNode && request.State == "ready" &&
+				(job.NodeID != request.NodeID || job.AgentID != request.AgentID) {
+				return ErrUnauthorized
 			}
 			job.LeaseExpiresAt = s.Now().Add(s.Config.LeaseTTL)
 			expiry = job.LeaseExpiresAt

@@ -2136,7 +2136,24 @@
             "format": "int32",
             "type": "integer"
           },
+          "environment_id": {
+            "type": "string"
+          },
           "host_id": {
+            "type": "string"
+          },
+          "owner_user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingEnrollmentRequest": {
+        "properties": {
+          "host_id": {
+            "type": "string"
+          },
+          "node_id": {
             "type": "string"
           }
         },
@@ -2391,6 +2408,9 @@
           "enabled": {
             "type": "boolean"
           },
+          "enrolled_node": {
+            "type": "boolean"
+          },
           "pool_available": {
             "type": "boolean"
           },
@@ -2402,6 +2422,9 @@
           },
           "starter": {
             "$ref": "#/components/schemas/HostingStarter"
+          },
+          "user_budget_available": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -2446,6 +2469,17 @@
             "type": "string"
           },
           "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HostingWakeRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "node_id": {
             "type": "string"
           }
         },
@@ -5811,6 +5845,87 @@
         ]
       }
     },
+    "/api/v1/hosting/jobs/enroll": {
+      "post": {
+        "description": "Requires both the host bearer key and the node X-Pax-Key. The owner is derived from the authenticated node.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingEnrollmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingStatusResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Pin an existing node to a trusted Starter host",
+        "tags": [
+          "hosting"
+        ]
+      }
+    },
     "/api/v1/hosting/jobs/heartbeat": {
       "post": {
         "description": "",
@@ -8006,7 +8121,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EmptyRequest"
+                "$ref": "#/components/schemas/HostingWakeRequest"
               }
             }
           },
