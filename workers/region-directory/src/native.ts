@@ -1,6 +1,7 @@
 import type { Env } from "./index";
 import { managerURL } from "./provision";
 import { crossSite } from "./browser-proxy";
+import { allowedStarterRoute } from "./starter-routes";
 
 const id = "[A-Za-z0-9_-]{1,128}";
 const userRoutes: [string, string][] = [
@@ -30,6 +31,7 @@ const userRoutes: [string, string][] = [
   ["DELETE", `api-keys/${id}`],
 ];
 export const allowedNativeUserRoute = (method: string, path: string) =>
+  allowedStarterRoute(method, "/api/v1/" + path) ||
   userRoutes.some(
     ([verb, pattern]) =>
       verb === method && new RegExp(`^user/self/${pattern}$`).test(path),
@@ -58,11 +60,7 @@ export async function nativeFetch(
   const login = /^paxl\/device-login\/(start|poll)$/.exec(route[2]);
   const allowed = login
     ? request.method === "POST"
-    : userRoutes.some(
-        ([method, pattern]) =>
-          method === request.method &&
-          new RegExp(`^user/self/${pattern}$`).test(route[2]),
-      );
+    : allowedNativeUserRoute(request.method, route[2]);
   if (!allowed) return json("not_found", 404);
   if (crossSite(request, env.PUBLIC_ORIGIN)) return json("invalid_origin", 403);
   if (env.NATIVE_API_ENABLED !== "true")

@@ -9,6 +9,10 @@
   "preview_urls": false,
   "routes": [
     {
+      "pattern": "paxworkspace.net/api/v1/hosting/*",
+      "zone_id": "6e7d305a2050525b513b76c9c2102f89",
+    },
+    {
       "pattern": "paxworkspace.net/api/v1/native/*",
       "zone_id": "6e7d305a2050525b513b76c9c2102f89",
     },
@@ -50,6 +54,7 @@
     },
   ],
   "vars": {
+    "HOSTING_SERVICE_REGION": "",
     "NATIVE_API_ENABLED": "true",
     "BOOTSTRAP_ENABLED": "true",
     "WORKOS_ENABLED": "true",

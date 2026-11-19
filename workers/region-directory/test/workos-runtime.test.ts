@@ -4,6 +4,7 @@ import { generateKeyPair, exportJWK, SignJWT } from "jose";
 import { readFile } from "node:fs/promises";
 let mf: Miniflare;
 let cookies: string;
+let nativeToken: string;
 beforeAll(async () => {
   const keys = await generateKeyPair("RS256");
   const jwk = await exportJWK(keys.publicKey);
@@ -17,6 +18,7 @@ beforeAll(async () => {
     .setExpirationTime("5m")
     .setProtectedHeader({ alg: "RS256", kid: "test" })
     .sign(keys.privateKey);
+  nativeToken = token;
   mf = new Miniflare({
     workers: [
       {
@@ -28,6 +30,7 @@ beforeAll(async () => {
         outboundService: "upstream",
         bindings: {
           WORKOS_ENABLED: "true",
+          NATIVE_API_ENABLED: "true",
           WORKOS_BROWSER_ENABLED: "true",
           WORKOS_CLIENT_ID: "client_test",
           WORKOS_API_KEY: "sk_test",
@@ -73,6 +76,13 @@ beforeAll(async () => {
  const proof=JSON.parse(atob(assertion.split('.')[0].replaceAll('-','+').replaceAll('_','/')));
  if(proof.user_id!=='usr_original' || proof.region!=='hk' || proof.path!==url.pathname || proof.method!==request.method)return new Response('wrong proof',{status:401});
  if(request.headers.has('Cookie')||request.headers.has('Cf-Access-Jwt-Assertion')||request.headers.has('Authorization'))return new Response('leaked browser credentials',{status:500});
+ if(url.pathname==='/api/v1/starter'||url.pathname==='/api/v1/starter/wake') {
+  const [payload,signature]=assertion.split('.');
+  const decode=value=>Uint8Array.from(atob(value.replaceAll('-','+').replaceAll('_','/')),c=>c.charCodeAt(0));
+  const key=await crypto.subtle.importKey('raw',new TextEncoder().encode('h'.repeat(40)),{name:'HMAC',hash:'SHA-256'},false,['verify']);
+  if(!await crypto.subtle.verify('HMAC',key,decode(signature),new TextEncoder().encode('pax-browser-identity-v1\\n'+new TextDecoder().decode(decode(payload)))))return new Response('wrong signature',{status:401});
+  return Response.json({code:200,data:{user_id:proof.user_id,path:url.pathname,method:request.method,body:await request.text()}});
+ }
  return Response.json({code:200,data:{user_id:proof.user_id,email:proof.identity_key}});
  }}`,
       },
@@ -176,4 +186,93 @@ it("rejects cross-site writes and unauthenticated browser requests", async () =>
     },
   );
   expect(response.status).toBe(403);
+});
+
+it("authenticates browser and native Starter requests and signs the exact Manager target", async () => {
+  for (const native of [false, true])
+    for (const [method, target] of [
+      ["GET", "/api/v1/starter"],
+      ["POST", "/api/v1/starter"],
+      ["POST", "/api/v1/starter/wake"],
+    ]) {
+      const path = native
+        ? "/api/v1/native/client/" + target.slice("/api/v1/".length)
+        : "/api/pax" + target;
+      const body = method === "POST" ? "{ }\n" : undefined;
+      const response = await mf.dispatchFetch("https://pax.example" + path, {
+        method,
+        headers: {
+          ...(native
+            ? { Authorization: "Bearer " + nativeToken }
+            : { Cookie: cookies }),
+          Origin: "https://pax.example",
+          "Content-Type": "application/json",
+          "X-User-Email": "attacker@example.com",
+          "X-Pax-User-ID": "usr_attacker",
+          "X-Pax-Identity-Assertion": "attacker",
+          "CF-Access-Client-Secret": "attacker",
+        },
+        body,
+      });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        code: 200,
+        data: {
+          user_id: "usr_original",
+          path: target,
+          method,
+          body: body ?? "",
+        },
+      });
+    }
+});
+
+it("preserves authentication, cross-site checks and exact Starter methods", async () => {
+  for (const path of [
+    "/api/pax/api/v1/starter",
+    "/api/v1/native/client/starter",
+  ]) {
+    const response = await mf.dispatchFetch("https://pax.example" + path);
+    expect(response.status).toBe(401);
+  }
+  for (const [method, suffix] of [
+    ["GET", "starter/wake"],
+    ["DELETE", "starter"],
+    ["POST", "starter/"],
+    ["POST", "starter/wake/child"],
+    ["POST", "starter%2fwake"],
+  ]) {
+    for (const native of [false, true]) {
+      const path = native
+        ? "/api/v1/native/client/" + suffix
+        : "/api/pax/api/v1/" + suffix;
+      const response = await mf.dispatchFetch("https://pax.example" + path, {
+        method,
+        headers: native
+          ? { Authorization: "Bearer " + nativeToken }
+          : { Cookie: cookies },
+      });
+      expect(response.status).toBe(404);
+    }
+  }
+  for (const native of [false, true]) {
+    const response = await mf.dispatchFetch(
+      "https://pax.example" +
+        (native
+          ? "/api/v1/native/client/starter/wake"
+          : "/api/pax/api/v1/starter/wake"),
+      {
+        method: "POST",
+        headers: {
+          ...(native
+            ? { Authorization: "Bearer " + nativeToken }
+            : { Cookie: cookies }),
+          Origin: "https://evil.example",
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      },
+    );
+    expect(response.status).toBe(403);
+  }
 });

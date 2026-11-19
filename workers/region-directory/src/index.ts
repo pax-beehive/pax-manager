@@ -23,6 +23,7 @@ import {
   type Region,
 } from "./directory";
 import { machineFetch } from "./machine";
+import hostingService from "./hosting";
 import { nativeFetch } from "./native";
 import { nativeClientFetch } from "./native-client";
 import { verifyIdentity } from "./identity";
@@ -36,6 +37,7 @@ import {
   proxyBrowser,
 } from "./browser-proxy";
 export interface Env {
+  HOSTING_SERVICE_REGION?: string;
   NATIVE_API_ENABLED?: string;
   NATIVE_START_LIMITER?: RateLimit;
   NATIVE_POLL_LIMITER?: RateLimit;
@@ -196,7 +198,7 @@ export function createWorker(
       const bootstrap = url.pathname === "/api/v1/region/bootstrap";
       const login = url.pathname === "/api/v1/region/paxl-login/approve";
       const probe = /^\/api\/v1\/region\/probe\/(us|hk)$/.exec(url.pathname);
-      const path = browserPath(url.pathname);
+      const path = browserPath(url.pathname, request.method);
       const adminConfig = runtimeConfigPath(url.pathname);
       if (!bootstrap && !probe && !path && !login && !adminConfig)
         return json({ error: "not_found" }, 404);
@@ -290,6 +292,8 @@ export function createWorker(
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
       const url = new URL(request.url);
+      if (url.pathname.startsWith("/api/v1/hosting/"))
+        return hostingService.fetch(request, env);
       if (url.pathname.startsWith("/api/v1/native/client/"))
         return nativeClientFetch(request, env);
       if (url.pathname.startsWith("/api/v1/native/"))
