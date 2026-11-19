@@ -117,6 +117,29 @@ func TestGatewayAtomicAccountingFinishReleasesBeforeModerationAndRejectsFabricat
 	require.Zero(t, r.ActualMicrousd)
 }
 
+func TestGatewayAtomicAccountingDisabledModelReturnsForbiddenWithoutHold(t *testing.T) {
+	s := hostingTestServer(t, "https://model.example.com/v1")
+	job := gatewayAccountingJob(t, s)
+	s.hosting.Config.Models = []hosting.ModelPolicy{{
+		ID: "trial-model", Provider: "openrouter", UpstreamModel: "openai/gpt-6.1-sol",
+		Moderation: "openai", PolicyVersion: "disabled-v1", MaxOutputTokens: 2048, Enabled: false,
+	}}
+	response := gatewayAccountingRequest(t, s, map[string]any{
+		"action": "prepare", "token": job.ModelToken, "request_id": "atomic-disabled-model",
+		"model": "trial-model", "input_tokens": 100, "protocol": "chat",
+	})
+	require.Equal(t, http.StatusForbidden, response.Code)
+	require.Contains(t, response.Body.String(), "model_disabled")
+	require.NoError(
+		t,
+		s.hosting.Store.WithHostingState(t.Context(), func(state *hosting.State) error {
+			require.Empty(t, state.Requests)
+			require.Zero(t, state.ReservedMicrousd)
+			return nil
+		}),
+	)
+}
+
 func TestGatewayAtomicAccountingFinishStillWorksAfterHostingDisabled(t *testing.T) {
 	s := hostingTestServer(t, "https://model.example.com/v1")
 	job := gatewayAccountingJob(t, s)

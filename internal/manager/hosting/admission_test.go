@@ -112,7 +112,7 @@ func TestAtomicAdmissionUsesRequestedLowerCapAndRejectsDisabledModel(t *testing.
 		InputTokens: 100, MaxOutputTokens: 50, Protocol: "chat",
 	}
 	_, err := s.Prepare(t.Context(), request)
-	require.ErrorIs(t, err, hosting.ErrConflict)
+	require.ErrorIs(t, err, hosting.ErrModelDisabled)
 	s.Config.Models[0].Enabled = true
 	prepared, err := s.Prepare(t.Context(), request)
 	require.NoError(t, err)

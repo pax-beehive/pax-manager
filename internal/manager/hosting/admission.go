@@ -80,8 +80,11 @@ func (s *Service) atomicAdmissionPolicy(
 		}
 		exists = true
 	}
-	if !exists || !policy.Enabled || !validModelPolicy(policy) {
+	if !exists || !validModelPolicy(policy) {
 		return ModelPolicy{}, ErrConflict
+	}
+	if !policy.Enabled {
+		return ModelPolicy{}, ErrModelDisabled
 	}
 	if !validAdmissionReasoning(policy, request.Protocol, request.ReasoningEffort) {
 		return ModelPolicy{}, ErrReasoningEffort

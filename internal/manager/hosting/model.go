@@ -30,6 +30,7 @@ var (
 	ErrAdminModelConflict  = errors.New("hosting_model_conflict")
 	ErrReasoningEffort     = errors.New("invalid_reasoning_effort")
 	ErrInvalidModelRequest = errors.New("invalid_model_request")
+	ErrModelDisabled       = errors.New("model_disabled")
 )
 
 type Config struct {

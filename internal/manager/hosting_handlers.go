@@ -88,6 +88,8 @@ func hostingError(ctx *app.RequestContext, err error) {
 		status, message = http.StatusBadRequest, "invalid_reasoning_effort"
 	case errors.Is(err, hosting.ErrInvalidModelRequest):
 		status, message = http.StatusBadRequest, "invalid_model_request"
+	case errors.Is(err, hosting.ErrModelDisabled):
+		status, message = http.StatusForbidden, "model_disabled"
 	case errors.Is(err, hosting.ErrRateLimited):
 		status, message = http.StatusTooManyRequests, "starter_rate_limited"
 		ctx.Header("Retry-After", "60")
