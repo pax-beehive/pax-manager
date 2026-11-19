@@ -22,14 +22,18 @@ func (c Config) validateSandboxNodes() error {
 	if !sandboxHostID.MatchString(host) || len(c.SandboxOwners()) == 0 {
 		return errors.New("sandbox Nodes require a host ID and at least one allowed user ID")
 	}
-	endpoint, err := url.Parse(c.HostingSandboxCloudURL)
-	if err != nil || endpoint.Scheme != "https" || endpoint.Hostname() == "" ||
-		endpoint.User != nil || endpoint.RawQuery != "" || endpoint.ForceQuery ||
-		endpoint.Fragment != "" || (endpoint.Port() != "" && endpoint.Port() != "443") ||
-		(endpoint.Path != "" && endpoint.Path != "/") {
+	if !validSandboxNodeOrigin(c.HostingSandboxCloudURL) {
 		return errors.New("HOSTING_SANDBOX_CLOUD_URL must be a public HTTPS origin")
 	}
 	return nil
+}
+
+func validSandboxNodeOrigin(raw string) bool {
+	endpoint, err := url.Parse(raw)
+	return err == nil && endpoint.Scheme == "https" && endpoint.Hostname() != "" &&
+		endpoint.User == nil && endpoint.RawQuery == "" && !endpoint.ForceQuery &&
+		endpoint.Fragment == "" && (endpoint.Port() == "" || endpoint.Port() == "443") &&
+		(endpoint.Path == "" || endpoint.Path == "/")
 }
 
 func (c Config) SandboxOwners() []string {
