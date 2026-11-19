@@ -6,6 +6,7 @@ let mf: Miniflare;
 const gatewayKey = "gateway-" + "g".repeat(40);
 const hostKey = "host-" + "h".repeat(40);
 const accounting = "/api/v1/hosting/gateway/accounting";
+const enrollment = "/api/v1/hosting/jobs/enroll";
 beforeAll(async () => {
   const script = await readFile(
     new URL("../dist/index.js", import.meta.url),
@@ -46,7 +47,9 @@ beforeAll(async () => {
  const url=new URL(request.url);
  if(url.origin!=='https://us.example'||request.method!=='POST')return Response.json({error:'wrong_destination'},{status:500});
  if(request.headers.get('CF-Access-Client-Id')!=='existing-us-id'||request.headers.get('CF-Access-Client-Secret')!=='existing-us-secret')return Response.json({error:'wrong_access'},{status:500});
- for(const name of ['Cookie','X-User-Email','X-Pax-User-ID','X-Pax-Identity-Assertion','Cf-Access-Jwt-Assertion','X-Pax-Key'])if(request.headers.has(name))return Response.json({error:'identity_leak'},{status:500});
+ for(const name of ['Cookie','X-User-Email','X-Pax-User-ID','X-Pax-Identity-Assertion','Cf-Access-Jwt-Assertion'])if(request.headers.has(name))return Response.json({error:'identity_leak'},{status:500});
+ const expectedNodeKey=url.pathname==='${enrollment}'?'node-key':null;
+ if(request.headers.get('X-Pax-Key')!==expectedNodeKey)return Response.json({error:'wrong_node_key_scope'},{status:500});
  const expected=url.pathname.endsWith('/accounting')?'${gatewayKey}':'${hostKey}';
  if(request.headers.get('Authorization')!=='Bearer '+expected)return Response.json({code:401,message:'unauthorized'},{status:401});
  return Response.json({code:200,data:{path:url.pathname,body:await request.text()}},{headers:{'Set-Cookie':'must-not-leak=1'}});
@@ -75,9 +78,10 @@ function input(key = gatewayKey) {
   };
 }
 
-it("forwards all four service paths through workerd without browser authentication or identity", async () => {
+it("forwards the five service paths through workerd with only the expected credentials", async () => {
   for (const path of [
     accounting,
+    enrollment,
     ...["claim", "heartbeat", "complete"].map(
       (name) => "/api/v1/hosting/jobs/" + name,
     ),
@@ -100,6 +104,14 @@ it("preserves Manager role rejection and default-disabled workerd configuration"
   expect(
     (await mf.dispatchFetch("https://pax.example" + accounting, input(hostKey)))
       .status,
+  ).toBe(401);
+  expect(
+    (
+      await mf.dispatchFetch(
+        "https://pax.example" + enrollment,
+        input(gatewayKey),
+      )
+    ).status,
   ).toBe(401);
   const disabled = await mf.getWorker("disabled");
   expect(
