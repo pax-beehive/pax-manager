@@ -15,6 +15,7 @@ The service ingress accepts exactly these POST paths, without a query string:
 /api/v1/hosting/jobs/claim
 /api/v1/hosting/jobs/heartbeat
 /api/v1/hosting/jobs/complete
+/api/v1/hosting/jobs/enroll
 ```
 
 `HOSTING_SERVICE_REGION=us` explicitly enables one authoritative US ledger.
@@ -30,6 +31,11 @@ meaning. Manager still validates its independent gateway key for accounting
 and host key for jobs before service operations. The Worker stores neither
 application key and does not promote user, model, node or wrong-role tokens.
 Manager hosting and quota policies remain authoritative.
+
+Enrollment additionally requires the registered node's `X-Pax-Key`. The
+Worker forwards this header only for the exact enrollment POST. Manager
+validates the node key alongside the host Bearer token before enrolling the
+node. The other service and owner routes discard the node key.
 
 The origin request is built from a fresh header allowlist. Browser cookies,
 user-email overrides, user/node identifiers, identity assertions, incoming CF

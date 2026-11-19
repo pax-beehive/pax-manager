@@ -75,7 +75,7 @@ beforeAll(async () => {
  const assertion=request.headers.get('X-Pax-Identity-Assertion');if(!assertion)return new Response('missing proof',{status:401});
  const proof=JSON.parse(atob(assertion.split('.')[0].replaceAll('-','+').replaceAll('_','/')));
  if(proof.user_id!=='usr_original' || proof.region!=='hk' || proof.path!==url.pathname || proof.method!==request.method)return new Response('wrong proof',{status:401});
- if(request.headers.has('Cookie')||request.headers.has('Cf-Access-Jwt-Assertion')||request.headers.has('Authorization'))return new Response('leaked browser credentials',{status:500});
+ if(request.headers.has('Cookie')||request.headers.has('Cf-Access-Jwt-Assertion')||request.headers.has('Authorization')||request.headers.has('X-Pax-Key'))return new Response('leaked browser credentials',{status:500});
  if(url.pathname==='/api/v1/starter'||url.pathname==='/api/v1/starter/wake') {
   const [payload,signature]=assertion.split('.');
   const decode=value=>Uint8Array.from(atob(value.replaceAll('-','+').replaceAll('_','/')),c=>c.charCodeAt(0));
@@ -198,7 +198,12 @@ it("authenticates browser and native Starter requests and signs the exact Manage
       const path = native
         ? "/api/v1/native/client/" + target.slice("/api/v1/".length)
         : "/api/pax" + target;
-      const body = method === "POST" ? "{ }\n" : undefined;
+      const body =
+        target === "/api/v1/starter/wake"
+          ? '{"node_id":"node_fixture","agent_id":"agent_fixture"}\n'
+          : method === "POST"
+            ? "{ }\n"
+            : undefined;
       const response = await mf.dispatchFetch("https://pax.example" + path, {
         method,
         headers: {
@@ -211,6 +216,7 @@ it("authenticates browser and native Starter requests and signs the exact Manage
           "X-Pax-User-ID": "usr_attacker",
           "X-Pax-Identity-Assertion": "attacker",
           "CF-Access-Client-Secret": "attacker",
+          "X-Pax-Key": "attacker",
         },
         body,
       });
