@@ -9,6 +9,7 @@ const env: HostingEnv = {
   US_ACCESS_CLIENT_SECRET: "origin-secret",
 };
 const accounting = "/api/v1/hosting/gateway/accounting";
+const enrollment = "/api/v1/hosting/jobs/enroll";
 const hostRoutes = ["claim", "heartbeat", "complete"].map(
   (name) => `/api/v1/hosting/jobs/${name}`,
 );
@@ -83,7 +84,9 @@ it.each(hostRoutes)(
   "forwards only the exact trusted-host route %s",
   async (path) => {
     const result = await createHostingWorker({ fetch: upstream }).fetch(
-      request(path, { headers: headers(hostKey) }),
+      request(path, {
+        headers: { ...headers(hostKey), "X-Pax-Key": "node-key" },
+      }),
       env,
     );
     expect(result.status).toBe(200);
@@ -91,6 +94,42 @@ it.each(hostRoutes)(
     expect(
       new Headers(upstream.mock.calls[0][1]!.headers).get("Authorization"),
     ).toBe(`Bearer ${hostKey}`);
+    expect(
+      new Headers(upstream.mock.calls[0][1]!.headers).has("X-Pax-Key"),
+    ).toBe(false);
+  },
+);
+
+it("forwards both credentials only to the exact enrollment route", async () => {
+  const result = await createHostingWorker({ fetch: upstream }).fetch(
+    request(enrollment, {
+      headers: { ...headers(hostKey), "X-Pax-Key": "pax_node-key" },
+      body: '{"host_id":"host-fixture","node_id":"node_fixture"}',
+    }),
+    env,
+  );
+  expect(result.status).toBe(200);
+  expect(upstream).toHaveBeenCalledTimes(1);
+  const [target, options] = upstream.mock.calls[0];
+  expect(target).toBe("https://manager.example" + enrollment);
+  const forwarded = new Headers(options!.headers);
+  expect(forwarded.get("Authorization")).toBe(`Bearer ${hostKey}`);
+  expect(forwarded.get("X-Pax-Key")).toBe("pax_node-key");
+  expect(forwarded.get("CF-Access-Client-Id")).toBe("origin-client");
+  expect(await result.text()).not.toContain("pax_node-key");
+});
+
+it.each(["", "node-key, other-key", "key with space", "a".repeat(4097)])(
+  "rejects a missing or malformed Node key before forwarding enrollment",
+  async (nodeKey) => {
+    const result = await createHostingWorker({ fetch: upstream }).fetch(
+      request(enrollment, {
+        headers: { ...headers(hostKey), "X-Pax-Key": nodeKey },
+      }),
+      env,
+    );
+    expect(result.status).toBe(401);
+    expect(upstream).not.toHaveBeenCalled();
   },
 );
 
@@ -120,6 +159,8 @@ it.each([
   "/api/v1/hosting/gateway/accounting/",
   "/api/v1/hosting/gateway/accounting%2f",
   "/api/v1/hosting/jobs/claim/",
+  enrollment + "/",
+  enrollment + "%2f",
   "/api/v1/hosting/jobs/delete",
   "/api/v1/hosting/model",
   "/api/v1/user/self/me",
