@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/hosting"
 )
@@ -13,16 +14,38 @@ func (s *PostgresStore) WithHostingState(
 	ctx context.Context,
 	run func(*hosting.State) error,
 ) error {
+	return s.withHostingState(ctx, "hosting_state", run)
+}
+
+// WithSandboxState uses a separate document so Starter writes from older
+// Manager instances cannot drop sandbox Nodes or their leases.
+func (s *PostgresStore) WithSandboxState(
+	ctx context.Context,
+	run func(*hosting.State) error,
+) error {
+	return s.withHostingState(ctx, "sandbox_node_state", run)
+}
+
+func (s *PostgresStore) withHostingState(
+	ctx context.Context,
+	table string,
+	run func(*hosting.State) error,
+) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err = tx.ExecContext(ctx, `INSERT INTO hosting_state (id,document) VALUES (1,'{}'::jsonb) ON CONFLICT (id) DO NOTHING`); err != nil {
+	insert := fmt.Sprintf(
+		"INSERT INTO %s (id,document) VALUES (1,'{}'::jsonb) ON CONFLICT (id) DO NOTHING",
+		table,
+	)
+	if _, err = tx.ExecContext(ctx, insert); err != nil {
 		return err
 	}
 	var raw []byte
-	if err = tx.QueryRowContext(ctx, `SELECT document FROM hosting_state WHERE id=1 FOR UPDATE`).Scan(&raw); err != nil {
+	read := fmt.Sprintf("SELECT document FROM %s WHERE id=1 FOR UPDATE", table)
+	if err = tx.QueryRowContext(ctx, read).Scan(&raw); err != nil {
 		return err
 	}
 	var state hosting.State
@@ -41,18 +64,30 @@ func (s *PostgresStore) WithHostingState(
 	if raw, err = json.Marshal(&state); err != nil {
 		return err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE hosting_state SET document=$1::jsonb WHERE id=1`, string(raw)); err != nil {
+	write := fmt.Sprintf("UPDATE %s SET document=$1::jsonb WHERE id=1", table)
+	if _, err = tx.ExecContext(ctx, write, string(raw)); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 func (s *MemoryStore) WithHostingState(_ context.Context, run func(*hosting.State) error) error {
+	return s.withHostingState(&s.hostingState, run)
+}
+
+func (s *MemoryStore) WithSandboxState(_ context.Context, run func(*hosting.State) error) error {
+	return s.withHostingState(&s.sandboxNodeState, run)
+}
+
+func (s *MemoryStore) withHostingState(
+	document *json.RawMessage,
+	run func(*hosting.State) error,
+) error {
 	s.hostingMu.Lock()
 	defer s.hostingMu.Unlock()
 	var state hosting.State
-	if len(s.hostingState) > 0 {
-		if err := json.Unmarshal(s.hostingState, &state); err != nil {
+	if len(*document) > 0 {
+		if err := json.Unmarshal(*document, &state); err != nil {
 			return err
 		}
 	}
@@ -79,6 +114,6 @@ func (s *MemoryStore) WithHostingState(_ context.Context, run func(*hosting.Stat
 			ExpiresAt:   &expiry,
 		}
 	}
-	s.hostingState = raw
+	*document = raw
 	return nil
 }

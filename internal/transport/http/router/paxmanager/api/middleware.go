@@ -1101,3 +1101,13 @@ func _enrollhostingnodeMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _getsandboxnodeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _startsandboxnodeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

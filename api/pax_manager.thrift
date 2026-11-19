@@ -1816,6 +1816,20 @@ service PaxManagerAPI {
     openapi.description = "Requires administrator access and the current control revision. Changes preserve spent and reserved funds. Stale writes return 409. model_create registers a disabled provider/model identity; existing identities stay immutable. Provider credentials and routes remain deployment configuration.",
     openapi.security = "cloudflareAccess"
   )
+  SandboxNodeResponse GetSandboxNode(1: optional EmptyRequest request) (
+    api.get = "/api/v1/sandbox",
+    openapi.tag = "user",
+    openapi.summary = "Read the current user's hosted sandbox Node",
+    openapi.description = "Returns the current sandbox status for a user in the pilot, or a null sandbox if the user has not created one.",
+    openapi.security = "cloudflareAccess"
+  )
+  SandboxNodeResponse StartSandboxNode(1: optional EmptyRequest request) (
+    api.post = "/api/v1/sandbox",
+    openapi.tag = "user",
+    openapi.summary = "Create or resume the current user's hosted sandbox Node",
+    openapi.description = "Idempotently queues an authenticated pilot user's sandbox Node without installing an Agent or allocating model credit.",
+    openapi.security = "cloudflareAccess"
+  )
   HostingStatusResponse GetStarter(1: optional EmptyRequest request) (
     api.get = "/api/v1/starter",
     openapi.tag = "user",
@@ -3135,6 +3149,18 @@ struct HostingStatusResponse {
   2: optional i32 code
   3: optional string message
 }
+struct SandboxNode {
+  1: required string status
+  2: optional string node_id
+}
+struct SandboxNodeData {
+  1: optional SandboxNode sandbox
+}
+struct SandboxNodeResponse {
+  1: optional SandboxNodeData data
+  2: optional i32 code
+  3: optional string message
+}
 struct HostingAdminQuery {
   1: optional i32 limit (api.query = "limit")
   2: optional string user_query (api.query = "user_query")
@@ -3270,6 +3296,7 @@ struct HostingClaimRequest {
   2: optional i32 capacity
   3: optional string owner_user_id
   4: optional string environment_id
+  5: optional string kind
 }
 struct HostingWakeRequest {
   1: optional string node_id
@@ -3288,6 +3315,7 @@ struct HostingUpdateRequest {
   6: optional string node_id
   7: optional string agent_id
   8: optional string error_code
+  9: optional string kind
 }
 struct HostingModelRequest {
   1: optional string model

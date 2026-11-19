@@ -127,6 +127,7 @@ type Starter struct {
 }
 
 type Job struct {
+	Kind                 string    `json:"kind,omitempty"`
 	JobID                string    `json:"job_id"`
 	EnvironmentID        string    `json:"environment_id"`
 	OwnerUserID          string    `json:"owner_user_id"`
@@ -136,10 +137,10 @@ type Job struct {
 	Plan                 string    `json:"plan"`
 	CloudURL             string    `json:"cloud_url"`
 	RegistrationToken    string    `json:"registration_token,omitempty"`
-	ModelBaseURL         string    `json:"model_base_url"`
-	ModelToken           string    `json:"model_token"`
-	ModelID              string    `json:"model_id"`
-	ModelMaxOutputTokens int64     `json:"model_max_output_tokens"`
+	ModelBaseURL         string    `json:"model_base_url,omitempty"`
+	ModelToken           string    `json:"model_token,omitempty"`
+	ModelID              string    `json:"model_id,omitempty"`
+	ModelMaxOutputTokens int64     `json:"model_max_output_tokens,omitempty"`
 	Active               bool      `json:"active"`
 	NodeID               string    `json:"node_id,omitempty"`
 	AgentID              string    `json:"agent_id,omitempty"`
@@ -207,6 +208,7 @@ type Status struct {
 	UserBudgetAvailable bool      `json:"user_budget_available"`
 }
 type Claim struct {
+	Kind          string  `json:"kind,omitempty"`
 	HostID        string  `json:"host_id"`
 	Capacity      int     `json:"capacity"`
 	OwnerUserID   *string `json:"owner_user_id,omitempty"`
@@ -218,6 +220,7 @@ type WakeTarget struct {
 	AgentID string `json:"agent_id"`
 }
 type Update struct {
+	Kind       string `json:"kind,omitempty"`
 	HostID     string `json:"host_id"`
 	JobID      string `json:"job_id"`
 	Generation int64  `json:"generation"`

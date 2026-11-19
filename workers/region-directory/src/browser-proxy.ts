@@ -10,6 +10,7 @@ export function browserPath(path: string, method = ""): string | null {
   if (/%|\\|\/\//.test(target)) return null;
   if (
     allowedStarterRoute(method, target) ||
+    (target === "/api/v1/sandbox" && (method === "GET" || method === "POST")) ||
     /^\/api\/v1\/user\/(self|usr_[A-Za-z0-9_-]{1,124})\//.test(target) ||
     target === "/api/v1/health" ||
     target === "/api/v1/public/paxd/download" ||

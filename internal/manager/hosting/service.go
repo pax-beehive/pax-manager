@@ -304,6 +304,9 @@ func (s *Service) Claim(ctx context.Context, request *Claim) (*Job, error) {
 	if !s.Enabled() {
 		return nil, ErrDisabled
 	}
+	if request == nil || request.Kind != "" {
+		return nil, ErrUnauthorized
+	}
 	if !hostPattern.MatchString(request.HostID) || request.Capacity < 0 || request.Capacity > 100 {
 		return nil, ErrConflict
 	}
@@ -394,6 +397,9 @@ func (s *Service) claimRecord(state *State, record *EnvironmentRecord, request *
 func (s *Service) Update(ctx context.Context, request *Update, complete bool) (time.Time, error) {
 	if !s.Enabled() {
 		return time.Time{}, ErrDisabled
+	}
+	if request == nil || request.Kind != "" {
+		return time.Time{}, ErrUnauthorized
 	}
 	switch request.State {
 	case "", "starting", "ready", "sleeping", "failed":

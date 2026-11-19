@@ -29,6 +29,10 @@ type Config struct {
 	SearchAPIKey                     string
 	SearchReadReceiptSecret          string
 	HostingHostKey                   string
+	HostingSandboxHostKey            string
+	HostingSandboxHostID             string
+	HostingSandboxCloudURL           string
+	HostingSandboxOwners             string
 	HostingTokenSecret               string
 	HostingPublicURL                 string
 	HostingCloudURL                  string
@@ -107,6 +111,10 @@ type Config struct {
 func Load() Config {
 	return Config{
 		HostingHostKey:                 os.Getenv("HOSTING_HOST_KEY"),
+		HostingSandboxHostKey:          os.Getenv("HOSTING_SANDBOX_HOST_KEY"),
+		HostingSandboxHostID:           os.Getenv("HOSTING_SANDBOX_HOST_ID"),
+		HostingSandboxCloudURL:         os.Getenv("HOSTING_SANDBOX_CLOUD_URL"),
+		HostingSandboxOwners:           os.Getenv("HOSTING_SANDBOX_OWNERS"),
 		HostingTokenSecret:             os.Getenv("HOSTING_TOKEN_SECRET"),
 		HostingPublicURL:               os.Getenv("HOSTING_PUBLIC_URL"),
 		HostingCloudURL:                os.Getenv("HOSTING_CLOUD_URL"),
@@ -224,6 +232,9 @@ func (c Config) Validate() error {
 		return err
 	}
 	if err := c.validateHostingModels(); err != nil {
+		return err
+	}
+	if err := c.validateSandboxNodes(); err != nil {
 		return err
 	}
 	if err := c.validateRegion(); err != nil {
