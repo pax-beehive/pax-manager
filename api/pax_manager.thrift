@@ -3308,4 +3308,9 @@ struct HostingGatewayAccountingRequest {
   9: optional JSON usage
   10: optional bool known
   11: optional JSON policy
+  12: optional i64 input_tokens
+  13: optional string protocol
+  14: optional string reasoning_effort
+  15: optional bool started
+  16: optional string outcome
 }
