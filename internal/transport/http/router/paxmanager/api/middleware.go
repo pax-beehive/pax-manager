@@ -1096,3 +1096,8 @@ func _gethostingmodelcatalogMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _enrollhostingnodeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

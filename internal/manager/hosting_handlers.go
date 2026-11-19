@@ -1,9 +1,11 @@
 package manager
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -69,6 +71,14 @@ func (s *Service) configureHosting(base Store) {
 			return nil
 		},
 	)
+	s.hosting.PreviousNodeRemoved = func(ctx context.Context, owner, nodeID string) (bool, error) {
+		principal := domain.UserPrincipal{User: domain.User{UserID: owner}}
+		_, err := s.store.GetNode(ctx, principal, nodeID)
+		if errors.Is(err, domain.ErrNotFound) {
+			return true, nil
+		}
+		return false, err
+	}
 }
 
 func hostingError(ctx *app.RequestContext, err error) {
@@ -104,7 +114,20 @@ func starterResult(c context.Context, ctx *app.RequestContext, action string) {
 	}
 	var result *hosting.Status
 	if action == "wake" {
-		result, err = s.hosting.Wake(c, principal.User.UserID)
+		target, valid := parseHostingWakeTarget(ctx)
+		if !valid {
+			return
+		}
+		if target != nil {
+			if !ownedPiAgent(c, s, principal.User.UserID, target) {
+				// The user must not learn whether a foreign agent exists.
+				hostingError(ctx, hosting.ErrUnauthorized)
+				return
+			}
+			result, err = s.hosting.WakeForAgent(c, principal.User.UserID, target)
+		} else {
+			result, err = s.hosting.Wake(c, principal.User.UserID)
+		}
 	} else {
 		result, err = s.hosting.Status(c, principal.User.UserID, action == "ensure")
 	}
@@ -114,6 +137,40 @@ func starterResult(c context.Context, ctx *app.RequestContext, action string) {
 	}
 	ctx.Header("Cache-Control", "no-store")
 	writeData(ctx, http.StatusOK, result)
+}
+
+func parseHostingWakeTarget(ctx *app.RequestContext) (*hosting.WakeTarget, bool) {
+	raw := bytes.TrimSpace(ctx.Request.Body())
+	if len(raw) == 0 {
+		return nil, true
+	}
+	var fields struct {
+		NodeID  json.RawMessage `json:"node_id"`
+		AgentID json.RawMessage `json:"agent_id"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&fields); err != nil || decoder.Decode(new(any)) != io.EOF {
+		writeError(ctx, http.StatusBadRequest, "invalid Starter target")
+		return nil, false
+	}
+	if fields.NodeID == nil && fields.AgentID == nil {
+		return nil, true
+	}
+	var target hosting.WakeTarget
+	if json.Unmarshal(fields.NodeID, &target.NodeID) != nil ||
+		json.Unmarshal(fields.AgentID, &target.AgentID) != nil ||
+		target.NodeID == "" || target.AgentID == "" {
+		writeError(ctx, http.StatusBadRequest, "invalid Starter target")
+		return nil, false
+	}
+	return &target, true
+}
+
+func ownedPiAgent(c context.Context, s *Service, owner string, target *hosting.WakeTarget) bool {
+	agent, err := s.store.GetNodeAgent(c, target.NodeID, target.AgentID)
+	return err == nil && agent.OwnerUserID == owner && agent.NodeID == target.NodeID &&
+		agent.AgentType == "pi"
 }
 
 func GetStarter(c context.Context, ctx *app.RequestContext)    { starterResult(c, ctx, "status") }
@@ -128,17 +185,62 @@ func hostingHost(c context.Context, ctx *app.RequestContext) (*Service, bool) {
 	}
 	return s, true
 }
+
+func EnrollHostingNode(c context.Context, ctx *app.RequestContext) {
+	s, ok := hostingHost(c, ctx)
+	if !ok {
+		return
+	}
+	var req struct {
+		HostID string `json:"host_id"`
+		NodeID string `json:"node_id"`
+	}
+	if err := json.Unmarshal(ctx.Request.Body(), &req); err != nil || req.NodeID == "" {
+		writeError(ctx, http.StatusBadRequest, "invalid Node enrollment")
+		return
+	}
+	key := string(ctx.GetHeader("X-Pax-Key"))
+	if key == "" {
+		hostingError(ctx, hosting.ErrUnauthorized)
+		return
+	}
+	node, err := s.store.AuthenticateNode(c, s.secrets.Hash(key))
+	if err != nil || node.NodeID != req.NodeID {
+		hostingError(ctx, hosting.ErrUnauthorized)
+		return
+	}
+	result, err := s.hosting.EnrollNode(c, node.OwnerUserID, node.NodeID, req.HostID)
+	if err != nil {
+		hostingError(ctx, err)
+		return
+	}
+	ctx.Header("Cache-Control", "no-store")
+	writeData(ctx, http.StatusOK, result)
+}
+
 func ClaimHostingJob(c context.Context, ctx *app.RequestContext) {
 	s, ok := hostingHost(c, ctx)
 	if !ok {
 		return
 	}
-	var req hosting.Claim
-	if err := json.Unmarshal(ctx.Request.Body(), &req); err != nil {
+	var body struct {
+		hosting.Claim
+		OwnerScope       json.RawMessage `json:"owner_user_id"`
+		EnvironmentScope json.RawMessage `json:"environment_id"`
+	}
+	if err := json.Unmarshal(ctx.Request.Body(), &body); err != nil {
 		writeError(ctx, 400, "invalid JSON body")
 		return
 	}
-	job, err := s.hosting.Claim(c, &req)
+	if body.OwnerScope != nil || body.EnvironmentScope != nil {
+		if json.Unmarshal(body.OwnerScope, &body.OwnerUserID) != nil ||
+			json.Unmarshal(body.EnvironmentScope, &body.EnvironmentID) != nil ||
+			body.OwnerUserID == nil || body.EnvironmentID == nil {
+			hostingError(ctx, hosting.ErrConflict)
+			return
+		}
+	}
+	job, err := s.hosting.Claim(c, &body.Claim)
 	if err != nil {
 		hostingError(ctx, err)
 		return

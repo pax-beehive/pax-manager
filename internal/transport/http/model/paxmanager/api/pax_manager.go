@@ -86241,11 +86241,13 @@ func (p *HostingStarter) String() string {
 }
 
 type HostingStatusData struct {
-	Enabled         *bool           `thrift:"enabled,1,optional" form:"enabled" json:"enabled,omitempty" query:"enabled"`
-	Starter         *HostingStarter `thrift:"starter,2,optional" form:"starter" json:"starter,omitempty" query:"starter"`
-	PoolAvailable   *bool           `thrift:"pool_available,3,optional" form:"pool_available" json:"pool_available,omitempty" query:"pool_available"`
-	PoolPeriodStart *string         `thrift:"pool_period_start,4,optional" form:"pool_period_start" json:"pool_period_start,omitempty" query:"pool_period_start"`
-	PoolResetsAt    *string         `thrift:"pool_resets_at,5,optional" form:"pool_resets_at" json:"pool_resets_at,omitempty" query:"pool_resets_at"`
+	Enabled             *bool           `thrift:"enabled,1,optional" form:"enabled" json:"enabled,omitempty" query:"enabled"`
+	Starter             *HostingStarter `thrift:"starter,2,optional" form:"starter" json:"starter,omitempty" query:"starter"`
+	PoolAvailable       *bool           `thrift:"pool_available,3,optional" form:"pool_available" json:"pool_available,omitempty" query:"pool_available"`
+	PoolPeriodStart     *string         `thrift:"pool_period_start,4,optional" form:"pool_period_start" json:"pool_period_start,omitempty" query:"pool_period_start"`
+	PoolResetsAt        *string         `thrift:"pool_resets_at,5,optional" form:"pool_resets_at" json:"pool_resets_at,omitempty" query:"pool_resets_at"`
+	EnrolledNode        *bool           `thrift:"enrolled_node,6,optional" form:"enrolled_node" json:"enrolled_node,omitempty" query:"enrolled_node"`
+	UserBudgetAvailable *bool           `thrift:"user_budget_available,7,optional" form:"user_budget_available" json:"user_budget_available,omitempty" query:"user_budget_available"`
 }
 
 func NewHostingStatusData() *HostingStatusData {
@@ -86300,12 +86302,32 @@ func (p *HostingStatusData) GetPoolResetsAt() (v string) {
 	return *p.PoolResetsAt
 }
 
+var HostingStatusData_EnrolledNode_DEFAULT bool
+
+func (p *HostingStatusData) GetEnrolledNode() (v bool) {
+	if !p.IsSetEnrolledNode() {
+		return HostingStatusData_EnrolledNode_DEFAULT
+	}
+	return *p.EnrolledNode
+}
+
+var HostingStatusData_UserBudgetAvailable_DEFAULT bool
+
+func (p *HostingStatusData) GetUserBudgetAvailable() (v bool) {
+	if !p.IsSetUserBudgetAvailable() {
+		return HostingStatusData_UserBudgetAvailable_DEFAULT
+	}
+	return *p.UserBudgetAvailable
+}
+
 var fieldIDToName_HostingStatusData = map[int16]string{
 	1: "enabled",
 	2: "starter",
 	3: "pool_available",
 	4: "pool_period_start",
 	5: "pool_resets_at",
+	6: "enrolled_node",
+	7: "user_budget_available",
 }
 
 func (p *HostingStatusData) IsSetEnabled() bool {
@@ -86326,6 +86348,14 @@ func (p *HostingStatusData) IsSetPoolPeriodStart() bool {
 
 func (p *HostingStatusData) IsSetPoolResetsAt() bool {
 	return p.PoolResetsAt != nil
+}
+
+func (p *HostingStatusData) IsSetEnrolledNode() bool {
+	return p.EnrolledNode != nil
+}
+
+func (p *HostingStatusData) IsSetUserBudgetAvailable() bool {
+	return p.UserBudgetAvailable != nil
 }
 
 func (p *HostingStatusData) Read(iprot thrift.TProtocol) (err error) {
@@ -86382,6 +86412,22 @@ func (p *HostingStatusData) Read(iprot thrift.TProtocol) (err error) {
 		case 5:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField7(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -86468,6 +86514,28 @@ func (p *HostingStatusData) ReadField5(iprot thrift.TProtocol) error {
 	p.PoolResetsAt = _field
 	return nil
 }
+func (p *HostingStatusData) ReadField6(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.EnrolledNode = _field
+	return nil
+}
+func (p *HostingStatusData) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.UserBudgetAvailable = _field
+	return nil
+}
 
 func (p *HostingStatusData) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -86493,6 +86561,14 @@ func (p *HostingStatusData) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField5(oprot); err != nil {
 			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
 			goto WriteFieldError
 		}
 	}
@@ -86606,6 +86682,44 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *HostingStatusData) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetEnrolledNode() {
+		if err = oprot.WriteFieldBegin("enrolled_node", thrift.BOOL, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.EnrolledNode); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *HostingStatusData) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetUserBudgetAvailable() {
+		if err = oprot.WriteFieldBegin("user_budget_available", thrift.BOOL, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.UserBudgetAvailable); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
 }
 
 func (p *HostingStatusData) String() string {
@@ -94122,8 +94236,10 @@ func (p *HostingResponse) String() string {
 }
 
 type HostingClaimRequest struct {
-	HostID   *string `thrift:"host_id,1,optional" form:"host_id" json:"host_id,omitempty" query:"host_id"`
-	Capacity *int32  `thrift:"capacity,2,optional" form:"capacity" json:"capacity,omitempty" query:"capacity"`
+	HostID        *string `thrift:"host_id,1,optional" form:"host_id" json:"host_id,omitempty" query:"host_id"`
+	Capacity      *int32  `thrift:"capacity,2,optional" form:"capacity" json:"capacity,omitempty" query:"capacity"`
+	OwnerUserID   *string `thrift:"owner_user_id,3,optional" form:"owner_user_id" json:"owner_user_id,omitempty" query:"owner_user_id"`
+	EnvironmentID *string `thrift:"environment_id,4,optional" form:"environment_id" json:"environment_id,omitempty" query:"environment_id"`
 }
 
 func NewHostingClaimRequest() *HostingClaimRequest {
@@ -94151,9 +94267,29 @@ func (p *HostingClaimRequest) GetCapacity() (v int32) {
 	return *p.Capacity
 }
 
+var HostingClaimRequest_OwnerUserID_DEFAULT string
+
+func (p *HostingClaimRequest) GetOwnerUserID() (v string) {
+	if !p.IsSetOwnerUserID() {
+		return HostingClaimRequest_OwnerUserID_DEFAULT
+	}
+	return *p.OwnerUserID
+}
+
+var HostingClaimRequest_EnvironmentID_DEFAULT string
+
+func (p *HostingClaimRequest) GetEnvironmentID() (v string) {
+	if !p.IsSetEnvironmentID() {
+		return HostingClaimRequest_EnvironmentID_DEFAULT
+	}
+	return *p.EnvironmentID
+}
+
 var fieldIDToName_HostingClaimRequest = map[int16]string{
 	1: "host_id",
 	2: "capacity",
+	3: "owner_user_id",
+	4: "environment_id",
 }
 
 func (p *HostingClaimRequest) IsSetHostID() bool {
@@ -94162,6 +94298,14 @@ func (p *HostingClaimRequest) IsSetHostID() bool {
 
 func (p *HostingClaimRequest) IsSetCapacity() bool {
 	return p.Capacity != nil
+}
+
+func (p *HostingClaimRequest) IsSetOwnerUserID() bool {
+	return p.OwnerUserID != nil
+}
+
+func (p *HostingClaimRequest) IsSetEnvironmentID() bool {
+	return p.EnvironmentID != nil
 }
 
 func (p *HostingClaimRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -94194,6 +94338,22 @@ func (p *HostingClaimRequest) Read(iprot thrift.TProtocol) (err error) {
 		case 2:
 			if fieldTypeId == thrift.I32 {
 				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField4(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -94250,6 +94410,28 @@ func (p *HostingClaimRequest) ReadField2(iprot thrift.TProtocol) error {
 	p.Capacity = _field
 	return nil
 }
+func (p *HostingClaimRequest) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.OwnerUserID = _field
+	return nil
+}
+func (p *HostingClaimRequest) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.EnvironmentID = _field
+	return nil
+}
 
 func (p *HostingClaimRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -94263,6 +94445,14 @@ func (p *HostingClaimRequest) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField2(oprot); err != nil {
 			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
 			goto WriteFieldError
 		}
 	}
@@ -94321,11 +94511,465 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
 }
 
+func (p *HostingClaimRequest) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetOwnerUserID() {
+		if err = oprot.WriteFieldBegin("owner_user_id", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.OwnerUserID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *HostingClaimRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetEnvironmentID() {
+		if err = oprot.WriteFieldBegin("environment_id", thrift.STRING, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.EnvironmentID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
 func (p *HostingClaimRequest) String() string {
 	if p == nil {
 		return "<nil>"
 	}
 	return fmt.Sprintf("HostingClaimRequest(%+v)", *p)
+
+}
+
+type HostingWakeRequest struct {
+	NodeID  *string `thrift:"node_id,1,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
+	AgentID *string `thrift:"agent_id,2,optional" form:"agent_id" json:"agent_id,omitempty" query:"agent_id"`
+}
+
+func NewHostingWakeRequest() *HostingWakeRequest {
+	return &HostingWakeRequest{}
+}
+
+func (p *HostingWakeRequest) InitDefault() {
+}
+
+var HostingWakeRequest_NodeID_DEFAULT string
+
+func (p *HostingWakeRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return HostingWakeRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var HostingWakeRequest_AgentID_DEFAULT string
+
+func (p *HostingWakeRequest) GetAgentID() (v string) {
+	if !p.IsSetAgentID() {
+		return HostingWakeRequest_AgentID_DEFAULT
+	}
+	return *p.AgentID
+}
+
+var fieldIDToName_HostingWakeRequest = map[int16]string{
+	1: "node_id",
+	2: "agent_id",
+}
+
+func (p *HostingWakeRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *HostingWakeRequest) IsSetAgentID() bool {
+	return p.AgentID != nil
+}
+
+func (p *HostingWakeRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_HostingWakeRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *HostingWakeRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *HostingWakeRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.AgentID = _field
+	return nil
+}
+
+func (p *HostingWakeRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("HostingWakeRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *HostingWakeRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *HostingWakeRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetAgentID() {
+		if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.AgentID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *HostingWakeRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("HostingWakeRequest(%+v)", *p)
+
+}
+
+type HostingEnrollmentRequest struct {
+	HostID *string `thrift:"host_id,1,optional" form:"host_id" json:"host_id,omitempty" query:"host_id"`
+	NodeID *string `thrift:"node_id,2,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
+}
+
+func NewHostingEnrollmentRequest() *HostingEnrollmentRequest {
+	return &HostingEnrollmentRequest{}
+}
+
+func (p *HostingEnrollmentRequest) InitDefault() {
+}
+
+var HostingEnrollmentRequest_HostID_DEFAULT string
+
+func (p *HostingEnrollmentRequest) GetHostID() (v string) {
+	if !p.IsSetHostID() {
+		return HostingEnrollmentRequest_HostID_DEFAULT
+	}
+	return *p.HostID
+}
+
+var HostingEnrollmentRequest_NodeID_DEFAULT string
+
+func (p *HostingEnrollmentRequest) GetNodeID() (v string) {
+	if !p.IsSetNodeID() {
+		return HostingEnrollmentRequest_NodeID_DEFAULT
+	}
+	return *p.NodeID
+}
+
+var fieldIDToName_HostingEnrollmentRequest = map[int16]string{
+	1: "host_id",
+	2: "node_id",
+}
+
+func (p *HostingEnrollmentRequest) IsSetHostID() bool {
+	return p.HostID != nil
+}
+
+func (p *HostingEnrollmentRequest) IsSetNodeID() bool {
+	return p.NodeID != nil
+}
+
+func (p *HostingEnrollmentRequest) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_HostingEnrollmentRequest[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *HostingEnrollmentRequest) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.HostID = _field
+	return nil
+}
+func (p *HostingEnrollmentRequest) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.NodeID = _field
+	return nil
+}
+
+func (p *HostingEnrollmentRequest) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("HostingEnrollmentRequest"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *HostingEnrollmentRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetHostID() {
+		if err = oprot.WriteFieldBegin("host_id", thrift.STRING, 1); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.HostID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *HostingEnrollmentRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetNodeID() {
+		if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.NodeID); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *HostingEnrollmentRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("HostingEnrollmentRequest(%+v)", *p)
 
 }
 
@@ -95955,7 +96599,9 @@ type PaxManagerAPI interface {
 
 	EnsureStarter(ctx context.Context, request *EmptyRequest) (r *HostingStatusResponse, err error)
 
-	WakeStarter(ctx context.Context, request *EmptyRequest) (r *HostingStatusResponse, err error)
+	WakeStarter(ctx context.Context, request *HostingWakeRequest) (r *HostingStatusResponse, err error)
+
+	EnrollHostingNode(ctx context.Context, request *HostingEnrollmentRequest) (r *HostingStatusResponse, err error)
 
 	ClaimHostingJob(ctx context.Context, request *HostingClaimRequest) (r *HostingResponse, err error)
 
@@ -96340,11 +96986,20 @@ func (p *PaxManagerAPIClient) EnsureStarter(ctx context.Context, request *EmptyR
 	}
 	return _result.GetSuccess(), nil
 }
-func (p *PaxManagerAPIClient) WakeStarter(ctx context.Context, request *EmptyRequest) (r *HostingStatusResponse, err error) {
+func (p *PaxManagerAPIClient) WakeStarter(ctx context.Context, request *HostingWakeRequest) (r *HostingStatusResponse, err error) {
 	var _args PaxManagerAPIWakeStarterArgs
 	_args.Request = request
 	var _result PaxManagerAPIWakeStarterResult
 	if err = p.Client_().Call(ctx, "WakeStarter", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) EnrollHostingNode(ctx context.Context, request *HostingEnrollmentRequest) (r *HostingStatusResponse, err error) {
+	var _args PaxManagerAPIEnrollHostingNodeArgs
+	_args.Request = request
+	var _result PaxManagerAPIEnrollHostingNodeResult
+	if err = p.Client_().Call(ctx, "EnrollHostingNode", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
@@ -97341,6 +97996,7 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("GetStarter", &paxManagerAPIProcessorGetStarter{handler: handler})
 	self.AddToProcessorMap("EnsureStarter", &paxManagerAPIProcessorEnsureStarter{handler: handler})
 	self.AddToProcessorMap("WakeStarter", &paxManagerAPIProcessorWakeStarter{handler: handler})
+	self.AddToProcessorMap("EnrollHostingNode", &paxManagerAPIProcessorEnrollHostingNode{handler: handler})
 	self.AddToProcessorMap("ClaimHostingJob", &paxManagerAPIProcessorClaimHostingJob{handler: handler})
 	self.AddToProcessorMap("HeartbeatHostingJob", &paxManagerAPIProcessorHeartbeatHostingJob{handler: handler})
 	self.AddToProcessorMap("CompleteHostingJob", &paxManagerAPIProcessorCompleteHostingJob{handler: handler})
@@ -98266,6 +98922,54 @@ func (p *paxManagerAPIProcessorWakeStarter) Process(ctx context.Context, seqId i
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("WakeStarter", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorEnrollHostingNode struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorEnrollHostingNode) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIEnrollHostingNodeArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("EnrollHostingNode", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIEnrollHostingNodeResult{}
+	var retval *HostingStatusResponse
+	if retval, err2 = p.handler.EnrollHostingNode(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing EnrollHostingNode: "+err2.Error())
+		oprot.WriteMessageBegin("EnrollHostingNode", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("EnrollHostingNode", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -108108,7 +108812,7 @@ func (p *PaxManagerAPIEnsureStarterResult) String() string {
 }
 
 type PaxManagerAPIWakeStarterArgs struct {
-	Request *EmptyRequest `thrift:"request,1"`
+	Request *HostingWakeRequest `thrift:"request,1"`
 }
 
 func NewPaxManagerAPIWakeStarterArgs() *PaxManagerAPIWakeStarterArgs {
@@ -108118,9 +108822,9 @@ func NewPaxManagerAPIWakeStarterArgs() *PaxManagerAPIWakeStarterArgs {
 func (p *PaxManagerAPIWakeStarterArgs) InitDefault() {
 }
 
-var PaxManagerAPIWakeStarterArgs_Request_DEFAULT *EmptyRequest
+var PaxManagerAPIWakeStarterArgs_Request_DEFAULT *HostingWakeRequest
 
-func (p *PaxManagerAPIWakeStarterArgs) GetRequest() (v *EmptyRequest) {
+func (p *PaxManagerAPIWakeStarterArgs) GetRequest() (v *HostingWakeRequest) {
 	if !p.IsSetRequest() {
 		return PaxManagerAPIWakeStarterArgs_Request_DEFAULT
 	}
@@ -108192,7 +108896,7 @@ ReadStructEndError:
 }
 
 func (p *PaxManagerAPIWakeStarterArgs) ReadField1(iprot thrift.TProtocol) error {
-	_field := NewEmptyRequest()
+	_field := NewHostingWakeRequest()
 	if err := _field.Read(iprot); err != nil {
 		return err
 	}
@@ -108398,6 +109102,300 @@ func (p *PaxManagerAPIWakeStarterResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIWakeStarterResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIEnrollHostingNodeArgs struct {
+	Request *HostingEnrollmentRequest `thrift:"request,1"`
+}
+
+func NewPaxManagerAPIEnrollHostingNodeArgs() *PaxManagerAPIEnrollHostingNodeArgs {
+	return &PaxManagerAPIEnrollHostingNodeArgs{}
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeArgs) InitDefault() {
+}
+
+var PaxManagerAPIEnrollHostingNodeArgs_Request_DEFAULT *HostingEnrollmentRequest
+
+func (p *PaxManagerAPIEnrollHostingNodeArgs) GetRequest() (v *HostingEnrollmentRequest) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIEnrollHostingNodeArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIEnrollHostingNodeArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIEnrollHostingNodeArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewHostingEnrollmentRequest()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("EnrollHostingNode_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIEnrollHostingNodeArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIEnrollHostingNodeResult struct {
+	Success *HostingStatusResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIEnrollHostingNodeResult() *PaxManagerAPIEnrollHostingNodeResult {
+	return &PaxManagerAPIEnrollHostingNodeResult{}
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeResult) InitDefault() {
+}
+
+var PaxManagerAPIEnrollHostingNodeResult_Success_DEFAULT *HostingStatusResponse
+
+func (p *PaxManagerAPIEnrollHostingNodeResult) GetSuccess() (v *HostingStatusResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIEnrollHostingNodeResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIEnrollHostingNodeResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIEnrollHostingNodeResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewHostingStatusResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("EnrollHostingNode_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIEnrollHostingNodeResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIEnrollHostingNodeResult(%+v)", *p)
 
 }
 

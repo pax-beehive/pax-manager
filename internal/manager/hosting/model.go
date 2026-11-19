@@ -141,14 +141,17 @@ type Job struct {
 	ModelID              string    `json:"model_id"`
 	ModelMaxOutputTokens int64     `json:"model_max_output_tokens"`
 	Active               bool      `json:"active"`
+	NodeID               string    `json:"node_id,omitempty"`
+	AgentID              string    `json:"agent_id,omitempty"`
 }
 
 // EnvironmentRecord separates private durable fields from the user-facing view.
 type EnvironmentRecord struct {
-	Starter    Starter `json:"starter"`
-	HostID     string  `json:"host_id"`
-	Generation int64   `json:"generation"`
-	Job        *Job    `json:"job"`
+	Starter      Starter `json:"starter"`
+	HostID       string  `json:"host_id"`
+	Generation   int64   `json:"generation"`
+	Job          *Job    `json:"job"`
+	EnrolledNode bool    `json:"enrolled_node,omitempty"`
 }
 type Reservation struct {
 	ID, EnvironmentID, RequestID, Status, UpstreamRequestID string
@@ -195,15 +198,24 @@ type Store interface {
 	WithHostingState(context.Context, func(*State) error) error
 }
 type Status struct {
-	Enabled         bool      `json:"enabled"`
-	PoolAvailable   bool      `json:"pool_available"`
-	PoolPeriodStart time.Time `json:"pool_period_start"`
-	PoolResetsAt    time.Time `json:"pool_resets_at"`
-	Starter         *Starter  `json:"starter"`
+	Enabled             bool      `json:"enabled"`
+	EnrolledNode        bool      `json:"enrolled_node,omitempty"`
+	PoolAvailable       bool      `json:"pool_available"`
+	PoolPeriodStart     time.Time `json:"pool_period_start"`
+	PoolResetsAt        time.Time `json:"pool_resets_at"`
+	Starter             *Starter  `json:"starter"`
+	UserBudgetAvailable bool      `json:"user_budget_available"`
 }
 type Claim struct {
-	HostID   string `json:"host_id"`
-	Capacity int    `json:"capacity"`
+	HostID        string  `json:"host_id"`
+	Capacity      int     `json:"capacity"`
+	OwnerUserID   *string `json:"owner_user_id,omitempty"`
+	EnvironmentID *string `json:"environment_id,omitempty"`
+}
+
+type WakeTarget struct {
+	NodeID  string `json:"node_id"`
+	AgentID string `json:"agent_id"`
 }
 type Update struct {
 	HostID     string `json:"host_id"`
