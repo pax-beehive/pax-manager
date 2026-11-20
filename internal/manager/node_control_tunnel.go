@@ -420,8 +420,12 @@ func (s *Server) upsertRuntimeSnapshotReport(
 		Metadata:     runtimeSnapshotNodeMetadata(report.RemoteID, report.RuntimeSnapshot),
 	}
 	observedAt := s.clock().UTC()
+	// paxd owns its connections: one it removed deletes the bound agent, and
+	// one it still runs for a deleted agent gets removed below.
+	connections, deletedAgentIDs := runtimeSnapshotConnections(report.RuntimeSnapshot.Agents)
+	status.DeletedAgentIDs = deletedAgentIDs
 	for _, agent := range report.RuntimeSnapshot.Agents {
-		if agent.CloudAgentID == "" {
+		if agent.CloudAgentID == "" || runtimeConnectionDeleted(agent) {
 			continue
 		}
 		identity, err := parseAgentRuntimeIdentity(
@@ -460,7 +464,93 @@ func (s *Server) upsertRuntimeSnapshotReport(
 			RuntimeIdentity: identity,
 		})
 	}
-	return s.store.UpsertNodeStatus(ctx, node, status)
+	if err := s.store.UpsertNodeStatus(ctx, node, status); err != nil {
+		return err
+	}
+	s.removeDeletedAgentConnections(ctx, node, connections)
+	return nil
+}
+
+func runtimeConnectionDeleted(agent nodeControlAgentRuntime) bool {
+	return strings.EqualFold(
+		strings.TrimSpace(agent.DesiredState),
+		domain.NodeAgentConnectionStateDeleted,
+	)
+}
+
+// runtimeSnapshotConnections splits the bound connections of a runtime
+// snapshot into the ones paxd still keeps and the agents it removed. paxd
+// keeps reporting removed connections, and an agent can be rebound to a new
+// connection, so an agent counts as removed only when no kept connection
+// references it.
+func runtimeSnapshotConnections(
+	agents []nodeControlAgentRuntime,
+) ([]domain.NodeAgentConnectionRef, []string) {
+	kept := make([]domain.NodeAgentConnectionRef, 0, len(agents))
+	keptAgents := make(map[string]struct{}, len(agents))
+	for _, agent := range agents {
+		if agent.CloudAgentID == "" || runtimeConnectionDeleted(agent) {
+			continue
+		}
+		keptAgents[agent.CloudAgentID] = struct{}{}
+		kept = append(kept, domain.NodeAgentConnectionRef{
+			AgentID:      agent.CloudAgentID,
+			ConnectionID: agent.ConnectionID,
+		})
+	}
+	var removedAgentIDs []string
+	removedAgents := make(map[string]struct{})
+	for _, agent := range agents {
+		if agent.CloudAgentID == "" || !runtimeConnectionDeleted(agent) {
+			continue
+		}
+		if _, ok := keptAgents[agent.CloudAgentID]; ok {
+			continue
+		}
+		if _, ok := removedAgents[agent.CloudAgentID]; ok {
+			continue
+		}
+		removedAgents[agent.CloudAgentID] = struct{}{}
+		removedAgentIDs = append(removedAgentIDs, agent.CloudAgentID)
+	}
+	return kept, removedAgentIDs
+}
+
+// removeDeletedAgentConnections asks paxd to remove the connections it still
+// keeps for agents that were deleted in the cloud, for example while the node
+// was offline. The status report is already stored, so failures only delay the
+// cleanup until the next snapshot.
+func (s *Server) removeDeletedAgentConnections(
+	ctx context.Context,
+	node Node,
+	connections []domain.NodeAgentConnectionRef,
+) {
+	if s.userapi == nil || len(connections) == 0 {
+		return
+	}
+	agentIDs := make([]string, 0, len(connections))
+	for _, connection := range connections {
+		agentIDs = append(agentIDs, connection.AgentID)
+	}
+	deletedAgentIDs, err := s.store.ListDeletedNodeAgentIDs(ctx, node.NodeID, agentIDs)
+	if err != nil {
+		logging.Warn(ctx, "runtime snapshot deleted agent lookup failed", logging.Err(err))
+		return
+	}
+	if len(deletedAgentIDs) == 0 {
+		return
+	}
+	deleted := make(map[string]struct{}, len(deletedAgentIDs))
+	for _, agentID := range deletedAgentIDs {
+		deleted[agentID] = struct{}{}
+	}
+	stale := make([]domain.NodeAgentConnectionRef, 0, len(deletedAgentIDs))
+	for _, connection := range connections {
+		if _, ok := deleted[connection.AgentID]; ok {
+			stale = append(stale, connection)
+		}
+	}
+	s.userapi.RemoveDeletedAgentConnections(ctx, node.NodeID, stale)
 }
 
 func unknownAgentRuntimeIdentity(

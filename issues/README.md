@@ -10,6 +10,7 @@ Issue 090 records final paxkit dependency alignment to
 
 | #   | Status   | Title                                                                                                                                   | Severity | Component                    |
 | --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| 095 | resolved | [Agent deletion is not reconciled between Manager and paxd](095-agent-deletion-not-reconciled-with-paxd.md) | high | node control / storage / userapi |
 | 094 | resolved | [Gateway admission repeats policy and budget checks before generation](094-atomic-hosting-admission.md) | medium | hosting / gateway accounting |
 | 093 | resolved | [Hosting service and owner routes missing from browser Worker](093-hosting-service-browser-ingress.md) | high | auth / Worker / hosting |
 | 092 | resolved | [Zero monthly token caps reject funded model requests](092-zero-monthly-token-limit.md) | medium | hosting / configuration / model accounting |

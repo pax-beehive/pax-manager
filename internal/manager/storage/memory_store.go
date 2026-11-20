@@ -33,6 +33,7 @@ type MemoryStore struct {
 	nodes                        map[string]Node
 	nodeDaemonCommands           map[string]domain.NodeDaemonCommand
 	agents                       map[string]Agent
+	deletedNodeAgents            map[string]string
 	nextAgentACPRequestIDs       map[string]int64
 	apiKeys                      map[string]string
 	nodeAPIKeys                  map[string]string
@@ -113,6 +114,7 @@ func NewMemoryStore(now func() time.Time) *MemoryStore {
 		now:                          now,
 		nodes:                        make(map[string]Node),
 		agents:                       make(map[string]Agent),
+		deletedNodeAgents:            make(map[string]string),
 		nextAgentACPRequestIDs:       make(map[string]int64),
 		apiKeys:                      make(map[string]string),
 		nodeAPIKeys:                  make(map[string]string),
@@ -1110,7 +1112,7 @@ func (s *MemoryStore) UpsertNodeStatus(
 	for _, input := range report.Agents {
 		agent, err := s.upsertNodeAgentLocked(current, input, now)
 		if err != nil {
-			if errors.Is(err, errAgentNodeMismatch) {
+			if isSkippedAgentReport(err) {
 				continue
 			}
 			return err
@@ -1137,7 +1139,37 @@ func (s *MemoryStore) UpsertNodeStatus(
 			s.upsertSessionLocked(current.NodeID, agent.AgentID, session, "", now)
 		}
 	}
+	s.deleteReportedNodeAgentsLocked(current, report.DeletedAgentIDs)
 	return nil
+}
+
+// deleteReportedNodeAgentsLocked deletes agents whose connections paxd removed
+// on the node. Agents of another node or owner are out of its reach.
+func (s *MemoryStore) deleteReportedNodeAgentsLocked(node Node, agentIDs []string) {
+	for _, agentID := range agentIDs {
+		agent, ok := s.agents[agentID]
+		if !ok || agent.NodeID != node.NodeID || agent.OwnerUserID != node.OwnerUserID {
+			continue
+		}
+		s.deleteAgentLocked(agent)
+	}
+}
+
+func (s *MemoryStore) ListDeletedNodeAgentIDs(
+	ctx context.Context,
+	nodeID string,
+	agentIDs []string,
+) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var deleted []string
+	for _, agentID := range agentIDs {
+		if deletedNodeID, ok := s.deletedNodeAgents[agentID]; ok && deletedNodeID == nodeID {
+			deleted = append(deleted, agentID)
+		}
+	}
+	sort.Strings(deleted)
+	return deleted, nil
 }
 
 func (s *MemoryStore) ListNodes(ctx context.Context, principal UserPrincipal) ([]Node, error) {
@@ -1211,6 +1243,11 @@ func (s *MemoryStore) DeleteNode(
 		}
 		s.deleteAgentAPIKeysLocked(agentID)
 		delete(s.agents, agentID)
+	}
+	for agentID, deletedNodeID := range s.deletedNodeAgents {
+		if deletedNodeID == req.NodeID {
+			delete(s.deletedNodeAgents, agentID)
+		}
 	}
 	for key, command := range s.nodeDaemonCommands {
 		if command.NodeID == req.NodeID {
@@ -1344,8 +1381,7 @@ func (s *MemoryStore) DeleteNodeAgent(
 	if !ok || agent.NodeID != req.NodeID || !canAccessOwner(principal, agent.OwnerUserID) {
 		return Agent{}, ErrNotFound
 	}
-	s.deleteAgentAPIKeysLocked(req.AgentID)
-	delete(s.agents, req.AgentID)
+	s.deleteAgentLocked(agent)
 	return agent, nil
 }
 
@@ -1360,8 +1396,7 @@ func (s *MemoryStore) DeleteAgent(
 	if !ok || !canAccessOwner(principal, agent.OwnerUserID) {
 		return Agent{}, ErrNotFound
 	}
-	s.deleteAgentAPIKeysLocked(req.AgentID)
-	delete(s.agents, req.AgentID)
+	s.deleteAgentLocked(agent)
 	return agent, nil
 }
 
@@ -1538,6 +1573,20 @@ func (s *MemoryStore) deleteNodeAPIKeysLocked(nodeID string) {
 			delete(s.nodeAPIKeys, keyHash)
 		}
 	}
+}
+
+// deleteAgentLocked removes an agent and remembers node-bound ones, so status
+// reports cannot revive them and their paxd connections can be reconciled.
+func (s *MemoryStore) deleteAgentLocked(agent Agent) {
+	s.deleteAgentAPIKeysLocked(agent.AgentID)
+	delete(s.agents, agent.AgentID)
+	if agent.NodeID == "" {
+		return
+	}
+	if s.deletedNodeAgents == nil {
+		s.deletedNodeAgents = make(map[string]string)
+	}
+	s.deletedNodeAgents[agent.AgentID] = agent.NodeID
 }
 
 func (s *MemoryStore) deleteAgentAPIKeysLocked(agentID string) {
@@ -2533,12 +2582,25 @@ func defaultAPIEndpoint(v string) string {
 // a different node or owner. Status reports must never re-home agents.
 var errAgentNodeMismatch = errors.New("agent belongs to a different node")
 
+// errAgentDeleted marks a status-report agent ID that was deleted. Status
+// reports must never revive agents.
+var errAgentDeleted = errors.New("agent was deleted")
+
+// isSkippedAgentReport reports whether a status-report agent is left alone
+// instead of failing the whole report.
+func isSkippedAgentReport(err error) bool {
+	return errors.Is(err, errAgentNodeMismatch) || errors.Is(err, errAgentDeleted)
+}
+
 func (s *MemoryStore) upsertNodeAgentLocked(
 	node Node,
 	input AgentStatusInput,
 	now time.Time,
 ) (Agent, error) {
 	if input.AgentID != "" {
+		if _, deleted := s.deletedNodeAgents[input.AgentID]; deleted {
+			return Agent{}, errAgentDeleted
+		}
 		if agent, ok := s.agents[input.AgentID]; ok {
 			if agent.NodeID != node.NodeID || agent.OwnerUserID != node.OwnerUserID {
 				return Agent{}, errAgentNodeMismatch
