@@ -86993,8 +86993,9 @@ func (p *HostingStatusResponse) String() string {
 }
 
 type SandboxNode struct {
-	Status string  `thrift:"status,1,required" form:"status,required" json:"status,required" query:"status,required"`
-	NodeID *string `thrift:"node_id,2,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
+	Status     string  `thrift:"status,1,required" form:"status,required" json:"status,required" query:"status,required"`
+	NodeID     *string `thrift:"node_id,2,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
+	ReasonCode *string `thrift:"reason_code,3,optional" form:"reason_code" json:"reason_code,omitempty" query:"reason_code"`
 }
 
 func NewSandboxNode() *SandboxNode {
@@ -87017,13 +87018,27 @@ func (p *SandboxNode) GetNodeID() (v string) {
 	return *p.NodeID
 }
 
+var SandboxNode_ReasonCode_DEFAULT string
+
+func (p *SandboxNode) GetReasonCode() (v string) {
+	if !p.IsSetReasonCode() {
+		return SandboxNode_ReasonCode_DEFAULT
+	}
+	return *p.ReasonCode
+}
+
 var fieldIDToName_SandboxNode = map[int16]string{
 	1: "status",
 	2: "node_id",
+	3: "reason_code",
 }
 
 func (p *SandboxNode) IsSetNodeID() bool {
 	return p.NodeID != nil
+}
+
+func (p *SandboxNode) IsSetReasonCode() bool {
+	return p.ReasonCode != nil
 }
 
 func (p *SandboxNode) Read(iprot thrift.TProtocol) (err error) {
@@ -87058,6 +87073,14 @@ func (p *SandboxNode) Read(iprot thrift.TProtocol) (err error) {
 		case 2:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -87120,6 +87143,17 @@ func (p *SandboxNode) ReadField2(iprot thrift.TProtocol) error {
 	p.NodeID = _field
 	return nil
 }
+func (p *SandboxNode) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ReasonCode = _field
+	return nil
+}
 
 func (p *SandboxNode) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -87133,6 +87167,10 @@ func (p *SandboxNode) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField2(oprot); err != nil {
 			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
 			goto WriteFieldError
 		}
 	}
@@ -87187,6 +87225,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SandboxNode) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetReasonCode() {
+		if err = oprot.WriteFieldBegin("reason_code", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ReasonCode); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
 }
 
 func (p *SandboxNode) String() string {

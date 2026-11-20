@@ -232,6 +232,7 @@ func ClaimHostingJob(c context.Context, ctx *app.RequestContext) {
 	}
 	var body struct {
 		hosting.Claim
+		Capacity         *int            `json:"capacity"`
 		OwnerScope       json.RawMessage `json:"owner_user_id"`
 		EnvironmentScope json.RawMessage `json:"environment_id"`
 	}
@@ -249,6 +250,12 @@ func ClaimHostingJob(c context.Context, ctx *app.RequestContext) {
 			hostingError(ctx, hosting.ErrConflict)
 			return
 		}
+	}
+	// An omitted capacity keeps the existing zero-capacity behavior without
+	// claiming the worker measured zero free slots.
+	body.CapacityMissing = body.Capacity == nil
+	if body.Capacity != nil {
+		body.Claim.Capacity = *body.Capacity
 	}
 	service := s.hosting.Claim
 	if kind == hosting.SandboxKind {

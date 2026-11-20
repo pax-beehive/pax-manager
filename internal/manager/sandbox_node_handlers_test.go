@@ -67,13 +67,31 @@ func TestSandboxNodeHTTPCreatesAnOwnedNodeWithoutAgentOrModelCredentials(t *test
 	claim := func(body, token string) *httptest.ResponseRecorder {
 		return hostingRequest(t, server, "POST", "/api/v1/hosting/jobs/claim", body, "", token)
 	}
+	claimBody := func(host string, capacity string) string {
+		return `{"kind":"node_only","host_id":"` + host + `"` + capacity + `}`
+	}
+	zero := claimBody(host, `,"capacity":0`)
 	require.Equal(
 		t,
 		http.StatusUnauthorized,
 		claim(`{"host_id":"aws-pilot","capacity":1}`, key).Code,
 	)
+	require.Equal(t, http.StatusUnauthorized, claim(zero, "").Code)
+	wrongHost := claimBody("other-host", `,"capacity":0`)
+	require.Equal(t, http.StatusUnauthorized, claim(wrongHost, key).Code)
+	require.Equal(t, http.StatusConflict, claim(claimBody(host, `,"capacity":-1`), key).Code)
+	require.Equal(t, http.StatusOK, claim(claimBody(host, ""), key).Code)
+	require.Equal(t, http.StatusOK, claim(claimBody(host, `,"capacity":null`), key).Code)
+	require.NotContains(t, get(ownerEmail).Body.String(), "reason_code")
+
+	require.Equal(t, http.StatusOK, claim(zero, key).Code)
+	waiting := get(ownerEmail)
+	require.Equal(t, &hosting.SandboxView{Status: "queued", ReasonCode: "waiting_for_capacity"},
+		decodeData[hosting.SandboxStatus](t, waiting.Body.Bytes()).Sandbox)
+	require.NotContains(t, waiting.Body.String(), host)
+	require.NotContains(t, waiting.Body.String(), "available_slots")
+
 	body := `{"kind":"node_only","host_id":"aws-pilot","capacity":1}`
-	require.Equal(t, http.StatusUnauthorized, claim(body, "").Code)
 	claimed := claim(body, key)
 	require.Equal(t, http.StatusOK, claimed.Code)
 	require.NotContains(t, claimed.Body.String(), "\"model_")
