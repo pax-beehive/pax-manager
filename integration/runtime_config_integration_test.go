@@ -134,7 +134,8 @@ func TestRuntimeConfigAdminAPIAndFeatureGatesIntegration(t *testing.T) {
 	features := getJSON[struct {
 		Features map[string]bool `json:"features"`
 	}](t, fixture, "/api/v1/user/self/features", fixture.userHeaders(), http.StatusOK)
-	if len(features.Features) != 7 {
+	sandboxEnabled, hasSandbox := features.Features["hosted_sandbox"]
+	if len(features.Features) != 8 || !hasSandbox || sandboxEnabled {
 		t.Fatalf("features = %v", features.Features)
 	}
 }
