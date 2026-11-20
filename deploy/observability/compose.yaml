@@ -1,0 +1,83 @@
+name: pax-observability
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --query.max-concurrency=2
+    mem_limit: 1g
+    security_opt:
+      - no-new-privileges:true
+    logging: &bounded_logging
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
+    secrets:
+      - pax_metrics_token
+      - pax_metrics_ca
+    volumes:
+      - prometheus-data:/prometheus
+      - type: bind
+        source: ./prometheus.yml
+        target: /etc/prometheus/prometheus.yml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${PAX_METRICS_TARGET_FILE:-./targets.json}
+        target: /etc/prometheus/targets.json
+        read_only: true
+        bind:
+          create_host_path: false
+
+  grafana:
+    image: grafana/grafana:13.3.1
+    restart: unless-stopped
+    mem_limit: 1g
+    security_opt:
+      - no-new-privileges:true
+    logging: *bounded_logging
+    ports:
+      - "127.0.0.1:${GRAFANA_HOST_PORT:-3030}:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+    secrets:
+      - grafana_admin_password
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - type: bind
+        source: ./grafana/provisioning
+        target: /etc/grafana/provisioning
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./grafana/dashboards
+        target: /etc/grafana/dashboards
+        read_only: true
+        bind:
+          create_host_path: false
+
+secrets:
+  pax_metrics_token:
+    file: ${PAX_METRICS_TOKEN_FILE:?PAX_METRICS_TOKEN_FILE is required}
+  pax_metrics_ca:
+    file: ${PAX_METRICS_CA_FILE:?PAX_METRICS_CA_FILE is required}
+  grafana_admin_password:
+    file: ${GRAFANA_ADMIN_PASSWORD_FILE:?GRAFANA_ADMIN_PASSWORD_FILE is required}
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${PAX_OBSERVABILITY_SUBNET:-10.202.91.0/28}

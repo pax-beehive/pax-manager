@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	hertzserver "github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/adaptor"
 	"github.com/pax-beehive/paxkit/reliablemq"
@@ -29,6 +30,7 @@ import (
 )
 
 type Service struct {
+	httpMetrics           *httpMetrics
 	hosting               *hosting.Service
 	sandboxNodes          *hosting.SandboxService
 	modelCatalog          *modelcatalog.Service
@@ -268,7 +270,11 @@ func (p serviceAdminPolicy) RoleForEmail(email string) string {
 }
 
 func (s *Service) engine(addr string) *hertzserver.Hertz {
-	h := hertzserver.Default(hertzserver.WithHostPorts(addr))
+	h := hertzserver.New(hertzserver.WithHostPorts(addr))
+	if s.httpMetrics != nil {
+		h.Use(s.httpMetrics.observe)
+	}
+	h.Use(recovery.Recovery())
 	h.NoHijackConnPool = true
 	s.registerRoutes(h)
 	return h
