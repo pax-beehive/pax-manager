@@ -86241,8 +86241,9 @@ func (p *HostingStarter) String() string {
 }
 
 type SandboxModelAgent struct {
-	AgentID string `thrift:"agent_id,1,required" form:"agent_id,required" json:"agent_id,required" query:"agent_id,required"`
-	State   string `thrift:"state,2,required" form:"state,required" json:"state,required" query:"state,required"`
+	AgentID    string  `thrift:"agent_id,1,required" form:"agent_id,required" json:"agent_id,required" query:"agent_id,required"`
+	State      string  `thrift:"state,2,required" form:"state,required" json:"state,required" query:"state,required"`
+	ReasonCode *string `thrift:"reason_code,3,optional" form:"reason_code" json:"reason_code,omitempty" query:"reason_code"`
 }
 
 func NewSandboxModelAgent() *SandboxModelAgent {
@@ -86260,9 +86261,23 @@ func (p *SandboxModelAgent) GetState() (v string) {
 	return p.State
 }
 
+var SandboxModelAgent_ReasonCode_DEFAULT string
+
+func (p *SandboxModelAgent) GetReasonCode() (v string) {
+	if !p.IsSetReasonCode() {
+		return SandboxModelAgent_ReasonCode_DEFAULT
+	}
+	return *p.ReasonCode
+}
+
 var fieldIDToName_SandboxModelAgent = map[int16]string{
 	1: "agent_id",
 	2: "state",
+	3: "reason_code",
+}
+
+func (p *SandboxModelAgent) IsSetReasonCode() bool {
+	return p.ReasonCode != nil
 }
 
 func (p *SandboxModelAgent) Read(iprot thrift.TProtocol) (err error) {
@@ -86301,6 +86316,14 @@ func (p *SandboxModelAgent) Read(iprot thrift.TProtocol) (err error) {
 					goto ReadFieldError
 				}
 				issetState = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
 				goto SkipFieldError
 			}
@@ -86366,6 +86389,17 @@ func (p *SandboxModelAgent) ReadField2(iprot thrift.TProtocol) error {
 	p.State = _field
 	return nil
 }
+func (p *SandboxModelAgent) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field *string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ReasonCode = _field
+	return nil
+}
 
 func (p *SandboxModelAgent) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -86379,6 +86413,10 @@ func (p *SandboxModelAgent) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField2(oprot); err != nil {
 			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
 			goto WriteFieldError
 		}
 	}
@@ -86431,6 +86469,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SandboxModelAgent) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetReasonCode() {
+		if err = oprot.WriteFieldBegin("reason_code", thrift.STRING, 3); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteString(*p.ReasonCode); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
 }
 
 func (p *SandboxModelAgent) String() string {

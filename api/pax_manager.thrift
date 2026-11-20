@@ -3138,6 +3138,7 @@ struct HostingStarter {
 struct SandboxModelAgent {
   1: required string agent_id
   2: required string state
+  3: optional string reason_code
 }
 struct SandboxModelAccess {
   1: required string node_id

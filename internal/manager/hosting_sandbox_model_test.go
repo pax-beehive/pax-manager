@@ -115,4 +115,22 @@ func TestSandboxModelUsesOnlySandboxHostForVerifiedOwnerAgent(t *testing.T) {
 		200,
 		hostingRequest(t, s, "POST", complete, string(update), "", sandboxKey).Code,
 	)
+	ready := hostingRequest(t, s, "GET", "/api/v1/starter", "", email, "")
+	require.Equal(t, 200, ready.Code)
+	require.NotContains(t, ready.Body.String(), `"reason_code"`)
+	failed, err := json.Marshal(hosting.Update{
+		Kind: hosting.SandboxModelKind, HostID: hostID, JobID: job.JobID,
+		LeaseToken: job.LeaseToken, Generation: job.Generation, State: "sleeping",
+	})
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		200,
+		hostingRequest(t, s, "POST", complete, string(failed), "", sandboxKey).Code,
+	)
+	status = decodeData[hosting.Status](t,
+		hostingRequest(t, s, "GET", "/api/v1/starter", "", email, "").Body.Bytes())
+	require.Equal(t, []hosting.SandboxModelAgent{
+		{AgentID: job.AgentID, State: "failed", ReasonCode: "lease_ended"},
+	}, status.SandboxModelAccess.Agents)
 }

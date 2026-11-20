@@ -255,3 +255,55 @@ func TestSandboxModelRejectsFalseParentAndRevokedGate(t *testing.T) {
 	require.NotEqual(t, job.ModelToken, retry.ModelToken)
 	require.ErrorIs(t, s.Authorize(ctx, job.ModelToken), hosting.ErrUnauthorized)
 }
+
+func TestSandboxModelProjectsOnlySafeFailureReasons(t *testing.T) {
+	for _, tc := range []struct{ state, workerCode, reason string }{
+		{"failed", "container_exited", "container_exited"},
+		{"failed", "startup_failed", "model_setup_failed"},
+		{"failed", "unrecognized worker payload", "model_setup_failed"},
+		{"sleeping", "", "lease_ended"},
+	} {
+		t.Run(tc.state+"/"+tc.workerCode, func(t *testing.T) {
+			ctx := t.Context()
+			s, store, owner, _, _ := poolFixture(t)
+			connectModelSandbox(t, s, store, owner)
+			job := wakeSandboxModel(t, s, owner, "sandbox-codex")
+			update := modelSandboxReady(job)
+			update.State, update.NodeID, update.AgentID = tc.state, "", ""
+			update.ErrorCode = tc.workerCode
+			_, err := s.UpdateSandboxModel(ctx, &update, true)
+			require.NoError(t, err)
+			status := readSandboxModelAccess(t, s, owner)
+			require.Equal(t, []hosting.SandboxModelAgent{
+				{AgentID: job.AgentID, State: "failed", ReasonCode: tc.reason},
+			}, status.SandboxModelAccess.Agents)
+			require.ErrorIs(t, s.Authorize(ctx, job.ModelToken), hosting.ErrUnauthorized)
+
+			retry := wakeSandboxModel(t, s, owner, job.AgentID)
+			require.Greater(t, retry.Generation, job.Generation)
+			status = readSandboxModelAccess(t, s, owner)
+			require.Equal(t, []hosting.SandboxModelAgent{
+				{AgentID: job.AgentID, State: "starting"},
+			}, status.SandboxModelAccess.Agents)
+		})
+	}
+}
+
+func TestSandboxModelDistinguishesExpiredLeaseFromReportedFailure(t *testing.T) {
+	ctx := t.Context()
+	s, store, owner, now, _ := poolFixture(t)
+	parent, _ := connectModelSandbox(t, s, store, owner)
+	job := wakeSandboxModel(t, s, owner, "sandbox-codex")
+	ready := modelSandboxReady(job)
+	_, err := s.UpdateSandboxModel(ctx, &ready, true)
+	require.NoError(t, err)
+	*now = job.LeaseExpiresAt.Add(-time.Second)
+	parent.State, parent.NodeID = "", ""
+	_, err = s.Sandbox.Update(ctx, &parent, false)
+	require.NoError(t, err)
+	*now = job.LeaseExpiresAt
+	status := readSandboxModelAccess(t, s, owner)
+	require.Equal(t, []hosting.SandboxModelAgent{
+		{AgentID: job.AgentID, State: "failed", ReasonCode: "lease_expired"},
+	}, status.SandboxModelAccess.Agents)
+}
