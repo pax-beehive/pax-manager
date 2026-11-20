@@ -272,7 +272,13 @@ func (p serviceAdminPolicy) RoleForEmail(email string) string {
 func (s *Service) engine(addr string) *hertzserver.Hertz {
 	h := hertzserver.New(hertzserver.WithHostPorts(addr))
 	if s.httpMetrics != nil {
-		h.Use(s.httpMetrics.observe)
+		h.Use(func(ctx context.Context, request *app.RequestContext) {
+			if s.metricsEnabled() {
+				s.httpMetrics.observe(ctx, request)
+				return
+			}
+			request.Next(ctx)
+		})
 	}
 	h.Use(recovery.Recovery())
 	h.NoHijackConnPool = true

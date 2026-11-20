@@ -65,3 +65,22 @@ Run `docker compose up -d --force-recreate` after replacing a bound config or
 secret file. To move the stack, copy the configuration and credentials and
 back up the two named volumes. Stop the services before copying live volume
 files.
+
+## Enable metrics on a Manager
+
+Publish container port 9109 on the private host interface. Mount the following
+files read-only at their named paths in the container:
+
+| Container path | Contents |
+| --- | --- |
+| `/run/pax-metrics/scrape-peer` | Scraper IP address, such as `192.168.0.100` |
+| `/run/pax-metrics/scrape-token` | Raw bearer token shared with Prometheus |
+| `/run/pax-metrics/server.pem` | Server certificate with the target IP as a SAN |
+| `/run/pax-metrics/server.key` | Server certificate private key |
+
+Provide the port and mounts through the regular deployment configuration.
+In Manager's admin Feature Gates, set **Prometheus metrics** (`feature.metrics`)
+to **GA** for the region. The gate defaults to Off and takes effect at runtime.
+An off gate returns HTTP 404 and pauses HTTP instrumentation. Prometheus must
+still pass the source IP and bearer token checks after the gate is enabled.
+A Manager without provisioned files continues to run its business API.

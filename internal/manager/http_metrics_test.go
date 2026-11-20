@@ -2,14 +2,19 @@ package manager
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	hertzserver "github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/stretchr/testify/require"
+
+	"github.com/pax-beehive/pax-manager/internal/manager/runtimeconfig"
+	"github.com/pax-beehive/pax-manager/internal/manager/storage"
 )
 
 func TestHTTPMetricsObserve(t *testing.T) {
@@ -52,7 +57,8 @@ func TestHTTPMetricsObserve(t *testing.T) {
 	req.RemoteAddr = "192.0.2.10:1234"
 	req.Header.Set("Authorization", "Bearer test-token")
 	response := httptest.NewRecorder()
-	metrics.handler(netip.MustParseAddr("192.0.2.10"), "test-token").ServeHTTP(response, req)
+	metrics.handler(netip.MustParseAddr("192.0.2.10"), "test-token", func() bool { return true }).
+		ServeHTTP(response, req)
 	require.Equal(t, http.StatusOK, response.Code)
 	body := response.Body.String()
 	require.Contains(
@@ -97,7 +103,9 @@ func TestHTTPMetricsObserve(t *testing.T) {
 }
 
 func TestHTTPMetricsScrapeAccess(t *testing.T) {
-	handler := newHTTPMetrics().handler(netip.MustParseAddr("192.0.2.10"), "test-token")
+	handler := newHTTPMetrics().handler(netip.MustParseAddr("192.0.2.10"), "test-token", func() bool {
+		return true
+	})
 	for _, tc := range []struct {
 		name, method, path, peer, authorization string
 		status                                  int
@@ -126,5 +134,30 @@ func TestHTTPMetricsScrapeAccess(t *testing.T) {
 				require.NotContains(t, response.Body.String(), "go_goroutines")
 			}
 		})
+	}
+}
+
+func TestHTTPMetricsFeatureGateUpdatesLive(t *testing.T) {
+	store := runtimeconfig.New(runtimeconfig.Options{
+		Repository: storage.NewMemoryStore(time.Now).RuntimeConfig(),
+	})
+	srv := &Service{runtimeConfig: store}
+	handler := newHTTPMetrics().handler(netip.MustParseAddr("192.0.2.10"), "test-token", srv.metricsEnabled)
+	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	request.RemoteAddr = "192.0.2.10:1234"
+	request.Header.Set("Authorization", "Bearer test-token")
+
+	for version, stage := range []string{"off", "admin", "ga", "off"} {
+		_, err := store.Set(t.Context(), runtimeconfig.FeatureKey(runtimeconfig.FeatureMetrics),
+			json.RawMessage(`{"stage":"`+stage+`","beta_emails":[]}`), int64(version),
+			"test metrics gate", "admin@example.com")
+		require.NoError(t, err)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		expected := http.StatusNotFound
+		if stage == runtimeconfig.StageGA {
+			expected = http.StatusOK
+		}
+		require.Equal(t, expected, response.Code, stage)
 	}
 }

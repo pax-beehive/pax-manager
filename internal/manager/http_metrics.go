@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +23,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/logging"
+	"github.com/pax-beehive/pax-manager/internal/manager/runtimeconfig"
 )
+
+const metricsDirectory = "/run/pax-metrics"
 
 type httpMetrics struct {
 	registry *prometheus.Registry
@@ -83,7 +87,11 @@ func (m *httpMetrics) observe(c context.Context, ctx *app.RequestContext) {
 	}
 }
 
-func (m *httpMetrics) handler(allowedPeer netip.Addr, token string) http.Handler {
+func (m *httpMetrics) handler(
+	allowedPeer netip.Addr,
+	token string,
+	enabled func() bool,
+) http.Handler {
 	expected := sha256.Sum256([]byte("Bearer " + token))
 	scrape := promhttp.HandlerFor(
 		m.registry,
@@ -91,6 +99,10 @@ func (m *httpMetrics) handler(allowedPeer netip.Addr, token string) http.Handler
 	)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
+		if !enabled() {
+			http.NotFound(w, r)
+			return
+		}
 		peer, err := netip.ParseAddrPort(r.RemoteAddr)
 		if err != nil || peer.Addr().Unmap() != allowedPeer {
 			http.Error(w, "forbidden", http.StatusForbidden)
@@ -107,16 +119,34 @@ func (m *httpMetrics) handler(allowedPeer netip.Addr, token string) http.Handler
 	return mux
 }
 
-func (s *Service) startMetrics(ctx context.Context) (func(), error) {
-	cfg := s.cfg
-	if cfg.MetricsAddr == "" {
+func (s *Service) startMetrics(ctx context.Context) func() {
+	stop, err := s.listenMetrics(ctx, ":9109", metricsDirectory)
+	if err != nil {
+		logging.Warn(ctx, "metrics unavailable", slog.String("error", err.Error()))
+		return func() {}
+	}
+	return stop
+}
+
+func (s *Service) metricsEnabled() bool {
+	return s.runtimeConfig.Snapshot().
+		FeatureStage(runtimeconfig.FeatureMetrics) ==
+		runtimeconfig.StageGA
+}
+
+func (s *Service) listenMetrics(ctx context.Context, addr, directory string) (func(), error) {
+	rawPeer, err := os.ReadFile(filepath.Join(directory, "scrape-peer"))
+	if errors.Is(err, os.ErrNotExist) {
 		return func() {}, nil
 	}
-	peer, err := netip.ParseAddr(cfg.MetricsPeerIP)
-	if err != nil || peer.IsUnspecified() || peer.IsMulticast() || peer.Zone() != "" {
-		return nil, errors.New("PAX_METRICS_PEER_IP must specify a single unicast scraper address")
+	if err != nil {
+		return nil, fmt.Errorf("read metrics scraper address: %w", err)
 	}
-	tokenBytes, err := os.ReadFile(cfg.MetricsTokenFile)
+	peer, err := netip.ParseAddr(strings.TrimSpace(string(rawPeer)))
+	if err != nil || peer.IsUnspecified() || peer.IsMulticast() || peer.Zone() != "" {
+		return nil, errors.New("metrics scrape-peer must specify a single unicast address")
+	}
+	tokenBytes, err := os.ReadFile(filepath.Join(directory, "scrape-token"))
 	if err != nil {
 		return nil, fmt.Errorf("read metrics token: %w", err)
 	}
@@ -124,19 +154,21 @@ func (s *Service) startMetrics(ctx context.Context) (func(), error) {
 	if token == "" || strings.ContainsAny(token, " \t\r\n") {
 		return nil, errors.New("metrics token must be non-empty and contain no whitespace")
 	}
-	certificate, err := tls.LoadX509KeyPair(cfg.MetricsCertFile, cfg.MetricsKeyFile)
+	certificate, err := tls.LoadX509KeyPair(
+		filepath.Join(directory, "server.pem"), filepath.Join(directory, "server.key"),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("load metrics TLS certificate: %w", err)
 	}
 
 	var listenerConfig net.ListenConfig
-	listener, err := listenerConfig.Listen(ctx, "tcp", cfg.MetricsAddr)
+	listener, err := listenerConfig.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("listen for metrics: %w", err)
 	}
 	s.httpMetrics = newHTTPMetrics()
 	server := &http.Server{
-		Handler:           s.httpMetrics.handler(peer.Unmap(), token),
+		Handler:           s.httpMetrics.handler(peer.Unmap(), token, s.metricsEnabled),
 		ReadHeaderTimeout: 3 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       time.Minute,
