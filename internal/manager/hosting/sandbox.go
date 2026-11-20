@@ -209,7 +209,9 @@ func (s *SandboxService) selectSandboxClaim(
 		if !request.ExistingOnly || record.Starter.NodeID != "" {
 			queuedCount++
 		}
-		if next == nil && request.Capacity > 0 {
+		if request.Capacity > 0 &&
+			(next == nil || request.ExistingOnly && next.Starter.NodeID == "" &&
+				record.Starter.NodeID != "") {
 			next = record
 		}
 	}

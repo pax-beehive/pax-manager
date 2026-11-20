@@ -5803,7 +5803,7 @@
     },
     "/api/v1/hosting/jobs/claim": {
       "post": {
-        "description": "For node_only, data includes queued_count, the number of eligible sandbox starts still queued for this host after the claim. existing_only limits this count to registered Nodes without changing job selection.",
+        "description": "For node_only, data includes queued_count, the number of eligible sandbox starts still queued for this host after the claim. existing_only counts only registered Nodes and prioritizes their queued starts when capacity is available.",
         "requestBody": {
           "content": {
             "application/json": {

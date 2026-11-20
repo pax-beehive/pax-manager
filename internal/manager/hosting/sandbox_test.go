@@ -149,22 +149,28 @@ func TestSandboxClaimCountsEligibleRemainingStarts(t *testing.T) {
 	job, count, err = s.Claim(ctx, &claim)
 	require.NoError(t, err)
 	require.NotNil(t, job)
-	require.Equal(t, newOwner, job.OwnerUserID, "the count filter must not change job selection")
-	require.Equal(t, 1, count)
+	require.Equal(t, existingOwner, job.OwnerUserID)
+	require.Equal(t, 0, count)
 	claim.Capacity = 0
 	replayed, count, err := s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.Equal(t, job, replayed)
+	require.Equal(t, 0, count)
+	claim.ExistingOnly = false
+	replayed, count, err = s.Claim(ctx, &claim)
 	require.NoError(t, err)
 	require.Equal(t, job, replayed)
 	require.Equal(t, 1, count)
 
 	*now = job.LeaseExpiresAt
 	claim.Capacity = 1
+	claim.ExistingOnly = true
 	job, count, err = s.Claim(ctx, &claim)
 	require.NoError(t, err)
 	require.NotNil(t, job)
-	require.Equal(t, existingOwner, job.OwnerUserID)
+	require.Equal(t, newOwner, job.OwnerUserID)
 	require.Equal(t, 0, count)
-	status, err := s.Status(ctx, newOwner, false)
+	status, err := s.Status(ctx, existingOwner, false)
 	require.NoError(t, err)
 	require.Equal(t, "sleeping", status.Sandbox.Status)
 }

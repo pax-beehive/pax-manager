@@ -1859,7 +1859,7 @@ service PaxManagerAPI {
     api.post = "/api/v1/hosting/jobs/claim",
     openapi.tag = "hosting",
     openapi.summary = "Trusted host claim with pinned affinity and execution lease",
-    openapi.description = "For node_only, data includes queued_count, the number of eligible sandbox starts still queued for this host after the claim. existing_only limits this count to registered Nodes without changing job selection."
+    openapi.description = "For node_only, data includes queued_count, the number of eligible sandbox starts still queued for this host after the claim. existing_only counts only registered Nodes and prioritizes their queued starts when capacity is available."
   )
   HostingResponse HeartbeatHostingJob(1: optional HostingUpdateRequest request) (
     api.post = "/api/v1/hosting/jobs/heartbeat",
