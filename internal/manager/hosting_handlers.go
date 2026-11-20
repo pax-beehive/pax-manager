@@ -79,6 +79,7 @@ func (s *Service) configureHosting(base Store) {
 		}
 		return false, err
 	}
+	s.configureSandboxNodes(base)
 }
 
 func hostingError(ctx *app.RequestContext, err error) {
@@ -225,7 +226,7 @@ func EnrollHostingNode(c context.Context, ctx *app.RequestContext) {
 }
 
 func ClaimHostingJob(c context.Context, ctx *app.RequestContext) {
-	s, ok := hostingHost(c, ctx)
+	s, kind, ok := hostingJobHost(ctx)
 	if !ok {
 		return
 	}
@@ -238,6 +239,9 @@ func ClaimHostingJob(c context.Context, ctx *app.RequestContext) {
 		writeError(ctx, 400, "invalid JSON body")
 		return
 	}
+	if !validHostingJobKind(ctx, kind, body.Kind) {
+		return
+	}
 	if body.OwnerScope != nil || body.EnvironmentScope != nil {
 		if json.Unmarshal(body.OwnerScope, &body.OwnerUserID) != nil ||
 			json.Unmarshal(body.EnvironmentScope, &body.EnvironmentID) != nil ||
@@ -246,7 +250,11 @@ func ClaimHostingJob(c context.Context, ctx *app.RequestContext) {
 			return
 		}
 	}
-	job, err := s.hosting.Claim(c, &body.Claim)
+	service := s.hosting.Claim
+	if kind == hosting.SandboxKind {
+		service = s.sandboxNodes.Claim
+	}
+	job, err := service(c, &body.Claim)
 	if err != nil {
 		hostingError(ctx, err)
 		return
@@ -255,7 +263,7 @@ func ClaimHostingJob(c context.Context, ctx *app.RequestContext) {
 	writeData(ctx, 200, map[string]any{"job": job})
 }
 func updateHostingJob(c context.Context, ctx *app.RequestContext, complete bool) {
-	s, ok := hostingHost(c, ctx)
+	s, kind, ok := hostingJobHost(ctx)
 	if !ok {
 		return
 	}
@@ -264,7 +272,14 @@ func updateHostingJob(c context.Context, ctx *app.RequestContext, complete bool)
 		writeError(ctx, 400, "invalid JSON body")
 		return
 	}
-	expiry, err := s.hosting.Update(c, &req, complete)
+	if !validHostingJobKind(ctx, kind, req.Kind) {
+		return
+	}
+	service := s.hosting.Update
+	if kind == hosting.SandboxKind {
+		service = s.sandboxNodes.Update
+	}
+	expiry, err := service(c, &req, complete)
 	if err != nil {
 		hostingError(ctx, err)
 		return

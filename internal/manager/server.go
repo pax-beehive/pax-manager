@@ -30,6 +30,7 @@ import (
 
 type Service struct {
 	hosting               *hosting.Service
+	sandboxNodes          *hosting.SandboxService
 	modelCatalog          *modelcatalog.Service
 	notificationRegistry  notifications.Registry
 	notificationOutbox    notifications.Outbox

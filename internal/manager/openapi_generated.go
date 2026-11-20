@@ -21,6 +21,8 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/user/self/hosting-admin", GetHostingAdmin)
 	h.GET("/api/v1/user/self/hosting-admin/catalog", GetHostingModelCatalog)
 	h.PATCH("/api/v1/user/self/hosting-admin", UpdateHostingAdmin)
+	h.GET("/api/v1/sandbox", GetSandboxNode)
+	h.POST("/api/v1/sandbox", StartSandboxNode)
 	h.GET("/api/v1/starter", GetStarter)
 	h.POST("/api/v1/starter", EnsureStarter)
 	h.POST("/api/v1/starter/wake", WakeStarter)

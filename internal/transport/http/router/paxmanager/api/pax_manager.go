@@ -22,6 +22,8 @@ func Register(r *server.Hertz) {
 		{
 			_v1 := _api.Group("/v1", _v1Mw()...)
 			_v1.GET("/health", append(_healthMw(), handler.Health)...)
+			_v1.GET("/sandbox", append(_getsandboxnodeMw(), handler.GetSandboxNode)...)
+			_v1.POST("/sandbox", append(_startsandboxnodeMw(), handler.StartSandboxNode)...)
 			_v1.GET("/starter", append(_getstarterMw(), handler.GetStarter)...)
 			_v1.POST("/starter", append(_ensurestarterMw(), handler.EnsureStarter)...)
 			{

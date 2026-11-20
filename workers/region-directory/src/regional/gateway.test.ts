@@ -151,6 +151,53 @@ it("given a local account, forwards a signed local request with no CF identity o
   expect(app.directory.preparePeer).not.toHaveBeenCalled();
   expect(app.provision).not.toHaveBeenCalled();
 });
+it.each(["GET", "POST"])(
+  "signs the exact browser sandbox %s with the authenticated owner",
+  async (method) => {
+    const plan = (await app.handle(
+      new Request("https://hk.example/api/pax/api/v1/sandbox", {
+        method,
+        headers: { "X-Pax-Identity-Assertion": "forged" },
+      }),
+    )) as ProxyPlan;
+    expect(plan.target).toBe(config.managerURL);
+    expect(plan.path).toBe("/api/v1/sandbox");
+    expect(app.authenticate).toHaveBeenCalledOnce();
+    expect(app.verifyNative).not.toHaveBeenCalled();
+    const proof = plan.headers!.get("X-Pax-Identity-Assertion")!;
+    expect(
+      JSON.parse(Buffer.from(proof.split(".")[0], "base64url").toString()),
+    ).toMatchObject({ user_id: account.user_id, method, path: plan.path });
+  },
+);
+it("keeps sandbox requests inside the exact authenticated browser route", async () => {
+  for (const [method, path] of [
+    ["DELETE", "/api/pax/api/v1/sandbox"],
+    ["POST", "/api/pax/api/v1/sandbox/"],
+    ["POST", "/api/pax/api/v1/sandbox/claim"],
+    ["POST", "/api/pax/api/v1/%73andbox"],
+    ["POST", "/api/v1/native/client/sandbox"],
+  ]) {
+    const result = await app.handle(
+      new Request(`https://hk.example${path}`, { method }),
+    );
+    expect((result as Response).status).toBe(404);
+  }
+  expect(app.authenticate).not.toHaveBeenCalled();
+  expect(app.verifyNative).not.toHaveBeenCalled();
+
+  expect(
+    (
+      await response(
+        "/api/pax/api/v1/sandbox",
+        {},
+        { Origin: "https://evil.example" },
+      )
+    ).status,
+  ).toBe(403);
+  app.authenticate.mockRejectedValueOnce(new SessionFailure(401));
+  expect((await response("/api/pax/api/v1/sandbox", {})).status).toBe(401);
+});
 it("given a US account at HK, returns its fixed origin without proxying or modifying the request", async () => {
   app.directory.lookup.mockResolvedValue({ ...account, region: "us" } as never);
   const result = await response("/api/v1/user/self/projects", {
