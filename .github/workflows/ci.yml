@@ -126,6 +126,10 @@ jobs:
       - name: Run integration tests
         run: make integration-test
 
+      - name: Show core integration container logs
+        if: failure()
+        run: docker compose -f docker-compose.integration.yml -p pax-manager-integration logs --no-color --tail=200 postgres manager
+
       - name: Clean integration stack
         if: always()
         run: make integration-down

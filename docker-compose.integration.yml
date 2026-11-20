@@ -39,7 +39,8 @@ services:
     volumes:
       - pax-manager-integration-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pax -d paxdb"]
+      # The temporary init server accepts Unix sockets before TCP is available.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "pax", "-d", "paxdb"]
       interval: 5s
       timeout: 3s
       retries: 20
