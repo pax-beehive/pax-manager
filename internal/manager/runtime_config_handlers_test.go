@@ -23,8 +23,7 @@ import (
 
 const configTestSecret = "sk-config-test-0123456789abcd"
 
-// newConfigTestServer uses the production registry, so every feature
-// defaults to the admin stage exactly as after a fresh deployment.
+// newConfigTestServer uses the production registry and its deployment defaults.
 func newConfigTestServer(t *testing.T, cfg Config) (*Server, *MemoryStore) {
 	t.Helper()
 	cfg.AllowLocalUserHeader = true
@@ -344,8 +343,12 @@ func TestUserFeaturesGivenAdminStageThenMembersSeeFalseAndPreviewMatches(t *test
 	member := features("member@example.com", "")
 	assert.False(t, member["secretary"])
 	assert.False(t, member["notifications"])
-	assert.Len(t, member, 7)
-	assert.True(t, features("admin@example.com", "")["secretary"])
+	assert.Contains(t, member, runtimeconfig.FeatureHostedSandbox)
+	assert.False(t, member[runtimeconfig.FeatureHostedSandbox])
+	assert.Len(t, member, 8)
+	admin := features("admin@example.com", "")
+	assert.True(t, admin["secretary"])
+	assert.False(t, admin[runtimeconfig.FeatureHostedSandbox])
 	assert.Equal(t, member, features("admin@example.com", "?as=user"))
 	assert.Equal(t, member, features("member@example.com", "?as=admin"))
 

@@ -13,7 +13,6 @@ const SandboxKind = "node_only"
 
 type SandboxConfig struct {
 	HostKey, HostID, CloudURL string
-	Owners                    []string
 	LeaseTTL                  time.Duration
 }
 
@@ -24,9 +23,9 @@ type SandboxStore interface {
 type SandboxService struct {
 	store        SandboxStore
 	config       SandboxConfig
-	owners       map[string]struct{}
-	ordered      []string
+	configured   bool
 	now          func() time.Time
+	allowOwner   func(context.Context, string) bool
 	validateNode func(context.Context, string, string) error
 }
 
@@ -43,6 +42,7 @@ func NewSandbox(
 	store SandboxStore,
 	config SandboxConfig,
 	now func() time.Time,
+	allowOwner func(context.Context, string) bool,
 	validateNode func(context.Context, string, string) error,
 ) *SandboxService {
 	if config.LeaseTTL <= 0 {
@@ -51,21 +51,10 @@ func NewSandbox(
 	if now == nil {
 		now = time.Now
 	}
-	service := &SandboxService{store: store, config: config, now: now, validateNode: validateNode}
-	if store == nil || validateNode == nil || !config.valid() {
-		return service
+	return &SandboxService{
+		store: store, config: config, now: now, allowOwner: allowOwner, validateNode: validateNode,
+		configured: store != nil && allowOwner != nil && validateNode != nil && config.valid(),
 	}
-	service.owners = make(map[string]struct{}, len(config.Owners))
-	for _, owner := range config.Owners {
-		if owner != "" && strings.TrimSpace(owner) == owner {
-			service.owners[owner] = struct{}{}
-		}
-	}
-	for owner := range service.owners {
-		service.ordered = append(service.ordered, owner)
-	}
-	sort.Strings(service.ordered)
-	return service
 }
 
 func (config SandboxConfig) valid() bool {
@@ -77,16 +66,8 @@ func (config SandboxConfig) valid() bool {
 	return err == nil && (origin.EscapedPath() == "" || origin.EscapedPath() == "/")
 }
 
-func (s *SandboxService) EnabledFor(owner string) bool {
-	if s == nil {
-		return false
-	}
-	_, allowed := s.owners[owner]
-	return allowed
-}
-
 func (s *SandboxService) HostAuthorized(token string) bool {
-	return s != nil && len(s.owners) != 0 &&
+	return s != nil && s.configured &&
 		subtle.ConstantTimeCompare([]byte(token), []byte(s.config.HostKey)) == 1
 }
 
@@ -95,7 +76,7 @@ func (s *SandboxService) Status(
 	owner string,
 	wake bool,
 ) (*SandboxStatus, error) {
-	if !s.EnabledFor(owner) {
+	if s == nil || !s.configured || owner == "" || !s.allowOwner(ctx, owner) {
 		return nil, ErrNotFound
 	}
 	result := &SandboxStatus{}
@@ -135,7 +116,7 @@ func expireSandbox(record *EnvironmentRecord, now time.Time) {
 }
 
 func (s *SandboxService) Claim(ctx context.Context, request *Claim) (*Job, error) {
-	if s == nil || len(s.owners) == 0 {
+	if s == nil || !s.configured {
 		return nil, ErrDisabled
 	}
 	if request == nil || request.Kind != SandboxKind || request.HostID != s.config.HostID {
@@ -145,31 +126,84 @@ func (s *SandboxService) Claim(ctx context.Context, request *Claim) (*Job, error
 		request.EnvironmentID != nil {
 		return nil, ErrConflict
 	}
+	candidates, err := s.sandboxClaimCandidates(ctx, request)
+	if err != nil || len(candidates) == 0 {
+		return nil, err
+	}
 	var result *Job
-	err := s.store.WithSandboxState(ctx, func(state *State) error {
+	err = s.store.WithSandboxState(ctx, func(state *State) error {
 		now := s.now()
 		var next *EnvironmentRecord
-		for _, owner := range s.ordered {
-			record := state.Environments[owner]
-			if record == nil || (record.HostID != "" && record.HostID != request.HostID) {
+		for _, candidate := range candidates {
+			record := state.Environments[candidate.owner]
+			if !sandboxOnHost(record, request.HostID) || record.Generation != candidate.generation {
 				continue
 			}
 			expireSandbox(record, now)
-			if record.Starter.State == "starting" && record.Job != nil && record.Job.Active {
+			if sandboxStarting(record) {
 				copy := *record.Job
 				result = &copy
 				return nil
 			}
-			if next == nil && record.Starter.State == "queued" {
+			if next == nil && request.Capacity > 0 && record.Starter.State == "queued" {
 				next = record
 			}
 		}
-		if next != nil && request.Capacity > 0 {
+		if next != nil {
 			result = s.claimSandbox(state, next, now)
 		}
 		return nil
 	})
 	return result, err
+}
+
+type sandboxClaimCandidate struct {
+	owner      string
+	generation int64
+}
+
+func (s *SandboxService) sandboxClaimCandidates(
+	ctx context.Context,
+	request *Claim,
+) ([]sandboxClaimCandidate, error) {
+	var candidates []sandboxClaimCandidate
+	err := s.store.WithSandboxState(ctx, func(state *State) error {
+		now := s.now()
+		for owner, record := range state.Environments {
+			if !sandboxOnHost(record, request.HostID) || record.Starter.OwnerUserID != owner {
+				continue
+			}
+			expireSandbox(record, now)
+			if sandboxStarting(record) ||
+				(request.Capacity > 0 && record.Starter.State == "queued") {
+				candidates = append(candidates, sandboxClaimCandidate{
+					owner:      owner,
+					generation: record.Generation,
+				})
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Resolving an owner's feature access may need another database connection.
+	allowed := candidates[:0]
+	for _, candidate := range candidates {
+		if s.allowOwner(ctx, candidate.owner) {
+			allowed = append(allowed, candidate)
+		}
+	}
+	sort.Slice(allowed, func(i, j int) bool { return allowed[i].owner < allowed[j].owner })
+	return allowed, nil
+}
+
+func sandboxOnHost(record *EnvironmentRecord, hostID string) bool {
+	return record != nil && (record.HostID == "" || record.HostID == hostID)
+}
+
+func sandboxStarting(record *EnvironmentRecord) bool {
+	return record.Starter.State == "starting" && record.Job != nil && record.Job.Active
 }
 
 func (s *SandboxService) claimSandbox(state *State, record *EnvironmentRecord, now time.Time) *Job {
@@ -205,7 +239,7 @@ func (s *SandboxService) Update(
 	request *Update,
 	complete bool,
 ) (time.Time, error) {
-	if s == nil || len(s.owners) == 0 {
+	if s == nil || !s.configured {
 		return time.Time{}, ErrDisabled
 	}
 	if request == nil || request.Kind != SandboxKind || request.HostID != s.config.HostID {
@@ -214,30 +248,63 @@ func (s *SandboxService) Update(
 	if err := validateSandboxUpdate(request, complete); err != nil {
 		return time.Time{}, err
 	}
-	if request.State == "ready" {
-		if err := s.validateReadySandbox(ctx, request); err != nil {
-			return time.Time{}, err
-		}
+	terminal := complete && request.State != "ready"
+	owner, allowed, err := s.sandboxUpdateAccess(ctx, request, terminal)
+	if err != nil {
+		return time.Time{}, err
 	}
 	var expiry time.Time
-	err := s.store.WithSandboxState(ctx, func(state *State) error {
+	err = s.store.WithSandboxState(ctx, func(state *State) error {
 		now := s.now()
-		record, err := s.matchSandboxLease(state, request, now)
+		record, err := matchSandboxLease(state, request, now)
 		if err != nil {
 			return err
+		}
+		if !terminal && record.Starter.OwnerUserID != owner {
+			return ErrConflict
+		}
+		if !allowed {
+			record.Job.LeaseExpiresAt = now
+			expireSandbox(record, now)
+			return nil
 		}
 		expiry = now.Add(s.config.LeaseTTL)
 		record.Job.LeaseExpiresAt = expiry
 		if request.State == "ready" {
 			record.Job.NodeID = request.NodeID
 		}
-		if request.State == "sleeping" || request.State == "failed" {
+		if terminal {
 			record.Job.RegistrationToken = ""
 		}
 		applyUpdate(record, request, complete)
 		return nil
 	})
+	if err == nil && !allowed {
+		return time.Time{}, ErrUnauthorized
+	}
 	return expiry, err
+}
+
+func (s *SandboxService) sandboxUpdateAccess(
+	ctx context.Context,
+	request *Update,
+	terminal bool,
+) (owner string, allowed bool, err error) {
+	// A terminal update can close an active lease after the feature is disabled.
+	if terminal {
+		return "", true, nil
+	}
+	owner, err = s.sandboxLeaseOwner(ctx, request)
+	if err != nil {
+		return "", false, err
+	}
+	if !s.allowOwner(ctx, owner) {
+		return owner, false, nil
+	}
+	if request.State == "ready" && s.validateNode(ctx, owner, request.NodeID) != nil {
+		return "", false, ErrUnauthorized
+	}
+	return owner, true, nil
 }
 
 func validateSandboxUpdate(request *Update, complete bool) error {
@@ -264,31 +331,24 @@ func validateSandboxUpdate(request *Update, complete bool) error {
 	return ErrConflict
 }
 
-func (s *SandboxService) validateReadySandbox(ctx context.Context, request *Update) error {
+func (s *SandboxService) sandboxLeaseOwner(ctx context.Context, request *Update) (string, error) {
 	var owner string
 	err := s.store.WithSandboxState(ctx, func(state *State) error {
-		record, err := s.matchSandboxLease(state, request, s.now())
+		record, err := matchSandboxLease(state, request, s.now())
 		if err == nil {
 			owner = record.Starter.OwnerUserID
 		}
 		return err
 	})
-	if err != nil {
-		return err
-	}
-	if s.validateNode(ctx, owner, request.NodeID) != nil {
-		return ErrUnauthorized
-	}
-	return nil
+	return owner, err
 }
 
-func (s *SandboxService) matchSandboxLease(
+func matchSandboxLease(
 	state *State,
 	request *Update,
 	now time.Time,
 ) (*EnvironmentRecord, error) {
-	for _, owner := range s.ordered {
-		record := state.Environments[owner]
+	for _, record := range state.Environments {
 		if record == nil || record.Job == nil || record.Job.JobID != request.JobID {
 			continue
 		}

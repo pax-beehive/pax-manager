@@ -13,6 +13,7 @@ import (
 	"github.com/pax-beehive/pax-manager/internal/manager/auth"
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/hosting"
+	"github.com/pax-beehive/pax-manager/internal/manager/runtimeconfig"
 )
 
 func (s *Service) configureSandboxNodes(base Store) {
@@ -20,12 +21,15 @@ func (s *Service) configureSandboxNodes(base Store) {
 	cfg := s.cfg
 	config := hosting.SandboxConfig{
 		HostKey: cfg.HostingSandboxHostKey, HostID: cfg.HostingSandboxHostID,
-		CloudURL: cfg.HostingSandboxCloudURL, Owners: cfg.SandboxOwners(),
+		CloudURL: cfg.HostingSandboxCloudURL,
 	}
 	s.sandboxNodes = hosting.NewSandbox(
 		store,
 		config,
 		func() time.Time { return s.clock() },
+		func(ctx context.Context, owner string) bool {
+			return s.featureForOwner(ctx, owner, runtimeconfig.FeatureHostedSandbox)
+		},
 		func(ctx context.Context, owner, nodeID string) error {
 			user, err := s.store.GetUser(ctx, owner)
 			if err != nil {

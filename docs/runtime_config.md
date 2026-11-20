@@ -66,10 +66,17 @@ Value: `{"stage": "off" | "admin" | "beta" | "ga", "beta_emails": [...]}`.
 | feature.browser_control | admin | Watching and taking over a device's browser, and its site approvals |
 | feature.android_control | admin | Watching and taking over a device's Android phones |
 | feature.voice_input | from `VOICE_ADMIN_ONLY` | `true` (default) means admin, `false` means ga |
+| feature.hosted_sandbox | off | Creating and running a hosted sandbox Node |
 
 Secretary, Notifications, Collaboration, Knowledge capsules, Browser control
 and Android control are unavailable to ordinary users until an administrator
 moves the gate to `beta` or `ga`.
+
+Pax sandbox eligibility is managed here by stage and verified email. The
+regional Manager also requires the host connection settings before the
+sandbox action is available. The sandbox API returns `404 sandbox_unavailable`
+when access is closed. The host rechecks current access for claims and live
+execution leases.
 
 ### Server-side gates
 

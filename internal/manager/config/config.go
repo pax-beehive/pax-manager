@@ -32,7 +32,6 @@ type Config struct {
 	HostingSandboxHostKey            string
 	HostingSandboxHostID             string
 	HostingSandboxCloudURL           string
-	HostingSandboxOwners             string
 	HostingTokenSecret               string
 	HostingPublicURL                 string
 	HostingCloudURL                  string
@@ -114,7 +113,6 @@ func Load() Config {
 		HostingSandboxHostKey:          os.Getenv("HOSTING_SANDBOX_HOST_KEY"),
 		HostingSandboxHostID:           os.Getenv("HOSTING_SANDBOX_HOST_ID"),
 		HostingSandboxCloudURL:         os.Getenv("HOSTING_SANDBOX_CLOUD_URL"),
-		HostingSandboxOwners:           os.Getenv("HOSTING_SANDBOX_OWNERS"),
 		HostingTokenSecret:             os.Getenv("HOSTING_TOKEN_SECRET"),
 		HostingPublicURL:               os.Getenv("HOSTING_PUBLIC_URL"),
 		HostingCloudURL:                os.Getenv("HOSTING_CLOUD_URL"),

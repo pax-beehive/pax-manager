@@ -2,36 +2,29 @@ package manager
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/pax-beehive/pax-manager/internal/manager/domain"
 	"github.com/pax-beehive/pax-manager/internal/manager/hosting"
+	"github.com/pax-beehive/pax-manager/internal/manager/runtimeconfig"
 )
 
 func TestSandboxNodeHTTPCreatesAnOwnedNodeWithoutAgentOrModelCredentials(t *testing.T) {
 	const ownerEmail = "pilot@example.com"
 	const host = "aws-pilot"
 	key := strings.Repeat("n", 32)
-	store := NewMemoryStore(time.Now)
+	server, store := newConfigTestServer(t, Config{
+		HostingSandboxHostKey: key, HostingSandboxHostID: host,
+		HostingSandboxCloudURL: "https://node.example.com",
+	})
 	owner, err := store.EnsureUser(t.Context(), ownerEmail, "Pilot", "user")
 	require.NoError(t, err)
-	server := newServer(Config{
-		AllowLocalUserHeader: true, HostingSandboxHostKey: key, HostingSandboxHostID: host,
-		HostingSandboxCloudURL: "https://node.example.com", HostingSandboxOwners: owner.UserID,
-	}, store)
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		require.NoError(t, server.CloseTransportStore(ctx))
-	})
 
 	get := func(user string) *httptest.ResponseRecorder {
 		return hostingRequest(t, server, "GET", "/api/v1/sandbox", "", user, "")
@@ -40,7 +33,24 @@ func TestSandboxNodeHTTPCreatesAnOwnedNodeWithoutAgentOrModelCredentials(t *test
 		return hostingRequest(t, server, "POST", "/api/v1/sandbox", body, ownerEmail, "")
 	}
 	require.Equal(t, http.StatusUnauthorized, get("").Code)
+	require.Equal(t, http.StatusNotFound, get(ownerEmail).Code)
+	require.Equal(t, http.StatusNotFound, start("{}").Code)
+	featureKey := runtimeconfig.FeatureKey(runtimeconfig.FeatureHostedSandbox)
+	gates := callAPI(t, server, "GET", "/api/v1/admin/config", "admin@example.com", nil)
+	require.Equal(t, http.StatusOK, gates.Code)
+	require.Contains(t, gates.Body.String(), featureKey)
+	enabled := callAPI(
+		t,
+		server,
+		"PUT",
+		"/api/v1/admin/config/"+featureKey,
+		"admin@example.com",
+		`{"value":{"stage":"beta","beta_emails":["PILOT@example.com"]},"expected_version":0,"reason":"pilot"}`,
+	)
+	require.Equal(t, http.StatusOK, enabled.Code)
 	require.Equal(t, http.StatusNotFound, get("other@example.com").Code)
+	require.Equal(t, http.StatusNotFound,
+		hostingRequest(t, server, "POST", "/api/v1/sandbox", "{}", "other@example.com", "").Code)
 	initial := get(ownerEmail)
 	require.Equal(t, http.StatusOK, initial.Code)
 	require.Nil(t, decodeData[hosting.SandboxStatus](t, initial.Body.Bytes()).Sandbox)
