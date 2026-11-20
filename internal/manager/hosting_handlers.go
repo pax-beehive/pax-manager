@@ -56,19 +56,8 @@ func (s *Service) configureHosting(base Store) {
 		store,
 		func() time.Time { return s.clock() },
 		func(ctx context.Context, owner, nodeID, agentID string) error {
-			user, err := s.store.GetUser(ctx, owner)
-			if err != nil {
-				return err
-			}
-			node, err := s.store.GetNode(ctx, domain.UserPrincipal{User: user}, nodeID)
-			if err != nil || node.OwnerUserID != owner {
-				return domain.ErrUnauthorized
-			}
-			agent, err := s.store.GetNodeAgent(ctx, nodeID, agentID)
-			if err != nil || agent.OwnerUserID != owner || agent.NodeID != nodeID {
-				return domain.ErrUnauthorized
-			}
-			return nil
+			_, err := s.hostingAgentHarness(ctx, owner, nodeID, agentID)
+			return err
 		},
 	)
 	s.hosting.PreviousNodeRemoved = func(ctx context.Context, owner, nodeID string) (bool, error) {
@@ -80,6 +69,27 @@ func (s *Service) configureHosting(base Store) {
 		return false, err
 	}
 	s.configureSandboxNodes(base)
+	s.hosting.Sandbox = s.sandboxNodes
+	s.hosting.ModelAgentHarness = s.hostingAgentHarness
+}
+
+func (s *Service) hostingAgentHarness(
+	ctx context.Context,
+	owner, nodeID, agentID string,
+) (string, error) {
+	user, err := s.store.GetUser(ctx, owner)
+	if err != nil {
+		return "", err
+	}
+	node, err := s.store.GetNode(ctx, domain.UserPrincipal{User: user}, nodeID)
+	if err != nil || node.OwnerUserID != owner {
+		return "", domain.ErrUnauthorized
+	}
+	agent, err := s.store.GetNodeAgent(ctx, nodeID, agentID)
+	if err != nil || agent.OwnerUserID != owner || agent.NodeID != nodeID {
+		return "", domain.ErrUnauthorized
+	}
+	return agent.AgentType, nil
 }
 
 func hostingError(ctx *app.RequestContext, err error) {
@@ -120,23 +130,22 @@ func starterResult(c context.Context, ctx *app.RequestContext, action string) {
 		return
 	}
 	var result *hosting.Status
+	owner := principal.User.UserID
 	if action == "wake" {
 		target, valid := parseHostingWakeTarget(ctx)
 		if !valid {
 			return
 		}
 		if target != nil {
-			if !ownedPiAgent(c, s, principal.User.UserID, target) {
-				// The user must not learn whether a foreign agent exists.
-				hostingError(ctx, hosting.ErrUnauthorized)
-				return
-			}
-			result, err = s.hosting.WakeForAgent(c, principal.User.UserID, target)
+			result, err = wakeStarterTarget(c, s, owner, target)
 		} else {
-			result, err = s.hosting.Wake(c, principal.User.UserID)
+			result, err = s.hosting.Wake(c, owner)
 		}
 	} else {
-		result, err = s.hosting.Status(c, principal.User.UserID, action == "ensure")
+		result, err = s.hosting.Status(c, owner, action == "ensure")
+	}
+	if err == nil {
+		err = s.hosting.IncludeSandboxModelAccess(c, owner, result)
 	}
 	if err != nil {
 		hostingError(ctx, err)
@@ -144,6 +153,22 @@ func starterResult(c context.Context, ctx *app.RequestContext, action string) {
 	}
 	ctx.Header("Cache-Control", "no-store")
 	writeData(ctx, http.StatusOK, result)
+}
+
+func wakeStarterTarget(
+	ctx context.Context, s *Service, owner string, target *hosting.WakeTarget,
+) (*hosting.Status, error) {
+	matched, err := s.hosting.WakeSandboxModel(ctx, owner, target)
+	if err != nil {
+		return nil, err
+	}
+	if matched {
+		return s.hosting.Status(ctx, owner, false)
+	}
+	if !ownedPiAgent(ctx, s, owner, target) {
+		return nil, hosting.ErrUnauthorized
+	}
+	return s.hosting.WakeForAgent(ctx, owner, target)
 }
 
 func parseHostingWakeTarget(ctx *app.RequestContext) (*hosting.WakeTarget, bool) {
@@ -258,8 +283,11 @@ func ClaimHostingJob(c context.Context, ctx *app.RequestContext) {
 		body.Claim.Capacity = *body.Capacity
 	}
 	service := s.hosting.Claim
-	if kind == hosting.SandboxKind {
+	switch body.Kind {
+	case hosting.SandboxKind:
 		service = s.sandboxNodes.Claim
+	case hosting.SandboxModelKind:
+		service = s.hosting.ClaimSandboxModel
 	}
 	job, err := service(c, &body.Claim)
 	if err != nil {
@@ -283,8 +311,11 @@ func updateHostingJob(c context.Context, ctx *app.RequestContext, complete bool)
 		return
 	}
 	service := s.hosting.Update
-	if kind == hosting.SandboxKind {
+	switch req.Kind {
+	case hosting.SandboxKind:
 		service = s.sandboxNodes.Update
+	case hosting.SandboxModelKind:
+		service = s.hosting.UpdateSandboxModel
 	}
 	expiry, err := service(c, &req, complete)
 	if err != nil {

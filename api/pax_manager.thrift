@@ -3135,6 +3135,16 @@ struct HostingStarter {
   10: optional string error_code
   11: optional bool access_paused
 }
+struct SandboxModelAgent {
+  1: required string agent_id
+  2: required string state
+}
+struct SandboxModelAccess {
+  1: required string node_id
+  2: required list<string> harnesses
+  3: required string state
+  4: required list<SandboxModelAgent> agents
+}
 struct HostingStatusData {
   1: optional bool enabled
   2: optional HostingStarter starter
@@ -3143,6 +3153,7 @@ struct HostingStatusData {
   5: optional string pool_resets_at
   6: optional bool enrolled_node
   7: optional bool user_budget_available
+  8: optional SandboxModelAccess sandbox_model_access
 }
 struct HostingStatusResponse {
   1: optional HostingStatusData data
@@ -3298,6 +3309,7 @@ struct HostingClaimRequest {
   3: optional string owner_user_id
   4: optional string environment_id
   5: optional string kind
+  6: optional list<string> supported_harnesses
 }
 struct HostingWakeRequest {
   1: optional string node_id

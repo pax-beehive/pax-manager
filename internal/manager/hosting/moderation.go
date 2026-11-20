@@ -2,6 +2,7 @@ package hosting
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -80,41 +81,86 @@ func (s *Service) RecordModeration(
 
 // BeginGeneration rechecks the execution lease after the external safety call.
 func (s *Service) BeginGeneration(ctx context.Context, id string) error {
-	return s.Store.WithHostingState(ctx, func(state *State) error {
+	managed := errors.New("check sandbox model binding")
+	var candidate sandboxModelCandidate
+	err := s.Store.WithHostingState(ctx, func(state *State) error {
 		r := state.Requests[id]
-		if r == nil {
-			return ErrNotFound
+		if r == nil || r.SandboxModelJobID == "" {
+			return s.beginGeneration(state, r, nil)
 		}
-		record := environmentFor(state, r.EnvironmentID)
-		if r.AtomicAdmission || record == nil || r.Status != "reserved" || r.GenerationStarted ||
-			r.Moderation == nil ||
-			!reservationModerationPermits(r) {
-			return ErrConflict
-		}
-		if record.Starter.AccessPaused {
-			return ErrAccessPaused
-		}
-		if !s.currentReservationPolicy(state, r) {
-			return ErrConflict
-		}
-		s.refreshPool(state)
-		// An admitted paid hold may consume the last dollar. Zero-price routes
-		// still stop when the pool closes, including during the safety check.
-		if !s.reservationFunded(state, r) {
-			return ErrPlatformBudget
-		}
-		quota := record.Starter.Quota
-		if quota.SpentMicrousd+quota.ReservedMicrousd > quota.GrantedMicrousd ||
-			(quota.GrantedTokens != 0 && quota.SpentTokens+quota.ReservedTokens > quota.GrantedTokens) {
-			return ErrBudget
-		}
-		if record.Generation != r.Generation || record.Job == nil || !record.Job.Active ||
-			!record.Job.LeaseExpiresAt.After(s.Now()) {
+		wallet := environmentFor(state, r.EnvironmentID)
+		if wallet == nil {
 			return ErrUnauthorized
 		}
-		r.GenerationStarted = true
-		return nil
+		owner := wallet.Starter.OwnerUserID
+		grant := state.SandboxModelGrants[sandboxModelGrantKey(owner, r.SandboxModelAgentID)]
+		if grant == nil || grant.Job == nil || grant.Job.JobID != r.SandboxModelJobID {
+			return ErrUnauthorized
+		}
+		candidate = sandboxModelCandidate{
+			owner,
+			grant.Parent,
+			grant.AgentID,
+			grant.Harness,
+			grant.Generation,
+		}
+		return managed
 	})
+	if !errors.Is(err, managed) {
+		return err
+	}
+	store, ok := s.sandboxModelStore()
+	if !ok || !s.sandboxModelAgentAllowed(ctx, candidate) {
+		return ErrUnauthorized
+	}
+	return store.WithSandboxModelStates(ctx, func(account, sandbox *State) error {
+		now := s.Now()
+		parent, _, ok := s.sandboxModelParent(sandbox, candidate.Owner, now)
+		grant := account.SandboxModelGrants[sandboxModelGrantKey(candidate.Owner, candidate.AgentID)]
+		if !ok || parent != candidate.Parent || !matchesSandboxCandidate(grant, candidate) ||
+			sandboxGrantState(grant, parent, now) != "ready" {
+			return ErrUnauthorized
+		}
+		return s.beginGeneration(account, account.Requests[id], grant)
+	})
+}
+
+func (s *Service) beginGeneration(state *State, r *Reservation, grant *sandboxModelGrant) error {
+	if r == nil {
+		return ErrNotFound
+	}
+	record := environmentFor(state, r.EnvironmentID)
+	if r.AtomicAdmission || record == nil || r.Status != "reserved" || r.GenerationStarted ||
+		r.Moderation == nil ||
+		!reservationModerationPermits(r) {
+		return ErrConflict
+	}
+	if record.Starter.AccessPaused {
+		return ErrAccessPaused
+	}
+	if !s.currentReservationPolicy(state, r) {
+		return ErrConflict
+	}
+	s.refreshPool(state)
+	// A paid hold can consume the last dollar. A zero-price route stops when the pool closes.
+	if !s.reservationFunded(state, r) {
+		return ErrPlatformBudget
+	}
+	quota := record.Starter.Quota
+	if quota.SpentMicrousd+quota.ReservedMicrousd > quota.GrantedMicrousd ||
+		(quota.GrantedTokens != 0 && quota.SpentTokens+quota.ReservedTokens > quota.GrantedTokens) {
+		return ErrBudget
+	}
+	if grant != nil {
+		if grant.Job == nil || grant.Job.JobID != r.SandboxModelJobID {
+			return ErrUnauthorized
+		}
+	} else if record.Generation != r.Generation || record.Job == nil || !record.Job.Active ||
+		!record.Job.LeaseExpiresAt.After(s.Now()) {
+		return ErrUnauthorized
+	}
+	r.GenerationStarted = true
+	return nil
 }
 
 func (s *Service) CancelBeforeGeneration(ctx context.Context, id string) error {

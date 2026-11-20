@@ -2147,6 +2147,12 @@
           },
           "owner_user_id": {
             "type": "string"
+          },
+          "supported_harnesses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -2438,6 +2444,9 @@
           },
           "pool_resets_at": {
             "type": "string"
+          },
+          "sandbox_model_access": {
+            "$ref": "#/components/schemas/SandboxModelAccess"
           },
           "starter": {
             "$ref": "#/components/schemas/HostingStarter"
@@ -4198,6 +4207,50 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "SandboxModelAccess": {
+        "properties": {
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/SandboxModelAgent"
+            },
+            "type": "array"
+          },
+          "harnesses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "harnesses",
+          "state",
+          "agents"
+        ],
+        "type": "object"
+      },
+      "SandboxModelAgent": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id",
+          "state"
+        ],
         "type": "object"
       },
       "SandboxNode": {
