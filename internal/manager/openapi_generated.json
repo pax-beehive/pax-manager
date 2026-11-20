@@ -2139,6 +2139,9 @@
           "environment_id": {
             "type": "string"
           },
+          "existing_only": {
+            "type": "boolean"
+          },
           "host_id": {
             "type": "string"
           },
@@ -5800,7 +5803,7 @@
     },
     "/api/v1/hosting/jobs/claim": {
       "post": {
-        "description": "",
+        "description": "For node_only, data includes queued_count, the number of eligible sandbox starts still queued for this host after the claim. existing_only limits this count to registered Nodes without changing job selection.",
         "requestBody": {
           "content": {
             "application/json": {

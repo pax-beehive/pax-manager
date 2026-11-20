@@ -69,11 +69,11 @@ func TestSandboxQueuesNodeOnlyJobAndReplaysUnderSameLease(t *testing.T) {
 	}
 
 	claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID}
-	job, err := s.Claim(t.Context(), &claim)
+	job, _, err := s.Claim(t.Context(), &claim)
 	require.NoError(t, err)
 	require.Nil(t, job)
 	claim.Capacity = 1
-	job, err = s.Claim(t.Context(), &claim)
+	job, _, err = s.Claim(t.Context(), &claim)
 	require.NoError(t, err)
 	require.NotNil(t, job)
 	require.Equal(t, int64(1), job.Generation)
@@ -96,14 +96,14 @@ func TestSandboxQueuesNodeOnlyJobAndReplaysUnderSameLease(t *testing.T) {
 	require.Error(t, err)
 
 	claim.Capacity = 0
-	replayed, err := s.Claim(t.Context(), &claim)
+	replayed, _, err := s.Claim(t.Context(), &claim)
 	require.NoError(t, err)
 	require.Equal(t, job, replayed)
 	claim.HostID = "other-host"
-	_, err = s.Claim(t.Context(), &claim)
+	_, _, err = s.Claim(t.Context(), &claim)
 	require.ErrorIs(t, err, hosting.ErrUnauthorized)
 	claim.HostID, claim.Kind = config.HostID, ""
-	_, err = s.Claim(t.Context(), &claim)
+	_, _, err = s.Claim(t.Context(), &claim)
 	require.ErrorIs(t, err, hosting.ErrUnauthorized)
 	require.NoError(t, store.WithHostingState(t.Context(), func(state *hosting.State) error {
 		require.Equal(t, "node-home", state.Environments[owner].Starter.NodeID)
@@ -111,11 +111,69 @@ func TestSandboxQueuesNodeOnlyJobAndReplaysUnderSameLease(t *testing.T) {
 	}))
 }
 
+func TestSandboxClaimCountsEligibleRemainingStarts(t *testing.T) {
+	ctx := t.Context()
+	_, store, config, owner, now, _ := sandboxFixture(t)
+	other, err := store.EnsureUser(ctx, "another@example.com", "Another", "user")
+	require.NoError(t, err)
+	newOwner, existingOwner := min(owner, other.UserID), max(owner, other.UserID)
+	denied := ""
+	s := hosting.NewSandbox(store, config, func() time.Time { return *now },
+		func(_ context.Context, owner string) bool { return owner != denied },
+		func(context.Context, string, string) error { return nil },
+	)
+	for _, owner := range []string{newOwner, existingOwner, "foreign-host", "denied", "invalid"} {
+		_, err := s.Status(ctx, owner, true)
+		require.NoError(t, err)
+	}
+	denied = "denied"
+	require.NoError(t, store.WithSandboxState(ctx, func(state *hosting.State) error {
+		state.Environments[existingOwner].Starter.NodeID = "owned-node"
+		state.Environments["foreign-host"].HostID = "other-host"
+		state.Environments["invalid"].Starter.OwnerUserID = "wrong-owner"
+		return nil
+	}))
+
+	claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID}
+	job, count, err := s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.Nil(t, job)
+	require.Equal(t, 2, count)
+	claim.ExistingOnly = true
+	job, count, err = s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.Nil(t, job)
+	require.Equal(t, 1, count)
+
+	claim.Capacity = 1
+	job, count, err = s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.NotNil(t, job)
+	require.Equal(t, newOwner, job.OwnerUserID, "the count filter must not change job selection")
+	require.Equal(t, 1, count)
+	claim.Capacity = 0
+	replayed, count, err := s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.Equal(t, job, replayed)
+	require.Equal(t, 1, count)
+
+	*now = job.LeaseExpiresAt
+	claim.Capacity = 1
+	job, count, err = s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.NotNil(t, job)
+	require.Equal(t, existingOwner, job.OwnerUserID)
+	require.Equal(t, 0, count)
+	status, err := s.Status(ctx, newOwner, false)
+	require.NoError(t, err)
+	require.Equal(t, "sleeping", status.Sandbox.Status)
+}
+
 func TestSandboxReportsWaitingOnlyForFreshZeroCapacity(t *testing.T) {
 	ctx := t.Context()
 	s, store, config, owner, now, allowed := sandboxFixture(t)
 	claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID}
-	job, err := s.Claim(ctx, &claim)
+	job, _, err := s.Claim(ctx, &claim)
 	require.NoError(t, err)
 	require.Nil(t, job)
 	status, err := s.Status(ctx, owner, true)
@@ -128,7 +186,7 @@ func TestSandboxReportsWaitingOnlyForFreshZeroCapacity(t *testing.T) {
 	status, err = s.Status(ctx, owner, false)
 	require.NoError(t, err)
 	require.Equal(t, &hosting.SandboxView{Status: "queued"}, status.Sandbox)
-	job, err = s.Claim(ctx, &claim)
+	job, _, err = s.Claim(ctx, &claim)
 	require.NoError(t, err)
 	require.Nil(t, job)
 	successorConfig := config
@@ -144,7 +202,7 @@ func TestSandboxReportsWaitingOnlyForFreshZeroCapacity(t *testing.T) {
 	// A later positive sample supersedes the zero even if another claim cannot run yet.
 	*allowed = false
 	claim.Capacity = 1
-	job, err = s.Claim(ctx, &claim)
+	job, _, err = s.Claim(ctx, &claim)
 	require.NoError(t, err)
 	require.Nil(t, job)
 	*allowed = true
@@ -172,7 +230,7 @@ func TestSandboxStartupFailureReasons(t *testing.T) {
 			_, err := s.Status(ctx, owner, true)
 			require.NoError(t, err)
 			claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID, Capacity: 1}
-			job, err := s.Claim(ctx, &claim)
+			job, _, err := s.Claim(ctx, &claim)
 			require.NoError(t, err)
 			require.NotNil(t, job)
 			update := hosting.Update{
@@ -226,7 +284,7 @@ func TestSandboxReadyChecksOwnerAndKeepsNodeAcrossWake(t *testing.T) {
 	_, err := s.Status(t.Context(), owner, true)
 	require.NoError(t, err)
 	claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID, Capacity: 1}
-	job, err := s.Claim(t.Context(), &claim)
+	job, _, err := s.Claim(t.Context(), &claim)
 	require.NoError(t, err)
 	require.NotNil(t, job)
 	update := hosting.Update{
@@ -266,7 +324,7 @@ func TestSandboxReadyChecksOwnerAndKeepsNodeAcrossWake(t *testing.T) {
 	status, err = s.Status(t.Context(), owner, true)
 	require.NoError(t, err)
 	require.Equal(t, "queued", status.Sandbox.Status)
-	resumed, err := s.Claim(t.Context(), &claim)
+	resumed, _, err := s.Claim(t.Context(), &claim)
 	require.NoError(t, err)
 	require.NotNil(t, resumed)
 	require.Equal(t, job.EnvironmentID, resumed.EnvironmentID)
@@ -286,7 +344,7 @@ func TestSandboxGateChangeControlsQueueAndRevokesActiveLease(t *testing.T) {
 	require.True(t, s.HostAuthorized(config.HostKey))
 	_, err := s.Status(ctx, owner, true)
 	require.ErrorIs(t, err, hosting.ErrNotFound)
-	job, err := s.Claim(ctx, &claim)
+	job, _, err := s.Claim(ctx, &claim)
 	require.NoError(t, err)
 	require.Nil(t, job)
 
@@ -295,12 +353,12 @@ func TestSandboxGateChangeControlsQueueAndRevokesActiveLease(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "queued", status.Sandbox.Status)
 	*allowed = false
-	job, err = s.Claim(ctx, &claim)
+	job, _, err = s.Claim(ctx, &claim)
 	require.NoError(t, err)
 	require.Nil(t, job)
 
 	*allowed = true
-	job, err = s.Claim(ctx, &claim)
+	job, _, err = s.Claim(ctx, &claim)
 	require.NoError(t, err)
 	require.NotNil(t, job)
 	update := hosting.Update{
@@ -325,7 +383,7 @@ func TestSandboxGateChangeControlsQueueAndRevokesActiveLease(t *testing.T) {
 	require.ErrorIs(t, err, hosting.ErrConflict)
 	_, err = s.Status(ctx, owner, true)
 	require.NoError(t, err)
-	resumed, err := s.Claim(ctx, &claim)
+	resumed, _, err := s.Claim(ctx, &claim)
 	require.NoError(t, err)
 	require.NotNil(t, resumed)
 	require.Equal(t, "owned-node", resumed.NodeID)
@@ -340,12 +398,12 @@ func TestSandboxGateDeniesUnfinishedCreationButAllowsValidTerminalUpdate(t *test
 			_, err := s.Status(ctx, owner, true)
 			require.NoError(t, err)
 			claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID, Capacity: 1}
-			job, err := s.Claim(ctx, &claim)
+			job, _, err := s.Claim(ctx, &claim)
 			require.NoError(t, err)
 			require.NotNil(t, job)
 			*allowed = false
 			claim.Capacity = 0
-			replayed, err := s.Claim(ctx, &claim)
+			replayed, _, err := s.Claim(ctx, &claim)
 			require.NoError(t, err)
 			require.Nil(t, replayed)
 

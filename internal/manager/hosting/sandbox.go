@@ -159,46 +159,67 @@ func expireSandbox(record *EnvironmentRecord, now time.Time) {
 	}
 }
 
-func (s *SandboxService) Claim(ctx context.Context, request *Claim) (*Job, error) {
+func (s *SandboxService) Claim(ctx context.Context, request *Claim) (*Job, int, error) {
 	if s == nil || !s.configured {
-		return nil, ErrDisabled
+		return nil, 0, ErrDisabled
 	}
 	if request == nil || request.Kind != SandboxKind || request.HostID != s.config.HostID {
-		return nil, ErrUnauthorized
+		return nil, 0, ErrUnauthorized
 	}
 	if request.Capacity < 0 || request.Capacity > 100 || request.OwnerUserID != nil ||
 		request.EnvironmentID != nil {
-		return nil, ErrConflict
+		return nil, 0, ErrConflict
 	}
 	candidates, err := s.sandboxClaimCandidates(ctx, request)
 	if err != nil || len(candidates) == 0 {
-		return nil, err
+		return nil, 0, err
 	}
 	var result *Job
+	var queuedCount int
 	err = s.store.WithSandboxState(ctx, func(state *State) error {
-		now := s.now()
-		var next *EnvironmentRecord
-		for _, candidate := range candidates {
-			record := state.Environments[candidate.owner]
-			if !sandboxOnHost(record, request.HostID) || record.Generation != candidate.generation {
-				continue
-			}
-			expireSandbox(record, now)
-			if sandboxStarting(record) {
-				copy := *record.Job
-				result = &copy
-				return nil
-			}
-			if next == nil && request.Capacity > 0 && record.Starter.State == "queued" {
-				next = record
-			}
-		}
-		if next != nil {
-			result = s.claimSandbox(state, next, now)
-		}
+		result, queuedCount = s.selectSandboxClaim(state, request, candidates)
 		return nil
 	})
-	return result, err
+	return result, queuedCount, err
+}
+
+func (s *SandboxService) selectSandboxClaim(
+	state *State,
+	request *Claim,
+	candidates []sandboxClaimCandidate,
+) (*Job, int) {
+	now := s.now()
+	var result *Job
+	var next *EnvironmentRecord
+	var queuedCount int
+	for _, candidate := range candidates {
+		record := state.Environments[candidate.owner]
+		if !sandboxOnHost(record, request.HostID) || record.Generation != candidate.generation ||
+			record.Starter.OwnerUserID != candidate.owner {
+			continue
+		}
+		expireSandbox(record, now)
+		if result == nil && sandboxStarting(record) {
+			copy := *record.Job
+			result = &copy
+		}
+		if !sandboxQueued(record) {
+			continue
+		}
+		if !request.ExistingOnly || record.Starter.NodeID != "" {
+			queuedCount++
+		}
+		if next == nil && request.Capacity > 0 {
+			next = record
+		}
+	}
+	if result == nil && next != nil {
+		result = s.claimSandbox(state, next, now)
+		if !request.ExistingOnly || next.Starter.NodeID != "" {
+			queuedCount--
+		}
+	}
+	return result, queuedCount
 }
 
 type sandboxClaimCandidate struct {
@@ -223,8 +244,7 @@ func (s *SandboxService) sandboxClaimCandidates(
 				continue
 			}
 			expireSandbox(record, now)
-			if sandboxStarting(record) ||
-				(request.Capacity > 0 && record.Starter.State == "queued") {
+			if sandboxStarting(record) || sandboxQueued(record) {
 				candidates = append(candidates, sandboxClaimCandidate{
 					owner:      owner,
 					generation: record.Generation,
@@ -253,6 +273,11 @@ func sandboxOnHost(record *EnvironmentRecord, hostID string) bool {
 
 func sandboxStarting(record *EnvironmentRecord) bool {
 	return record.Starter.State == "starting" && record.Job != nil && record.Job.Active
+}
+
+func sandboxQueued(record *EnvironmentRecord) bool {
+	return record.Starter.State == "queued" && record.Job == nil && record.Generation > 0 &&
+		record.Starter.EnvironmentID != "" && record.Starter.Plan == "free"
 }
 
 func (s *SandboxService) claimSandbox(state *State, record *EnvironmentRecord, now time.Time) *Job {

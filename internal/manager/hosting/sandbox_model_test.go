@@ -51,7 +51,7 @@ func connectModelSandbox(
 	}
 	_, err := s.Sandbox.Status(ctx, owner, true)
 	require.NoError(t, err)
-	job, err := s.Sandbox.Claim(ctx, &hosting.Claim{
+	job, _, err := s.Sandbox.Claim(ctx, &hosting.Claim{
 		Kind: hosting.SandboxKind, HostID: config.HostID, Capacity: 1,
 	})
 	require.NoError(t, err)

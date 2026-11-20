@@ -282,20 +282,26 @@ func ClaimHostingJob(c context.Context, ctx *app.RequestContext) {
 	if body.Capacity != nil {
 		body.Claim.Capacity = *body.Capacity
 	}
-	service := s.hosting.Claim
+	var job *hosting.Job
+	var err error
+	response := make(map[string]any, 2)
 	switch body.Kind {
 	case hosting.SandboxKind:
-		service = s.sandboxNodes.Claim
+		var queuedCount int
+		job, queuedCount, err = s.sandboxNodes.Claim(c, &body.Claim)
+		response["queued_count"] = queuedCount
 	case hosting.SandboxModelKind:
-		service = s.hosting.ClaimSandboxModel
+		job, err = s.hosting.ClaimSandboxModel(c, &body.Claim)
+	default:
+		job, err = s.hosting.Claim(c, &body.Claim)
 	}
-	job, err := service(c, &body.Claim)
 	if err != nil {
 		hostingError(ctx, err)
 		return
 	}
 	ctx.Header("Cache-Control", "no-store")
-	writeData(ctx, 200, map[string]any{"job": job})
+	response["job"] = job
+	writeData(ctx, 200, response)
 }
 func updateHostingJob(c context.Context, ctx *app.RequestContext, complete bool) {
 	s, kind, ok := hostingJobHost(ctx)

@@ -84,7 +84,14 @@ func TestSandboxNodeHTTPCreatesAnOwnedNodeWithoutAgentOrModelCredentials(t *test
 	require.Equal(t, http.StatusOK, claim(claimBody(host, `,"capacity":null`), key).Code)
 	require.NotContains(t, get(ownerEmail).Body.String(), "reason_code")
 
-	require.Equal(t, http.StatusOK, claim(zero, key).Code)
+	zeroResponse := claim(zero, key)
+	require.Equal(t, http.StatusOK, zeroResponse.Code)
+	require.JSONEq(t, `{"queued_count":1,"job":null}`,
+		string(decodeData[json.RawMessage](t, zeroResponse.Body.Bytes())))
+	filtered := claim(claimBody(host, `,"capacity":0,"existing_only":true`), key)
+	require.Equal(t, http.StatusOK, filtered.Code)
+	require.JSONEq(t, `{"queued_count":0,"job":null}`,
+		string(decodeData[json.RawMessage](t, filtered.Body.Bytes())))
 	waiting := get(ownerEmail)
 	require.Equal(t, &hosting.SandboxView{Status: "queued", ReasonCode: "waiting_for_capacity"},
 		decodeData[hosting.SandboxStatus](t, waiting.Body.Bytes()).Sandbox)
@@ -95,6 +102,7 @@ func TestSandboxNodeHTTPCreatesAnOwnedNodeWithoutAgentOrModelCredentials(t *test
 	claimed := claim(body, key)
 	require.Equal(t, http.StatusOK, claimed.Code)
 	require.NotContains(t, claimed.Body.String(), "\"model_")
+	require.Contains(t, claimed.Body.String(), `"queued_count":0`)
 	job := decodeData[struct{ Job *hosting.Job }](t, claimed.Body.Bytes()).Job
 	require.NotNil(t, job)
 	require.Equal(t, owner.UserID, job.OwnerUserID)

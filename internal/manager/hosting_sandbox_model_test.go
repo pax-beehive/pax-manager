@@ -51,7 +51,7 @@ func TestSandboxModelUsesOnlySandboxHostForVerifiedOwnerAgent(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.sandboxNodes.Status(ctx, user.UserID, true)
 	require.NoError(t, err)
-	parent, err := s.sandboxNodes.Claim(
+	parent, _, err := s.sandboxNodes.Claim(
 		ctx, &hosting.Claim{Kind: hosting.SandboxKind, HostID: hostID, Capacity: 1},
 	)
 	require.NoError(t, err)
@@ -68,6 +68,7 @@ func TestSandboxModelUsesOnlySandboxHostForVerifiedOwnerAgent(t *testing.T) {
 	empty := hostingRequest(t, s, "POST", path, body, "", sandboxKey)
 	require.Equal(t, 200, empty.Code)
 	require.Nil(t, decodeData[struct{ Job *hosting.Job }](t, empty.Body.Bytes()).Job)
+	require.NotContains(t, empty.Body.String(), `"queued_count"`)
 	get := hostingRequest(t, s, "GET", "/api/v1/starter", "", email, "")
 	status := decodeData[hosting.Status](t, get.Body.Bytes())
 	require.Equal(t, "available", status.SandboxModelAccess.State)

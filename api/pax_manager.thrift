@@ -1858,7 +1858,8 @@ service PaxManagerAPI {
   HostingResponse ClaimHostingJob(1: optional HostingClaimRequest request) (
     api.post = "/api/v1/hosting/jobs/claim",
     openapi.tag = "hosting",
-    openapi.summary = "Trusted host claim with pinned affinity and execution lease"
+    openapi.summary = "Trusted host claim with pinned affinity and execution lease",
+    openapi.description = "For node_only, data includes queued_count, the number of eligible sandbox starts still queued for this host after the claim. existing_only limits this count to registered Nodes without changing job selection."
   )
   HostingResponse HeartbeatHostingJob(1: optional HostingUpdateRequest request) (
     api.post = "/api/v1/hosting/jobs/heartbeat",
@@ -3310,6 +3311,7 @@ struct HostingClaimRequest {
   4: optional string environment_id
   5: optional string kind
   6: optional list<string> supported_harnesses
+  7: optional bool existing_only
 }
 struct HostingWakeRequest {
   1: optional string node_id

@@ -95516,6 +95516,7 @@ type HostingClaimRequest struct {
 	EnvironmentID      *string  `thrift:"environment_id,4,optional" form:"environment_id" json:"environment_id,omitempty" query:"environment_id"`
 	Kind               *string  `thrift:"kind,5,optional" form:"kind" json:"kind,omitempty" query:"kind"`
 	SupportedHarnesses []string `thrift:"supported_harnesses,6,optional,list<string>" form:"supported_harnesses" json:"supported_harnesses,omitempty" query:"supported_harnesses"`
+	ExistingOnly       *bool    `thrift:"existing_only,7,optional" form:"existing_only" json:"existing_only,omitempty" query:"existing_only"`
 }
 
 func NewHostingClaimRequest() *HostingClaimRequest {
@@ -95579,6 +95580,15 @@ func (p *HostingClaimRequest) GetSupportedHarnesses() (v []string) {
 	return p.SupportedHarnesses
 }
 
+var HostingClaimRequest_ExistingOnly_DEFAULT bool
+
+func (p *HostingClaimRequest) GetExistingOnly() (v bool) {
+	if !p.IsSetExistingOnly() {
+		return HostingClaimRequest_ExistingOnly_DEFAULT
+	}
+	return *p.ExistingOnly
+}
+
 var fieldIDToName_HostingClaimRequest = map[int16]string{
 	1: "host_id",
 	2: "capacity",
@@ -95586,6 +95596,7 @@ var fieldIDToName_HostingClaimRequest = map[int16]string{
 	4: "environment_id",
 	5: "kind",
 	6: "supported_harnesses",
+	7: "existing_only",
 }
 
 func (p *HostingClaimRequest) IsSetHostID() bool {
@@ -95610,6 +95621,10 @@ func (p *HostingClaimRequest) IsSetKind() bool {
 
 func (p *HostingClaimRequest) IsSetSupportedHarnesses() bool {
 	return p.SupportedHarnesses != nil
+}
+
+func (p *HostingClaimRequest) IsSetExistingOnly() bool {
+	return p.ExistingOnly != nil
 }
 
 func (p *HostingClaimRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -95674,6 +95689,14 @@ func (p *HostingClaimRequest) Read(iprot thrift.TProtocol) (err error) {
 		case 6:
 			if fieldTypeId == thrift.LIST {
 				if err = p.ReadField6(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 7:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField7(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -95786,6 +95809,17 @@ func (p *HostingClaimRequest) ReadField6(iprot thrift.TProtocol) error {
 	p.SupportedHarnesses = _field
 	return nil
 }
+func (p *HostingClaimRequest) ReadField7(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.ExistingOnly = _field
+	return nil
+}
 
 func (p *HostingClaimRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -95815,6 +95849,10 @@ func (p *HostingClaimRequest) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField6(oprot); err != nil {
 			fieldId = 6
+			goto WriteFieldError
+		}
+		if err = p.writeField7(oprot); err != nil {
+			fieldId = 7
 			goto WriteFieldError
 		}
 	}
@@ -95955,6 +95993,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
+}
+
+func (p *HostingClaimRequest) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetExistingOnly() {
+		if err = oprot.WriteFieldBegin("existing_only", thrift.BOOL, 7); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.ExistingOnly); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
 }
 
 func (p *HostingClaimRequest) String() string {

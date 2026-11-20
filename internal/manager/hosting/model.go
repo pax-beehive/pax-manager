@@ -240,6 +240,7 @@ type Claim struct {
 	EnvironmentID      *string  `json:"environment_id,omitempty"`
 	CapacityMissing    bool     `json:"-"`
 	SupportedHarnesses []string `json:"supported_harnesses,omitempty"`
+	ExistingOnly       bool     `json:"existing_only,omitempty"`
 }
 
 type WakeTarget struct {
