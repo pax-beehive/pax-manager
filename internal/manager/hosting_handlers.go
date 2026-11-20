@@ -253,7 +253,7 @@ func ClaimHostingJob(c context.Context, ctx *app.RequestContext) {
 	}
 	// An omitted capacity keeps the existing zero-capacity behavior without
 	// claiming the worker measured zero free slots.
-	body.Claim.CapacityMissing = body.Capacity == nil
+	body.CapacityMissing = body.Capacity == nil
 	if body.Capacity != nil {
 		body.Claim.Capacity = *body.Capacity
 	}

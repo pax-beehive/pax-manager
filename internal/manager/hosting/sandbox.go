@@ -130,11 +130,12 @@ func (s *SandboxService) sandboxReason(
 	case "failed":
 		return sandboxFailureReason(record.Starter.ErrorCode)
 	case "queued":
-		if sandboxOnHost(record, s.config.HostID) && capacity != nil &&
-			capacity.HostID == s.config.HostID && capacity.AvailableSlots == 0 &&
-			!capacity.ObservedAt.After(
-				now,
-			) && now.Sub(capacity.ObservedAt) <= sandboxCapacityFreshness {
+		if capacity == nil || capacity.HostID != s.config.HostID || capacity.AvailableSlots != 0 ||
+			!sandboxOnHost(record, s.config.HostID) {
+			return ""
+		}
+		age := now.Sub(capacity.ObservedAt)
+		if age >= 0 && age <= sandboxCapacityFreshness {
 			return "waiting_for_capacity"
 		}
 	}
