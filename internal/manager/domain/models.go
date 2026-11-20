@@ -1660,6 +1660,9 @@ type NodeStatusReport struct {
 	Agents       []AgentStatusInput `json:"agents"`
 	System       json.RawMessage    `json:"system"`
 	Metadata     json.RawMessage    `json:"metadata"`
+	// DeletedAgentIDs lists agents whose connections paxd removed on the node.
+	// The store deletes them together with the status update.
+	DeletedAgentIDs []string `json:"-"`
 }
 
 type NodeAgentSessionReport struct {

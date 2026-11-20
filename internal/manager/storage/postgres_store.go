@@ -1171,15 +1171,7 @@ func (s *PostgresStore) UpsertNodeStatus(
 		}
 	}
 	now := s.now().UTC()
-	if report.MachineType != "" {
-		node.MachineType = report.MachineType
-	}
-	if report.OS != "" {
-		node.OS = report.OS
-	}
-	if report.Arch != "" {
-		node.Arch = report.Arch
-	}
+	node = nodeWithReportedPlatform(node, report)
 	if err := persistNodeStatus(ctx, tx, node, report, now); err != nil {
 		return err
 	}
@@ -1211,6 +1203,7 @@ func (s *PostgresStore) UpsertNodeStatus(
 				metadata = COALESCE(EXCLUDED.metadata, agents.metadata)
 			WHERE agents.node_id = EXCLUDED.node_id
 				AND agents.owner_user_id = EXCLUDED.owner_user_id
+				AND agents.deleted_at IS NULL
 		`,
 			agentID,
 			node.NodeID,
@@ -1238,7 +1231,8 @@ func (s *PostgresStore) UpsertNodeStatus(
 		}
 		if adopted == 0 {
 			// An existing agent with this ID belongs to a different node or
-			// owner. Status reports must never re-home agents.
+			// owner, or was deleted. Status reports must never re-home or
+			// revive agents.
 			continue
 		}
 		if input.RuntimeIdentity != nil {
@@ -1265,7 +1259,82 @@ func (s *PostgresStore) UpsertNodeStatus(
 			}
 		}
 	}
+	if err := deleteReportedNodeAgents(ctx, tx, node, report.DeletedAgentIDs, now); err != nil {
+		return err
+	}
 	return tx.Commit()
+}
+
+// nodeWithReportedPlatform applies the platform fields of a status report, so
+// agents adopted from the same report inherit them.
+func nodeWithReportedPlatform(node Node, report NodeStatusReport) Node {
+	if report.MachineType != "" {
+		node.MachineType = report.MachineType
+	}
+	if report.OS != "" {
+		node.OS = report.OS
+	}
+	if report.Arch != "" {
+		node.Arch = report.Arch
+	}
+	return node
+}
+
+// deleteReportedNodeAgents tombstones agents whose connections paxd removed on
+// the node. No user requested the deletion, so deleted_by_user_id stays NULL.
+func deleteReportedNodeAgents(
+	ctx context.Context,
+	tx *sql.Tx,
+	node Node,
+	agentIDs []string,
+	now time.Time,
+) error {
+	if len(agentIDs) == 0 {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `
+		UPDATE agents
+		SET deleted_at = $4,
+			status = 'deleted',
+			last_heartbeat = NULL,
+			api_key_hash = 'revoked:agent:' || agent_id || ':' || $5
+		WHERE node_id = $1
+			AND owner_user_id = $2
+			AND agent_id = ANY($3)
+			AND deleted_at IS NULL
+	`, node.NodeID, node.OwnerUserID, agentIDs, now, strconv.FormatInt(now.UnixNano(), 10))
+	return err
+}
+
+func (s *PostgresStore) ListDeletedNodeAgentIDs(
+	ctx context.Context,
+	nodeID string,
+	agentIDs []string,
+) ([]string, error) {
+	if len(agentIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT agent_id
+		FROM agents
+		WHERE node_id = $1
+			AND agent_id = ANY($2)
+			AND deleted_at IS NOT NULL
+		ORDER BY agent_id
+	`, nodeID, agentIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var deleted []string
+	for rows.Next() {
+		var agentID string
+		if err := rows.Scan(&agentID); err != nil {
+			return nil, err
+		}
+		deleted = append(deleted, agentID)
+	}
+	return deleted, rows.Err()
 }
 
 func (s *PostgresStore) UpsertAgentStatus(ctx context.Context, report AgentStatusReport) error {

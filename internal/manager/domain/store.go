@@ -290,6 +290,9 @@ type Store interface {
 	UpdateNode(ctx context.Context, principal UserPrincipal, req UpdateNodeRequest) (Node, error)
 	DeleteNode(ctx context.Context, principal UserPrincipal, req DeleteNodeRequest) (Node, error)
 	GetNodeAgent(ctx context.Context, nodeID string, agentID string) (Agent, error)
+	// ListDeletedNodeAgentIDs returns which of agentIDs are deleted agents of
+	// the node, so connections paxd still reports for them can be removed.
+	ListDeletedNodeAgentIDs(ctx context.Context, nodeID string, agentIDs []string) ([]string, error)
 	ListNodeAgents(ctx context.Context, principal UserPrincipal, nodeID string) ([]Agent, error)
 	CreateNodeAgent(
 		ctx context.Context,

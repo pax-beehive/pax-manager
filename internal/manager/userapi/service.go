@@ -554,6 +554,10 @@ type Service struct {
 	commandSyncMu     sync.Mutex
 	commandSyncAt     map[string]time.Time
 	harnessAuthNodes  sync.Map
+	// connectionCleanupAt holds the last removal attempt per paxd connection
+	// of a deleted agent.
+	connectionCleanupMu sync.Mutex
+	connectionCleanupAt map[string]time.Time
 }
 
 func NewService(
@@ -1964,6 +1968,7 @@ func (s *Service) DeleteNodeAgent(
 	if err != nil {
 		return 0, nil, err
 	}
+	s.removeDeletedAgentRuntimeConnection(c, agent)
 	return http.StatusOK, agent, nil
 }
 
@@ -2032,6 +2037,7 @@ func (s *Service) DeleteAgent(
 	if err != nil {
 		return 0, nil, err
 	}
+	s.removeDeletedAgentRuntimeConnection(c, agent)
 	return http.StatusOK, agent, nil
 }
 
