@@ -147,6 +147,9 @@ type Job struct {
 	Active               bool      `json:"active"`
 	NodeID               string    `json:"node_id,omitempty"`
 	AgentID              string    `json:"agent_id,omitempty"`
+	Harness              string    `json:"harness,omitempty"`
+	SandboxEnvironmentID string    `json:"sandbox_environment_id,omitempty"`
+	SandboxGeneration    int64     `json:"sandbox_generation,omitempty"`
 }
 
 // EnvironmentRecord separates private durable fields from the user-facing view.
@@ -166,6 +169,8 @@ type Reservation struct {
 	CreatedAt                                               time.Time
 	Generation                                              int64
 	GenerationStarted                                       bool
+	SandboxModelJobID                                       string    `json:"sandbox_model_job_id,omitempty"`
+	SandboxModelAgentID                                     string    `json:"sandbox_model_agent_id,omitempty"`
 	AtomicAdmission                                         bool      `json:"atomic_admission,omitempty"`
 	Protocol                                                string    `json:"protocol,omitempty"`
 	ReasoningEffort                                         string    `json:"reasoning_effort,omitempty"`
@@ -196,6 +201,8 @@ type State struct {
 	Registrations             map[string]Registration       `json:"-"`
 	Admin                     AdminControls                 `json:"admin"`
 	SandboxCapacity           *sandboxCapacityReport        `json:"sandbox_capacity,omitempty"`
+	SandboxModelGrants        map[string]*sandboxModelGrant `json:"sandbox_model_grants,omitempty"`
+	SandboxModelWorker        *sandboxModelWorker           `json:"sandbox_model_worker,omitempty"`
 }
 
 func (s *State) Initialize() {
@@ -205,6 +212,9 @@ func (s *State) Initialize() {
 	if s.Requests == nil {
 		s.Requests = map[string]*Reservation{}
 	}
+	if s.SandboxModelGrants == nil {
+		s.SandboxModelGrants = map[string]*sandboxModelGrant{}
+	}
 	s.Registrations = map[string]Registration{}
 	s.Admin.initialize()
 }
@@ -213,21 +223,23 @@ type Store interface {
 	WithHostingState(context.Context, func(*State) error) error
 }
 type Status struct {
-	Enabled             bool      `json:"enabled"`
-	EnrolledNode        bool      `json:"enrolled_node,omitempty"`
-	PoolAvailable       bool      `json:"pool_available"`
-	PoolPeriodStart     time.Time `json:"pool_period_start"`
-	PoolResetsAt        time.Time `json:"pool_resets_at"`
-	Starter             *Starter  `json:"starter"`
-	UserBudgetAvailable bool      `json:"user_budget_available"`
+	Enabled             bool                `json:"enabled"`
+	EnrolledNode        bool                `json:"enrolled_node,omitempty"`
+	PoolAvailable       bool                `json:"pool_available"`
+	PoolPeriodStart     time.Time           `json:"pool_period_start"`
+	PoolResetsAt        time.Time           `json:"pool_resets_at"`
+	Starter             *Starter            `json:"starter"`
+	UserBudgetAvailable bool                `json:"user_budget_available"`
+	SandboxModelAccess  *SandboxModelAccess `json:"sandbox_model_access,omitempty"`
 }
 type Claim struct {
-	Kind            string  `json:"kind,omitempty"`
-	HostID          string  `json:"host_id"`
-	Capacity        int     `json:"capacity"`
-	OwnerUserID     *string `json:"owner_user_id,omitempty"`
-	EnvironmentID   *string `json:"environment_id,omitempty"`
-	CapacityMissing bool    `json:"-"`
+	Kind               string   `json:"kind,omitempty"`
+	HostID             string   `json:"host_id"`
+	Capacity           int      `json:"capacity"`
+	OwnerUserID        *string  `json:"owner_user_id,omitempty"`
+	EnvironmentID      *string  `json:"environment_id,omitempty"`
+	CapacityMissing    bool     `json:"-"`
+	SupportedHarnesses []string `json:"supported_harnesses,omitempty"`
 }
 
 type WakeTarget struct {

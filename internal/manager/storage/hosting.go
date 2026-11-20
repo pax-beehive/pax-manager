@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 
@@ -31,29 +32,40 @@ func (s *PostgresStore) withHostingState(
 	table string,
 	run func(*hosting.State) error,
 ) error {
+	return s.withModelStates(ctx, table, "", func(state, _ *hosting.State) error {
+		return run(state)
+	})
+}
+
+func (s *PostgresStore) WithSandboxModelStates(
+	ctx context.Context,
+	run func(account, sandbox *hosting.State) error,
+) error {
+	return s.withModelStates(ctx, "hosting_state", "sandbox_node_state", run)
+}
+
+func (s *PostgresStore) withModelStates(
+	ctx context.Context,
+	table, sandboxTable string,
+	run func(account, sandbox *hosting.State) error,
+) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	insert := fmt.Sprintf(
-		"INSERT INTO %s (id,document) VALUES (1,'{}'::jsonb) ON CONFLICT (id) DO NOTHING",
-		table,
-	)
-	if _, err = tx.ExecContext(ctx, insert); err != nil {
+	state, err := readHostingState(ctx, tx, table)
+	if err != nil {
 		return err
 	}
-	var raw []byte
-	read := fmt.Sprintf("SELECT document FROM %s WHERE id=1 FOR UPDATE", table)
-	if err = tx.QueryRowContext(ctx, read).Scan(&raw); err != nil {
-		return err
+	var sandbox *hosting.State
+	if sandboxTable != "" {
+		sandbox, err = readHostingState(ctx, tx, sandboxTable)
+		if err != nil {
+			return err
+		}
 	}
-	var state hosting.State
-	if err = json.Unmarshal(raw, &state); err != nil {
-		return err
-	}
-	state.Initialize()
-	if err = run(&state); err != nil {
+	if err = run(state, sandbox); err != nil {
 		return err
 	}
 	for key, registration := range state.Registrations {
@@ -61,7 +73,8 @@ func (s *PostgresStore) withHostingState(
 			return err
 		}
 	}
-	if raw, err = json.Marshal(&state); err != nil {
+	raw, err := json.Marshal(state)
+	if err != nil {
 		return err
 	}
 	write := fmt.Sprintf("UPDATE %s SET document=$1::jsonb WHERE id=1", table)
@@ -69,6 +82,33 @@ func (s *PostgresStore) withHostingState(
 		return err
 	}
 	return tx.Commit()
+}
+
+func readHostingState(ctx context.Context, tx *sql.Tx, table string) (*hosting.State, error) {
+	insert := fmt.Sprintf(
+		"INSERT INTO %s (id,document) VALUES (1,'{}'::jsonb) ON CONFLICT (id) DO NOTHING",
+		table,
+	)
+	if _, err := tx.ExecContext(ctx, insert); err != nil {
+		return nil, err
+	}
+	var raw []byte
+	read := fmt.Sprintf("SELECT document FROM %s WHERE id=1 FOR UPDATE", table)
+	if err := tx.QueryRowContext(ctx, read).Scan(&raw); err != nil {
+		return nil, err
+	}
+	return decodeHostingState(raw)
+}
+
+func decodeHostingState(raw []byte) (*hosting.State, error) {
+	var state hosting.State
+	if len(raw) != 0 {
+		if err := json.Unmarshal(raw, &state); err != nil {
+			return nil, err
+		}
+	}
+	state.Initialize()
+	return &state, nil
 }
 
 func (s *MemoryStore) WithHostingState(_ context.Context, run func(*hosting.State) error) error {
@@ -79,23 +119,33 @@ func (s *MemoryStore) WithSandboxState(_ context.Context, run func(*hosting.Stat
 	return s.withHostingState(&s.sandboxNodeState, run)
 }
 
+func (s *MemoryStore) WithSandboxModelStates(
+	_ context.Context,
+	run func(account, sandbox *hosting.State) error,
+) error {
+	return s.withHostingState(&s.hostingState, func(account *hosting.State) error {
+		sandbox, err := decodeHostingState(s.sandboxNodeState)
+		if err != nil {
+			return err
+		}
+		return run(account, sandbox)
+	})
+}
+
 func (s *MemoryStore) withHostingState(
 	document *json.RawMessage,
 	run func(*hosting.State) error,
 ) error {
 	s.hostingMu.Lock()
 	defer s.hostingMu.Unlock()
-	var state hosting.State
-	if len(*document) > 0 {
-		if err := json.Unmarshal(*document, &state); err != nil {
-			return err
-		}
-	}
-	state.Initialize()
-	if err := run(&state); err != nil {
+	state, err := decodeHostingState(*document)
+	if err != nil {
 		return err
 	}
-	raw, err := json.Marshal(&state)
+	if err := run(state); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(state)
 	if err != nil {
 		return err
 	}

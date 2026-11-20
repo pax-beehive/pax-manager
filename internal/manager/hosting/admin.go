@@ -204,13 +204,15 @@ func (s *Service) RuntimePolicies(ctx context.Context, token string) ([]ModelPol
 		return nil, ErrDisabled
 	}
 	var policies []ModelPolicy
-	err := s.Store.WithHostingState(ctx, func(state *State) error {
-		if _, err := s.active(state, token); err != nil {
-			return err
-		}
-		policies = s.runtimePolicies(state)
-		return nil
-	})
+	err := s.withActiveToken(
+		ctx,
+		token,
+		false,
+		func(state *State, _ *EnvironmentRecord, _ *sandboxModelGrant) error {
+			policies = s.runtimePolicies(state)
+			return nil
+		},
+	)
 	return policies, err
 }
 

@@ -58,11 +58,12 @@ func hostingJobHost(ctx *app.RequestContext) (*Service, string, bool) {
 }
 
 func validHostingJobKind(ctx *app.RequestContext, expected, received string) bool {
-	if expected != received {
-		writeError(ctx, http.StatusUnauthorized, "unauthorized")
-		return false
+	if expected == received ||
+		(expected == hosting.SandboxKind && received == hosting.SandboxModelKind) {
+		return true
 	}
-	return true
+	writeError(ctx, http.StatusUnauthorized, "unauthorized")
+	return false
 }
 
 func sandboxNodeResult(c context.Context, ctx *app.RequestContext, wake bool) {

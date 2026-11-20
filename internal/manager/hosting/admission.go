@@ -32,33 +32,34 @@ func (s *Service) Prepare(ctx context.Context, request *PrepareRequest) (*Prepar
 		return nil, ErrInvalidModelRequest
 	}
 	var prepared *PreparedRequest
-	err := s.Store.WithHostingState(ctx, func(state *State) error {
-		s.reconcile(state)
-		s.refreshPool(state)
-		record, err := s.active(state, request.Token)
-		if err != nil {
-			return err
-		}
-		policy, err := s.atomicAdmissionPolicy(state, request)
-		if err != nil {
-			return err
-		}
-		maximum := request.MaxOutputTokens
-		if maximum == 0 {
-			maximum = policy.MaxOutputTokens
-		}
-		if maximum > policy.MaxOutputTokens || request.InputTokens+maximum > 1_000_000 {
-			return ErrInvalidModelRequest
-		}
-		r, err := s.prepareReservation(state, record, request, policy, maximum)
-		if err != nil {
-			return err
-		}
-		prepared = &PreparedRequest{
-			ReservationID: r.ID, Policy: policy, MaxOutputTokens: maximum, Tokens: r.Tokens,
-		}
-		return nil
-	})
+	err := s.withActiveToken(
+		ctx,
+		request.Token,
+		true,
+		func(state *State, record *EnvironmentRecord, _ *sandboxModelGrant) error {
+			s.reconcile(state)
+			s.refreshPool(state)
+			policy, err := s.atomicAdmissionPolicy(state, request)
+			if err != nil {
+				return err
+			}
+			maximum := request.MaxOutputTokens
+			if maximum == 0 {
+				maximum = policy.MaxOutputTokens
+			}
+			if maximum > policy.MaxOutputTokens || request.InputTokens+maximum > 1_000_000 {
+				return ErrInvalidModelRequest
+			}
+			r, err := s.prepareReservation(state, record, request, policy, maximum)
+			if err != nil {
+				return err
+			}
+			prepared = &PreparedRequest{
+				ReservationID: r.ID, Policy: policy, MaxOutputTokens: maximum, Tokens: r.Tokens,
+			}
+			return nil
+		},
+	)
 	return prepared, err
 }
 

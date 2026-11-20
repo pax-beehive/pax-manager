@@ -16,6 +16,8 @@ type Service struct {
 	Now                 func() time.Time
 	ValidateBinding     BindingCheck
 	PreviousNodeRemoved func(ctx context.Context, owner, nodeID string) (bool, error)
+	Sandbox             *SandboxService
+	ModelAgentHarness   func(ctx context.Context, owner, nodeID, agentID string) (string, error)
 }
 
 func New(config *Config, store Store, now func() time.Time, binding BindingCheck) *Service {
@@ -541,74 +543,79 @@ func (s *Service) reserve(
 		return nil, ErrConflict
 	}
 	var result *Reservation
-	err := s.Store.WithHostingState(ctx, func(state *State) error {
-		s.reconcile(state)
-		s.refreshPool(state)
-		record, err := s.active(state, token)
-		if err != nil {
-			return err
-		}
-		policy, err := s.selectReservationPolicy(state, selection)
-		if err != nil {
-			return err
-		}
-		key := record.Starter.EnvironmentID + ":" + requestID
-		if _, ok := state.Requests[key]; ok {
-			return ErrConflict
-		}
-		if err := s.checkRequestRate(state, record.Starter.EnvironmentID); err != nil {
-			return err
-		}
-		model, inputPrice, outputPrice := s.Config.Model, s.Config.InputPrice, s.Config.OutputPrice
-		if policy != nil {
-			model, inputPrice, outputPrice = policy.ID, policy.InputPrice, policy.OutputPrice
-		}
-		s.refreshQuota(state, record)
-		q := &record.Starter.Quota
-		cost := s.reservationCost(tokens, policy)
-		if !s.poolAvailable(state) ||
-			poolCommitted(state)+cost > s.poolLimit(state) {
-			return ErrPlatformBudget
-		}
-		if q.RemainingMicrousd < cost || (q.GrantedTokens != 0 && q.RemainingTokens < tokens) {
-			return ErrBudget
-		}
-		for _, reservation := range state.Requests {
-			if reservation.EnvironmentID == record.Starter.EnvironmentID &&
-				reservation.Status == "reserved" {
+	err := s.withActiveToken(
+		ctx,
+		token,
+		true,
+		func(state *State, record *EnvironmentRecord, grant *sandboxModelGrant) error {
+			s.reconcile(state)
+			s.refreshPool(state)
+			policy, err := s.selectReservationPolicy(state, selection)
+			if err != nil {
+				return err
+			}
+			key := record.Starter.EnvironmentID + ":" + requestID
+			if _, ok := state.Requests[key]; ok {
 				return ErrConflict
 			}
-		}
-		result = &Reservation{
-			ID:            key,
-			EnvironmentID: record.Starter.EnvironmentID,
-			RequestID:     requestID,
-			Status:        "reserved",
-			Microusd:      cost,
-			Tokens:        tokens,
-			InputPrice:    inputPrice,
-			OutputPrice:   outputPrice,
-			Model:         model,
-			CreatedAt:     s.Now(),
-			Generation:    record.Generation,
-		}
-		if policy != nil {
-			snapshot := *policy
-			result.Policy = &snapshot
-		}
-		if moderated {
-			result.Moderation = &ModerationDecision{
-				Verdict:       "pending",
-				Model:         ModerationModel,
-				PolicyVersion: reservationPolicyVersion(result),
+			if err := s.checkRequestRate(state, record.Starter.EnvironmentID); err != nil {
+				return err
 			}
-		}
-		state.Requests[key] = result
-		q.ReservedMicrousd += cost
-		q.ReservedTokens += tokens
-		state.ReservedMicrousd += cost
-		return nil
-	})
+			model, inputPrice, outputPrice := s.Config.Model, s.Config.InputPrice, s.Config.OutputPrice
+			if policy != nil {
+				model, inputPrice, outputPrice = policy.ID, policy.InputPrice, policy.OutputPrice
+			}
+			s.refreshQuota(state, record)
+			q := &record.Starter.Quota
+			cost := s.reservationCost(tokens, policy)
+			if !s.poolAvailable(state) ||
+				poolCommitted(state)+cost > s.poolLimit(state) {
+				return ErrPlatformBudget
+			}
+			if q.RemainingMicrousd < cost || (q.GrantedTokens != 0 && q.RemainingTokens < tokens) {
+				return ErrBudget
+			}
+			for _, reservation := range state.Requests {
+				if reservation.EnvironmentID == record.Starter.EnvironmentID &&
+					reservation.Status == "reserved" {
+					return ErrConflict
+				}
+			}
+			result = &Reservation{
+				ID:            key,
+				EnvironmentID: record.Starter.EnvironmentID,
+				RequestID:     requestID,
+				Status:        "reserved",
+				Microusd:      cost,
+				Tokens:        tokens,
+				InputPrice:    inputPrice,
+				OutputPrice:   outputPrice,
+				Model:         model,
+				CreatedAt:     s.Now(),
+				Generation:    record.Generation,
+			}
+			if grant != nil {
+				result.SandboxModelJobID = grant.Job.JobID
+				result.SandboxModelAgentID = grant.AgentID
+			}
+			if policy != nil {
+				snapshot := *policy
+				result.Policy = &snapshot
+			}
+			if moderated {
+				result.Moderation = &ModerationDecision{
+					Verdict:       "pending",
+					Model:         ModerationModel,
+					PolicyVersion: reservationPolicyVersion(result),
+				}
+			}
+			state.Requests[key] = result
+			q.ReservedMicrousd += cost
+			q.ReservedTokens += tokens
+			state.ReservedMicrousd += cost
+			return nil
+		},
+	)
 	return result, err
 }
 

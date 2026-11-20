@@ -86240,14 +86240,563 @@ func (p *HostingStarter) String() string {
 
 }
 
+type SandboxModelAgent struct {
+	AgentID string `thrift:"agent_id,1,required" form:"agent_id,required" json:"agent_id,required" query:"agent_id,required"`
+	State   string `thrift:"state,2,required" form:"state,required" json:"state,required" query:"state,required"`
+}
+
+func NewSandboxModelAgent() *SandboxModelAgent {
+	return &SandboxModelAgent{}
+}
+
+func (p *SandboxModelAgent) InitDefault() {
+}
+
+func (p *SandboxModelAgent) GetAgentID() (v string) {
+	return p.AgentID
+}
+
+func (p *SandboxModelAgent) GetState() (v string) {
+	return p.State
+}
+
+var fieldIDToName_SandboxModelAgent = map[int16]string{
+	1: "agent_id",
+	2: "state",
+}
+
+func (p *SandboxModelAgent) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetAgentID bool = false
+	var issetState bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetAgentID = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetState = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetAgentID {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetState {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_SandboxModelAgent[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_SandboxModelAgent[fieldId]))
+}
+
+func (p *SandboxModelAgent) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.AgentID = _field
+	return nil
+}
+func (p *SandboxModelAgent) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.State = _field
+	return nil
+}
+
+func (p *SandboxModelAgent) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SandboxModelAgent"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *SandboxModelAgent) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.AgentID); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *SandboxModelAgent) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("state", thrift.STRING, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.State); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SandboxModelAgent) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("SandboxModelAgent(%+v)", *p)
+
+}
+
+type SandboxModelAccess struct {
+	NodeID    string               `thrift:"node_id,1,required" form:"node_id,required" json:"node_id,required" query:"node_id,required"`
+	Harnesses []string             `thrift:"harnesses,2,required,list<string>" form:"harnesses,required" json:"harnesses,required" query:"harnesses,required"`
+	State     string               `thrift:"state,3,required" form:"state,required" json:"state,required" query:"state,required"`
+	Agents    []*SandboxModelAgent `thrift:"agents,4,required,list<SandboxModelAgent>" form:"agents,required" json:"agents,required" query:"agents,required"`
+}
+
+func NewSandboxModelAccess() *SandboxModelAccess {
+	return &SandboxModelAccess{}
+}
+
+func (p *SandboxModelAccess) InitDefault() {
+}
+
+func (p *SandboxModelAccess) GetNodeID() (v string) {
+	return p.NodeID
+}
+
+func (p *SandboxModelAccess) GetHarnesses() (v []string) {
+	return p.Harnesses
+}
+
+func (p *SandboxModelAccess) GetState() (v string) {
+	return p.State
+}
+
+func (p *SandboxModelAccess) GetAgents() (v []*SandboxModelAgent) {
+	return p.Agents
+}
+
+var fieldIDToName_SandboxModelAccess = map[int16]string{
+	1: "node_id",
+	2: "harnesses",
+	3: "state",
+	4: "agents",
+}
+
+func (p *SandboxModelAccess) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetNodeID bool = false
+	var issetHarnesses bool = false
+	var issetState bool = false
+	var issetAgents bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetNodeID = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetHarnesses = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 3:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetState = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetAgents = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetNodeID {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetHarnesses {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetState {
+		fieldId = 3
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetAgents {
+		fieldId = 4
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_SandboxModelAccess[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_SandboxModelAccess[fieldId]))
+}
+
+func (p *SandboxModelAccess) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *SandboxModelAccess) ReadField2(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]string, 0, size)
+	for i := 0; i < size; i++ {
+
+		var _elem string
+		if v, err := iprot.ReadString(); err != nil {
+			return err
+		} else {
+			_elem = v
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.Harnesses = _field
+	return nil
+}
+func (p *SandboxModelAccess) ReadField3(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.State = _field
+	return nil
+}
+func (p *SandboxModelAccess) ReadField4(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]*SandboxModelAgent, 0, size)
+	values := make([]SandboxModelAgent, size)
+	for i := 0; i < size; i++ {
+		_elem := &values[i]
+		_elem.InitDefault()
+
+		if err := _elem.Read(iprot); err != nil {
+			return err
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.Agents = _field
+	return nil
+}
+
+func (p *SandboxModelAccess) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SandboxModelAccess"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+		if err = p.writeField3(oprot); err != nil {
+			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *SandboxModelAccess) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.NodeID); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *SandboxModelAccess) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("harnesses", thrift.LIST, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteListBegin(thrift.STRING, len(p.Harnesses)); err != nil {
+		return err
+	}
+	for _, v := range p.Harnesses {
+		if err := oprot.WriteString(v); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteListEnd(); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SandboxModelAccess) writeField3(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("state", thrift.STRING, 3); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.State); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *SandboxModelAccess) writeField4(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("agents", thrift.LIST, 4); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteListBegin(thrift.STRUCT, len(p.Agents)); err != nil {
+		return err
+	}
+	for _, v := range p.Agents {
+		if err := v.Write(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteListEnd(); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *SandboxModelAccess) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("SandboxModelAccess(%+v)", *p)
+
+}
+
 type HostingStatusData struct {
-	Enabled             *bool           `thrift:"enabled,1,optional" form:"enabled" json:"enabled,omitempty" query:"enabled"`
-	Starter             *HostingStarter `thrift:"starter,2,optional" form:"starter" json:"starter,omitempty" query:"starter"`
-	PoolAvailable       *bool           `thrift:"pool_available,3,optional" form:"pool_available" json:"pool_available,omitempty" query:"pool_available"`
-	PoolPeriodStart     *string         `thrift:"pool_period_start,4,optional" form:"pool_period_start" json:"pool_period_start,omitempty" query:"pool_period_start"`
-	PoolResetsAt        *string         `thrift:"pool_resets_at,5,optional" form:"pool_resets_at" json:"pool_resets_at,omitempty" query:"pool_resets_at"`
-	EnrolledNode        *bool           `thrift:"enrolled_node,6,optional" form:"enrolled_node" json:"enrolled_node,omitempty" query:"enrolled_node"`
-	UserBudgetAvailable *bool           `thrift:"user_budget_available,7,optional" form:"user_budget_available" json:"user_budget_available,omitempty" query:"user_budget_available"`
+	Enabled             *bool               `thrift:"enabled,1,optional" form:"enabled" json:"enabled,omitempty" query:"enabled"`
+	Starter             *HostingStarter     `thrift:"starter,2,optional" form:"starter" json:"starter,omitempty" query:"starter"`
+	PoolAvailable       *bool               `thrift:"pool_available,3,optional" form:"pool_available" json:"pool_available,omitempty" query:"pool_available"`
+	PoolPeriodStart     *string             `thrift:"pool_period_start,4,optional" form:"pool_period_start" json:"pool_period_start,omitempty" query:"pool_period_start"`
+	PoolResetsAt        *string             `thrift:"pool_resets_at,5,optional" form:"pool_resets_at" json:"pool_resets_at,omitempty" query:"pool_resets_at"`
+	EnrolledNode        *bool               `thrift:"enrolled_node,6,optional" form:"enrolled_node" json:"enrolled_node,omitempty" query:"enrolled_node"`
+	UserBudgetAvailable *bool               `thrift:"user_budget_available,7,optional" form:"user_budget_available" json:"user_budget_available,omitempty" query:"user_budget_available"`
+	SandboxModelAccess  *SandboxModelAccess `thrift:"sandbox_model_access,8,optional" form:"sandbox_model_access" json:"sandbox_model_access,omitempty" query:"sandbox_model_access"`
 }
 
 func NewHostingStatusData() *HostingStatusData {
@@ -86320,6 +86869,15 @@ func (p *HostingStatusData) GetUserBudgetAvailable() (v bool) {
 	return *p.UserBudgetAvailable
 }
 
+var HostingStatusData_SandboxModelAccess_DEFAULT *SandboxModelAccess
+
+func (p *HostingStatusData) GetSandboxModelAccess() (v *SandboxModelAccess) {
+	if !p.IsSetSandboxModelAccess() {
+		return HostingStatusData_SandboxModelAccess_DEFAULT
+	}
+	return p.SandboxModelAccess
+}
+
 var fieldIDToName_HostingStatusData = map[int16]string{
 	1: "enabled",
 	2: "starter",
@@ -86328,6 +86886,7 @@ var fieldIDToName_HostingStatusData = map[int16]string{
 	5: "pool_resets_at",
 	6: "enrolled_node",
 	7: "user_budget_available",
+	8: "sandbox_model_access",
 }
 
 func (p *HostingStatusData) IsSetEnabled() bool {
@@ -86356,6 +86915,10 @@ func (p *HostingStatusData) IsSetEnrolledNode() bool {
 
 func (p *HostingStatusData) IsSetUserBudgetAvailable() bool {
 	return p.UserBudgetAvailable != nil
+}
+
+func (p *HostingStatusData) IsSetSandboxModelAccess() bool {
+	return p.SandboxModelAccess != nil
 }
 
 func (p *HostingStatusData) Read(iprot thrift.TProtocol) (err error) {
@@ -86428,6 +86991,14 @@ func (p *HostingStatusData) Read(iprot thrift.TProtocol) (err error) {
 		case 7:
 			if fieldTypeId == thrift.BOOL {
 				if err = p.ReadField7(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 8:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField8(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -86536,6 +87107,14 @@ func (p *HostingStatusData) ReadField7(iprot thrift.TProtocol) error {
 	p.UserBudgetAvailable = _field
 	return nil
 }
+func (p *HostingStatusData) ReadField8(iprot thrift.TProtocol) error {
+	_field := NewSandboxModelAccess()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.SandboxModelAccess = _field
+	return nil
+}
 
 func (p *HostingStatusData) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -86569,6 +87148,10 @@ func (p *HostingStatusData) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField7(oprot); err != nil {
 			fieldId = 7
+			goto WriteFieldError
+		}
+		if err = p.writeField8(oprot); err != nil {
+			fieldId = 8
 			goto WriteFieldError
 		}
 	}
@@ -86720,6 +87303,25 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 7 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 7 end error: ", p), err)
+}
+
+func (p *HostingStatusData) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSandboxModelAccess() {
+		if err = oprot.WriteFieldBegin("sandbox_model_access", thrift.STRUCT, 8); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.SandboxModelAccess.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 8 end error: ", p), err)
 }
 
 func (p *HostingStatusData) String() string {
@@ -94908,11 +95510,12 @@ func (p *HostingResponse) String() string {
 }
 
 type HostingClaimRequest struct {
-	HostID        *string `thrift:"host_id,1,optional" form:"host_id" json:"host_id,omitempty" query:"host_id"`
-	Capacity      *int32  `thrift:"capacity,2,optional" form:"capacity" json:"capacity,omitempty" query:"capacity"`
-	OwnerUserID   *string `thrift:"owner_user_id,3,optional" form:"owner_user_id" json:"owner_user_id,omitempty" query:"owner_user_id"`
-	EnvironmentID *string `thrift:"environment_id,4,optional" form:"environment_id" json:"environment_id,omitempty" query:"environment_id"`
-	Kind          *string `thrift:"kind,5,optional" form:"kind" json:"kind,omitempty" query:"kind"`
+	HostID             *string  `thrift:"host_id,1,optional" form:"host_id" json:"host_id,omitempty" query:"host_id"`
+	Capacity           *int32   `thrift:"capacity,2,optional" form:"capacity" json:"capacity,omitempty" query:"capacity"`
+	OwnerUserID        *string  `thrift:"owner_user_id,3,optional" form:"owner_user_id" json:"owner_user_id,omitempty" query:"owner_user_id"`
+	EnvironmentID      *string  `thrift:"environment_id,4,optional" form:"environment_id" json:"environment_id,omitempty" query:"environment_id"`
+	Kind               *string  `thrift:"kind,5,optional" form:"kind" json:"kind,omitempty" query:"kind"`
+	SupportedHarnesses []string `thrift:"supported_harnesses,6,optional,list<string>" form:"supported_harnesses" json:"supported_harnesses,omitempty" query:"supported_harnesses"`
 }
 
 func NewHostingClaimRequest() *HostingClaimRequest {
@@ -94967,12 +95570,22 @@ func (p *HostingClaimRequest) GetKind() (v string) {
 	return *p.Kind
 }
 
+var HostingClaimRequest_SupportedHarnesses_DEFAULT []string
+
+func (p *HostingClaimRequest) GetSupportedHarnesses() (v []string) {
+	if !p.IsSetSupportedHarnesses() {
+		return HostingClaimRequest_SupportedHarnesses_DEFAULT
+	}
+	return p.SupportedHarnesses
+}
+
 var fieldIDToName_HostingClaimRequest = map[int16]string{
 	1: "host_id",
 	2: "capacity",
 	3: "owner_user_id",
 	4: "environment_id",
 	5: "kind",
+	6: "supported_harnesses",
 }
 
 func (p *HostingClaimRequest) IsSetHostID() bool {
@@ -94993,6 +95606,10 @@ func (p *HostingClaimRequest) IsSetEnvironmentID() bool {
 
 func (p *HostingClaimRequest) IsSetKind() bool {
 	return p.Kind != nil
+}
+
+func (p *HostingClaimRequest) IsSetSupportedHarnesses() bool {
+	return p.SupportedHarnesses != nil
 }
 
 func (p *HostingClaimRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -95049,6 +95666,14 @@ func (p *HostingClaimRequest) Read(iprot thrift.TProtocol) (err error) {
 		case 5:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField5(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 6:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField6(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -95138,6 +95763,29 @@ func (p *HostingClaimRequest) ReadField5(iprot thrift.TProtocol) error {
 	p.Kind = _field
 	return nil
 }
+func (p *HostingClaimRequest) ReadField6(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]string, 0, size)
+	for i := 0; i < size; i++ {
+
+		var _elem string
+		if v, err := iprot.ReadString(); err != nil {
+			return err
+		} else {
+			_elem = v
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.SupportedHarnesses = _field
+	return nil
+}
 
 func (p *HostingClaimRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -95163,6 +95811,10 @@ func (p *HostingClaimRequest) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField5(oprot); err != nil {
 			fieldId = 5
+			goto WriteFieldError
+		}
+		if err = p.writeField6(oprot); err != nil {
+			fieldId = 6
 			goto WriteFieldError
 		}
 	}
@@ -95276,6 +95928,33 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
+}
+
+func (p *HostingClaimRequest) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSupportedHarnesses() {
+		if err = oprot.WriteFieldBegin("supported_harnesses", thrift.LIST, 6); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRING, len(p.SupportedHarnesses)); err != nil {
+			return err
+		}
+		for _, v := range p.SupportedHarnesses {
+			if err := oprot.WriteString(v); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 6 end error: ", p), err)
 }
 
 func (p *HostingClaimRequest) String() string {
