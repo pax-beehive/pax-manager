@@ -95,6 +95,7 @@ const (
 	FeatureAndroidControl    = "android_control"
 	FeatureVoiceInput        = "voice_input"
 	FeatureHostedSandbox     = "hosted_sandbox"
+	FeatureMetrics           = "metrics"
 )
 
 const featurePrefix = "feature."
@@ -138,6 +139,7 @@ func DefaultRegistry() []Entry {
 			"Watching and taking over Android on a device."),
 		voiceInputFeature(),
 		hostedSandboxFeature(),
+		metricsFeature(),
 
 		setting("search.url", "search", "Search URL",
 			"Elasticsearch base URL. Empty disables workspace search.",
@@ -205,6 +207,16 @@ func hostedSandboxFeature() Entry {
 		FeatureHostedSandbox,
 		"Pax sandbox",
 		"Creating and running a cloud sandbox Node.",
+	)
+	entry.Default = Feature{Stage: StageOff}
+	return entry
+}
+
+func metricsFeature() Entry {
+	entry := feature(
+		FeatureMetrics,
+		"Prometheus metrics",
+		"GA enables authenticated metrics scraping on provisioned Managers. Other stages disable it.",
 	)
 	entry.Default = Feature{Stage: StageOff}
 	return entry

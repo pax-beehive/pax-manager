@@ -15,11 +15,6 @@ import (
 const DefaultPaxdVerificationBaseURL = "https://paxworkspace.net"
 
 type Config struct {
-	MetricsAddr                      string
-	MetricsPeerIP                    string
-	MetricsCertFile                  string
-	MetricsKeyFile                   string
-	MetricsTokenFile                 string
 	TransportJournalGCDisabled       bool
 	TransportJournalRetention        time.Duration
 	TransportJournalGCInterval       time.Duration
@@ -153,11 +148,6 @@ func Load() Config {
 		Region:                      os.Getenv("PAX_REGION"),
 		RegionProvisioningSecret:    os.Getenv("REGION_PROVISIONING_SECRET"),
 		Port:                        envDefault("PORT", "9879"),
-		MetricsAddr:                 strings.TrimSpace(os.Getenv("PAX_METRICS_ADDR")),
-		MetricsPeerIP:               strings.TrimSpace(os.Getenv("PAX_METRICS_PEER_IP")),
-		MetricsCertFile:             os.Getenv("PAX_METRICS_CERT_FILE"),
-		MetricsKeyFile:              os.Getenv("PAX_METRICS_KEY_FILE"),
-		MetricsTokenFile:            os.Getenv("PAX_METRICS_TOKEN_FILE"),
 		DatabaseURL:                 os.Getenv("DATABASE_URL"),
 		RegistrationToken:           os.Getenv("REGISTRATION_TOKEN"),
 		RegistrationOwnerEmail:      os.Getenv("REGISTRATION_TOKEN_OWNER_EMAIL"),
