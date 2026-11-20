@@ -259,6 +259,8 @@ func TestSandboxModelRejectsFalseParentAndRevokedGate(t *testing.T) {
 func TestSandboxModelProjectsOnlySafeFailureReasons(t *testing.T) {
 	for _, tc := range []struct{ state, workerCode, reason string }{
 		{"failed", "container_exited", "container_exited"},
+		{"failed", "acp_probe_timeout", "acp_probe_timeout"},
+		{"failed", "acp_session_failed", "acp_session_failed"},
 		{"failed", "startup_failed", "model_setup_failed"},
 		{"failed", "unrecognized worker payload", "model_setup_failed"},
 		{"sleeping", "", "lease_ended"},

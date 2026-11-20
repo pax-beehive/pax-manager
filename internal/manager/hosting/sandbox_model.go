@@ -125,7 +125,7 @@ func sandboxModelFailureReason(state, code string) string {
 	}
 	switch code {
 	case "host_capacity", "host_environment_limit", "container_exited", "node_connection_timeout",
-		"lease_ended", "lease_expired":
+		"lease_ended", "lease_expired", "acp_probe_timeout", "acp_session_failed":
 		return code
 	default:
 		return "model_setup_failed"
