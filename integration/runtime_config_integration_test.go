@@ -136,7 +136,12 @@ func TestRuntimeConfigAdminAPIAndFeatureGatesIntegration(t *testing.T) {
 	}](t, fixture, "/api/v1/user/self/features", fixture.userHeaders(), http.StatusOK)
 	for _, name := range []string{"hosted_sandbox", "metrics"} {
 		if enabled, present := features.Features[name]; !present || enabled {
-			t.Errorf("feature %q: present=%t enabled=%t; want present and off", name, present, enabled)
+			t.Errorf(
+				"feature %q: present=%t enabled=%t; want present and off",
+				name,
+				present,
+				enabled,
+			)
 		}
 	}
 }
