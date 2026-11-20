@@ -19,6 +19,7 @@ func sandboxFixture(t *testing.T) (
 	hosting.SandboxConfig,
 	string,
 	*time.Time,
+	*bool,
 ) {
 	t.Helper()
 	now := time.Date(2026, 11, 19, 0, 0, 0, 0, time.UTC)
@@ -29,9 +30,12 @@ func sandboxFixture(t *testing.T) (
 		HostKey:  strings.Repeat("s", 32),
 		HostID:   "aws-sandbox-pilot",
 		CloudURL: "https://node.example.com/",
-		Owners:   []string{user.UserID},
 	}
+	allowed := true
 	service := hosting.NewSandbox(store, config, func() time.Time { return now },
+		func(_ context.Context, ownerID string) bool {
+			return allowed && ownerID == user.UserID
+		},
 		func(_ context.Context, ownerID, nodeID string) error {
 			if ownerID != user.UserID || (nodeID != "owned-node" && nodeID != "other-owned-node") {
 				return hosting.ErrUnauthorized
@@ -39,11 +43,11 @@ func sandboxFixture(t *testing.T) (
 			return nil
 		},
 	)
-	return service, store, config, user.UserID, &now
+	return service, store, config, user.UserID, &now, &allowed
 }
 
 func TestSandboxQueuesNodeOnlyJobAndReplaysUnderSameLease(t *testing.T) {
-	s, store, config, owner, now := sandboxFixture(t)
+	s, store, config, owner, now, _ := sandboxFixture(t)
 	require.NoError(t, store.WithHostingState(t.Context(), func(state *hosting.State) error {
 		state.Environments[owner] = &hosting.EnvironmentRecord{Starter: hosting.Starter{
 			EnvironmentID: "starter-home",
@@ -108,7 +112,7 @@ func TestSandboxQueuesNodeOnlyJobAndReplaysUnderSameLease(t *testing.T) {
 }
 
 func TestSandboxReadyChecksOwnerAndKeepsNodeAcrossWake(t *testing.T) {
-	s, _, config, owner, now := sandboxFixture(t)
+	s, _, config, owner, now, _ := sandboxFixture(t)
 	_, err := s.Status(t.Context(), owner, true)
 	require.NoError(t, err)
 	claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID, Capacity: 1}
@@ -161,4 +165,100 @@ func TestSandboxReadyChecksOwnerAndKeepsNodeAcrossWake(t *testing.T) {
 	require.Greater(t, resumed.Generation, job.Generation)
 	_, err = s.Update(t.Context(), &update, false)
 	require.ErrorIs(t, err, hosting.ErrNotFound)
+}
+
+func TestSandboxGateChangeControlsQueueAndRevokesActiveLease(t *testing.T) {
+	ctx := t.Context()
+	s, _, config, owner, _, allowed := sandboxFixture(t)
+	claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID, Capacity: 1}
+
+	*allowed = false
+	require.True(t, s.HostAuthorized(config.HostKey))
+	_, err := s.Status(ctx, owner, true)
+	require.ErrorIs(t, err, hosting.ErrNotFound)
+	job, err := s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.Nil(t, job)
+
+	*allowed = true
+	status, err := s.Status(ctx, owner, true)
+	require.NoError(t, err)
+	require.Equal(t, "queued", status.Sandbox.Status)
+	*allowed = false
+	job, err = s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.Nil(t, job)
+
+	*allowed = true
+	job, err = s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.NotNil(t, job)
+	update := hosting.Update{
+		Kind: hosting.SandboxKind, HostID: config.HostID, JobID: job.JobID,
+		LeaseToken: job.LeaseToken, Generation: job.Generation, State: "ready", NodeID: "owned-node",
+	}
+	_, err = s.Update(ctx, &update, true)
+	require.NoError(t, err)
+
+	*allowed = false
+	update.State, update.NodeID = "", ""
+	expiry, err := s.Update(ctx, &update, false)
+	require.ErrorIs(t, err, hosting.ErrUnauthorized)
+	require.True(t, expiry.IsZero())
+	require.True(t, s.HostAuthorized(config.HostKey))
+
+	*allowed = true
+	status, err = s.Status(ctx, owner, false)
+	require.NoError(t, err)
+	require.Equal(t, &hosting.SandboxView{Status: "sleeping", NodeID: "owned-node"}, status.Sandbox)
+	_, err = s.Update(ctx, &update, false)
+	require.ErrorIs(t, err, hosting.ErrConflict)
+	_, err = s.Status(ctx, owner, true)
+	require.NoError(t, err)
+	resumed, err := s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.NotNil(t, resumed)
+	require.Equal(t, "owned-node", resumed.NodeID)
+	require.Greater(t, resumed.Generation, job.Generation)
+}
+
+func TestSandboxGateDeniesUnfinishedCreationButAllowsValidTerminalUpdate(t *testing.T) {
+	for _, finish := range []string{"ready", "sleeping"} {
+		t.Run(finish, func(t *testing.T) {
+			ctx := t.Context()
+			s, _, config, owner, _, allowed := sandboxFixture(t)
+			_, err := s.Status(ctx, owner, true)
+			require.NoError(t, err)
+			claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID, Capacity: 1}
+			job, err := s.Claim(ctx, &claim)
+			require.NoError(t, err)
+			require.NotNil(t, job)
+			*allowed = false
+			claim.Capacity = 0
+			replayed, err := s.Claim(ctx, &claim)
+			require.NoError(t, err)
+			require.Nil(t, replayed)
+
+			update := hosting.Update{
+				Kind: hosting.SandboxKind, HostID: config.HostID, JobID: job.JobID,
+				LeaseToken: "wrong-lease", Generation: job.Generation, State: finish,
+			}
+			if finish == "ready" {
+				update.NodeID = "owned-node"
+			}
+			_, err = s.Update(ctx, &update, true)
+			require.ErrorIs(t, err, hosting.ErrConflict)
+			update.LeaseToken = job.LeaseToken
+			_, err = s.Update(ctx, &update, true)
+			if finish == "ready" {
+				require.ErrorIs(t, err, hosting.ErrUnauthorized)
+			} else {
+				require.NoError(t, err)
+			}
+			*allowed = true
+			status, err := s.Status(ctx, owner, false)
+			require.NoError(t, err)
+			require.Equal(t, &hosting.SandboxView{Status: "sleeping"}, status.Sandbox)
+		})
+	}
 }

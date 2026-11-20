@@ -84,7 +84,7 @@ func TestResolvedEnabledGivenUnknownOrShortKeysThenIsPure(t *testing.T) {
 	assert.False(t, resolved.Enabled(principal("m@example.com", false), "secretary"))
 }
 
-func TestDefaultRegistryGivenNoOverridesThenEveryFeatureIsAdminOnly(t *testing.T) {
+func TestDefaultRegistryGivenNoOverridesThenHostedSandboxIsOff(t *testing.T) {
 	resolved, _ := resolve(DefaultRegistry(), func(string) string { return "" }, nil, 0)
 	member := principal("member@example.com", false)
 	admin := principal("root@example.com", true)
@@ -92,9 +92,10 @@ func TestDefaultRegistryGivenNoOverridesThenEveryFeatureIsAdminOnly(t *testing.T
 		assert.False(t, enabled, name)
 	}
 	for name, enabled := range resolved.Features(admin) {
-		assert.True(t, enabled, name)
+		assert.Equal(t, name != FeatureHostedSandbox, enabled, name)
 	}
-	assert.Len(t, resolved.Features(member), 7)
+	assert.Equal(t, StageOff, resolved.FeatureStage(FeatureHostedSandbox))
+	assert.Len(t, resolved.Features(member), 8)
 }
 
 func envOf(values map[string]string) EnvLookup {

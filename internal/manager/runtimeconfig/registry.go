@@ -94,6 +94,7 @@ const (
 	FeatureBrowserControl    = "browser_control"
 	FeatureAndroidControl    = "android_control"
 	FeatureVoiceInput        = "voice_input"
+	FeatureHostedSandbox     = "hosted_sandbox"
 )
 
 const featurePrefix = "feature."
@@ -136,6 +137,7 @@ func DefaultRegistry() []Entry {
 		feature(FeatureAndroidControl, "Android control",
 			"Watching and taking over Android on a device."),
 		voiceInputFeature(),
+		hostedSandboxFeature(),
 
 		setting("search.url", "search", "Search URL",
 			"Elasticsearch base URL. Empty disables workspace search.",
@@ -196,6 +198,16 @@ func feature(name, label, description string) Entry {
 		Apply:       ApplyLive,
 		Validate:    validateFeature,
 	}
+}
+
+func hostedSandboxFeature() Entry {
+	entry := feature(
+		FeatureHostedSandbox,
+		"Pax sandbox",
+		"Creating and running a cloud sandbox Node.",
+	)
+	entry.Default = Feature{Stage: StageOff}
+	return entry
 }
 
 // voiceInputFeature follows VOICE_ADMIN_ONLY when no override exists:
