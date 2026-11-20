@@ -21,8 +21,9 @@ type SandboxModelAccess struct {
 }
 
 type SandboxModelAgent struct {
-	AgentID string `json:"agent_id"`
-	State   string `json:"state"`
+	AgentID    string `json:"agent_id"`
+	State      string `json:"state"`
+	ReasonCode string `json:"reason_code,omitempty"`
 }
 
 type sandboxModelWorker struct {
@@ -38,6 +39,7 @@ type sandboxModelGrant struct {
 	AgentID    string             `json:"agent_id"`
 	Harness    string             `json:"harness"`
 	State      string             `json:"state"`
+	ReasonCode string             `json:"reason_code,omitempty"`
 	Job        *Job               `json:"job,omitempty"`
 }
 
@@ -117,6 +119,19 @@ func sandboxGrantState(grant *sandboxModelGrant, parent sandboxModelParent, now 
 	return grant.State
 }
 
+func sandboxModelFailureReason(state, code string) string {
+	if state == "sleeping" && code == "" {
+		return "lease_ended"
+	}
+	switch code {
+	case "host_capacity", "host_environment_limit", "container_exited", "node_connection_timeout",
+		"lease_ended", "lease_expired", "acp_probe_timeout", "acp_session_failed":
+		return code
+	default:
+		return "model_setup_failed"
+	}
+}
+
 func sandboxModelGrantKey(owner, agent string) string {
 	return owner + "/" + agent
 }
@@ -166,9 +181,16 @@ func sandboxModelAgents(
 		if grant == nil || grant.Owner != owner || grant.Parent != parent {
 			continue
 		}
-		agents = append(agents, SandboxModelAgent{
+		view := SandboxModelAgent{
 			AgentID: grant.AgentID, State: sandboxGrantState(grant, parent, now),
-		})
+		}
+		if view.State == "failed" {
+			view.ReasonCode = sandboxModelFailureReason(grant.State, grant.ReasonCode)
+			if grant.Job != nil && grant.Job.Active && !grant.Job.LeaseExpiresAt.After(now) {
+				view.ReasonCode = "lease_expired"
+			}
+		}
+		agents = append(agents, view)
 	}
 	slices.SortFunc(agents, func(a, b SandboxModelAgent) int {
 		return strings.Compare(a.AgentID, b.AgentID)
@@ -463,6 +485,7 @@ func (s *Service) UpdateSandboxModel(
 		if terminal {
 			grant.Job.Active = false
 			grant.State = "failed"
+			grant.ReasonCode = sandboxModelFailureReason(request.State, request.ErrorCode)
 			expiry = grant.Job.LeaseExpiresAt
 			return nil
 		}

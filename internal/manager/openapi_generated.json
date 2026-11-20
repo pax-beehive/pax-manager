@@ -4243,6 +4243,9 @@
           "agent_id": {
             "type": "string"
           },
+          "reason_code": {
+            "type": "string"
+          },
           "state": {
             "type": "string"
           }
