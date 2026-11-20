@@ -15,6 +15,7 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/pax-beehive/paxkit v0.0.0-20261116222722-f08901d65244
+	github.com/prometheus/client_golang v1.12.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.21.0
 	gorm.io/driver/postgres v1.6.0
@@ -202,7 +203,6 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect

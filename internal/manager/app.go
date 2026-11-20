@@ -29,6 +29,11 @@ func Run(ctx context.Context) error {
 	defer closeStore()
 
 	srv := newServer(cfg, store)
+	stopMetrics, err := srv.startMetrics(ctx)
+	if err != nil {
+		return fmt.Errorf("start metrics: %w", err)
+	}
+	defer stopMetrics()
 	// Overrides load in the background; a failed load never blocks startup.
 	stopRuntimeConfig := srv.runtimeConfig.Start(ctx)
 	defer stopRuntimeConfig()
