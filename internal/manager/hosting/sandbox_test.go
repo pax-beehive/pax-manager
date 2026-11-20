@@ -111,6 +111,116 @@ func TestSandboxQueuesNodeOnlyJobAndReplaysUnderSameLease(t *testing.T) {
 	}))
 }
 
+func TestSandboxReportsWaitingOnlyForFreshZeroCapacity(t *testing.T) {
+	ctx := t.Context()
+	s, store, config, owner, now, allowed := sandboxFixture(t)
+	claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID}
+	job, err := s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.Nil(t, job)
+	status, err := s.Status(ctx, owner, true)
+	require.NoError(t, err)
+	require.Equal(t, &hosting.SandboxView{
+		Status: "queued", ReasonCode: "waiting_for_capacity",
+	}, status.Sandbox)
+
+	*now = now.Add(21 * time.Second)
+	status, err = s.Status(ctx, owner, false)
+	require.NoError(t, err)
+	require.Equal(t, &hosting.SandboxView{Status: "queued"}, status.Sandbox)
+	job, err = s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.Nil(t, job)
+	successorConfig := config
+	successorConfig.HostID = "new-sandbox-host"
+	successor := hosting.NewSandbox(store, successorConfig, func() time.Time { return *now },
+		func(context.Context, string) bool { return true },
+		func(context.Context, string, string) error { return nil },
+	)
+	status, err = successor.Status(ctx, owner, false)
+	require.NoError(t, err)
+	require.Equal(t, &hosting.SandboxView{Status: "queued"}, status.Sandbox)
+
+	// A later positive sample supersedes the zero even if another claim cannot run yet.
+	*allowed = false
+	claim.Capacity = 1
+	job, err = s.Claim(ctx, &claim)
+	require.NoError(t, err)
+	require.Nil(t, job)
+	*allowed = true
+	status, err = s.Status(ctx, owner, false)
+	require.NoError(t, err)
+	require.Equal(t, &hosting.SandboxView{Status: "queued"}, status.Sandbox)
+}
+
+func TestSandboxStartupFailureReasons(t *testing.T) {
+	for _, tc := range []struct {
+		workerCode string
+		status     string
+		reason     string
+	}{
+		{"host_environment_limit", "failed", "host_environment_limit"},
+		{"container_exited", "failed", "container_exited"},
+		{"node_connection_timeout", "failed", "node_connection_timeout"},
+		{"startup_failed", "failed", "host_start_failed"},
+		{"unknown private diagnostic", "failed", "host_start_failed"},
+		{"host_capacity", "queued", ""},
+	} {
+		t.Run(tc.workerCode, func(t *testing.T) {
+			ctx := t.Context()
+			s, store, config, owner, _, _ := sandboxFixture(t)
+			_, err := s.Status(ctx, owner, true)
+			require.NoError(t, err)
+			claim := hosting.Claim{Kind: hosting.SandboxKind, HostID: config.HostID, Capacity: 1}
+			job, err := s.Claim(ctx, &claim)
+			require.NoError(t, err)
+			require.NotNil(t, job)
+			update := hosting.Update{
+				Kind: hosting.SandboxKind, HostID: config.HostID, JobID: job.JobID,
+				LeaseToken: job.LeaseToken, Generation: job.Generation, State: "failed",
+				ErrorCode: tc.workerCode,
+			}
+			_, err = s.Update(ctx, &update, true)
+			require.NoError(t, err)
+			status, err := s.Status(ctx, owner, false)
+			require.NoError(t, err)
+			require.Equal(t, &hosting.SandboxView{Status: tc.status, ReasonCode: tc.reason},
+				status.Sandbox)
+			require.NoError(t, store.WithSandboxState(ctx, func(state *hosting.State) error {
+				record := state.Environments[owner]
+				if tc.workerCode == "host_capacity" {
+					require.Nil(t, record.Job)
+					require.Equal(t, job.Generation+1, record.Generation)
+				} else {
+					require.Equal(t, tc.reason, record.Starter.ErrorCode)
+				}
+				return nil
+			}))
+			status, err = s.Status(ctx, owner, true)
+			require.NoError(t, err)
+			require.Equal(t, &hosting.SandboxView{Status: "queued"}, status.Sandbox)
+		})
+	}
+}
+
+func TestSandboxSanitizesHistoricalFailureReason(t *testing.T) {
+	ctx := t.Context()
+	s, store, _, owner, _, _ := sandboxFixture(t)
+	for _, historicalCode := range []string{"", "host_start_failed", "private diagnostic"} {
+		require.NoError(t, store.WithSandboxState(ctx, func(state *hosting.State) error {
+			state.Environments[owner] = &hosting.EnvironmentRecord{
+				Starter: hosting.Starter{State: "failed", ErrorCode: historicalCode},
+			}
+			return nil
+		}))
+		status, err := s.Status(ctx, owner, false)
+		require.NoError(t, err)
+		require.Equal(t, &hosting.SandboxView{
+			Status: "failed", ReasonCode: "host_start_failed",
+		}, status.Sandbox)
+	}
+}
+
 func TestSandboxReadyChecksOwnerAndKeepsNodeAcrossWake(t *testing.T) {
 	s, _, config, owner, now, _ := sandboxFixture(t)
 	_, err := s.Status(t.Context(), owner, true)

@@ -11,6 +11,8 @@ import (
 
 const SandboxKind = "node_only"
 
+const sandboxCapacityFreshness = 20 * time.Second
+
 type SandboxConfig struct {
 	HostKey, HostID, CloudURL string
 	LeaseTTL                  time.Duration
@@ -34,8 +36,15 @@ type SandboxStatus struct {
 }
 
 type SandboxView struct {
-	Status string `json:"status"`
-	NodeID string `json:"node_id,omitempty"`
+	Status     string `json:"status"`
+	NodeID     string `json:"node_id,omitempty"`
+	ReasonCode string `json:"reason_code,omitempty"`
+}
+
+type sandboxCapacityReport struct {
+	HostID         string    `json:"host_id"`
+	AvailableSlots int       `json:"available_slots"`
+	ObservedAt     time.Time `json:"observed_at"`
 }
 
 func NewSandbox(
@@ -94,17 +103,49 @@ func (s *SandboxService) Status(
 			}}
 			state.Environments[owner] = record
 		}
-		expireSandbox(record, s.now())
+		now := s.now()
+		expireSandbox(record, now)
 		if wake && (record.Starter.State == "sleeping" || record.Starter.State == "failed") {
 			record.Generation++
 			record.Starter.State = "queued"
 			record.Starter.ErrorCode = ""
 			record.Job = nil
 		}
-		result.Sandbox = &SandboxView{Status: record.Starter.State, NodeID: record.Starter.NodeID}
+		result.Sandbox = &SandboxView{
+			Status:     record.Starter.State,
+			NodeID:     record.Starter.NodeID,
+			ReasonCode: s.sandboxReason(record, state.SandboxCapacity, now),
+		}
 		return nil
 	})
 	return result, err
+}
+
+func (s *SandboxService) sandboxReason(
+	record *EnvironmentRecord,
+	capacity *sandboxCapacityReport,
+	now time.Time,
+) string {
+	switch record.Starter.State {
+	case "failed":
+		return sandboxFailureReason(record.Starter.ErrorCode)
+	case "queued":
+		if sandboxOnHost(record, s.config.HostID) && capacity != nil &&
+			capacity.HostID == s.config.HostID && capacity.AvailableSlots == 0 &&
+			!capacity.ObservedAt.After(now) && now.Sub(capacity.ObservedAt) <= sandboxCapacityFreshness {
+			return "waiting_for_capacity"
+		}
+	}
+	return ""
+}
+
+func sandboxFailureReason(code string) string {
+	switch code {
+	case "host_environment_limit", "container_exited", "node_connection_timeout":
+		return code
+	default:
+		return "host_start_failed"
+	}
 }
 
 func expireSandbox(record *EnvironmentRecord, now time.Time) {
@@ -169,6 +210,11 @@ func (s *SandboxService) sandboxClaimCandidates(
 	var candidates []sandboxClaimCandidate
 	err := s.store.WithSandboxState(ctx, func(state *State) error {
 		now := s.now()
+		if !request.CapacityMissing {
+			state.SandboxCapacity = &sandboxCapacityReport{
+				HostID: request.HostID, AvailableSlots: request.Capacity, ObservedAt: now,
+			}
+		}
 		for owner, record := range state.Environments {
 			if !sandboxOnHost(record, request.HostID) || record.Starter.OwnerUserID != owner {
 				continue
@@ -277,6 +323,9 @@ func (s *SandboxService) Update(
 			record.Job.RegistrationToken = ""
 		}
 		applyUpdate(record, request, complete)
+		if complete && record.Starter.State == "failed" {
+			record.Starter.ErrorCode = sandboxFailureReason(request.ErrorCode)
+		}
 		return nil
 	})
 	if err == nil && !allowed {

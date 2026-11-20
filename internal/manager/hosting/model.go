@@ -195,6 +195,7 @@ type State struct {
 	PoolSpentBaselineMicrousd int64                         `json:"pool_spent_baseline_microusd"`
 	Registrations             map[string]Registration       `json:"-"`
 	Admin                     AdminControls                 `json:"admin"`
+	SandboxCapacity           *sandboxCapacityReport        `json:"sandbox_capacity,omitempty"`
 }
 
 func (s *State) Initialize() {
@@ -221,11 +222,12 @@ type Status struct {
 	UserBudgetAvailable bool      `json:"user_budget_available"`
 }
 type Claim struct {
-	Kind          string  `json:"kind,omitempty"`
-	HostID        string  `json:"host_id"`
-	Capacity      int     `json:"capacity"`
-	OwnerUserID   *string `json:"owner_user_id,omitempty"`
-	EnvironmentID *string `json:"environment_id,omitempty"`
+	Kind            string  `json:"kind,omitempty"`
+	HostID          string  `json:"host_id"`
+	Capacity        int     `json:"capacity"`
+	OwnerUserID     *string `json:"owner_user_id,omitempty"`
+	EnvironmentID   *string `json:"environment_id,omitempty"`
+	CapacityMissing bool    `json:"-"`
 }
 
 type WakeTarget struct {

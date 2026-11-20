@@ -3152,6 +3152,7 @@ struct HostingStatusResponse {
 struct SandboxNode {
   1: required string status
   2: optional string node_id
+  3: optional string reason_code
 }
 struct SandboxNodeData {
   1: optional SandboxNode sandbox
