@@ -132,7 +132,9 @@ func (s *SandboxService) sandboxReason(
 	case "queued":
 		if sandboxOnHost(record, s.config.HostID) && capacity != nil &&
 			capacity.HostID == s.config.HostID && capacity.AvailableSlots == 0 &&
-			!capacity.ObservedAt.After(now) && now.Sub(capacity.ObservedAt) <= sandboxCapacityFreshness {
+			!capacity.ObservedAt.After(
+				now,
+			) && now.Sub(capacity.ObservedAt) <= sandboxCapacityFreshness {
 			return "waiting_for_capacity"
 		}
 	}
