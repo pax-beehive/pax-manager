@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -89,7 +90,11 @@ func sandboxNodeResult(c context.Context, ctx *app.RequestContext, wake bool) {
 		return
 	}
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, "sandbox_unavailable")
+		message := "Unable to read sandbox status."
+		if wake {
+			message = "Unable to queue sandbox creation."
+		}
+		writeError(ctx, http.StatusInternalServerError, message)
 		return
 	}
 	writeData(ctx, http.StatusOK, result)
@@ -107,4 +112,67 @@ func StartSandboxNode(
 	ctx *app.RequestContext,
 ) {
 	sandboxNodeResult(c, ctx, true)
+}
+
+func ResumeSandboxNode(c context.Context, ctx *app.RequestContext) {
+	reopenSandboxNode(c, ctx, false)
+}
+
+func RestartSandboxNode(c context.Context, ctx *app.RequestContext) {
+	reopenSandboxNode(c, ctx, true)
+}
+
+func reopenSandboxNode(c context.Context, ctx *app.RequestContext, restart bool) {
+	s := serviceFromContext(ctx)
+	principal, err := s.userPrincipal(c, ctx)
+	if err != nil {
+		writeEndpointError(ctx, err)
+		return
+	}
+	ctx.Header("Cache-Control", "no-store")
+	var target struct {
+		NodeID     string `json:"node_id"`
+		Generation int64  `json:"generation"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(ctx.Request.Body()))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&target); err != nil || decoder.Decode(new(any)) != io.EOF ||
+		target.NodeID == "" {
+		writeError(
+			ctx,
+			http.StatusBadRequest,
+			"Sandbox recovery failed. Select an existing sandbox.",
+		)
+		return
+	}
+	owner := principal.User.UserID
+	var result *hosting.SandboxStatus
+	message := "Unable to queue sandbox recovery."
+	if restart {
+		message = "Unable to queue sandbox restart."
+		if target.Generation <= 0 {
+			writeError(
+				ctx,
+				http.StatusBadRequest,
+				"Sandbox restart failed. Refresh the sandbox status and try again.",
+			)
+			return
+		}
+		result, err = s.sandboxNodes.Restart(c, owner, target.NodeID, target.Generation)
+	} else {
+		result, err = s.sandboxNodes.Resume(c, owner, target.NodeID)
+	}
+	if errors.Is(err, hosting.ErrNotFound) || errors.Is(err, hosting.ErrDisabled) {
+		writeError(
+			ctx,
+			http.StatusNotFound,
+			"Sandbox recovery failed. This sandbox is unavailable.",
+		)
+		return
+	}
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, message)
+		return
+	}
+	writeData(ctx, http.StatusOK, result)
 }

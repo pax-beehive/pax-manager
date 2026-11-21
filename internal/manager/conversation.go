@@ -184,7 +184,8 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 		claimSessionIDs...,
 	)
 	if err != nil {
-		writeHTTPEndpointError(w, err)
+		status, message := endpointErrorStatus(err)
+		writeHTTPError(w, status, "Agent connection failed. "+message)
 		return
 	}
 	defer release()
@@ -199,7 +200,8 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 	if session.nativeID == "" {
 		session, err = s.createConversationSession(r.Context(), principal, &runner, req)
 		if err != nil {
-			writeHTTPEndpointError(w, err)
+			status, message := endpointErrorStatus(err)
+			writeHTTPError(w, status, "Agent session startup failed. "+message)
 			return
 		}
 	}
@@ -688,7 +690,7 @@ func (s *Service) promptConversationOnce(
 		)
 		if err != nil {
 			s.expireConversationSearchAccess(ctx, runner, session)
-			return false, err
+			return false, fmt.Errorf("Sending the message to the agent failed. %w", err)
 		}
 		completed, streamErr := s.streamConversationUntilPromptDone(
 			ctx,
@@ -1071,6 +1073,37 @@ func (s *Service) streamConversationUntilPromptDone(
 	promptRequestID string,
 	waiter <-chan acpResponseWaiterResult,
 ) (bool, error) {
+	connectionEnded := apperr.Error{
+		Status:  http.StatusServiceUnavailable,
+		Message: "Message connection ended before the agent finished this turn.",
+	}
+	finish := func(result acpResponseWaiterResult) (bool, error) {
+		if result.err != nil {
+			return false, fmt.Errorf("Agent response connection failed. %w", result.err)
+		}
+		s.drainConversationSSE(ctx, w, flusher, runner, session, sub)
+		var msg acpJSONRPCMessage
+		_ = json.Unmarshal(result.payload, &msg)
+		if len(msg.Error) > 0 {
+			return false, fmt.Errorf(
+				"Agent reply failed. %w",
+				decodeConversationACPError(msg.Error),
+			)
+		}
+		return true, nil
+	}
+	finishDisconnected := func(err error) (bool, error) {
+		// A reply already received wins over a simultaneous transport shutdown.
+		select {
+		case result := <-waiter:
+			return finish(result)
+		default:
+		}
+		if err != nil {
+			return false, fmt.Errorf("Agent response connection failed. %w", err)
+		}
+		return false, connectionEnded
+	}
 	timer := time.NewTimer(conversationRequestIdleTimeout)
 	defer timer.Stop()
 	for {
@@ -1079,9 +1112,9 @@ func (s *Service) streamConversationUntilPromptDone(
 			if !ok {
 				select {
 				case err := <-sub.terminal:
-					return false, err
+					return finishDisconnected(err)
 				default:
-					return false, nil
+					return finishDisconnected(nil)
 				}
 			}
 			resetConversationIdleTimer(timer)
@@ -1097,26 +1130,13 @@ func (s *Service) streamConversationUntilPromptDone(
 				return false, err
 			}
 		case result := <-waiter:
-			if result.err != nil {
-				return false, result.err
-			}
-			payload := result.payload
-			s.drainConversationSSE(ctx, w, flusher, runner, session, sub)
-			var msg acpJSONRPCMessage
-			_ = json.Unmarshal(payload, &msg)
-			if len(msg.Error) > 0 {
-				return false, decodeConversationACPError(msg.Error)
-			}
-			return true, nil
-		case err, ok := <-sub.terminal:
-			if ok && err != nil {
-				return false, err
-			}
-			return false, nil
+			return finish(result)
+		case err := <-sub.terminal:
+			return finishDisconnected(err)
 		case <-timer.C:
 			return false, apperr.Error{
 				Status:  http.StatusGatewayTimeout,
-				Message: "ACP request idle timed out: session/prompt",
+				Message: "Agent response idle timed out.",
 			}
 		case <-ctx.Done():
 			return false, ctx.Err()

@@ -247,7 +247,11 @@ func TestSandboxReadyChecksOwnerAndKeepsNodeAcrossWake(t *testing.T) {
 	}
 	status, err := s.Status(t.Context(), owner, true)
 	require.NoError(t, err)
-	require.Equal(t, &hosting.SandboxView{Status: "ready", NodeID: "owned-node"}, status.Sandbox)
+	require.Equal(
+		t,
+		&hosting.SandboxView{Status: "ready", NodeID: "owned-node", Generation: 1},
+		status.Sandbox,
+	)
 
 	update.NodeID = "other-owned-node"
 	_, err = s.Update(t.Context(), &update, true)
@@ -262,7 +266,11 @@ func TestSandboxReadyChecksOwnerAndKeepsNodeAcrossWake(t *testing.T) {
 	require.ErrorIs(t, err, hosting.ErrConflict)
 	status, err = s.Status(t.Context(), owner, false)
 	require.NoError(t, err)
-	require.Equal(t, &hosting.SandboxView{Status: "sleeping", NodeID: "owned-node"}, status.Sandbox)
+	require.Equal(
+		t,
+		&hosting.SandboxView{Status: "sleeping", NodeID: "owned-node", Generation: 1},
+		status.Sandbox,
+	)
 	status, err = s.Status(t.Context(), owner, true)
 	require.NoError(t, err)
 	require.Equal(t, "queued", status.Sandbox.Status)
@@ -320,7 +328,11 @@ func TestSandboxGateChangeControlsQueueAndRevokesActiveLease(t *testing.T) {
 	*allowed = true
 	status, err = s.Status(ctx, owner, false)
 	require.NoError(t, err)
-	require.Equal(t, &hosting.SandboxView{Status: "sleeping", NodeID: "owned-node"}, status.Sandbox)
+	require.Equal(
+		t,
+		&hosting.SandboxView{Status: "sleeping", NodeID: "owned-node", Generation: 1},
+		status.Sandbox,
+	)
 	_, err = s.Update(ctx, &update, false)
 	require.ErrorIs(t, err, hosting.ErrConflict)
 	_, err = s.Status(ctx, owner, true)

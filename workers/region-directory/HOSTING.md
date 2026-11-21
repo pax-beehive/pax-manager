@@ -69,10 +69,19 @@ checks. Native WorkOS callers use `/api/v1/native/client/starter` and
 Those existing route prefixes are sufficient; no direct Starter CF route was
 added. Wrong methods, trailing slashes and neighboring paths are rejected.
 
-The browser also allows exactly `GET` and `POST` on `/api/v1/sandbox` through
-the same `/api/pax` prefix. These requests use the existing WorkOS identity,
-origin check and home-region routing. Manager determines availability for the
-current account. The sandbox route is browser-only.
+The browser sandbox controls use the same `/api/pax` prefix, WorkOS identity,
+origin check and home-region routing. Exact allowed methods and paths are:
+
+```text
+GET  /api/v1/sandbox
+POST /api/v1/sandbox
+POST /api/v1/sandbox/resume
+POST /api/v1/sandbox/restart
+```
+
+Manager determines availability for the current account. Sandbox controls are
+browser-only. Recovery targets the registered Node ID, and restart also checks
+the last observed sandbox generation so retries cannot restart a later run.
 
 The browser prefix is removed before origin signing, and the original Manager
 method/path is signed as before. Manager aliases, signature formats and owner

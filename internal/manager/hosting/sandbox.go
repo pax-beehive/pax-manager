@@ -39,6 +39,7 @@ type SandboxView struct {
 	Status     string `json:"status"`
 	NodeID     string `json:"node_id,omitempty"`
 	ReasonCode string `json:"reason_code,omitempty"`
+	Generation int64  `json:"generation,omitempty"`
 }
 
 type sandboxCapacityReport struct {
@@ -85,7 +86,7 @@ func (s *SandboxService) Status(
 	owner string,
 	wake bool,
 ) (*SandboxStatus, error) {
-	if s == nil || !s.configured || owner == "" || !s.allowOwner(ctx, owner) {
+	if !s.availableTo(ctx, owner) {
 		return nil, ErrNotFound
 	}
 	result := &SandboxStatus{}
@@ -105,20 +106,92 @@ func (s *SandboxService) Status(
 		}
 		now := s.now()
 		expireSandbox(record, now)
-		if wake && (record.Starter.State == "sleeping" || record.Starter.State == "failed") {
-			record.Generation++
-			record.Starter.State = "queued"
-			record.Starter.ErrorCode = ""
-			record.Job = nil
+		if wake && sandboxStopped(record) {
+			queueSandbox(state, record)
 		}
-		result.Sandbox = &SandboxView{
-			Status:     record.Starter.State,
-			NodeID:     record.Starter.NodeID,
-			ReasonCode: s.sandboxReason(record, state.SandboxCapacity, now),
-		}
+		result.Sandbox = s.sandboxView(state, record, now)
 		return nil
 	})
 	return result, err
+}
+
+func (s *SandboxService) Resume(ctx context.Context, owner, nodeID string) (*SandboxStatus, error) {
+	return s.reopen(ctx, owner, nodeID, 0)
+}
+
+func (s *SandboxService) Restart(
+	ctx context.Context,
+	owner, nodeID string,
+	generation int64,
+) (*SandboxStatus, error) {
+	if generation <= 0 {
+		return nil, ErrConflict
+	}
+	return s.reopen(ctx, owner, nodeID, generation)
+}
+
+func (s *SandboxService) availableTo(ctx context.Context, owner string) bool {
+	return s != nil && s.configured && owner != "" && s.allowOwner(ctx, owner)
+}
+
+func (s *SandboxService) reopen(
+	ctx context.Context,
+	owner, nodeID string,
+	restartGeneration int64,
+) (*SandboxStatus, error) {
+	if !s.availableTo(ctx, owner) || nodeID == "" || s.validateNode(ctx, owner, nodeID) != nil {
+		return nil, ErrNotFound
+	}
+	result := &SandboxStatus{}
+	err := s.store.WithSandboxState(ctx, func(state *State) error {
+		record := state.Environments[owner]
+		if record == nil || record.Starter.OwnerUserID != owner || record.Starter.NodeID != nodeID {
+			return ErrNotFound
+		}
+		now := s.now()
+		expireSandbox(record, now)
+		if restartGeneration == 0 && sandboxStopped(record) {
+			queueSandbox(state, record)
+		}
+		// A retry of a restart already accepted for this generation only reads the new state.
+		if restartGeneration > 0 && restartGeneration == record.Generation &&
+			(sandboxStopped(record) || record.Starter.State == "ready") {
+			queueSandbox(state, record)
+		}
+		result.Sandbox = s.sandboxView(state, record, now)
+		return nil
+	})
+	return result, err
+}
+
+func sandboxStopped(record *EnvironmentRecord) bool {
+	return record.Starter.State == "sleeping" || record.Starter.State == "failed"
+}
+
+func queueSandbox(state *State, record *EnvironmentRecord) {
+	if record.Job != nil && record.Job.RegistrationToken != "" {
+		delete(state.Registrations, hash(record.Job.RegistrationToken))
+	}
+	record.Generation++
+	record.Starter.State = "queued"
+	record.Starter.ErrorCode = ""
+	record.Job = nil
+}
+
+func (s *SandboxService) sandboxView(
+	state *State,
+	record *EnvironmentRecord,
+	now time.Time,
+) *SandboxView {
+	view := &SandboxView{
+		Status:     record.Starter.State,
+		NodeID:     record.Starter.NodeID,
+		ReasonCode: s.sandboxReason(record, state.SandboxCapacity, now),
+	}
+	if view.NodeID != "" {
+		view.Generation = record.Generation
+	}
+	return view
 }
 
 func (s *SandboxService) sandboxReason(

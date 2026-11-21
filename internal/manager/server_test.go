@@ -4573,7 +4573,7 @@ func TestConversationPromptReturnsErrorAfterIdleTimeout(t *testing.T) {
 	events := decodeConversationEvents(t, body)
 	errorEvent := requireConversationEvent(t, events, "error")
 	assert.Equal(t, http.StatusGatewayTimeout, errorEvent.StatusCode)
-	assert.Contains(t, errorEvent.Message, "ACP request idle timed out: session/prompt")
+	assert.Contains(t, errorEvent.Message, "Agent response idle timed out.")
 }
 
 func TestConversationContinuesExistingSessionWithoutInitialize(t *testing.T) {
@@ -4847,6 +4847,29 @@ func TestConversationRejectsWrongNodeBeforeClaim(t *testing.T) {
 	}
 }
 
+func TestConversationPreservesTerminalReplyDuringStreamShutdown(t *testing.T) {
+	for _, hasReply := range []bool{false, true} {
+		stream := &acpSSESubscriber{ch: make(chan []byte), terminal: make(chan error, 1)}
+		stream.close(nil)
+		reply := make(chan acpResponseWaiterResult, 1)
+		if hasReply {
+			reply <- acpResponseWaiterResult{payload: json.RawMessage(`{"id":1,"result":{}}`)}
+		}
+		server := &Service{}
+		recorder := httptest.NewRecorder()
+		completed, err := server.streamConversationUntilPromptDone(
+			t.Context(), recorder, recorder, &conversationRunner{}, conversationSession{},
+			stream, "1", reply,
+		)
+		assert.Equal(t, hasReply, completed)
+		if hasReply {
+			assert.NoError(t, err)
+		} else {
+			assert.ErrorContains(t, err, "Message connection ended before the agent finished this turn.")
+		}
+	}
+}
+
 func TestConversationReturnsHTTPErrorWhenSessionNewFailsBeforeStream(t *testing.T) {
 	srv, _ := testServer(t, "todd@example.com")
 	fixture := testNodeAgent(t, srv, "todd@example.com")
@@ -4887,7 +4910,7 @@ func TestConversationReturnsHTTPErrorWhenSessionNewFailsBeforeStream(t *testing.
 	var response apiResponse
 	require.NoError(t, json.Unmarshal(body, &response))
 	assert.Equal(t, http.StatusBadGateway, response.Code)
-	assert.Equal(t, "session create failed", response.Message)
+	assert.Equal(t, "Agent session startup failed. session create failed", response.Message)
 	assert.Nil(t, response.Data)
 }
 
