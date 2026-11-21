@@ -2387,6 +2387,21 @@
         },
         "type": "object"
       },
+      "HostingSandboxModelTarget": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "agent_id"
+        ],
+        "type": "object"
+      },
       "HostingStarter": {
         "properties": {
           "access_paused": {
@@ -2495,6 +2510,12 @@
           },
           "lease_token": {
             "type": "string"
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "node_id": {
             "type": "string"
@@ -4243,6 +4264,15 @@
           "agent_id": {
             "type": "string"
           },
+          "enabled": {
+            "type": "boolean"
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "reason_code": {
             "type": "string"
           },
@@ -4258,6 +4288,10 @@
       },
       "SandboxNode": {
         "properties": {
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
           "node_id": {
             "type": "string"
           },
@@ -4294,6 +4328,21 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "SandboxNodeTarget": {
+        "properties": {
+          "generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "node_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id"
+        ],
         "type": "object"
       },
       "Secret": {
@@ -8232,6 +8281,178 @@
         ]
       }
     },
+    "/api/v1/sandbox/restart": {
+      "post": {
+        "description": "Requires the saved Node ID and observed generation. The worker fences the previous run before starting another on the same disk. Replaying the old generation cannot start another restart.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SandboxNodeTarget"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxNodeResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Restart an existing sandbox Node",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/sandbox/resume": {
+      "post": {
+        "description": "Queues the current user's matching saved Node only when it is stopped. The same Node identity and disk are reused.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SandboxNodeTarget"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxNodeResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Start an existing stopped sandbox Node",
+        "tags": [
+          "user"
+        ]
+      }
+    },
     "/api/v1/starter": {
       "get": {
         "description": "Reads personal monthly allowance and shared monthly platform-pool availability and reset times without exposing the operator budget amount.",
@@ -8397,6 +8618,92 @@
           }
         ],
         "summary": "Idempotently create one Starter and monthly model allowance without compute",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/starter/revoke": {
+      "post": {
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingSandboxModelTarget"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingStatusResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Revoke model access for an owned sandbox Agent",
         "tags": [
           "user"
         ]

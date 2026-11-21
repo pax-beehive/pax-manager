@@ -8,12 +8,15 @@ const combinations = [
   ["GET", "/api/v1/starter"],
   ["POST", "/api/v1/starter"],
   ["POST", "/api/v1/starter/wake"],
+  ["POST", "/api/v1/starter/revoke"],
 ] as const;
 const rejected = [
   ["HEAD", "/api/v1/starter"],
   ["PUT", "/api/v1/starter"],
   ["DELETE", "/api/v1/starter"],
   ["GET", "/api/v1/starter/wake"],
+  ["GET", "/api/v1/starter/revoke"],
+  ["POST", "/api/v1/starter/revoke/child"],
   ["POST", "/api/v1/starter/"],
   ["POST", "/api/v1/starter/wake/"],
   ["POST", "/api/v1/starter/wake/child"],
@@ -69,7 +72,12 @@ describe("authenticated owner Starter routes", () => {
         .mockImplementation(async () => Response.json({ data: {} }));
       vi.stubGlobal("fetch", upstream);
       for (const [method, path] of combinations) {
-        const body = method === "POST" ? "{ }\n" : undefined;
+        const body =
+          path === "/api/v1/starter/revoke"
+            ? '{"node_id":"node_fixture","agent_id":"agent_fixture"}'
+            : method === "POST"
+              ? "{ }\n"
+              : undefined;
         const request = new Request(
           `${env.PUBLIC_ORIGIN}/api/v1/native/${region}/${path.slice("/api/v1/".length)}`,
           {
@@ -109,7 +117,7 @@ describe("authenticated owner Starter routes", () => {
         ])
           expect(options.headers.has(name)).toBe(false);
       }
-      expect(upstream).toHaveBeenCalledTimes(3);
+      expect(upstream).toHaveBeenCalledTimes(combinations.length);
     },
   );
 

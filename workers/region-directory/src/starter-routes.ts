@@ -2,6 +2,7 @@
 export function allowedStarterRoute(method: string, path: string): boolean {
   return (
     (path === "/api/v1/starter" && (method === "GET" || method === "POST")) ||
-    (path === "/api/v1/starter/wake" && method === "POST")
+    ((path === "/api/v1/starter/wake" || path === "/api/v1/starter/revoke") &&
+      method === "POST")
   );
 }

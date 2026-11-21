@@ -151,17 +151,22 @@ it("given a local account, forwards a signed local request with no CF identity o
   expect(app.directory.preparePeer).not.toHaveBeenCalled();
   expect(app.provision).not.toHaveBeenCalled();
 });
-it.each(["GET", "POST"])(
-  "signs the exact browser sandbox %s with the authenticated owner",
-  async (method) => {
+it.each([
+  ["GET", "/api/v1/sandbox"],
+  ["POST", "/api/v1/sandbox"],
+  ["POST", "/api/v1/sandbox/resume"],
+  ["POST", "/api/v1/sandbox/restart"],
+])(
+  "signs browser sandbox %s %s with the authenticated owner",
+  async (method, path) => {
     const plan = (await app.handle(
-      new Request("https://hk.example/api/pax/api/v1/sandbox", {
+      new Request(`https://hk.example/api/pax${path}`, {
         method,
         headers: { "X-Pax-Identity-Assertion": "forged" },
       }),
     )) as ProxyPlan;
     expect(plan.target).toBe(config.managerURL);
-    expect(plan.path).toBe("/api/v1/sandbox");
+    expect(plan.path).toBe(path);
     expect(app.authenticate).toHaveBeenCalledOnce();
     expect(app.verifyNative).not.toHaveBeenCalled();
     const proof = plan.headers!.get("X-Pax-Identity-Assertion")!;
@@ -175,6 +180,8 @@ it("keeps sandbox requests inside the exact authenticated browser route", async 
     ["DELETE", "/api/pax/api/v1/sandbox"],
     ["POST", "/api/pax/api/v1/sandbox/"],
     ["POST", "/api/pax/api/v1/sandbox/claim"],
+    ["GET", "/api/pax/api/v1/sandbox/restart"],
+    ["POST", "/api/pax/api/v1/sandbox/resume/"],
     ["POST", "/api/pax/api/v1/%73andbox"],
     ["POST", "/api/v1/native/client/sandbox"],
   ]) {

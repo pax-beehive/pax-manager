@@ -1111,3 +1111,23 @@ func _startsandboxnodeMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _sandboxMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _restartsandboxnodeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _resumesandboxnodeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _revokesandboxmodelaccessMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

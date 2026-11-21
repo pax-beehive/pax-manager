@@ -1830,6 +1830,20 @@ service PaxManagerAPI {
     openapi.description = "Idempotently queues an authenticated pilot user's sandbox Node without installing an Agent or allocating model credit.",
     openapi.security = "cloudflareAccess"
   )
+  SandboxNodeResponse ResumeSandboxNode(1: required SandboxNodeTarget request) (
+    api.post = "/api/v1/sandbox/resume",
+    openapi.tag = "user",
+    openapi.summary = "Start an existing stopped sandbox Node",
+    openapi.description = "Queues the current user's matching saved Node only when it is stopped. The same Node identity and disk are reused.",
+    openapi.security = "cloudflareAccess"
+  )
+  SandboxNodeResponse RestartSandboxNode(1: required SandboxNodeTarget request) (
+    api.post = "/api/v1/sandbox/restart",
+    openapi.tag = "user",
+    openapi.summary = "Restart an existing sandbox Node",
+    openapi.description = "Requires the saved Node ID and observed generation. The worker fences the previous run before starting another on the same disk. Replaying the old generation cannot start another restart.",
+    openapi.security = "cloudflareAccess"
+  )
   HostingStatusResponse GetStarter(1: optional EmptyRequest request) (
     api.get = "/api/v1/starter",
     openapi.tag = "user",
@@ -1847,6 +1861,12 @@ service PaxManagerAPI {
     api.post = "/api/v1/starter/wake",
     openapi.tag = "user",
     openapi.summary = "Queue an owned Starter start after checking monthly user and platform budgets",
+    openapi.security = "cloudflareAccess"
+  )
+  HostingStatusResponse RevokeSandboxModelAccess(1: required HostingSandboxModelTarget request) (
+    api.post = "/api/v1/starter/revoke",
+    openapi.tag = "user",
+    openapi.summary = "Revoke model access for an owned sandbox Agent",
     openapi.security = "cloudflareAccess"
   )
   HostingStatusResponse EnrollHostingNode(1: optional HostingEnrollmentRequest request) (
@@ -3139,6 +3159,8 @@ struct SandboxModelAgent {
   1: required string agent_id
   2: required string state
   3: optional string reason_code
+  4: optional bool enabled
+  5: optional list<string> model_ids
 }
 struct SandboxModelAccess {
   1: required string node_id
@@ -3165,6 +3187,11 @@ struct SandboxNode {
   1: required string status
   2: optional string node_id
   3: optional string reason_code
+  4: optional i64 generation
+}
+struct SandboxNodeTarget {
+  1: required string node_id (api.body = "node_id")
+  2: optional i64 generation (api.body = "generation")
 }
 struct SandboxNodeData {
   1: optional SandboxNode sandbox
@@ -3316,6 +3343,10 @@ struct HostingWakeRequest {
   1: optional string node_id
   2: optional string agent_id
 }
+struct HostingSandboxModelTarget {
+  1: required string node_id
+  2: required string agent_id
+}
 struct HostingEnrollmentRequest {
   1: optional string host_id
   2: optional string node_id
@@ -3330,6 +3361,7 @@ struct HostingUpdateRequest {
   7: optional string agent_id
   8: optional string error_code
   9: optional string kind
+  10: optional list<string> model_ids
 }
 struct HostingModelRequest {
   1: optional string model

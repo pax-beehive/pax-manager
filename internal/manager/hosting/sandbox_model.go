@@ -21,9 +21,11 @@ type SandboxModelAccess struct {
 }
 
 type SandboxModelAgent struct {
-	AgentID    string `json:"agent_id"`
-	State      string `json:"state"`
-	ReasonCode string `json:"reason_code,omitempty"`
+	AgentID    string    `json:"agent_id"`
+	State      string    `json:"state"`
+	ReasonCode string    `json:"reason_code,omitempty"`
+	Enabled    bool      `json:"enabled"`
+	ModelIDs   *[]string `json:"model_ids,omitempty"`
 }
 
 type sandboxModelWorker struct {
@@ -33,14 +35,16 @@ type sandboxModelWorker struct {
 }
 
 type sandboxModelGrant struct {
-	Owner      string             `json:"owner"`
-	Parent     sandboxModelParent `json:"parent"`
-	Generation int64              `json:"generation"`
-	AgentID    string             `json:"agent_id"`
-	Harness    string             `json:"harness"`
-	State      string             `json:"state"`
-	ReasonCode string             `json:"reason_code,omitempty"`
-	Job        *Job               `json:"job,omitempty"`
+	Owner      string                  `json:"owner"`
+	Parent     sandboxModelParent      `json:"parent"`
+	Generation int64                   `json:"generation"`
+	AgentID    string                  `json:"agent_id"`
+	Harness    string                  `json:"harness"`
+	State      string                  `json:"state"`
+	ReasonCode string                  `json:"reason_code,omitempty"`
+	Job        *Job                    `json:"job,omitempty"`
+	Permission *sandboxModelPermission `json:"permission,omitempty"`
+	ModelIDs   []string                `json:"model_ids,omitempty"`
 }
 
 type sandboxModelParent struct {
@@ -110,7 +114,7 @@ func sandboxWorkerHarnesses(state *State, host string, now time.Time) []string {
 }
 
 func sandboxGrantState(grant *sandboxModelGrant, parent sandboxModelParent, now time.Time) string {
-	if grant == nil || grant.Parent != parent {
+	if !grant.enabled() || grant.Parent != parent {
 		return "available"
 	}
 	if grant.Job != nil && (!grant.Job.Active || !grant.Job.LeaseExpiresAt.After(now)) {
@@ -143,22 +147,28 @@ func (s *Service) IncludeSandboxModelAccess(
 	status *Status,
 ) error {
 	store, ok := s.sandboxModelStore()
-	if !ok || !s.Sandbox.allowOwner(ctx, owner) {
+	if !ok {
 		return nil
 	}
+	allowed := s.Sandbox.allowOwner(ctx, owner)
 	return store.WithSandboxModelStates(ctx, func(account, sandbox *State) error {
 		now := s.Now()
-		parent, _, ok := s.sandboxModelParent(sandbox, owner, now)
-		if !ok {
+		node := sandboxModelOwnedNode(sandbox, owner)
+		if node == "" {
 			return nil
 		}
-		harnesses := sandboxWorkerHarnesses(account, parent.HostID, now)
-		agents := sandboxModelAgents(account, owner, parent, now)
+		var parent sandboxModelParent
+		var harnesses []string
+		if allowed {
+			parent, _, _ = s.sandboxModelParent(sandbox, owner, now)
+			harnesses = sandboxWorkerHarnesses(account, parent.HostID, now)
+		}
+		agents := s.sandboxModelAgents(account, owner, node, parent, now)
 		if len(harnesses) == 0 && len(agents) == 0 {
 			return nil
 		}
 		status.SandboxModelAccess = &SandboxModelAccess{
-			NodeID: parent.NodeID, Harnesses: append([]string{}, harnesses...),
+			NodeID: node, Harnesses: append([]string{}, harnesses...),
 			State: "available", Agents: agents,
 		}
 		if account.Environments[owner] == nil {
@@ -173,22 +183,25 @@ func (s *Service) IncludeSandboxModelAccess(
 	})
 }
 
-func sandboxModelAgents(
-	account *State, owner string, parent sandboxModelParent, now time.Time,
+func (s *Service) sandboxModelAgents(
+	account *State, owner, node string, parent sandboxModelParent, now time.Time,
 ) []SandboxModelAgent {
 	agents := []SandboxModelAgent{}
 	for _, grant := range account.SandboxModelGrants {
-		if grant == nil || grant.Owner != owner || grant.Parent != parent {
+		if grant == nil || grant.Owner != owner || grant.Parent.NodeID != node {
 			continue
 		}
 		view := SandboxModelAgent{
-			AgentID: grant.AgentID, State: sandboxGrantState(grant, parent, now),
+			AgentID: grant.AgentID, State: sandboxGrantState(grant, parent, now), Enabled: grant.enabled(),
 		}
 		if view.State == "failed" {
 			view.ReasonCode = sandboxModelFailureReason(grant.State, grant.ReasonCode)
 			if grant.Job != nil && grant.Job.Active && !grant.Job.LeaseExpiresAt.After(now) {
 				view.ReasonCode = "lease_expired"
 			}
+		}
+		if view.State == "ready" && grant.Harness == "codex" && len(grant.ModelIDs) != 0 {
+			view.ModelIDs = s.enabledSandboxModelIDs(account, grant.ModelIDs)
 		}
 		agents = append(agents, view)
 	}
@@ -211,8 +224,7 @@ func (s *Service) WakeSandboxModel(
 	}
 	var matched bool
 	if err := store.WithSandboxModelStates(ctx, func(_, sandbox *State) error {
-		record := sandbox.Environments[owner]
-		matched = record != nil && record.Starter.NodeID != "" && record.Starter.NodeID == target.NodeID
+		matched = target != nil && target.NodeID != "" && sandboxModelOwnedNode(sandbox, owner) == target.NodeID
 		return nil
 	}); err != nil || !matched {
 		return matched, err
@@ -232,9 +244,11 @@ func (s *Service) WakeSandboxModel(
 		}
 		key := sandboxModelGrantKey(owner, target.AgentID)
 		prior := account.SandboxModelGrants[key]
-		switch sandboxGrantState(prior, parent, now) {
-		case "queued", "starting", "ready":
-			return nil
+		if prior != nil && prior.Harness == harness {
+			switch sandboxGrantState(prior, parent, now) {
+			case "queued", "starting", "ready":
+				return nil
+			}
 		}
 		if !slices.Contains(sandboxWorkerHarnesses(account, parent.HostID, now), harness) {
 			return ErrDisabled
@@ -248,7 +262,7 @@ func (s *Service) WakeSandboxModel(
 		}
 		account.SandboxModelGrants[key] = &sandboxModelGrant{
 			Owner: owner, Parent: parent, Generation: generation, AgentID: target.AgentID,
-			Harness: harness, State: "queued",
+			Harness: harness, State: "queued", Permission: sandboxModelPermissionFor(prior, parent, harness),
 		}
 		return nil
 	})
@@ -339,17 +353,18 @@ func (s *Service) sandboxModelCandidates(
 		now := s.Now()
 		account.SandboxModelWorker = &sandboxModelWorker{request.HostID, harnesses, now}
 		for _, grant := range account.SandboxModelGrants {
-			if grant == nil || !slices.Contains(harnesses, grant.Harness) {
+			if !grant.enabled() || !slices.Contains(harnesses, grant.Harness) {
 				continue
 			}
 			parent, _, ok := s.sandboxModelParent(sandbox, grant.Owner, now)
-			if !ok || grant.Parent != parent {
+			if !ok {
 				continue
 			}
 			state := sandboxGrantState(grant, parent, now)
-			if state == "starting" || (state == "queued" && request.Capacity > 0) {
+			if state == "starting" || (request.Capacity > 0 &&
+				(state == "queued" || sandboxModelCanResume(grant, parent))) {
 				candidates = append(candidates, sandboxModelCandidate{
-					grant.Owner, parent, grant.AgentID, grant.Harness, grant.Generation,
+					grant.Owner, grant.Parent, grant.AgentID, grant.Harness, grant.Generation,
 				})
 			}
 		}
@@ -388,14 +403,22 @@ func (s *Service) claimSandboxModel(
 		now := s.Now()
 		parent, parentExpiry, ok := s.sandboxModelParent(sandbox, candidate.Owner, now)
 		grant := account.SandboxModelGrants[sandboxModelGrantKey(candidate.Owner, candidate.AgentID)]
-		if !ok || parent != candidate.Parent || !matchesSandboxCandidate(grant, candidate) {
+		if !ok || !grant.enabled() || !matchesSandboxCandidate(grant, candidate) {
 			return nil
 		}
 		if !slices.Contains(sandboxWorkerHarnesses(account, parent.HostID, now), grant.Harness) {
 			return nil
 		}
+		if parent != candidate.Parent && (capacity <= 0 || !sandboxModelCanResume(grant, parent)) {
+			return nil
+		}
 		if _, err := s.sandboxModelWallet(account, candidate.Owner); err != nil {
 			return nil
+		}
+		if parent != candidate.Parent {
+			grant.Parent = parent
+			grant.Generation++
+			grant.State, grant.ReasonCode, grant.Job = "queued", "", nil
 		}
 		switch sandboxGrantState(grant, parent, now) {
 		case "starting":
@@ -403,6 +426,7 @@ func (s *Service) claimSandboxModel(
 			result = &replayed
 		case "queued":
 			if capacity > 0 {
+				grant.Permission = sandboxModelPermissionFor(grant, parent, grant.Harness)
 				result = s.startSandboxModel(account, grant, now, parentExpiry)
 			}
 		}
@@ -423,7 +447,7 @@ func (s *Service) startSandboxModel(
 	grant *sandboxModelGrant,
 	now, parentExpiry time.Time,
 ) *Job {
-	grant.State = "starting"
+	grant.State, grant.ModelIDs = "starting", nil
 	allocation := strings.Join([]string{grant.Owner, grant.Parent.NodeID, grant.AgentID}, "/")
 	job := &Job{
 		Kind: SandboxModelKind, JobID: secret("hjob_"),
@@ -436,7 +460,7 @@ func (s *Service) startSandboxModel(
 		Active: true, NodeID: grant.Parent.NodeID, AgentID: grant.AgentID, Harness: grant.Harness,
 		SandboxEnvironmentID: grant.Parent.EnvironmentID, SandboxGeneration: grant.Parent.Generation,
 	}
-	job.ModelToken = s.signSandboxModel(grant, job.JobID)
+	job.ModelToken = s.signSandboxModelPermission(grant)
 	grant.Job = job
 	result := *job
 	return &result
@@ -497,10 +521,9 @@ func (s *Service) UpdateSandboxModel(
 			return err
 		}
 		if complete {
-			if grant.AgentID != request.AgentID || parent.NodeID != request.NodeID {
-				return ErrUnauthorized
+			if err := grant.markReady(parent, request); err != nil {
+				return err
 			}
-			grant.State = "ready"
 		}
 		expiry = sandboxModelExpiry(now, s.Config.LeaseTTL, parentExpiry)
 		grant.Job.LeaseExpiresAt = expiry
@@ -510,6 +533,10 @@ func (s *Service) UpdateSandboxModel(
 }
 
 func validSandboxModelUpdate(request *Update, complete bool) bool {
+	if request.ModelIDs != nil &&
+		(!complete || request.State != "ready" || !validSandboxModelIDs(request.ModelIDs)) {
+		return false
+	}
 	if request.JobID == "" || request.LeaseToken == "" || request.Generation <= 0 {
 		return false
 	}
@@ -528,7 +555,7 @@ func validSandboxModelUpdate(request *Update, complete bool) bool {
 }
 
 func matchesSandboxModelJob(grant *sandboxModelGrant, request *Update, now time.Time) bool {
-	if grant == nil || grant.Job == nil {
+	if !grant.enabled() || grant.Job == nil {
 		return false
 	}
 	job := grant.Job
@@ -562,31 +589,38 @@ func (s *Service) findSandboxModelCandidate(
 	return found, err
 }
 
-func (s *Service) signSandboxModel(grant *sandboxModelGrant, jobID string) string {
-	subject := strings.Join(
-		[]string{SandboxModelKind, grant.Owner, grant.Parent.NodeID, grant.AgentID, jobID},
-		"/",
-	)
-	return sandboxModelTokenPrefix + sign(s.Config.TokenSecret, subject, grant.Generation)
-}
-
 func (s *Service) withActiveToken(
 	ctx context.Context,
 	token string,
 	spend bool,
 	run func(*State, *EnvironmentRecord, *sandboxModelGrant) error,
 ) error {
-	signedModel, managed := strings.CutPrefix(token, sandboxModelTokenPrefix)
-	if !managed {
-		return s.Store.WithHostingState(ctx, func(state *State) error {
-			wallet, err := s.active(state, token)
-			if err != nil {
-				return err
-			}
-			return run(state, wallet, nil)
-		})
+	if signed, ok := strings.CutPrefix(token, sandboxModelPermissionTokenPrefix); ok {
+		identity, err := s.parseSandboxModelPermission(signed)
+		if err != nil {
+			return err
+		}
+		return s.withSandboxModelPermission(
+			ctx,
+			identity,
+			func(state *State, wallet *EnvironmentRecord, grant *sandboxModelGrant) error {
+				if spend && !grant.Permission.Provisioned {
+					return ErrUnauthorized
+				}
+				return run(state, wallet, grant)
+			},
+		)
 	}
-	return s.withActiveSandboxModel(ctx, signedModel, spend, run)
+	if signed, ok := strings.CutPrefix(token, sandboxModelTokenPrefix); ok {
+		return s.withActiveSandboxModel(ctx, signed, spend, run)
+	}
+	return s.Store.WithHostingState(ctx, func(state *State) error {
+		wallet, err := s.active(state, token)
+		if err != nil {
+			return err
+		}
+		return run(state, wallet, nil)
+	})
 }
 
 func (s *Service) withActiveSandboxModel(
@@ -624,7 +658,7 @@ func (s *Service) withActiveSandboxModel(
 			) {
 			return ErrUnauthorized
 		}
-		if grant.Job == nil || grant.Job.JobID != jobID {
+		if grant.Permission != nil || grant.Job == nil || grant.Job.JobID != jobID {
 			return ErrUnauthorized
 		}
 		switch sandboxGrantState(grant, parent, now) {

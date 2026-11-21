@@ -32,6 +32,9 @@ func TestSandboxNodeHTTPCreatesAnOwnedNodeWithoutAgentOrModelCredentials(t *test
 	start := func(body string) *httptest.ResponseRecorder {
 		return hostingRequest(t, server, "POST", "/api/v1/sandbox", body, ownerEmail, "")
 	}
+	reopen := func(action, body string) *httptest.ResponseRecorder {
+		return hostingRequest(t, server, "POST", "/api/v1/sandbox/"+action, body, ownerEmail, "")
+	}
 	require.Equal(t, http.StatusUnauthorized, get("").Code)
 	require.Equal(t, http.StatusNotFound, get(ownerEmail).Code)
 	require.Equal(t, http.StatusNotFound, start("{}").Code)
@@ -54,6 +57,7 @@ func TestSandboxNodeHTTPCreatesAnOwnedNodeWithoutAgentOrModelCredentials(t *test
 	initial := get(ownerEmail)
 	require.Equal(t, http.StatusOK, initial.Code)
 	require.Nil(t, decodeData[hosting.SandboxStatus](t, initial.Body.Bytes()).Sandbox)
+	require.Equal(t, http.StatusNotFound, reopen("resume", `{"node_id":"unknown"}`).Code)
 	require.Equal(t, http.StatusBadRequest, start(`{"owner_user_id":"foreign"}`).Code)
 	queued := start("{}")
 	require.Equal(t, http.StatusOK, queued.Code)
@@ -125,9 +129,92 @@ func TestSandboxNodeHTTPCreatesAnOwnedNodeWithoutAgentOrModelCredentials(t *test
 	require.Equal(t, http.StatusOK, done.Code)
 	ready := start("{}")
 	require.Equal(t, http.StatusOK, ready.Code)
-	require.Equal(t, &hosting.SandboxView{Status: "ready", NodeID: node.NodeID},
+	require.Equal(t, &hosting.SandboxView{Status: "ready", NodeID: node.NodeID, Generation: 1},
 		decodeData[hosting.SandboxStatus](t, ready.Body.Bytes()).Sandbox)
 	for _, secret := range []string{key, job.LeaseToken, job.RegistrationToken, node.APIKey} {
 		require.False(t, bytes.Contains(ready.Body.Bytes(), []byte(secret)))
 	}
+
+	resumeBody := `{"node_id":"` + node.NodeID + `"}`
+	restartBody := `{"node_id":"` + node.NodeID + `","generation":1}`
+	readyWithoutRestart := reopen("resume", resumeBody)
+	require.Equal(t, http.StatusOK, readyWithoutRestart.Code)
+	require.Equal(
+		t,
+		"ready",
+		decodeData[hosting.SandboxStatus](t, readyWithoutRestart.Body.Bytes()).Sandbox.Status,
+	)
+	require.Equal(t, http.StatusBadRequest, reopen("restart", resumeBody).Code)
+	require.Equal(
+		t,
+		http.StatusNotFound,
+		reopen("restart", `{"node_id":"other-node","generation":1}`).Code,
+	)
+	for range 2 {
+		restarted := reopen("restart", restartBody)
+		require.Equal(t, http.StatusOK, restarted.Code, restarted.Body.String())
+		require.Equal(t, &hosting.SandboxView{Status: "queued", NodeID: node.NodeID, Generation: 2},
+			decodeData[hosting.SandboxStatus](t, restarted.Body.Bytes()).Sandbox)
+	}
+	require.NotEqual(
+		t,
+		http.StatusOK,
+		hostingRequest(
+			t,
+			server,
+			"POST",
+			"/api/v1/hosting/jobs/complete",
+			string(raw),
+			"",
+			key,
+		).Code,
+	)
+	claimed = claim(body, key)
+	require.Equal(t, http.StatusOK, claimed.Code)
+	reused := decodeData[struct{ Job *hosting.Job }](t, claimed.Body.Bytes()).Job
+	require.NotNil(t, reused)
+	require.Equal(t, job.EnvironmentID, reused.EnvironmentID)
+	require.Equal(t, node.NodeID, reused.NodeID)
+	require.Empty(t, reused.RegistrationToken)
+	update.JobID, update.LeaseToken, update.Generation = reused.JobID, reused.LeaseToken, reused.Generation
+	raw, err = json.Marshal(update)
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		http.StatusOK,
+		hostingRequest(
+			t,
+			server,
+			"POST",
+			"/api/v1/hosting/jobs/complete",
+			string(raw),
+			"",
+			key,
+		).Code,
+	)
+	stale := reopen("restart", restartBody)
+	require.Equal(t, http.StatusOK, stale.Code)
+	require.Equal(t, &hosting.SandboxView{Status: "ready", NodeID: node.NodeID, Generation: 2},
+		decodeData[hosting.SandboxStatus](t, stale.Body.Bytes()).Sandbox)
+
+	update.State, update.NodeID = "sleeping", ""
+	raw, err = json.Marshal(update)
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		http.StatusOK,
+		hostingRequest(
+			t,
+			server,
+			"POST",
+			"/api/v1/hosting/jobs/complete",
+			string(raw),
+			"",
+			key,
+		).Code,
+	)
+	resumed := reopen("resume", resumeBody)
+	require.Equal(t, http.StatusOK, resumed.Code)
+	require.Equal(t, &hosting.SandboxView{Status: "queued", NodeID: node.NodeID, Generation: 3},
+		decodeData[hosting.SandboxStatus](t, resumed.Body.Bytes()).Sandbox)
 }

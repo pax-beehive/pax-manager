@@ -86241,9 +86241,11 @@ func (p *HostingStarter) String() string {
 }
 
 type SandboxModelAgent struct {
-	AgentID    string  `thrift:"agent_id,1,required" form:"agent_id,required" json:"agent_id,required" query:"agent_id,required"`
-	State      string  `thrift:"state,2,required" form:"state,required" json:"state,required" query:"state,required"`
-	ReasonCode *string `thrift:"reason_code,3,optional" form:"reason_code" json:"reason_code,omitempty" query:"reason_code"`
+	AgentID    string   `thrift:"agent_id,1,required" form:"agent_id,required" json:"agent_id,required" query:"agent_id,required"`
+	State      string   `thrift:"state,2,required" form:"state,required" json:"state,required" query:"state,required"`
+	ReasonCode *string  `thrift:"reason_code,3,optional" form:"reason_code" json:"reason_code,omitempty" query:"reason_code"`
+	Enabled    *bool    `thrift:"enabled,4,optional" form:"enabled" json:"enabled,omitempty" query:"enabled"`
+	ModelIds   []string `thrift:"model_ids,5,optional,list<string>" form:"model_ids" json:"model_ids,omitempty" query:"model_ids"`
 }
 
 func NewSandboxModelAgent() *SandboxModelAgent {
@@ -86270,14 +86272,42 @@ func (p *SandboxModelAgent) GetReasonCode() (v string) {
 	return *p.ReasonCode
 }
 
+var SandboxModelAgent_Enabled_DEFAULT bool
+
+func (p *SandboxModelAgent) GetEnabled() (v bool) {
+	if !p.IsSetEnabled() {
+		return SandboxModelAgent_Enabled_DEFAULT
+	}
+	return *p.Enabled
+}
+
+var SandboxModelAgent_ModelIds_DEFAULT []string
+
+func (p *SandboxModelAgent) GetModelIds() (v []string) {
+	if !p.IsSetModelIds() {
+		return SandboxModelAgent_ModelIds_DEFAULT
+	}
+	return p.ModelIds
+}
+
 var fieldIDToName_SandboxModelAgent = map[int16]string{
 	1: "agent_id",
 	2: "state",
 	3: "reason_code",
+	4: "enabled",
+	5: "model_ids",
 }
 
 func (p *SandboxModelAgent) IsSetReasonCode() bool {
 	return p.ReasonCode != nil
+}
+
+func (p *SandboxModelAgent) IsSetEnabled() bool {
+	return p.Enabled != nil
+}
+
+func (p *SandboxModelAgent) IsSetModelIds() bool {
+	return p.ModelIds != nil
 }
 
 func (p *SandboxModelAgent) Read(iprot thrift.TProtocol) (err error) {
@@ -86322,6 +86352,22 @@ func (p *SandboxModelAgent) Read(iprot thrift.TProtocol) (err error) {
 		case 3:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.BOOL {
+				if err = p.ReadField4(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 5:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField5(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -86400,6 +86446,40 @@ func (p *SandboxModelAgent) ReadField3(iprot thrift.TProtocol) error {
 	p.ReasonCode = _field
 	return nil
 }
+func (p *SandboxModelAgent) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *bool
+	if v, err := iprot.ReadBool(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Enabled = _field
+	return nil
+}
+func (p *SandboxModelAgent) ReadField5(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]string, 0, size)
+	for i := 0; i < size; i++ {
+
+		var _elem string
+		if v, err := iprot.ReadString(); err != nil {
+			return err
+		} else {
+			_elem = v
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.ModelIds = _field
+	return nil
+}
 
 func (p *SandboxModelAgent) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -86417,6 +86497,14 @@ func (p *SandboxModelAgent) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField3(oprot); err != nil {
 			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
+			goto WriteFieldError
+		}
+		if err = p.writeField5(oprot); err != nil {
+			fieldId = 5
 			goto WriteFieldError
 		}
 	}
@@ -86488,6 +86576,52 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 3 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
+}
+
+func (p *SandboxModelAgent) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetEnabled() {
+		if err = oprot.WriteFieldBegin("enabled", thrift.BOOL, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteBool(*p.Enabled); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
+func (p *SandboxModelAgent) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetModelIds() {
+		if err = oprot.WriteFieldBegin("model_ids", thrift.LIST, 5); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRING, len(p.ModelIds)); err != nil {
+			return err
+		}
+		for _, v := range p.ModelIds {
+			if err := oprot.WriteString(v); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 5 end error: ", p), err)
 }
 
 func (p *SandboxModelAgent) String() string {
@@ -87655,6 +87789,7 @@ type SandboxNode struct {
 	Status     string  `thrift:"status,1,required" form:"status,required" json:"status,required" query:"status,required"`
 	NodeID     *string `thrift:"node_id,2,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
 	ReasonCode *string `thrift:"reason_code,3,optional" form:"reason_code" json:"reason_code,omitempty" query:"reason_code"`
+	Generation *int64  `thrift:"generation,4,optional" form:"generation" json:"generation,omitempty" query:"generation"`
 }
 
 func NewSandboxNode() *SandboxNode {
@@ -87686,10 +87821,20 @@ func (p *SandboxNode) GetReasonCode() (v string) {
 	return *p.ReasonCode
 }
 
+var SandboxNode_Generation_DEFAULT int64
+
+func (p *SandboxNode) GetGeneration() (v int64) {
+	if !p.IsSetGeneration() {
+		return SandboxNode_Generation_DEFAULT
+	}
+	return *p.Generation
+}
+
 var fieldIDToName_SandboxNode = map[int16]string{
 	1: "status",
 	2: "node_id",
 	3: "reason_code",
+	4: "generation",
 }
 
 func (p *SandboxNode) IsSetNodeID() bool {
@@ -87698,6 +87843,10 @@ func (p *SandboxNode) IsSetNodeID() bool {
 
 func (p *SandboxNode) IsSetReasonCode() bool {
 	return p.ReasonCode != nil
+}
+
+func (p *SandboxNode) IsSetGeneration() bool {
+	return p.Generation != nil
 }
 
 func (p *SandboxNode) Read(iprot thrift.TProtocol) (err error) {
@@ -87740,6 +87889,14 @@ func (p *SandboxNode) Read(iprot thrift.TProtocol) (err error) {
 		case 3:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField3(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 4:
+			if fieldTypeId == thrift.I64 {
+				if err = p.ReadField4(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -87813,6 +87970,17 @@ func (p *SandboxNode) ReadField3(iprot thrift.TProtocol) error {
 	p.ReasonCode = _field
 	return nil
 }
+func (p *SandboxNode) ReadField4(iprot thrift.TProtocol) error {
+
+	var _field *int64
+	if v, err := iprot.ReadI64(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Generation = _field
+	return nil
+}
 
 func (p *SandboxNode) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -87830,6 +87998,10 @@ func (p *SandboxNode) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField3(oprot); err != nil {
 			fieldId = 3
+			goto WriteFieldError
+		}
+		if err = p.writeField4(oprot); err != nil {
+			fieldId = 4
 			goto WriteFieldError
 		}
 	}
@@ -87905,11 +88077,235 @@ WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 3 end error: ", p), err)
 }
 
+func (p *SandboxNode) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetGeneration() {
+		if err = oprot.WriteFieldBegin("generation", thrift.I64, 4); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI64(*p.Generation); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 4 end error: ", p), err)
+}
+
 func (p *SandboxNode) String() string {
 	if p == nil {
 		return "<nil>"
 	}
 	return fmt.Sprintf("SandboxNode(%+v)", *p)
+
+}
+
+type SandboxNodeTarget struct {
+	NodeID     string `thrift:"node_id,1,required" form:"node_id,required" json:"node_id,required"`
+	Generation *int64 `thrift:"generation,2,optional" form:"generation" json:"generation,omitempty"`
+}
+
+func NewSandboxNodeTarget() *SandboxNodeTarget {
+	return &SandboxNodeTarget{}
+}
+
+func (p *SandboxNodeTarget) InitDefault() {
+}
+
+func (p *SandboxNodeTarget) GetNodeID() (v string) {
+	return p.NodeID
+}
+
+var SandboxNodeTarget_Generation_DEFAULT int64
+
+func (p *SandboxNodeTarget) GetGeneration() (v int64) {
+	if !p.IsSetGeneration() {
+		return SandboxNodeTarget_Generation_DEFAULT
+	}
+	return *p.Generation
+}
+
+var fieldIDToName_SandboxNodeTarget = map[int16]string{
+	1: "node_id",
+	2: "generation",
+}
+
+func (p *SandboxNodeTarget) IsSetGeneration() bool {
+	return p.Generation != nil
+}
+
+func (p *SandboxNodeTarget) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetNodeID bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetNodeID = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.I64 {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetNodeID {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_SandboxNodeTarget[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_SandboxNodeTarget[fieldId]))
+}
+
+func (p *SandboxNodeTarget) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *SandboxNodeTarget) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field *int64
+	if v, err := iprot.ReadI64(); err != nil {
+		return err
+	} else {
+		_field = &v
+	}
+	p.Generation = _field
+	return nil
+}
+
+func (p *SandboxNodeTarget) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("SandboxNodeTarget"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *SandboxNodeTarget) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.NodeID); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *SandboxNodeTarget) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetGeneration() {
+		if err = oprot.WriteFieldBegin("generation", thrift.I64, 2); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteI64(*p.Generation); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *SandboxNodeTarget) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("SandboxNodeTarget(%+v)", *p)
 
 }
 
@@ -96230,6 +96626,207 @@ func (p *HostingWakeRequest) String() string {
 
 }
 
+type HostingSandboxModelTarget struct {
+	NodeID  string `thrift:"node_id,1,required" form:"node_id,required" json:"node_id,required" query:"node_id,required"`
+	AgentID string `thrift:"agent_id,2,required" form:"agent_id,required" json:"agent_id,required" query:"agent_id,required"`
+}
+
+func NewHostingSandboxModelTarget() *HostingSandboxModelTarget {
+	return &HostingSandboxModelTarget{}
+}
+
+func (p *HostingSandboxModelTarget) InitDefault() {
+}
+
+func (p *HostingSandboxModelTarget) GetNodeID() (v string) {
+	return p.NodeID
+}
+
+func (p *HostingSandboxModelTarget) GetAgentID() (v string) {
+	return p.AgentID
+}
+
+var fieldIDToName_HostingSandboxModelTarget = map[int16]string{
+	1: "node_id",
+	2: "agent_id",
+}
+
+func (p *HostingSandboxModelTarget) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetNodeID bool = false
+	var issetAgentID bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetNodeID = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 2:
+			if fieldTypeId == thrift.STRING {
+				if err = p.ReadField2(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetAgentID = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetNodeID {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+
+	if !issetAgentID {
+		fieldId = 2
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_HostingSandboxModelTarget[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_HostingSandboxModelTarget[fieldId]))
+}
+
+func (p *HostingSandboxModelTarget) ReadField1(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.NodeID = _field
+	return nil
+}
+func (p *HostingSandboxModelTarget) ReadField2(iprot thrift.TProtocol) error {
+
+	var _field string
+	if v, err := iprot.ReadString(); err != nil {
+		return err
+	} else {
+		_field = v
+	}
+	p.AgentID = _field
+	return nil
+}
+
+func (p *HostingSandboxModelTarget) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("HostingSandboxModelTarget"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+		if err = p.writeField2(oprot); err != nil {
+			fieldId = 2
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *HostingSandboxModelTarget) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("node_id", thrift.STRING, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.NodeID); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *HostingSandboxModelTarget) writeField2(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("agent_id", thrift.STRING, 2); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := oprot.WriteString(p.AgentID); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 2 end error: ", p), err)
+}
+
+func (p *HostingSandboxModelTarget) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("HostingSandboxModelTarget(%+v)", *p)
+
+}
+
 type HostingEnrollmentRequest struct {
 	HostID *string `thrift:"host_id,1,optional" form:"host_id" json:"host_id,omitempty" query:"host_id"`
 	NodeID *string `thrift:"node_id,2,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
@@ -96439,15 +97036,16 @@ func (p *HostingEnrollmentRequest) String() string {
 }
 
 type HostingUpdateRequest struct {
-	HostID     *string `thrift:"host_id,1,optional" form:"host_id" json:"host_id,omitempty" query:"host_id"`
-	JobID      *string `thrift:"job_id,2,optional" form:"job_id" json:"job_id,omitempty" query:"job_id"`
-	Generation *int64  `thrift:"generation,3,optional" form:"generation" json:"generation,omitempty" query:"generation"`
-	LeaseToken *string `thrift:"lease_token,4,optional" form:"lease_token" json:"lease_token,omitempty" query:"lease_token"`
-	State      *string `thrift:"state,5,optional" form:"state" json:"state,omitempty" query:"state"`
-	NodeID     *string `thrift:"node_id,6,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
-	AgentID    *string `thrift:"agent_id,7,optional" form:"agent_id" json:"agent_id,omitempty" query:"agent_id"`
-	ErrorCode  *string `thrift:"error_code,8,optional" form:"error_code" json:"error_code,omitempty" query:"error_code"`
-	Kind       *string `thrift:"kind,9,optional" form:"kind" json:"kind,omitempty" query:"kind"`
+	HostID     *string  `thrift:"host_id,1,optional" form:"host_id" json:"host_id,omitempty" query:"host_id"`
+	JobID      *string  `thrift:"job_id,2,optional" form:"job_id" json:"job_id,omitempty" query:"job_id"`
+	Generation *int64   `thrift:"generation,3,optional" form:"generation" json:"generation,omitempty" query:"generation"`
+	LeaseToken *string  `thrift:"lease_token,4,optional" form:"lease_token" json:"lease_token,omitempty" query:"lease_token"`
+	State      *string  `thrift:"state,5,optional" form:"state" json:"state,omitempty" query:"state"`
+	NodeID     *string  `thrift:"node_id,6,optional" form:"node_id" json:"node_id,omitempty" query:"node_id"`
+	AgentID    *string  `thrift:"agent_id,7,optional" form:"agent_id" json:"agent_id,omitempty" query:"agent_id"`
+	ErrorCode  *string  `thrift:"error_code,8,optional" form:"error_code" json:"error_code,omitempty" query:"error_code"`
+	Kind       *string  `thrift:"kind,9,optional" form:"kind" json:"kind,omitempty" query:"kind"`
+	ModelIds   []string `thrift:"model_ids,10,optional,list<string>" form:"model_ids" json:"model_ids,omitempty" query:"model_ids"`
 }
 
 func NewHostingUpdateRequest() *HostingUpdateRequest {
@@ -96538,16 +97136,26 @@ func (p *HostingUpdateRequest) GetKind() (v string) {
 	return *p.Kind
 }
 
+var HostingUpdateRequest_ModelIds_DEFAULT []string
+
+func (p *HostingUpdateRequest) GetModelIds() (v []string) {
+	if !p.IsSetModelIds() {
+		return HostingUpdateRequest_ModelIds_DEFAULT
+	}
+	return p.ModelIds
+}
+
 var fieldIDToName_HostingUpdateRequest = map[int16]string{
-	1: "host_id",
-	2: "job_id",
-	3: "generation",
-	4: "lease_token",
-	5: "state",
-	6: "node_id",
-	7: "agent_id",
-	8: "error_code",
-	9: "kind",
+	1:  "host_id",
+	2:  "job_id",
+	3:  "generation",
+	4:  "lease_token",
+	5:  "state",
+	6:  "node_id",
+	7:  "agent_id",
+	8:  "error_code",
+	9:  "kind",
+	10: "model_ids",
 }
 
 func (p *HostingUpdateRequest) IsSetHostID() bool {
@@ -96584,6 +97192,10 @@ func (p *HostingUpdateRequest) IsSetErrorCode() bool {
 
 func (p *HostingUpdateRequest) IsSetKind() bool {
 	return p.Kind != nil
+}
+
+func (p *HostingUpdateRequest) IsSetModelIds() bool {
+	return p.ModelIds != nil
 }
 
 func (p *HostingUpdateRequest) Read(iprot thrift.TProtocol) (err error) {
@@ -96672,6 +97284,14 @@ func (p *HostingUpdateRequest) Read(iprot thrift.TProtocol) (err error) {
 		case 9:
 			if fieldTypeId == thrift.STRING {
 				if err = p.ReadField9(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		case 10:
+			if fieldTypeId == thrift.LIST {
+				if err = p.ReadField10(iprot); err != nil {
 					goto ReadFieldError
 				}
 			} else if err = iprot.Skip(fieldTypeId); err != nil {
@@ -96805,6 +97425,29 @@ func (p *HostingUpdateRequest) ReadField9(iprot thrift.TProtocol) error {
 	p.Kind = _field
 	return nil
 }
+func (p *HostingUpdateRequest) ReadField10(iprot thrift.TProtocol) error {
+	_, size, err := iprot.ReadListBegin()
+	if err != nil {
+		return err
+	}
+	_field := make([]string, 0, size)
+	for i := 0; i < size; i++ {
+
+		var _elem string
+		if v, err := iprot.ReadString(); err != nil {
+			return err
+		} else {
+			_elem = v
+		}
+
+		_field = append(_field, _elem)
+	}
+	if err := iprot.ReadListEnd(); err != nil {
+		return err
+	}
+	p.ModelIds = _field
+	return nil
+}
 
 func (p *HostingUpdateRequest) Write(oprot thrift.TProtocol) (err error) {
 	var fieldId int16
@@ -96846,6 +97489,10 @@ func (p *HostingUpdateRequest) Write(oprot thrift.TProtocol) (err error) {
 		}
 		if err = p.writeField9(oprot); err != nil {
 			fieldId = 9
+			goto WriteFieldError
+		}
+		if err = p.writeField10(oprot); err != nil {
+			fieldId = 10
 			goto WriteFieldError
 		}
 	}
@@ -97035,6 +97682,33 @@ WriteFieldBeginError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 9 begin error: ", p), err)
 WriteFieldEndError:
 	return thrift.PrependError(fmt.Sprintf("%T write field 9 end error: ", p), err)
+}
+
+func (p *HostingUpdateRequest) writeField10(oprot thrift.TProtocol) (err error) {
+	if p.IsSetModelIds() {
+		if err = oprot.WriteFieldBegin("model_ids", thrift.LIST, 10); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := oprot.WriteListBegin(thrift.STRING, len(p.ModelIds)); err != nil {
+			return err
+		}
+		for _, v := range p.ModelIds {
+			if err := oprot.WriteString(v); err != nil {
+				return err
+			}
+		}
+		if err := oprot.WriteListEnd(); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 10 end error: ", p), err)
 }
 
 func (p *HostingUpdateRequest) String() string {
@@ -98406,11 +99080,17 @@ type PaxManagerAPI interface {
 
 	StartSandboxNode(ctx context.Context, request *EmptyRequest) (r *SandboxNodeResponse, err error)
 
+	ResumeSandboxNode(ctx context.Context, request *SandboxNodeTarget) (r *SandboxNodeResponse, err error)
+
+	RestartSandboxNode(ctx context.Context, request *SandboxNodeTarget) (r *SandboxNodeResponse, err error)
+
 	GetStarter(ctx context.Context, request *EmptyRequest) (r *HostingStatusResponse, err error)
 
 	EnsureStarter(ctx context.Context, request *EmptyRequest) (r *HostingStatusResponse, err error)
 
 	WakeStarter(ctx context.Context, request *HostingWakeRequest) (r *HostingStatusResponse, err error)
+
+	RevokeSandboxModelAccess(ctx context.Context, request *HostingSandboxModelTarget) (r *HostingStatusResponse, err error)
 
 	EnrollHostingNode(ctx context.Context, request *HostingEnrollmentRequest) (r *HostingStatusResponse, err error)
 
@@ -98797,6 +99477,24 @@ func (p *PaxManagerAPIClient) StartSandboxNode(ctx context.Context, request *Emp
 	}
 	return _result.GetSuccess(), nil
 }
+func (p *PaxManagerAPIClient) ResumeSandboxNode(ctx context.Context, request *SandboxNodeTarget) (r *SandboxNodeResponse, err error) {
+	var _args PaxManagerAPIResumeSandboxNodeArgs
+	_args.Request = request
+	var _result PaxManagerAPIResumeSandboxNodeResult
+	if err = p.Client_().Call(ctx, "ResumeSandboxNode", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) RestartSandboxNode(ctx context.Context, request *SandboxNodeTarget) (r *SandboxNodeResponse, err error) {
+	var _args PaxManagerAPIRestartSandboxNodeArgs
+	_args.Request = request
+	var _result PaxManagerAPIRestartSandboxNodeResult
+	if err = p.Client_().Call(ctx, "RestartSandboxNode", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
 func (p *PaxManagerAPIClient) GetStarter(ctx context.Context, request *EmptyRequest) (r *HostingStatusResponse, err error) {
 	var _args PaxManagerAPIGetStarterArgs
 	_args.Request = request
@@ -98820,6 +99518,15 @@ func (p *PaxManagerAPIClient) WakeStarter(ctx context.Context, request *HostingW
 	_args.Request = request
 	var _result PaxManagerAPIWakeStarterResult
 	if err = p.Client_().Call(ctx, "WakeStarter", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+func (p *PaxManagerAPIClient) RevokeSandboxModelAccess(ctx context.Context, request *HostingSandboxModelTarget) (r *HostingStatusResponse, err error) {
+	var _args PaxManagerAPIRevokeSandboxModelAccessArgs
+	_args.Request = request
+	var _result PaxManagerAPIRevokeSandboxModelAccessResult
+	if err = p.Client_().Call(ctx, "RevokeSandboxModelAccess", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
@@ -99824,9 +100531,12 @@ func NewPaxManagerAPIProcessor(handler PaxManagerAPI) *PaxManagerAPIProcessor {
 	self.AddToProcessorMap("UpdateHostingAdmin", &paxManagerAPIProcessorUpdateHostingAdmin{handler: handler})
 	self.AddToProcessorMap("GetSandboxNode", &paxManagerAPIProcessorGetSandboxNode{handler: handler})
 	self.AddToProcessorMap("StartSandboxNode", &paxManagerAPIProcessorStartSandboxNode{handler: handler})
+	self.AddToProcessorMap("ResumeSandboxNode", &paxManagerAPIProcessorResumeSandboxNode{handler: handler})
+	self.AddToProcessorMap("RestartSandboxNode", &paxManagerAPIProcessorRestartSandboxNode{handler: handler})
 	self.AddToProcessorMap("GetStarter", &paxManagerAPIProcessorGetStarter{handler: handler})
 	self.AddToProcessorMap("EnsureStarter", &paxManagerAPIProcessorEnsureStarter{handler: handler})
 	self.AddToProcessorMap("WakeStarter", &paxManagerAPIProcessorWakeStarter{handler: handler})
+	self.AddToProcessorMap("RevokeSandboxModelAccess", &paxManagerAPIProcessorRevokeSandboxModelAccess{handler: handler})
 	self.AddToProcessorMap("EnrollHostingNode", &paxManagerAPIProcessorEnrollHostingNode{handler: handler})
 	self.AddToProcessorMap("ClaimHostingJob", &paxManagerAPIProcessorClaimHostingJob{handler: handler})
 	self.AddToProcessorMap("HeartbeatHostingJob", &paxManagerAPIProcessorHeartbeatHostingJob{handler: handler})
@@ -100722,6 +101432,102 @@ func (p *paxManagerAPIProcessorStartSandboxNode) Process(ctx context.Context, se
 	return true, err
 }
 
+type paxManagerAPIProcessorResumeSandboxNode struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorResumeSandboxNode) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIResumeSandboxNodeArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("ResumeSandboxNode", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIResumeSandboxNodeResult{}
+	var retval *SandboxNodeResponse
+	if retval, err2 = p.handler.ResumeSandboxNode(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing ResumeSandboxNode: "+err2.Error())
+		oprot.WriteMessageBegin("ResumeSandboxNode", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("ResumeSandboxNode", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorRestartSandboxNode struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorRestartSandboxNode) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIRestartSandboxNodeArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("RestartSandboxNode", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIRestartSandboxNodeResult{}
+	var retval *SandboxNodeResponse
+	if retval, err2 = p.handler.RestartSandboxNode(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing RestartSandboxNode: "+err2.Error())
+		oprot.WriteMessageBegin("RestartSandboxNode", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("RestartSandboxNode", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
 type paxManagerAPIProcessorGetStarter struct {
 	handler PaxManagerAPI
 }
@@ -100849,6 +101655,54 @@ func (p *paxManagerAPIProcessorWakeStarter) Process(ctx context.Context, seqId i
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("WakeStarter", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type paxManagerAPIProcessorRevokeSandboxModelAccess struct {
+	handler PaxManagerAPI
+}
+
+func (p *paxManagerAPIProcessorRevokeSandboxModelAccess) Process(ctx context.Context, seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := PaxManagerAPIRevokeSandboxModelAccessArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("RevokeSandboxModelAccess", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	result := PaxManagerAPIRevokeSandboxModelAccessResult{}
+	var retval *HostingStatusResponse
+	if retval, err2 = p.handler.RevokeSandboxModelAccess(ctx, args.Request); err2 != nil {
+		x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing RevokeSandboxModelAccess: "+err2.Error())
+		oprot.WriteMessageBegin("RevokeSandboxModelAccess", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush(ctx)
+		return true, err2
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("RevokeSandboxModelAccess", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -110738,6 +111592,610 @@ func (p *PaxManagerAPIStartSandboxNodeResult) String() string {
 
 }
 
+type PaxManagerAPIResumeSandboxNodeArgs struct {
+	Request *SandboxNodeTarget `thrift:"request,1,required"`
+}
+
+func NewPaxManagerAPIResumeSandboxNodeArgs() *PaxManagerAPIResumeSandboxNodeArgs {
+	return &PaxManagerAPIResumeSandboxNodeArgs{}
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeArgs) InitDefault() {
+}
+
+var PaxManagerAPIResumeSandboxNodeArgs_Request_DEFAULT *SandboxNodeTarget
+
+func (p *PaxManagerAPIResumeSandboxNodeArgs) GetRequest() (v *SandboxNodeTarget) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIResumeSandboxNodeArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIResumeSandboxNodeArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetRequest bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequest = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetRequest {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIResumeSandboxNodeArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_PaxManagerAPIResumeSandboxNodeArgs[fieldId]))
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewSandboxNodeTarget()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ResumeSandboxNode_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIResumeSandboxNodeArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIResumeSandboxNodeResult struct {
+	Success *SandboxNodeResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIResumeSandboxNodeResult() *PaxManagerAPIResumeSandboxNodeResult {
+	return &PaxManagerAPIResumeSandboxNodeResult{}
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeResult) InitDefault() {
+}
+
+var PaxManagerAPIResumeSandboxNodeResult_Success_DEFAULT *SandboxNodeResponse
+
+func (p *PaxManagerAPIResumeSandboxNodeResult) GetSuccess() (v *SandboxNodeResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIResumeSandboxNodeResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIResumeSandboxNodeResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIResumeSandboxNodeResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewSandboxNodeResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("ResumeSandboxNode_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIResumeSandboxNodeResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIResumeSandboxNodeResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIRestartSandboxNodeArgs struct {
+	Request *SandboxNodeTarget `thrift:"request,1,required"`
+}
+
+func NewPaxManagerAPIRestartSandboxNodeArgs() *PaxManagerAPIRestartSandboxNodeArgs {
+	return &PaxManagerAPIRestartSandboxNodeArgs{}
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeArgs) InitDefault() {
+}
+
+var PaxManagerAPIRestartSandboxNodeArgs_Request_DEFAULT *SandboxNodeTarget
+
+func (p *PaxManagerAPIRestartSandboxNodeArgs) GetRequest() (v *SandboxNodeTarget) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIRestartSandboxNodeArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIRestartSandboxNodeArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetRequest bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequest = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetRequest {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIRestartSandboxNodeArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_PaxManagerAPIRestartSandboxNodeArgs[fieldId]))
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewSandboxNodeTarget()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RestartSandboxNode_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIRestartSandboxNodeArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIRestartSandboxNodeResult struct {
+	Success *SandboxNodeResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIRestartSandboxNodeResult() *PaxManagerAPIRestartSandboxNodeResult {
+	return &PaxManagerAPIRestartSandboxNodeResult{}
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeResult) InitDefault() {
+}
+
+var PaxManagerAPIRestartSandboxNodeResult_Success_DEFAULT *SandboxNodeResponse
+
+func (p *PaxManagerAPIRestartSandboxNodeResult) GetSuccess() (v *SandboxNodeResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIRestartSandboxNodeResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIRestartSandboxNodeResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIRestartSandboxNodeResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewSandboxNodeResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RestartSandboxNode_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRestartSandboxNodeResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIRestartSandboxNodeResult(%+v)", *p)
+
+}
+
 type PaxManagerAPIGetStarterArgs struct {
 	Request *EmptyRequest `thrift:"request,1"`
 }
@@ -111617,6 +113075,308 @@ func (p *PaxManagerAPIWakeStarterResult) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("PaxManagerAPIWakeStarterResult(%+v)", *p)
+
+}
+
+type PaxManagerAPIRevokeSandboxModelAccessArgs struct {
+	Request *HostingSandboxModelTarget `thrift:"request,1,required"`
+}
+
+func NewPaxManagerAPIRevokeSandboxModelAccessArgs() *PaxManagerAPIRevokeSandboxModelAccessArgs {
+	return &PaxManagerAPIRevokeSandboxModelAccessArgs{}
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessArgs) InitDefault() {
+}
+
+var PaxManagerAPIRevokeSandboxModelAccessArgs_Request_DEFAULT *HostingSandboxModelTarget
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessArgs) GetRequest() (v *HostingSandboxModelTarget) {
+	if !p.IsSetRequest() {
+		return PaxManagerAPIRevokeSandboxModelAccessArgs_Request_DEFAULT
+	}
+	return p.Request
+}
+
+var fieldIDToName_PaxManagerAPIRevokeSandboxModelAccessArgs = map[int16]string{
+	1: "request",
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessArgs) IsSetRequest() bool {
+	return p.Request != nil
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessArgs) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+	var issetRequest bool = false
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 1:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField1(iprot); err != nil {
+					goto ReadFieldError
+				}
+				issetRequest = true
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	if !issetRequest {
+		fieldId = 1
+		goto RequiredFieldNotSetError
+	}
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIRevokeSandboxModelAccessArgs[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+RequiredFieldNotSetError:
+	return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("required field %s is not set", fieldIDToName_PaxManagerAPIRevokeSandboxModelAccessArgs[fieldId]))
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessArgs) ReadField1(iprot thrift.TProtocol) error {
+	_field := NewHostingSandboxModelTarget()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Request = _field
+	return nil
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessArgs) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RevokeSandboxModelAccess_args"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField1(oprot); err != nil {
+			fieldId = 1
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err = oprot.WriteFieldBegin("request", thrift.STRUCT, 1); err != nil {
+		goto WriteFieldBeginError
+	}
+	if err := p.Request.Write(oprot); err != nil {
+		return err
+	}
+	if err = oprot.WriteFieldEnd(); err != nil {
+		goto WriteFieldEndError
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 1 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIRevokeSandboxModelAccessArgs(%+v)", *p)
+
+}
+
+type PaxManagerAPIRevokeSandboxModelAccessResult struct {
+	Success *HostingStatusResponse `thrift:"success,0,optional"`
+}
+
+func NewPaxManagerAPIRevokeSandboxModelAccessResult() *PaxManagerAPIRevokeSandboxModelAccessResult {
+	return &PaxManagerAPIRevokeSandboxModelAccessResult{}
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessResult) InitDefault() {
+}
+
+var PaxManagerAPIRevokeSandboxModelAccessResult_Success_DEFAULT *HostingStatusResponse
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessResult) GetSuccess() (v *HostingStatusResponse) {
+	if !p.IsSetSuccess() {
+		return PaxManagerAPIRevokeSandboxModelAccessResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var fieldIDToName_PaxManagerAPIRevokeSandboxModelAccessResult = map[int16]string{
+	0: "success",
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessResult) Read(iprot thrift.TProtocol) (err error) {
+
+	var fieldTypeId thrift.TType
+	var fieldId int16
+
+	if _, err = iprot.ReadStructBegin(); err != nil {
+		goto ReadStructBeginError
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err = iprot.ReadFieldBegin()
+		if err != nil {
+			goto ReadFieldBeginError
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+
+		switch fieldId {
+		case 0:
+			if fieldTypeId == thrift.STRUCT {
+				if err = p.ReadField0(iprot); err != nil {
+					goto ReadFieldError
+				}
+			} else if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		default:
+			if err = iprot.Skip(fieldTypeId); err != nil {
+				goto SkipFieldError
+			}
+		}
+		if err = iprot.ReadFieldEnd(); err != nil {
+			goto ReadFieldEndError
+		}
+	}
+	if err = iprot.ReadStructEnd(); err != nil {
+		goto ReadStructEndError
+	}
+
+	return nil
+ReadStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct begin error: ", p), err)
+ReadFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d begin error: ", p, fieldId), err)
+ReadFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T read field %d '%s' error: ", p, fieldId, fieldIDToName_PaxManagerAPIRevokeSandboxModelAccessResult[fieldId]), err)
+SkipFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T field %d skip type %d error: ", p, fieldId, fieldTypeId), err)
+
+ReadFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read field end error", p), err)
+ReadStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessResult) ReadField0(iprot thrift.TProtocol) error {
+	_field := NewHostingStatusResponse()
+	if err := _field.Read(iprot); err != nil {
+		return err
+	}
+	p.Success = _field
+	return nil
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessResult) Write(oprot thrift.TProtocol) (err error) {
+	var fieldId int16
+	if err = oprot.WriteStructBegin("RevokeSandboxModelAccess_result"); err != nil {
+		goto WriteStructBeginError
+	}
+	if p != nil {
+		if err = p.writeField0(oprot); err != nil {
+			fieldId = 0
+			goto WriteFieldError
+		}
+	}
+	if err = oprot.WriteFieldStop(); err != nil {
+		goto WriteFieldStopError
+	}
+	if err = oprot.WriteStructEnd(); err != nil {
+		goto WriteStructEndError
+	}
+	return nil
+WriteStructBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+WriteFieldError:
+	return thrift.PrependError(fmt.Sprintf("%T write field %d error: ", p, fieldId), err)
+WriteFieldStopError:
+	return thrift.PrependError(fmt.Sprintf("%T write field stop error: ", p), err)
+WriteStructEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write struct end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err = oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			goto WriteFieldBeginError
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return err
+		}
+		if err = oprot.WriteFieldEnd(); err != nil {
+			goto WriteFieldEndError
+		}
+	}
+	return nil
+WriteFieldBeginError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 begin error: ", p), err)
+WriteFieldEndError:
+	return thrift.PrependError(fmt.Sprintf("%T write field 0 end error: ", p), err)
+}
+
+func (p *PaxManagerAPIRevokeSandboxModelAccessResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("PaxManagerAPIRevokeSandboxModelAccessResult(%+v)", *p)
 
 }
 

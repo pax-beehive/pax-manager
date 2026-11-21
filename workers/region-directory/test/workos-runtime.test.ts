@@ -76,7 +76,7 @@ beforeAll(async () => {
  const proof=JSON.parse(atob(assertion.split('.')[0].replaceAll('-','+').replaceAll('_','/')));
  if(proof.user_id!=='usr_original' || proof.region!=='hk' || proof.path!==url.pathname || proof.method!==request.method)return new Response('wrong proof',{status:401});
  if(request.headers.has('Cookie')||request.headers.has('Cf-Access-Jwt-Assertion')||request.headers.has('Authorization')||request.headers.has('X-Pax-Key'))return new Response('leaked browser credentials',{status:500});
- if(url.pathname==='/api/v1/starter'||url.pathname==='/api/v1/starter/wake') {
+ if(url.pathname==='/api/v1/starter'||url.pathname==='/api/v1/starter/wake'||url.pathname==='/api/v1/starter/revoke') {
   const [payload,signature]=assertion.split('.');
   const decode=value=>Uint8Array.from(atob(value.replaceAll('-','+').replaceAll('_','/')),c=>c.charCodeAt(0));
   const key=await crypto.subtle.importKey('raw',new TextEncoder().encode('h'.repeat(40)),{name:'HMAC',hash:'SHA-256'},false,['verify']);
@@ -194,12 +194,13 @@ it("authenticates browser and native Starter requests and signs the exact Manage
       ["GET", "/api/v1/starter"],
       ["POST", "/api/v1/starter"],
       ["POST", "/api/v1/starter/wake"],
+      ["POST", "/api/v1/starter/revoke"],
     ]) {
       const path = native
         ? "/api/v1/native/client/" + target.slice("/api/v1/".length)
         : "/api/pax" + target;
       const body =
-        target === "/api/v1/starter/wake"
+        target === "/api/v1/starter/wake" || target === "/api/v1/starter/revoke"
           ? '{"node_id":"node_fixture","agent_id":"agent_fixture"}\n'
           : method === "POST"
             ? "{ }\n"
@@ -243,9 +244,11 @@ it("preserves authentication, cross-site checks and exact Starter methods", asyn
   }
   for (const [method, suffix] of [
     ["GET", "starter/wake"],
+    ["GET", "starter/revoke"],
     ["DELETE", "starter"],
     ["POST", "starter/"],
     ["POST", "starter/wake/child"],
+    ["POST", "starter/revoke/child"],
     ["POST", "starter%2fwake"],
   ]) {
     for (const native of [false, true]) {
@@ -261,24 +264,26 @@ it("preserves authentication, cross-site checks and exact Starter methods", asyn
       expect(response.status).toBe(404);
     }
   }
-  for (const native of [false, true]) {
-    const response = await mf.dispatchFetch(
-      "https://pax.example" +
-        (native
-          ? "/api/v1/native/client/starter/wake"
-          : "/api/pax/api/v1/starter/wake"),
-      {
-        method: "POST",
-        headers: {
-          ...(native
-            ? { Authorization: "Bearer " + nativeToken }
-            : { Cookie: cookies }),
-          Origin: "https://evil.example",
-          "Content-Type": "application/json",
+  for (const route of ["wake", "revoke"]) {
+    for (const native of [false, true]) {
+      const response = await mf.dispatchFetch(
+        "https://pax.example" +
+          (native
+            ? "/api/v1/native/client/starter/" + route
+            : "/api/pax/api/v1/starter/" + route),
+        {
+          method: "POST",
+          headers: {
+            ...(native
+              ? { Authorization: "Bearer " + nativeToken }
+              : { Cookie: cookies }),
+            Origin: "https://evil.example",
+            "Content-Type": "application/json",
+          },
+          body: "{}",
         },
-        body: "{}",
-      },
-    );
-    expect(response.status).toBe(403);
+      );
+      expect(response.status).toBe(403);
+    }
   }
 });

@@ -131,12 +131,20 @@ func starterResult(c context.Context, ctx *app.RequestContext, action string) {
 	}
 	var result *hosting.Status
 	owner := principal.User.UserID
-	if action == "wake" {
+	if action == "wake" || action == "revoke" {
 		target, valid := parseHostingWakeTarget(ctx)
 		if !valid {
 			return
 		}
-		if target != nil {
+		if action == "revoke" {
+			if target == nil {
+				writeError(ctx, http.StatusBadRequest, "invalid Starter target")
+				return
+			}
+			if err = s.hosting.RevokeSandboxModel(c, owner, target); err == nil {
+				result, err = s.hosting.Status(c, owner, false)
+			}
+		} else if target != nil {
 			result, err = wakeStarterTarget(c, s, owner, target)
 		} else {
 			result, err = s.hosting.Wake(c, owner)
@@ -208,6 +216,9 @@ func ownedPiAgent(c context.Context, s *Service, owner string, target *hosting.W
 func GetStarter(c context.Context, ctx *app.RequestContext)    { starterResult(c, ctx, "status") }
 func EnsureStarter(c context.Context, ctx *app.RequestContext) { starterResult(c, ctx, "ensure") }
 func WakeStarter(c context.Context, ctx *app.RequestContext)   { starterResult(c, ctx, "wake") }
+func RevokeSandboxModelAccess(c context.Context, ctx *app.RequestContext) {
+	starterResult(c, ctx, "revoke")
+}
 
 func hostingHost(c context.Context, ctx *app.RequestContext) (*Service, bool) {
 	s := serviceFromContext(ctx)
@@ -308,6 +319,10 @@ func updateHostingJob(c context.Context, ctx *app.RequestContext, complete bool)
 		return
 	}
 	if !validHostingJobKind(ctx, kind, req.Kind) {
+		return
+	}
+	if req.ModelIDs != nil && req.Kind != hosting.SandboxModelKind {
+		hostingError(ctx, hosting.ErrConflict)
 		return
 	}
 	service := s.hosting.Update

@@ -86,7 +86,7 @@ func TestSandboxModelUsesOnlySandboxHostForVerifiedOwnerAgent(t *testing.T) {
 	require.Equal(t, 200, queued.Code)
 	require.Equal(
 		t,
-		[]hosting.SandboxModelAgent{{AgentID: agent.AgentID, State: "queued"}},
+		[]hosting.SandboxModelAgent{{AgentID: agent.AgentID, State: "queued", Enabled: true}},
 		decodeData[hosting.Status](t, queued.Body.Bytes()).SandboxModelAccess.Agents,
 	)
 	claimed := hostingRequest(t, s, "POST", path, body, "", sandboxKey)
@@ -101,7 +101,7 @@ func TestSandboxModelUsesOnlySandboxHostForVerifiedOwnerAgent(t *testing.T) {
 	update, err := json.Marshal(hosting.Update{
 		Kind: hosting.SandboxModelKind, HostID: hostID, JobID: job.JobID,
 		LeaseToken: job.LeaseToken, Generation: job.Generation, State: "ready",
-		NodeID: node.NodeID, AgentID: agent.AgentID,
+		NodeID: node.NodeID, AgentID: agent.AgentID, ModelIDs: []string{"test-model"},
 	})
 	require.NoError(t, err)
 	complete := "/api/v1/hosting/jobs/complete"
@@ -118,6 +118,7 @@ func TestSandboxModelUsesOnlySandboxHostForVerifiedOwnerAgent(t *testing.T) {
 	ready := hostingRequest(t, s, "GET", "/api/v1/starter", "", email, "")
 	require.Equal(t, 200, ready.Code)
 	require.NotContains(t, ready.Body.String(), `"reason_code"`)
+	require.Contains(t, ready.Body.String(), `"model_ids":["test-model"]`)
 	failed, err := json.Marshal(hosting.Update{
 		Kind: hosting.SandboxModelKind, HostID: hostID, JobID: job.JobID,
 		LeaseToken: job.LeaseToken, Generation: job.Generation, State: "sleeping",
@@ -131,6 +132,24 @@ func TestSandboxModelUsesOnlySandboxHostForVerifiedOwnerAgent(t *testing.T) {
 	status = decodeData[hosting.Status](t,
 		hostingRequest(t, s, "GET", "/api/v1/starter", "", email, "").Body.Bytes())
 	require.Equal(t, []hosting.SandboxModelAgent{
-		{AgentID: job.AgentID, State: "failed", ReasonCode: "lease_ended"},
+		{AgentID: job.AgentID, State: "failed", Enabled: true, ReasonCode: "lease_ended"},
 	}, status.SandboxModelAccess.Agents)
+	revoke := "/api/v1/starter/revoke"
+	require.Equal(t, 400, hostingRequest(t, s, "POST", revoke, "{}", email, "").Code)
+	require.Equal(t, 401, hostingRequest(t, s, "POST", revoke, string(target), "", sandboxKey).Code)
+	require.Equal(
+		t,
+		404,
+		hostingRequest(t, s, "POST", revoke, string(target), "foreign@example.com", "").Code,
+	)
+	revoked := hostingRequest(t, s, "POST", revoke, string(target), email, "")
+	require.Equal(t, 200, revoked.Code)
+	require.NotContains(t, revoked.Body.String(), job.ModelToken)
+	require.Contains(t, revoked.Body.String(), `"enabled":false`)
+	status = decodeData[hosting.Status](t, revoked.Body.Bytes())
+	require.Equal(t, []hosting.SandboxModelAgent{
+		{AgentID: job.AgentID, State: "available", Enabled: false},
+	}, status.SandboxModelAccess.Agents)
+	require.ErrorIs(t, s.hosting.Authorize(ctx, job.ModelToken), hosting.ErrUnauthorized)
+
 }

@@ -10,7 +10,7 @@ func (s *Service) GatewayAuthorized(token string) bool {
 		subtle.ConstantTimeCompare([]byte(token), []byte(s.Config.GatewayKey)) == 1
 }
 
-// Authorize checks the generation and execution lease without reserving budget.
+// Authorize checks the active lease or model permission without reserving budget.
 func (s *Service) Authorize(ctx context.Context, token string) error {
 	if !s.Enabled() {
 		return ErrDisabled
