@@ -103,7 +103,7 @@ func modelSandboxReady(job *hosting.Job) hosting.Update {
 	}
 }
 
-func TestSandboxModelSharesStarterQuotaAndFencesNewSpendAfterParentStops(t *testing.T) {
+func TestSandboxModelSharesStarterQuotaAndRetainsAccessAfterParentStops(t *testing.T) {
 	ctx := t.Context()
 	s, store, owner, now, policies := poolFixture(t)
 	_, err := s.Status(ctx, owner, true)
@@ -125,8 +125,11 @@ func TestSandboxModelSharesStarterQuotaAndFencesNewSpendAfterParentStops(t *test
 	require.True(t, strings.HasPrefix(job.SandboxEnvironmentID, "snode-"))
 	require.Equal(t, "free", job.Plan)
 	require.Equal(t, "https://node.example.com", job.CloudURL)
-	require.Equal(t, []hosting.SandboxModelAgent{{AgentID: job.AgentID, State: "starting"}},
-		readSandboxModelAccess(t, s, owner).SandboxModelAccess.Agents)
+	require.Equal(
+		t,
+		[]hosting.SandboxModelAgent{{AgentID: job.AgentID, State: "starting", Enabled: true}},
+		readSandboxModelAccess(t, s, owner).SandboxModelAccess.Agents,
+	)
 	require.NoError(t, s.Authorize(ctx, job.ModelToken))
 	_, err = s.RuntimePolicies(ctx, job.ModelToken)
 	require.NoError(t, err)
@@ -148,8 +151,11 @@ func TestSandboxModelSharesStarterQuotaAndFencesNewSpendAfterParentStops(t *test
 	prepared, err := s.Prepare(ctx, request)
 	require.NoError(t, err)
 	status := readSandboxModelAccess(t, s, owner)
-	require.Equal(t, []hosting.SandboxModelAgent{{AgentID: job.AgentID, State: "ready"}},
-		status.SandboxModelAccess.Agents)
+	require.Equal(
+		t,
+		[]hosting.SandboxModelAgent{{AgentID: job.AgentID, State: "ready", Enabled: true}},
+		status.SandboxModelAccess.Agents,
+	)
 	require.False(t, status.EnrolledNode)
 	require.EqualValues(t, 50, status.Starter.Quota.SpentMicrousd)
 	require.Positive(t, status.Starter.Quota.ReservedMicrousd)
@@ -163,7 +169,11 @@ func TestSandboxModelSharesStarterQuotaAndFencesNewSpendAfterParentStops(t *test
 	require.NoError(t, s.Authorize(ctx, job.ModelToken))
 	require.NoError(t, s.Authorize(ctx, second.ModelToken))
 	require.Equal(t, []hosting.SandboxModelAgent{
-		{AgentID: job.AgentID, State: "ready"}, {AgentID: second.AgentID, State: "ready"},
+		{
+			AgentID: job.AgentID,
+			State:   "ready",
+			Enabled: true,
+		}, {AgentID: second.AgentID, State: "ready", Enabled: true},
 	}, readSandboxModelAccess(t, s, owner).SandboxModelAccess.Agents)
 	secondRequest := &hosting.PrepareRequest{
 		Token: second.ModelToken, RequestID: "aws-chat", Model: policies[0].ID,
@@ -192,8 +202,8 @@ func TestSandboxModelSharesStarterQuotaAndFencesNewSpendAfterParentStops(t *test
 	parent.State = "sleeping"
 	_, err = s.Sandbox.Update(ctx, &parent, true)
 	require.NoError(t, err)
-	require.ErrorIs(t, s.Authorize(ctx, job.ModelToken), hosting.ErrUnauthorized)
-	require.ErrorIs(t, s.Authorize(ctx, second.ModelToken), hosting.ErrUnauthorized)
+	require.NoError(t, s.Authorize(ctx, job.ModelToken))
+	require.NoError(t, s.Authorize(ctx, second.ModelToken))
 	_, err = s.UpdateSandboxModel(ctx, &heartbeat, false)
 	require.ErrorIs(t, err, hosting.ErrUnauthorized)
 	require.NoError(t, s.Authorize(ctx, legacy.ModelToken))
@@ -243,7 +253,11 @@ func TestSandboxModelRejectsFalseParentAndRevokedGate(t *testing.T) {
 	_, err = s.UpdateSandboxModel(ctx, &ready, true)
 	require.NoError(t, err)
 	*allowed = false
-	require.Nil(t, readSandboxModelAccess(t, s, owner).SandboxModelAccess)
+	require.Equal(
+		t,
+		[]hosting.SandboxModelAgent{{AgentID: job.AgentID, State: "available", Enabled: true}},
+		readSandboxModelAccess(t, s, owner).SandboxModelAccess.Agents,
+	)
 	require.ErrorIs(t, s.Authorize(ctx, job.ModelToken), hosting.ErrUnauthorized)
 	_, err = s.UpdateSandboxModel(ctx, &ready, true)
 	require.ErrorIs(t, err, hosting.ErrUnauthorized)
@@ -252,8 +266,8 @@ func TestSandboxModelRejectsFalseParentAndRevokedGate(t *testing.T) {
 	require.NoError(t, err)
 	*allowed = true
 	retry := wakeSandboxModel(t, s, owner, "sandbox-pi")
-	require.NotEqual(t, job.ModelToken, retry.ModelToken)
-	require.ErrorIs(t, s.Authorize(ctx, job.ModelToken), hosting.ErrUnauthorized)
+	require.Equal(t, job.ModelToken, retry.ModelToken)
+	require.NoError(t, s.Authorize(ctx, job.ModelToken))
 }
 
 func TestSandboxModelProjectsOnlySafeFailureReasons(t *testing.T) {
@@ -277,15 +291,17 @@ func TestSandboxModelProjectsOnlySafeFailureReasons(t *testing.T) {
 			require.NoError(t, err)
 			status := readSandboxModelAccess(t, s, owner)
 			require.Equal(t, []hosting.SandboxModelAgent{
-				{AgentID: job.AgentID, State: "failed", ReasonCode: tc.reason},
+				{AgentID: job.AgentID, State: "failed", Enabled: true, ReasonCode: tc.reason},
 			}, status.SandboxModelAccess.Agents)
-			require.ErrorIs(t, s.Authorize(ctx, job.ModelToken), hosting.ErrUnauthorized)
+			require.NoError(t, s.Authorize(ctx, job.ModelToken))
+			_, err = s.Reserve(ctx, job.ModelToken, "never-provisioned", 100)
+			require.ErrorIs(t, err, hosting.ErrUnauthorized)
 
 			retry := wakeSandboxModel(t, s, owner, job.AgentID)
 			require.Greater(t, retry.Generation, job.Generation)
 			status = readSandboxModelAccess(t, s, owner)
 			require.Equal(t, []hosting.SandboxModelAgent{
-				{AgentID: job.AgentID, State: "starting"},
+				{AgentID: job.AgentID, State: "starting", Enabled: true},
 			}, status.SandboxModelAccess.Agents)
 		})
 	}
@@ -306,6 +322,6 @@ func TestSandboxModelDistinguishesExpiredLeaseFromReportedFailure(t *testing.T) 
 	*now = job.LeaseExpiresAt
 	status := readSandboxModelAccess(t, s, owner)
 	require.Equal(t, []hosting.SandboxModelAgent{
-		{AgentID: job.AgentID, State: "failed", ReasonCode: "lease_expired"},
+		{AgentID: job.AgentID, State: "failed", Enabled: true, ReasonCode: "lease_expired"},
 	}, status.SandboxModelAccess.Agents)
 }

@@ -1863,6 +1863,12 @@ service PaxManagerAPI {
     openapi.summary = "Queue an owned Starter start after checking monthly user and platform budgets",
     openapi.security = "cloudflareAccess"
   )
+  HostingStatusResponse RevokeSandboxModelAccess(1: required HostingSandboxModelTarget request) (
+    api.post = "/api/v1/starter/revoke",
+    openapi.tag = "user",
+    openapi.summary = "Revoke model access for an owned sandbox Agent",
+    openapi.security = "cloudflareAccess"
+  )
   HostingStatusResponse EnrollHostingNode(1: optional HostingEnrollmentRequest request) (
     api.post = "/api/v1/hosting/jobs/enroll",
     openapi.tag = "hosting",
@@ -3153,6 +3159,8 @@ struct SandboxModelAgent {
   1: required string agent_id
   2: required string state
   3: optional string reason_code
+  4: optional bool enabled
+  5: optional list<string> model_ids
 }
 struct SandboxModelAccess {
   1: required string node_id
@@ -3335,6 +3343,10 @@ struct HostingWakeRequest {
   1: optional string node_id
   2: optional string agent_id
 }
+struct HostingSandboxModelTarget {
+  1: required string node_id
+  2: required string agent_id
+}
 struct HostingEnrollmentRequest {
   1: optional string host_id
   2: optional string node_id
@@ -3349,6 +3361,7 @@ struct HostingUpdateRequest {
   7: optional string agent_id
   8: optional string error_code
   9: optional string kind
+  10: optional list<string> model_ids
 }
 struct HostingModelRequest {
   1: optional string model

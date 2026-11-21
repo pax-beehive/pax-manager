@@ -109,6 +109,7 @@ func Register(r *server.Hertz) {
 			}
 			{
 				_starter := _v1.Group("/starter", _starterMw()...)
+				_starter.POST("/revoke", append(_revokesandboxmodelaccessMw(), handler.RevokeSandboxModelAccess)...)
 				_starter.POST("/wake", append(_wakestarterMw(), handler.WakeStarter)...)
 			}
 			{

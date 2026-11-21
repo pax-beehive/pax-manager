@@ -2387,6 +2387,21 @@
         },
         "type": "object"
       },
+      "HostingSandboxModelTarget": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "agent_id"
+        ],
+        "type": "object"
+      },
       "HostingStarter": {
         "properties": {
           "access_paused": {
@@ -2495,6 +2510,12 @@
           },
           "lease_token": {
             "type": "string"
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "node_id": {
             "type": "string"
@@ -4242,6 +4263,15 @@
         "properties": {
           "agent_id": {
             "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "reason_code": {
             "type": "string"
@@ -8588,6 +8618,92 @@
           }
         ],
         "summary": "Idempotently create one Starter and monthly model allowance without compute",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/starter/revoke": {
+      "post": {
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostingSandboxModelTarget"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostingStatusResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Revoke model access for an owned sandbox Agent",
         "tags": [
           "user"
         ]

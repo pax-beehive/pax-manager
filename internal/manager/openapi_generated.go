@@ -28,6 +28,7 @@ func registerIDLRoutes(h *hertzserver.Hertz) {
 	h.GET("/api/v1/starter", GetStarter)
 	h.POST("/api/v1/starter", EnsureStarter)
 	h.POST("/api/v1/starter/wake", WakeStarter)
+	h.POST("/api/v1/starter/revoke", RevokeSandboxModelAccess)
 	h.POST("/api/v1/hosting/jobs/enroll", EnrollHostingNode)
 	h.POST("/api/v1/hosting/jobs/claim", ClaimHostingJob)
 	h.POST("/api/v1/hosting/jobs/heartbeat", HeartbeatHostingJob)

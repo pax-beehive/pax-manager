@@ -595,8 +595,12 @@ func (s *Service) reserve(
 				Generation:    record.Generation,
 			}
 			if grant != nil {
-				result.SandboxModelJobID = grant.Job.JobID
 				result.SandboxModelAgentID = grant.AgentID
+				if grant.Permission == nil {
+					result.SandboxModelJobID = grant.Job.JobID
+				} else {
+					result.SandboxModelLineage = grant.Permission.Lineage
+				}
 			}
 			if policy != nil {
 				snapshot := *policy

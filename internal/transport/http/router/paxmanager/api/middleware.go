@@ -1126,3 +1126,8 @@ func _resumesandboxnodeMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _revokesandboxmodelaccessMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

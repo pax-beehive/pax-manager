@@ -147,6 +147,7 @@ var generatedHandlerBridge = map[string]generatedHandlerFunc{
 	"GetStarter":                    GetStarter,
 	"EnsureStarter":                 EnsureStarter,
 	"WakeStarter":                   WakeStarter,
+	"RevokeSandboxModelAccess":      RevokeSandboxModelAccess,
 	"EnrollHostingNode":             EnrollHostingNode,
 	"ClaimHostingJob":               ClaimHostingJob,
 	"HeartbeatHostingJob":           HeartbeatHostingJob,

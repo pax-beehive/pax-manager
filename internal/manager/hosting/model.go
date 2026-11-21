@@ -171,6 +171,7 @@ type Reservation struct {
 	GenerationStarted                                       bool
 	SandboxModelJobID                                       string    `json:"sandbox_model_job_id,omitempty"`
 	SandboxModelAgentID                                     string    `json:"sandbox_model_agent_id,omitempty"`
+	SandboxModelLineage                                     string    `json:"sandbox_model_lineage,omitempty"`
 	AtomicAdmission                                         bool      `json:"atomic_admission,omitempty"`
 	Protocol                                                string    `json:"protocol,omitempty"`
 	ReasoningEffort                                         string    `json:"reasoning_effort,omitempty"`
@@ -247,15 +248,16 @@ type WakeTarget struct {
 	AgentID string `json:"agent_id"`
 }
 type Update struct {
-	Kind       string `json:"kind,omitempty"`
-	HostID     string `json:"host_id"`
-	JobID      string `json:"job_id"`
-	Generation int64  `json:"generation"`
-	LeaseToken string `json:"lease_token"`
-	State      string `json:"state"`
-	NodeID     string `json:"node_id"`
-	AgentID    string `json:"agent_id"`
-	ErrorCode  string `json:"error_code"`
+	Kind       string   `json:"kind,omitempty"`
+	HostID     string   `json:"host_id"`
+	JobID      string   `json:"job_id"`
+	Generation int64    `json:"generation"`
+	LeaseToken string   `json:"lease_token"`
+	State      string   `json:"state"`
+	NodeID     string   `json:"node_id"`
+	AgentID    string   `json:"agent_id"`
+	ErrorCode  string   `json:"error_code"`
+	ModelIDs   []string `json:"model_ids,omitempty"`
 }
 
 func secret(prefix string) string {

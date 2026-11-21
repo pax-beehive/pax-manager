@@ -79,13 +79,14 @@ func (s *Service) RecordModeration(
 	})
 }
 
-// BeginGeneration rechecks the execution lease after the external safety call.
+// BeginGeneration rechecks the active lease or permission after the safety call.
 func (s *Service) BeginGeneration(ctx context.Context, id string) error {
 	managed := errors.New("check sandbox model binding")
 	var candidate sandboxModelCandidate
+	var identity sandboxModelPermissionIdentity
 	err := s.Store.WithHostingState(ctx, func(state *State) error {
 		r := state.Requests[id]
-		if r == nil || r.SandboxModelJobID == "" {
+		if r == nil || (r.SandboxModelJobID == "" && r.SandboxModelLineage == "") {
 			return s.beginGeneration(state, r, nil)
 		}
 		wallet := environmentFor(state, r.EnvironmentID)
@@ -94,7 +95,13 @@ func (s *Service) BeginGeneration(ctx context.Context, id string) error {
 		}
 		owner := wallet.Starter.OwnerUserID
 		grant := state.SandboxModelGrants[sandboxModelGrantKey(owner, r.SandboxModelAgentID)]
-		if grant == nil || grant.Job == nil || grant.Job.JobID != r.SandboxModelJobID {
+		if r.SandboxModelLineage != "" && grant != nil {
+			identity = sandboxModelPermissionIdentity{
+				owner, grant.Parent.NodeID, r.SandboxModelAgentID, r.SandboxModelLineage,
+			}
+			return managed
+		}
+		if !grant.enabled() || grant.Job == nil || grant.Job.JobID != r.SandboxModelJobID {
 			return ErrUnauthorized
 		}
 		candidate = sandboxModelCandidate{
@@ -108,6 +115,15 @@ func (s *Service) BeginGeneration(ctx context.Context, id string) error {
 	})
 	if !errors.Is(err, managed) {
 		return err
+	}
+	if identity.Lineage != "" {
+		return s.withSandboxModelPermission(
+			ctx,
+			identity,
+			func(account *State, _ *EnvironmentRecord, grant *sandboxModelGrant) error {
+				return s.beginGeneration(account, account.Requests[id], grant)
+			},
+		)
 	}
 	store, ok := s.sandboxModelStore()
 	if !ok || !s.sandboxModelAgentAllowed(ctx, candidate) {
@@ -152,7 +168,7 @@ func (s *Service) beginGeneration(state *State, r *Reservation, grant *sandboxMo
 		return ErrBudget
 	}
 	if grant != nil {
-		if grant.Job == nil || grant.Job.JobID != r.SandboxModelJobID {
+		if !reservationMatchesSandboxGrant(r, grant) {
 			return ErrUnauthorized
 		}
 	} else if record.Generation != r.Generation || record.Job == nil || !record.Job.Active ||
@@ -161,6 +177,13 @@ func (s *Service) beginGeneration(state *State, r *Reservation, grant *sandboxMo
 	}
 	r.GenerationStarted = true
 	return nil
+}
+
+func reservationMatchesSandboxGrant(r *Reservation, grant *sandboxModelGrant) bool {
+	if grant.Permission != nil {
+		return grant.Permission.Lineage != "" && r.SandboxModelLineage == grant.Permission.Lineage
+	}
+	return grant.Job != nil && grant.Job.JobID == r.SandboxModelJobID
 }
 
 func (s *Service) CancelBeforeGeneration(ctx context.Context, id string) error {

@@ -59,6 +59,7 @@ The existing owner handlers are now allowed only for:
 GET  /api/v1/starter
 POST /api/v1/starter
 POST /api/v1/starter/wake
+POST /api/v1/starter/revoke
 ```
 
 Browser callers use the existing `/api/pax` prefix, for example
@@ -66,6 +67,9 @@ Browser callers use the existing `/api/pax` prefix, for example
 checks. Native WorkOS callers use `/api/v1/native/client/starter` and
 `/api/v1/native/client/starter/wake`. Existing native API-key callers can use
 `/api/v1/native/us/starter` and its wake suffix with their real `paxu_` key.
+The revoke suffix uses the same owner authentication and takes the exact
+`node_id` and `agent_id` in the request body.
+
 Those existing route prefixes are sufficient; no direct Starter CF route was
 added. Wrong methods, trailing slashes and neighboring paths are rejected.
 
