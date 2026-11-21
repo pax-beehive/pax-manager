@@ -64,6 +64,39 @@ func TestGatewayAtomicAccountingThreeProtocolsUseTwoAtomicCalls(t *testing.T) {
 	}
 }
 
+func TestGatewayAtomicAccountingFinishesWithBoundedBatchedModeration(t *testing.T) {
+	for _, count := range []int{68, 512, 513} {
+		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			s := hostingTestServer(t, "https://model.example.com/v1")
+			prepared := gatewayAtomicPrepare(t, s, gatewayAccountingJob(t, s), "responses")
+			decision := &hosting.ModerationDecision{
+				Verdict: "allowed", Model: hosting.ModerationModel,
+				PolicyVersion: prepared.Policy.PolicyVersion, InputCount: count,
+				ProviderRequestID: "modr-final-batch",
+			}
+			response := gatewayAccountingRequest(t, s, map[string]any{
+				"action": "finish", "reservation_id": prepared.ReservationID,
+				"outcome": "completed", "started": true, "known": true,
+				"moderation": decision,
+				"usage":      map[string]any{"input_tokens": 10, "output_tokens": 20},
+			})
+			reservation := gatewayStoredReservation(t, s, prepared.ReservationID)
+			if count == 513 {
+				require.Equal(t, http.StatusConflict, response.Code, response.Body.String())
+				require.Nil(t, reservation.Moderation)
+				require.False(t, reservation.GenerationStarted)
+				return
+			}
+			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+			require.Equal(t, "completed", reservation.Outcome)
+			require.NotNil(t, reservation.Moderation)
+			require.Equal(t, count, reservation.Moderation.InputCount)
+			require.Equal(t, decision.ProviderRequestID, reservation.Moderation.ProviderRequestID)
+			require.EqualValues(t, 110, reservation.ActualMicrousd)
+		})
+	}
+}
+
 func TestGatewayAtomicAccountingReasoningMalformedValuesDoNotCreateHolds(t *testing.T) {
 	s := hostingTestServer(t, "https://model.example.com/v1")
 	job := gatewayAccountingJob(t, s)

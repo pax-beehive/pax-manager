@@ -15,6 +15,7 @@ import (
 )
 
 const hostingAccountingMaxBody = 64 * 1024
+const hostingModerationMaxInputs = 512
 
 type hostingAccountingUsage struct {
 	InputTokens       int64           `json:"input_tokens"`
@@ -192,7 +193,8 @@ func validHostingModerationMetadata(decision *hosting.ModerationDecision) bool {
 			decision.PolicyVersion != ""
 	}
 	if decision == nil || !hostingModerationMetadataModel.MatchString(decision.Model) ||
-		decision.InputCount < 0 || decision.InputCount > 64 || len(decision.Categories) > 14 {
+		decision.InputCount < 0 || decision.InputCount > hostingModerationMaxInputs ||
+		len(decision.Categories) > 14 {
 		return false
 	}
 	if decision.ProviderRequestID != "" &&
