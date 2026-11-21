@@ -71,6 +71,7 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer s.trackWebSocket(webSocketAgent)()
 	connID := owner.UserID + ":" + agent.AgentID
 
 	conn := &AgentWSConn{

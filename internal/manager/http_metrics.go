@@ -28,10 +28,17 @@ import (
 
 const metricsDirectory = "/run/pax-metrics"
 
+const (
+	webSocketControl = "control"
+	webSocketAgent   = "agent"
+	webSocketClient  = "client"
+)
+
 type httpMetrics struct {
-	registry *prometheus.Registry
-	requests *prometheus.CounterVec
-	duration *prometheus.HistogramVec
+	registry   *prometheus.Registry
+	requests   *prometheus.CounterVec
+	duration   *prometheus.HistogramVec
+	webSockets *prometheus.GaugeVec
 }
 
 func newHTTPMetrics() *httpMetrics {
@@ -42,6 +49,10 @@ func newHTTPMetrics() *httpMetrics {
 			Name: "pax_http_requests_total",
 			Help: "Number of completed Manager HTTP handlers.",
 		}, labels),
+		webSockets: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "pax_websocket_connections",
+			Help: "Currently open Manager WebSocket connections.",
+		}, []string{"kind"}),
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "pax_http_request_duration_seconds",
 			Help:    "Time spent in Manager HTTP handlers, excluding successful SSE and WebSocket requests.",
@@ -51,10 +62,23 @@ func newHTTPMetrics() *httpMetrics {
 	m.registry.MustRegister(
 		m.requests,
 		m.duration,
+		m.webSockets,
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
+	for _, kind := range []string{webSocketControl, webSocketAgent, webSocketClient} {
+		m.webSockets.WithLabelValues(kind).Set(0)
+	}
 	return m
+}
+
+func (s *Service) trackWebSocket(kind string) func() {
+	if s.httpMetrics == nil {
+		return func() {}
+	}
+	active := s.httpMetrics.webSockets.WithLabelValues(kind)
+	active.Inc()
+	return active.Dec
 }
 
 func (m *httpMetrics) observe(c context.Context, ctx *app.RequestContext) {

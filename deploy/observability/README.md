@@ -1,8 +1,11 @@
 # Pax observability
 
 Run this Compose project on `home_server`. Prometheus scrapes the Manager's
-private HTTPS metrics listener on `home_dev` every 30 seconds. Grafana queries
-Prometheus over the Compose network. Its local port defaults to 3030.
+private HTTPS metrics listener and an optional Node Exporter on `home_dev`
+every 30 seconds. Grafana queries Prometheus over the Compose network. Its local
+port defaults to 3030. The Pax Manager dashboard shows API traffic and latency,
+Manager CPU and memory, open WebSockets, and the host's CPU, memory, and
+filesystem capacity for `/` and `/srv/bulk`.
 
 ## Deploy
 
@@ -36,7 +39,8 @@ docker compose up -d
 ```
 
 After a scrape interval, check Manager connectivity from the Prometheus
-container and verify that Grafana is ready.
+container and verify that Grafana is ready. If host scraping is enabled, check
+that the `pax-home-dev` target is up as well.
 
 ```sh
 docker compose exec -T prometheus wget -qO- 'http://localhost:9090/api/v1/targets?state=active'
@@ -84,3 +88,20 @@ to **GA** for the region. The gate defaults to Off and takes effect at runtime.
 An off gate returns HTTP 404 and pauses HTTP instrumentation. Prometheus must
 still pass the source IP and bearer token checks after the gate is enabled.
 A Manager without provisioned files continues to run its business API.
+
+## Enable home_dev host metrics
+
+Install the [Node Exporter service](node-exporter/README.md) on `home_dev`.
+The exporter uses Basic authentication with the user `prometheus` and the
+password from `PAX_METRICS_TOKEN_FILE`. Its HTTPS certificate must cover the
+target address and chain to `PAX_METRICS_CA_FILE`.
+
+Set `PAX_HOME_DEV_TARGET_FILE` on `home_server` to a readable JSON file with the
+Node Exporter address, then recreate Prometheus. The bundled target list is
+empty until a host exporter is provisioned.
+
+```json
+[
+  {"targets": ["192.168.0.101:9110"]}
+]
+```

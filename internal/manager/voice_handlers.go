@@ -151,6 +151,7 @@ func (s *Service) handleVoiceStream(w http.ResponseWriter, r *http.Request) {
 		logging.Warn(ctx, "voice stream upgrade failed", logging.Err(err))
 		return
 	}
+	defer s.trackWebSocket(webSocketClient)()
 	defer func() { _ = conn.Close() }()
 	conn.SetReadLimit(voiceMaxClientFrameBytes)
 	ctx = logging.With(

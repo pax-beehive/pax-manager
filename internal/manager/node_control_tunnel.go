@@ -57,6 +57,7 @@ func (s *Server) handleNodeControlTunnel(w http.ResponseWriter, r *http.Request)
 		logging.Error(ctx, "node control tunnel upgrade failed", logging.Err(err))
 		return
 	}
+	defer s.trackWebSocket(webSocketControl)()
 	runtimeStore, ok := s.store.(domain.SessionRuntimeSnapshotStore)
 	if !ok {
 		_ = ws.Close()

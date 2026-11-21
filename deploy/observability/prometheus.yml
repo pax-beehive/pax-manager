@@ -20,3 +20,14 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets.json
+  - job_name: pax-home-dev
+    scheme: https
+    follow_redirects: false
+    basic_auth:
+      username: prometheus
+      password_file: /run/secrets/pax_metrics_token
+    tls_config:
+      ca_file: /run/secrets/pax_metrics_ca
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/home-dev-targets.json
