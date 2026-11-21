@@ -86,7 +86,7 @@
           "legendFormat": "5xx"
         }
       ],
-      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}}
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}}
     },
     {
       "id": 4,
