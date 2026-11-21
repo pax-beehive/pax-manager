@@ -83,7 +83,9 @@ func TestGatewayAtomicAccountingFinishesWithBoundedBatchedModeration(t *testing.
 			reservation := gatewayStoredReservation(t, s, prepared.ReservationID)
 			if count == 513 {
 				require.Equal(t, http.StatusConflict, response.Code, response.Body.String())
-				require.Nil(t, reservation.Moderation)
+				require.NotNil(t, reservation.Moderation)
+				require.Equal(t, "pending", reservation.Moderation.Verdict)
+				require.Zero(t, reservation.Moderation.InputCount)
 				require.False(t, reservation.GenerationStarted)
 				return
 			}
