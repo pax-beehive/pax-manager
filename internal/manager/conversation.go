@@ -690,7 +690,7 @@ func (s *Service) promptConversationOnce(
 		)
 		if err != nil {
 			s.expireConversationSearchAccess(ctx, runner, session)
-			return false, fmt.Errorf("Sending the message to the agent failed. %w", err)
+			return false, fmt.Errorf("sending the message to the agent failed. %w", err)
 		}
 		completed, streamErr := s.streamConversationUntilPromptDone(
 			ctx,
