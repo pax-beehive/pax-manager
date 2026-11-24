@@ -1170,6 +1170,7 @@ func (s *Server) handleAgentACPTunnel(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
+	defer s.trackWebSocket(webSocketAgent)()
 	conn := &ACPTunnelAgent{
 		agentID:        initial.AgentID,
 		connectionID:   firstNonEmpty(initial.ConnectionID, initial.AgentID),
@@ -1453,6 +1454,7 @@ func (s *Server) handleUserACPTunnel(w http.ResponseWriter, r *http.Request) {
 		logging.Error(ctx, "user acp tunnel upgrade failed", logging.Err(err))
 		return
 	}
+	defer s.trackWebSocket(webSocketClient)()
 	restoreSessionContext := agentConn.withSessionContext(sessionID)
 	defer restoreSessionContext()
 	agentConn.attachUser(userWS)

@@ -1,0 +1,13 @@
+[Unit]
+Description=Pax home_dev host metrics
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/pax-node-exporter --web.listen-address=192.168.0.101:9110 --web.config.file=%h/.config/pax-node-exporter/web.yml --collector.disable-defaults --collector.cpu --collector.meminfo --collector.stat --collector.filesystem "--collector.filesystem.mount-points-include=^(/|/srv/bulk)$" --collector.diskstats
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -33,6 +33,12 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ${PAX_HOME_DEV_TARGET_FILE:-./home-dev-targets.json}
+        target: /etc/prometheus/home-dev-targets.json
+        read_only: true
+        bind:
+          create_host_path: false
 
   grafana:
     image: grafana/grafana:13.3.1

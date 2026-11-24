@@ -161,3 +161,35 @@ func TestHTTPMetricsFeatureGateUpdatesLive(t *testing.T) {
 		require.Equal(t, expected, response.Code, stage)
 	}
 }
+
+func TestHTTPMetricsTracksOpenWebSocketsByKind(t *testing.T) {
+	srv := &Service{httpMetrics: newHTTPMetrics()}
+	openControl := srv.trackWebSocket(webSocketControl)
+	openAgent := srv.trackWebSocket(webSocketAgent)
+	openReplacement := srv.trackWebSocket(webSocketAgent)
+	handler := srv.httpMetrics.handler(
+		netip.MustParseAddr("192.0.2.10"),
+		"test-token",
+		func() bool {
+			return true
+		},
+	)
+	scrape := func() string {
+		request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+		request.RemoteAddr = "192.0.2.10:1234"
+		request.Header.Set("Authorization", "Bearer test-token")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code)
+		return response.Body.String()
+	}
+	metrics := scrape()
+	require.Contains(t, metrics, `pax_websocket_connections{kind="agent"} 2`)
+	require.Contains(t, metrics, `pax_websocket_connections{kind="control"} 1`)
+	require.Contains(t, metrics, `pax_websocket_connections{kind="client"} 0`)
+	openAgent()
+	require.Contains(t, scrape(), `pax_websocket_connections{kind="agent"} 1`)
+	openReplacement()
+	openControl()
+	require.Contains(t, scrape(), `pax_websocket_connections{kind="control"} 0`)
+}
