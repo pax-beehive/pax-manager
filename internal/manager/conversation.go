@@ -71,6 +71,7 @@ type conversationSession struct {
 type conversationRunner struct {
 	service             *Service
 	agentConn           *ACPTunnelAgent
+	releaseStartupClaim func()
 	agentType           string
 	managerSessionID    string
 	turnID              string
@@ -89,6 +90,7 @@ type conversationResponse struct {
 }
 
 type conversationACPError struct {
+	code      string
 	message   string
 	kind      string
 	retryable bool
@@ -188,15 +190,15 @@ func (s *Service) handleConversation(w http.ResponseWriter, r *http.Request) {
 		writeHTTPError(w, status, "Agent connection failed. "+message)
 		return
 	}
-	defer release()
-
 	runner := conversationRunner{
 		service:             s,
 		agentConn:           agentConn,
+		releaseStartupClaim: release,
 		agentType:           agent.AgentType,
 		managerSessionID:    session.managerID,
 		searchAccessOwnerID: principal.User.UserID,
 	}
+	defer runner.releaseConversationClaim()
 	if session.nativeID == "" {
 		session, err = s.createConversationSession(r.Context(), principal, &runner, req)
 		if err != nil {
@@ -875,8 +877,18 @@ func (r *conversationRunner) request(
 	params map[string]any,
 	activity <-chan struct{},
 ) (conversationResponse, error) {
+	started := time.Now()
 	for attempt := 0; attempt < 2; attempt++ {
 		response, err := r.requestOnce(ctx, method, params, activity)
+		if method == "session/new" && r.releaseStartupClaim != nil &&
+			isUndispatchedSessionNew(err) {
+			return r.retryNewConversationSession(
+				ctx,
+				params,
+				err,
+				started.Add(conversationSlotWait),
+			)
+		}
 		if !isConversationACPErrorKind(err, "session_route_missing") || attempt > 0 ||
 			method == "session/resume" {
 			return response, err
@@ -1998,7 +2010,8 @@ func acpErrorMessage(raw json.RawMessage) string {
 
 func decodeConversationACPError(raw json.RawMessage) error {
 	var value struct {
-		Message string `json:"message"`
+		Code    json.RawMessage `json:"code"`
+		Message string          `json:"message"`
 		Data    struct {
 			Kind      string `json:"kind"`
 			Retryable bool   `json:"retryable"`
@@ -2008,6 +2021,7 @@ func decodeConversationACPError(raw json.RawMessage) error {
 		return apperr.Error{Status: http.StatusBadGateway, Message: "ACP request failed"}
 	}
 	return conversationACPError{
+		code:      string(value.Code),
 		message:   value.Message,
 		kind:      value.Data.Kind,
 		retryable: value.Data.Retryable,
